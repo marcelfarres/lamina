@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+<!-- two panels crossing at right angles, the way interlocked slices meet. Each panel is cut along the line where
+     they meet, (16,12)-(16,24), and its near half is drawn last, so each passes in front of the other on its own
+     side. The lit top face runs the whole length of each panel and the light one crosses over the dark one: that
+     crossing is the joint. docs/favicon.svg is the same mark for the Pages site — keep the two in step -->
+<g stroke="#101a2e" stroke-width="1" stroke-linejoin="round">
+<polygon points="6,7 16,12 16,24 6,19" fill="#3f7ae0"/>
+<polygon points="26,7 16,12 16,24 26,19" fill="#2c5cb0"/>
+<polygon points="16,12 6,17 6,29 16,24" fill="#3f7ae0"/>
+<polygon points="16,12 26,17 26,29 16,24" fill="#7cadff"/>
+<polygon points="26,7 6,17 6,14.5 26,4.5" fill="#7cadff"/>
+<polygon points="6,7 26,17 26,14.5 6,4.5" fill="#bcd8ff"/>
+</g>
+</svg>

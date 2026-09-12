@@ -1,0 +1,151 @@
+"""Frames, sections and ray casts. Everything 2D is a shapely (Multi)Polygon in a slice's local frame."""
+from __future__ import annotations
+import functools, math
+import numpy as np
+import trimesh
+from shapely.geometry import Polygon, MultiPolygon, Point, LineString, MultiLineString
+from shapely.ops import unary_union
+
+
+def frame(origin, normal, up_hint=(0, 0, 1)) -> np.ndarray:
+    """4x4 local->world. Local z = normal; local y = up_hint projected onto the plane; local x = y × z."""
+    n = np.asarray(normal, float); n = n / np.linalg.norm(n)
+    up = np.asarray(up_hint, float)
+    if abs(np.dot(up, n)) > 0.999:
+        up = np.array([0.0, 1, 0]) if abs(n[1]) < 0.9 else np.array([1.0, 0, 0])
+    v = up - np.dot(up, n) * n; v /= np.linalg.norm(v)
+    u = np.cross(v, n)
+    M = np.eye(4); M[:3, 0] = u; M[:3, 1] = v; M[:3, 2] = n; M[:3, 3] = origin
+    return M
+
+
+def frame_xy(origin, x_axis, y_axis) -> np.ndarray:
+    """4x4 from explicit in-plane axes (orthonormalised)."""
+    u = np.asarray(x_axis, float); u = u / np.linalg.norm(u)
+    v = np.asarray(y_axis, float); v = v - np.dot(v, u) * u; v = v / np.linalg.norm(v)
+    M = np.eye(4); M[:3, 0] = u; M[:3, 1] = v; M[:3, 2] = np.cross(u, v); M[:3, 3] = origin
+    return M
+
+
+def rot_about(axis, deg) -> np.ndarray:
+    return trimesh.transformations.rotation_matrix(math.radians(deg), axis)[:3, :3]
+
+
+def to_local(M, pts) -> np.ndarray:
+    pts = np.atleast_2d(np.asarray(pts, float))
+    p = np.c_[pts, np.ones(len(pts))]
+    return (np.linalg.inv(M) @ p.T).T[:, :2]
+
+
+def to_world(M, pts2d, z=0.0) -> np.ndarray:
+    pts2d = np.atleast_2d(np.asarray(pts2d, float))
+    p = np.c_[pts2d, np.full(len(pts2d), z), np.ones(len(pts2d))]
+    return (M @ p.T).T[:, :3]
+
+
+def section_polygons(mesh: trimesh.Trimesh, M: np.ndarray) -> MultiPolygon:
+    """Cross-section of the mesh on the local z=0 plane of M, as polygons (with holes) in local 2D."""
+    sec = mesh.section(plane_origin=M[:3, 3], plane_normal=M[:3, 2])
+    if sec is None or len(sec.entities) == 0:
+        return MultiPolygon()
+    path2d, _ = sec.to_2D(to_2D=np.linalg.inv(M))
+    try:
+        polys = list(path2d.polygons_full)
+    except ImportError:                                   # trimesh sorts loops into holes with rtree; the browser build
+        loops = [p for p in path2d.polygons_closed if p is not None and p.area > 1e-6]   # has none: even-odd fill is the same
+        polys = [functools.reduce(lambda a, b: a.symmetric_difference(b), loops)] if loops else []
+    polys = [p for p in polys if p.is_valid and p.area > 1e-6]
+    return as_multi(unary_union(polys)) if polys else MultiPolygon()
+
+
+def as_multi(g) -> MultiPolygon:
+    if g is None or g.is_empty:
+        return MultiPolygon()
+    if isinstance(g, Polygon):
+        return MultiPolygon([g])
+    if isinstance(g, MultiPolygon):
+        return g
+    return MultiPolygon([p for p in getattr(g, "geoms", []) if isinstance(p, Polygon)])
+
+
+def as_lines(g) -> MultiLineString:
+    if g is None or g.is_empty:
+        return MultiLineString()
+    if isinstance(g, LineString):
+        return MultiLineString([g])
+    if isinstance(g, MultiLineString):
+        return g
+    return MultiLineString([l for l in getattr(g, "geoms", []) if isinstance(l, LineString)])
+
+
+def line_segments_in_mesh(mesh, p0, d, span) -> list[tuple[float, float]]:
+    """Inside-segments (s_in, s_out) of the line p0 + s*d against the mesh."""
+    d = np.asarray(d, float); d = d / np.linalg.norm(d)
+    origin = np.asarray(p0, float) - d * span
+    try:
+        locs, _, _ = mesh.ray.intersects_location([origin], [d], multiple_hits=True)   # rtree broad phase, cached on the mesh
+    except ImportError:                                   # the browser build has no rtree: every triangle is a candidate, vectorised
+        from types import SimpleNamespace
+        from trimesh.ray.ray_triangle import ray_triangle_id
+        every = SimpleNamespace(bounds=mesh.bounds, intersection=lambda b: range(len(mesh.faces)))
+        _, _, locs = ray_triangle_id(mesh.triangles, [origin], [d], triangles_normal=mesh.face_normals, tree=every, multiple_hits=True)
+    if len(locs) == 0:
+        return []
+    s = np.sort((locs - p0) @ d)
+    s = s[np.r_[True, np.diff(s) > 1e-6]]
+    if len(s) % 2:
+        s = s[:-1]
+    return [(float(s[i]), float(s[i + 1])) for i in range(0, len(s), 2) if s[i + 1] - s[i] > 0.3]
+
+
+def plane_plane_line(Ma, Mb):
+    """Intersection line (p0, d) of the z=0 planes of frames Ma, Mb; None if parallel."""
+    na, nb = Ma[:3, 2], Mb[:3, 2]
+    d = np.cross(na, nb)
+    if np.linalg.norm(d) < 1e-6:
+        return None
+    d = d / np.linalg.norm(d)
+    A = np.vstack([na, nb, d]); b = np.array([na @ Ma[:3, 3], nb @ Mb[:3, 3], 0.0])
+    return np.linalg.solve(A, b), d
+
+
+def rect_along(a, b, width) -> Polygon:
+    """Rectangle of `width` centred on the segment a->b (2D)."""
+    return LineString([a, b]).buffer(width / 2, cap_style=2)
+
+
+def circle(c, d) -> Polygon:
+    return Point(c).buffer(d / 2, quad_segs=24)
+
+
+def dowel(c, d, shape="round") -> Polygon:
+    """Dowel hole of size d at c. Shapes follow Slicer: round, square, pencil (hexagon), cross, hslot, vslot."""
+    x, y = c; r = d / 2
+    if shape == "square":
+        return Polygon([(x - r, y - r), (x + r, y - r), (x + r, y + r), (x - r, y + r)])
+    if shape == "pencil":
+        return Polygon([(x + r * math.cos(a), y + r * math.sin(a)) for a in np.arange(6) * math.pi / 3])
+    if shape == "cross":
+        w = d / 3
+        return unary_union([rect_along((x - r, y), (x + r, y), w), rect_along((x, y - r), (x, y + r), w)])
+    if shape == "hslot":
+        return LineString([(x - r, y), (x + r, y)]).buffer(r / 2)
+    if shape == "vslot":
+        return LineString([(x, y - r), (x, y + r)]).buffer(r / 2)
+    return circle(c, d)
+
+
+def poly_coords(mp: MultiPolygon) -> list:
+    """[[exterior, hole, hole...], ...] as plain lists for JSON (bulk coordinate extraction: panels have 100s of holes)."""
+    import shapely
+    out = []
+    for p in mp.geoms:
+        rings = shapely.get_rings(p)
+        coords = np.round(shapely.get_coordinates(rings), 4)
+        parts = np.split(coords, np.cumsum(shapely.get_num_coordinates(rings))[:-1])
+        out.append([r[:-1].tolist() for r in parts])
+    return out
+
+
+def line_coords(ml) -> list:
+    return [list(map(list, np.round(np.asarray(l.coords), 4))) for l in as_lines(ml).geoms]

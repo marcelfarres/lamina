@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<!-- The title is the one on-page field search engines weight heavily, so it carries the phrase people actually
+     type — "Slicer for Fusion 360 alternative" — not just the product name. -->
+<title>Lamina — free Slicer for Fusion 360 alternative: 3D models into flat cut parts</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- "Slicer" sends people to 3D-printing tools, so the description names the other words they search with —
+     layered, stacked slices, 2D layers — and rules out the wrong kind of slicing in the same breath. -->
+<meta name="description" content="Lamina is a free, open-source replacement for Autodesk's discontinued Slicer for Fusion 360: turn a 3D model into layered, stacked or interlocking flat parts — 2D layers cut from plywood, acrylic, cardboard or sheet metal on a laser, CNC router, plasma table or vinyl cutter — not the 3D-printing kind of slicing. It checks the parts hold together, nests them on your sheets and exports the cut files.">
+<link rel="icon" href="favicon.svg">
+<!-- Two jobs, one line. Search engines: every ?ref= tagged link posted to a forum is the same page, not a dozen
+     duplicates competing with each other. GoatCounter: it reads the canonical URL to decide the path it records,
+     so tagged visits land on one "/lamina/" row instead of one row per label, while the ref itself still counts
+     as the campaign source. -->
+<link rel="canonical" href="https://marcelfarres.github.io/lamina/">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://marcelfarres.github.io/lamina/">
+<meta property="og:title" content="Lamina — 3D models into flat cut parts">
+<meta property="og:description" content="A free replacement for Autodesk's discontinued Slicer for Fusion 360 — not the 3D-printing kind of slicing. Stacked, interlocked, radial, ribbed or folded flat parts for laser, router, plasma or vinyl cutters, with physical checks, one-click fixes and nesting.">
+<!-- Open Graph needs an absolute URL: Slack, LinkedIn and Discord do not resolve a relative one, and the card
+     renders with an empty image slot. Keep this in step with the Pages origin if the repo is ever renamed. -->
+<meta property="og:image" content="https://marcelfarres.github.io/lamina/media/hero.jpg">
+<meta property="og:image:alt" content="The Lamina interface: parameters, a 3D preview of a radially sliced head, and the nested cut sheets.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://marcelfarres.github.io/lamina/media/hero.jpg">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Lamina",
+"applicationCategory":"DesignApplication","operatingSystem":"Windows, macOS, Linux, Web",
+"url":"https://marcelfarres.github.io/lamina/",
+"description":"Free and open-source replacement for Autodesk's discontinued Slicer for Fusion 360: turns a 3D model into flat parts for a laser, CNC router, plasma table or vinyl cutter.",
+"license":"https://www.gnu.org/licenses/agpl-3.0.html",
+"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
+</script>
+<style>
+:root{--bg:#141517;--panel:#1c1d21;--panel2:#232429;--line:#2f3138;--ink:#e8e8e5;--muted:#9a9ba3;--acc:#4f8cff;--acc-btn:#2563eb;--ok:#5fcf80;--warn:#f5b642;--sel:#ffd84a}
+*{box-sizing:border-box}
+/* Smooth scrolling is a vestibular trigger; Chromium does not suppress it on its own, so gate it in CSS rather
+   than in script — this way it also holds with JavaScript off. */
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+/* overflow-x:hidden must NOT go on body: it forces body's overflow-y to `auto`, which makes body a scroll
+   container that never scrolls, and position:sticky then resolves against that dead scrollport — the header
+   silently stops sticking at every width. On html it propagates to the viewport instead and sticky survives. */
+html{overflow-x:hidden}
+html,body{max-width:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Inter,system-ui,-apple-system,Segoe UI,sans-serif;-webkit-font-smoothing:antialiased}
+/* grid and flex children default to min-width:auto, which lets wide content (code blocks, long words) push the
+   page wider than the viewport; these keep everything inside it on a phone */
+.grid>*,header .wrap>*{min-width:0}
+h1,h2,h3,p,li{overflow-wrap:break-word}
+pre{max-width:100%}
+a{color:var(--acc)}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+header{position:sticky;top:0;z-index:10;background:#0f1012ee;backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+header .wrap{display:flex;align-items:center;gap:18px;height:56px}
+header b{font-size:18px;letter-spacing:.02em;display:flex;align-items:center;gap:9px}
+header b img{width:24px;height:24px;border:0;border-radius:0;background:none}
+header nav{margin-left:auto;display:flex;gap:18px;font-size:14px}
+header nav a{color:var(--muted);text-decoration:none}header nav a:hover{color:var(--ink)}
+/* --acc on a filled button gives white text 3.2:1, below the 4.5:1 WCAG AA needs at 14px/600. --acc-btn is the
+   same hue darkened to 5.2:1; --acc stays as-is for link text, where it already passes. */
+.btn{display:inline-block;padding:9px 16px;border-radius:6px;background:var(--acc-btn);color:#fff!important;text-decoration:none;font-weight:600;font-size:14px}
+.btn.ghost{background:transparent;color:var(--ink)!important;border:1px solid var(--line)}
+.btn.kofi:hover{color:#ff5e5b!important;border-color:#ff5e5b}
+a:focus-visible,.btn:focus-visible,pre:focus-visible{outline:2px solid var(--sel);outline-offset:2px;border-radius:4px}
+.skip{position:absolute;left:-9999px}
+.skip:focus{left:8px;top:8px;z-index:20;padding:8px 12px;background:var(--panel);border:1px solid var(--line);border-radius:6px;color:var(--ink)}
+h1{font-size:clamp(32px,5vw,52px);line-height:1.1;margin:0 0 16px;letter-spacing:-.02em}
+h2{font-size:clamp(22px,3vw,30px);margin:0 0 10px;letter-spacing:-.01em}
+h3{font-size:17px;margin:0 0 6px}
+p.lead{font-size:clamp(17px,2vw,20px);color:#c9cad1;margin:0 0 22px;max-width:62ch}
+/* the sticky header is 56px tall, so an anchor jump would otherwise land the heading underneath it */
+section{padding:56px 0;border-top:1px solid var(--line);scroll-margin-top:72px}
+section:first-of-type{border-top:0}
+.sub{color:var(--muted);max-width:70ch;margin:0 0 24px}
+figure{margin:0}
+/* height:auto is required now that every element carries its intrinsic width/height attributes — without it the
+   declared height fights max-width and squashes the image. The attributes stop the page reflowing 14 times. */
+img,video{max-width:100%;height:auto;display:block;border:1px solid var(--line);border-radius:10px;background:#0f1012}
+figcaption{color:var(--muted);font-size:13px;margin-top:8px}
+.grid{display:grid;gap:18px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.card img,.card video{border:0;border-radius:0;border-bottom:1px solid var(--line)}
+/* a technique per row: the clip takes three fifths, the text the rest; stacked on a phone */
+.tech{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:26px;align-items:center;padding:28px 0;border-top:1px solid var(--line)}
+.tech:first-of-type{border-top:0}.tech h3{margin-top:0}.tech p{color:var(--muted);margin:8px 0 0;font-size:15px}.tech p.clip{font-size:13.5px}.tech p b{color:var(--ink)}
+.card .t{padding:14px 16px 16px}
+.card p{margin:6px 0 0;color:var(--muted);font-size:14px}
+.stats{display:flex;flex-wrap:wrap;gap:26px;margin:26px 0 0}
+.stats div b{display:block;font-size:22px}
+.stats div span{color:var(--muted);font-size:13px}
+ul.clean{list-style:none;padding:0;margin:0}
+ul.clean li{padding:7px 0 7px 22px;position:relative;color:#c9cad1}
+ul.clean li::before{content:"";position:absolute;left:0;top:15px;width:8px;height:8px;border-radius:2px;background:var(--acc)}
+ul.clean li b{color:var(--ink)}
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px}
+.chip{border:1px solid var(--line);background:var(--panel2);border-radius:20px;padding:4px 12px;font-size:13px;color:#c9cad1}
+button.chip{font:inherit;font-size:13px;cursor:pointer}button.chip:hover{border-color:var(--acc)}button.chip.on{border-color:var(--acc);color:var(--ink);background:#1b2740}
+pre{background:#101114;border:1px solid var(--line);border-radius:10px;padding:16px;overflow:auto;font-size:13.5px;line-height:1.6}
+code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.note{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:8px;padding:12px 16px;color:#c9cad1;font-size:14px}
+footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-size:14px}
+/* the nav carries margin-left:auto, so hiding it also strands the GitHub button against the wordmark; and the
+   command blocks are 100 characters wide, over half of it off-screen on a phone unless they are allowed to wrap
+   (soft wraps from pre-wrap are not copied as newlines, so pasting a command still works) */
+@media (max-width:640px){
+  header nav{display:none}
+  header .wrap>.btn{margin-left:auto}
+  section{padding:40px 0}
+  .tech{grid-template-columns:1fr}
+  pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12.5px}
+}
+</style></head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+
+<header><div class="wrap">
+  <b><img src="favicon.svg" width="24" height="24" alt="">Lamina</b>
+  <nav>
+    <a href="#how">How it works</a>
+    <a href="#techniques">Techniques</a>
+    <a href="#folded">Folded panels</a>
+    <a href="#checks">Checks</a>
+    <a href="#export">Export</a>
+    <a href="#status">Status</a>
+    <a href="#start">Get started</a>
+    <a href="#support">Support</a>
+  </nav>
+  <a class="btn" href="https://github.com/marcelfarres/lamina">GitHub</a>
+</div></header>
+
+<main id="content" tabindex="-1">
+<section><div class="wrap">
+  <h1>Turn a 3D model into flat parts you can cut.</h1>
+  <p class="lead">Lamina slices, unfolds and nests a model into parts for paper, cardboard, plywood, acrylic or sheet
+  metal — then checks that the result actually holds together, and hands you the cut files for a laser, a CNC router,
+  a plasma table or a vinyl cutter.</p>
+  <p class="sub" style="margin:0 0 10px">A free replacement for Autodesk's discontinued <em>Slicer for Fusion 360</em>
+  — every construction technique of the original, plus sheet-metal ribs, connecting strips and per-slice edits it
+  never had. Runs on your own machine; your models never leave it.</p>
+  <p class="sub" style="margin:0 0 22px"><b>A quick word about the word “slicer”</b>, because it trips almost everyone
+  up: this is not the 3D-printing kind. Lamina works out the flat pieces — layers, stacked slices, egg-crate slots,
+  ribs, a whole surface unfolded flat — that you cut from a sheet and put back together into the shape.</p>
+  <div style="display:flex;gap:12px;flex-wrap:wrap">
+    <a class="btn" href="app/index.html">Try it in your browser</a>
+    <a class="btn ghost" href="#start">Run it locally</a>
+    <a class="btn ghost" href="https://github.com/marcelfarres/lamina">Source on GitHub</a>
+    <a class="btn ghost kofi" href="https://ko-fi.com/marcelfarres">♥ Support on Ko-fi</a>
+  </div>
+  <p style="color:var(--muted);font-size:13px;margin:14px 0 0">Free software under the AGPL-3.0 · early alpha, and
+  bug reports are very welcome</p>
+  <figure style="margin-top:30px">
+    <img src="media/hero.jpg" width="2400" height="1383" alt="The Lamina interface: parameters on the left, a 3D preview of a radially sliced head in the middle, cut sheets below.">
+    <figcaption>The 3D preview and the cut sheets are always the same plan.</figcaption>
+  </figure>
+  <div class="stats">
+    <div><b>5</b><span>construction techniques</span></div>
+    <div><b>13</b><span>folded-panel joints</span></div>
+    <div><b>6</b><span>cut and 3D formats</span></div>
+    <div><b>0.2–9 mm</b><span>paper to plywood</span></div>
+  </div>
+</div></section>
+
+<section id="how"><div class="wrap">
+  <h2>Four steps, one screen</h2>
+  <p class="sub">Load a model, choose how to build it, fix what will not work, export the sheets. There is no render
+  step: change a number and the 3D preview and the cut sheets rebuild together — instantly on a slice job, a few
+  seconds on a detailed folded one.</p>
+  <div class="grid g2">
+    <figure>
+      <video src="media/orbit.mp4" poster="media/orbit_poster.jpg" width="1000" height="732"
+             muted loop playsinline controls preload="none"></video>
+      <figcaption>Orbit, zoom and pan the assembled result. The original model stays as a ghost behind the parts.</figcaption>
+    </figure>
+    <div>
+      <ul class="clean">
+        <li><b>Load</b> — STL, OBJ, 3MF, PLY, OFF or GLB; STEP and BREP with the optional CAD extra.</li>
+        <li><b>Prepare</b> — turn it upright, scale it or give a target size, round off details too small to cut,
+            smooth noise, hollow it out or thicken thin walls.</li>
+        <li><b>Build</b> — pick a technique and its parameters; move, tilt or delete individual slices by hand.</li>
+        <li><b>Check and export</b> — physical checks with one-click fixes, then cut files, a solid, or a scaled
+            3D-printable prototype.</li>
+      </ul>
+    </div>
+  </div>
+  <figure style="margin-top:24px">
+    <img src="media/model.jpg" width="2200" height="1268" loading="lazy" decoding="async"
+         alt="The model tab with rotation rings around the model">
+    <figcaption>Drag a coloured ring to turn the model, or use quarter-turn buttons. Round, smooth, hollow or thicken
+    it first — the same voxel pass that repairs meshes that are not watertight.</figcaption>
+  </figure>
+</div></section>
+
+<section id="techniques"><div class="wrap">
+  <h2>Five ways to build a model</h2>
+  <p class="sub">Each technique on a shape that suits it. Switching technique keeps your material and sheet settings,
+  and remembers the parameters you had for each one.</p>
+  <!-- one technique per row: the clip orbits the result, then changes the parameters that matter for it -->
+  <article class="tech">
+    <video src="media/stacked.mp4" poster="media/stacked_poster.jpg" width="1100" height="825" muted loop playsinline controls preload="none"
+           aria-label="A horse in stacked slices, orbiting; then the gap between the layers set to none, 12 mm and 6 mm, held by square dowels"></video>
+    <div>
+      <h3>Stacked slices</h3>
+      <p>Parallel sections along one axis, touching or with an empty space between them — the topographic look. Hold
+      them with dowel rods (round, square, hexagonal, cross or slot holes), flat pegs cut from the same sheet, or
+      tabbed spacers that keep the gap. Connection points can repeat through the whole stack, be random per pair of
+      slices, or follow 3D lines you draw; alt-click a slice to place one by hand. The outline can also follow the
+      surface across the slice's thickness, which is what Autodesk's Slicer called 3D Slices — cut it, then sand down
+      to the shape.</p>
+      <p class="clip"><b>In the clip:</b> a 300 mm horse in 3 mm cardboard, 28 layers with a 6 mm gap on 3 mm square
+      dowels at random points; then the gap set to none, 12 mm and back to 6 mm. Every dowel keeps a 2 mm wall to the
+      outline, so the legs hold.</p>
+      <p class="clip"><b>Parameters:</b> axis · spacing or count · gap · outline mid / outer / inner · connector
+      type, size and hole shape · placement · points per island · per-slice offset, tilt, roll and thickness.</p>
+    </div>
+  </article>
+  <article class="tech">
+    <video src="media/interlocked.mp4" poster="media/interlocked_poster.jpg" width="1100" height="825" muted loop playsinline controls preload="none"
+           aria-label="A torus in two perpendicular families of slotted slices, orbiting; then 6 by 5, 12 by 9 and 9 by 7 slices"></video>
+    <div>
+      <h3>Interlocked slices</h3>
+      <p>Two perpendicular families of slices that slot together egg-crate style, one family inserted from above, the
+      other from below. The slot depth is computed per crossing by casting the intersection line against the mesh, so
+      hollow and asymmetric shapes notch correctly where the earlier tools left them loose. Notch ratio, mouth flare
+      and dog-bone relief for routers are all there, and the checks add a crossing slice wherever a region would float.</p>
+      <p class="clip"><b>In the clip:</b> the torus in 3 mm cardboard, 9 by 7 slices; then 6 by 5, 12 by 9 and back to
+      9 by 7. The denser it gets, the more of the surface the edges describe — and the more slots to cut. A torus
+      because every vertical line meets its tube once: the head's ears sit above its skull on the same lines, and
+      the insertion check rightly refuses that.</p>
+      <p class="clip"><b>Parameters:</b> assembly axis · count or spacing per family · grid rotation · extra slices at
+      chosen positions · notch ratio, flare and relief · slot offset for a press or a loose fit.</p>
+    </div>
+  </article>
+  <article class="tech">
+    <video src="media/radial.mp4" poster="media/radial_poster.jpg" width="1100" height="825" muted loop playsinline controls preload="none"
+           aria-label="A snowman in radial half-slices, orbiting; then 6, 14 and 10 slices, and 3, 9 and 6 ring slices"></video>
+    <div>
+      <h3>Radial slices</h3>
+      <p>Half-slices fanning out from an axis you can move and turn, locked by horizontal ring slices with radial slots.
+      Made for shapes with a centre line — vases, heads, figures, lamps. Lamina works out the smallest core the slices
+      can share around the axis and refuses a smaller one instead of letting them collide there.</p>
+      <p class="clip"><b>In the clip:</b> the snowman, 10 half-slices and 6 rings in 3 mm cardboard; then 6, 14 and
+      10 slices, and 3, 9 and 6 rings. More rings lock it stiffer, more slices smooth the silhouette.</p>
+      <p class="clip"><b>Parameters:</b> axis and centre · slice count · fan angle · core diameter · ring count or
+      spacing · centre hole for a rod.</p>
+    </div>
+  </article>
+  <article class="tech">
+    <video src="media/curve.mp4" poster="media/curve_poster.jpg" width="1100" height="825" muted loop playsinline controls preload="none"
+           aria-label="Ribs following a curve along a horse's back and up its neck, orbiting; then 8, 12 and 20 ribs, and the head control point moved down and back up"></video>
+    <div>
+      <h3>Curve — ribs</h3>
+      <p>Ribs perpendicular to a curve you draw through the model, so they follow a bend instead of staying parallel:
+      the vertebrae of an animal, the frames of a hull, the arch of a bridge. Spine slices in the curve's plane lock the
+      ribs together. The turn between neighbouring ribs is limited so they never meet inside the model; the note tells
+      you when a gentler curve or fewer ribs would keep them square to it.</p>
+      <p class="clip"><b>In the clip:</b> the horse with 20 ribs along a five-point curve that runs down the back and
+      climbs the neck to the head, locked by one spine that runs between the legs (the orange line and blue dots are
+      the curve — drag a dot to move it, alt-click the model to add one, alt-click a dot to remove it); then 8, 12 and
+      20 ribs, and the head control point pulled down and back up. Past twenty the ribs would cross inside the neck,
+      and a second spine would cross a leg and the body on one line — the checks say so.</p>
+      <p class="clip"><b>Parameters:</b> curve plane · control points · rib count or spacing along the curve · spines.</p>
+    </div>
+  </article>
+  <article class="tech">
+    <video src="media/folded.mp4" poster="media/folded_poster.jpg" width="1100" height="825" muted loop playsinline controls preload="none"
+           aria-label="A cow unfolded into folded panels, orbiting; then joined with laces, with ribs and with tabs, and at a coarser and a finer facet"></video>
+    <div>
+      <h3>Folded panels</h3>
+      <p>The surface simplified to the facet size you choose, unfolded into flat panels with score lines, and joined at
+      the seams with any of thirteen joints — glue tabs for paper and card, laces and rivets for leather and cloth,
+      strips for cardboard, slotted angle ribs for sheet metal. Panels grow until they would overlap themselves or
+      run off the sheet. Works on closed shapes and on open surfaces such as a mask or a clothing pattern; separate
+      mode cuts every triangle alone for shapes with deep cavities.</p>
+      <p class="clip"><b>In the clip:</b> the cow at a 15 mm facet in 1 mm card, 19 panels with tabs; then laced, then
+      ribs, then tabs again, and a coarser 25 mm facet against the 15 mm one.</p>
+      <p class="clip"><b>Parameters:</b> facet size · growth strategy and faces per panel · joint · hole, inset,
+      spacing and tab sizes · rib width and material · perforated folds · seam numbers on both panels.</p>
+    </div>
+  </article>
+</div></section>
+
+<section id="folded"><div class="wrap">
+  <h2>Folded panels, thirteen ways to join them</h2>
+  <p class="sub">Glue tabs for paper, laces and rivets for leather and cloth, connecting strips for cardboard,
+  slotted angle ribs for sheet metal. Joint sizes adapt to the triangle they sit in, and a hole or slot never
+  crosses a fold line.</p>
+  <!-- the chips swap one picture: the same cube net, cut with each joint -->
+  <div class="chips" id="joints">
+    <button class="chip on" data-j="seam" data-t="plain edge — glue or sew it">seam</button>
+    <button class="chip" data-j="tab" data-t="one glue tab">tab</button>
+    <button class="chip" data-j="multitab" data-t="several small tabs">multitab</button>
+    <button class="chip" data-j="diamond" data-t="triangular ticks">diamond</button>
+    <button class="chip" data-j="ticked" data-t="dense small ticks along the seam">ticked</button>
+    <button class="chip" data-j="gear" data-t="rectangular teeth">gear</button>
+    <button class="chip" data-j="tongue" data-t="a tab into a slot on the other panel">tongue</button>
+    <button class="chip" data-j="puzzle" data-t="a round-head tab into a matching hole">puzzle</button>
+    <button class="chip" data-j="rivet" data-t="one hole per spacing on both panels">rivet</button>
+    <button class="chip" data-j="laced" data-t="two or more holes per edge on both panels — lace or zip-tie">laced</button>
+    <button class="chip" data-j="loops" data-t="alternating eyelet loops that interleave like hinge knuckles, one lace through all (cloth, leather, masks)">loops</button>
+    <button class="chip" data-j="strip" data-t="holes plus a separate rounded strip with matching holes, bridging the two panels">strip</button>
+    <button class="chip" data-j="rib" data-t="slots plus a separate angle rib cut at the fold angle, slotted in from the back (sheet metal)">rib</button>
+  </div>
+  <figure style="margin-top:16px">
+    <img id="jointimg" src="media/joint_seam.png" width="1400" height="1050" loading="lazy" decoding="async" alt="The cut sheet of a cube net with the seam joint on every seam">
+    <figcaption id="jointcap">seam — plain edge, glue or sew it. Every picture is the same 90 mm cube net; pick a joint above.</figcaption>
+  </figure>
+  <div class="grid g2" style="margin-top:22px">
+    <figure>
+      <img src="media/folded_rib.jpg" width="1800" height="745" loading="lazy" decoding="async" alt="A pyramid's folded panels pulled apart with the explode slider, the angle ribs floating at their seams">
+      <figcaption>A pyramid pulled apart with the explode slider: the angle ribs sit at the seams, one per cut edge.
+      Each rib is cut at the real fold angle and carries that angle as its label.</figcaption>
+    </figure>
+    <div>
+      <ul class="clean">
+        <li><b>Every face on its own</b> — separate mode cuts each triangle alone and laces it to its neighbours,
+            which works on any shape, however many cavities and undercuts it has.</li>
+        <li><b>Panels that fit</b> — panels grow until they would overlap themselves or run off the sheet, with
+            three growth strategies and an automatic mode that tries all of them, up to 800 faces, and keeps the
+            fewest, most compact panels.</li>
+        <li><b>Detail you choose</b> — set the average triangle edge in millimetres, not an abstract count.</li>
+        <li><b>Numbered seams</b> — the same number is engraved beside the joint on both panels, so mating edges
+            are easy to find on the cut sheet.</li>
+        <li><b>Different material for the ribs</b> — ribs can be thicker than the panels; the slots follow.</li>
+      </ul>
+      <p class="sub" style="margin-top:14px">The unfolding follows the papercraft literature — minimum-angle
+      spanning trees, strip-based approximation, overlap-driven cuts. The
+      <a href="https://github.com/marcelfarres/lamina/blob/main/docs/folded-panels.md">algorithm notes</a> list what
+      was taken from which paper.</p>
+    </div>
+  </div>
+</div></section>
+
+<section id="editing"><div class="wrap">
+  <h2>Move a slice, watch everything follow</h2>
+  <p class="sub">Click a part in the 3D view to select it. Drag the yellow arrow to slide it along its normal,
+  shift-drag to tilt, ctrl-drag to roll, or use the sliders.</p>
+  <figure>
+    <video src="media/edit.mp4" poster="media/edit_poster.jpg" width="1200" height="690"
+           muted loop playsinline controls preload="none"></video>
+    <figcaption>The selected part is highlighted on the cut sheet — and clicking a part on the sheet selects it in
+    3D. Clicking any warning does the same.</figcaption>
+  </figure>
+  <div class="grid g2" style="margin-top:24px">
+    <figure>
+      <video src="media/assembly.mp4" poster="media/assembly_poster.jpg" width="1000" height="732"
+             muted loop playsinline controls preload="none"></video>
+      <figcaption>Step through the assembly part by part, then explode it — the same order you would build it in.</figcaption>
+    </figure>
+    <div>
+      <ul class="clean">
+        <li><b>Alt-click</b> a slice to place a dowel or peg exactly where you want it, or to add a control point to
+            the curve — then drag the point where you want it; or to add a control point to
+            a curve.</li>
+        <li><b>Per-slice edits</b> — position, tilt, roll and thickness, so you can mix materials in one model.</li>
+        <li><b>Material look</b> — cardboard, paper, plywood, steel or plastic, to judge the result before cutting.</li>
+        <li><b>Panel transparency</b> to see the connectors inside a folded shell.</li>
+      </ul>
+    </div>
+  </div>
+</div></section>
+
+<section id="checks"><div class="wrap">
+  <h2>It tells you what will not work — and offers the fix</h2>
+  <p class="sub">Lamina checks the plan as a physical object, not just as geometry. Every message says what is wrong
+  and what to do about it, and most carry buttons that apply the change.</p>
+  <figure>
+    <img src="media/checks.jpg" width="2000" height="963" loading="lazy" decoding="async" alt="The checks tab listing errors with one-click fix buttons">
+    <figcaption>Errors mean it will not work, warnings mean look at it. Auto-fix can add crossing slices where
+    regions float, then remove what still cannot work, and it lists everything it did.</figcaption>
+  </figure>
+  <div class="grid g3" style="margin-top:22px">
+    <div><h3>Held together</h3><p class="sub">Each region must reach the main body through a slot, a connector or
+      glued contact. A head joined to nothing is reported as a separate group.</p></div>
+    <div><h3>Cuttable</h3><p class="sub">Parts too small or too thin to handle, bridges that snap, slots that sever
+      a part, holes too close to an outline, two cuts overlapping.</p></div>
+    <div><h3>Buildable</h3><p class="sub">Slices of one family that collide, radial slices meeting at the axis,
+      slots opening away from the insertion direction, parts larger than the sheet.</p></div>
+  </div>
+  <p class="sub" style="margin-top:18px">A coverage figure tells you how much of the model the parts actually
+  represent, so a leg or an ear that no slice reaches does not slip through unnoticed.</p>
+</div></section>
+
+<section id="export"><div class="wrap">
+  <h2>Nesting, labels and cut files</h2>
+  <div class="grid g2">
+    <figure>
+      <img src="media/sheets.jpg" width="2000" height="863" loading="lazy" decoding="async" alt="Two cut sheets with nested parts, labels beside each part">
+      <figcaption>Parts are rotated and packed against each other's outlines, not their bounding boxes — above 150
+      parts a rectangle packer takes over to keep the preview live. Labels are engraved beside the part with a
+      leader line wherever there is room; only a fully crowded sheet puts one on the part.</figcaption>
+    </figure>
+    <div>
+      <ul class="clean">
+        <li><b>SVG and DXF</b> with separate layers for outer cuts, inner cuts, score lines and labels, with or
+            without the labels, in millimetres, centimetres or inches.</li>
+        <li><b>PDF</b> as one page per sheet, and <b>EPS</b> per sheet.</li>
+        <li><b>One file per piece</b> when your cutter wants them separately — identical pieces once, with the
+            quantity in the name, and a cut list.</li>
+        <li><b>One thickness per sheet</b> — change a part's thickness and it is cut from other stock, so it gets
+            sheets of its own. Every sheet says the stock it needs, and the file names carry it as soon as a job
+            mixes them.</li>
+        <li><b>STL</b> of the assembled result, or of a single part.</li>
+        <li><b>3MF prototype</b> — every part flat and scaled, thickness raised to something printable, its label
+            engraved into the surface, as separate named objects your slicer can arrange.</li>
+        <li><b>Kerf and fit</b> — kerf compensation when your machine does not do its own (off by default), a fit
+            offset on every slot, dog-bone relief for routers, and a 10 cm or 4 in scale-check bar on every export.</li>
+      </ul>
+    </div>
+  </div>
+  <figure style="margin-top:24px">
+    <img src="media/export.jpg" width="2000" height="963" loading="lazy" decoding="async" alt="The export tab with download links and prototyping options">
+    <figcaption>The export tab, including the prototyping set for test-printing a design before cutting it.</figcaption>
+  </figure>
+</div></section>
+
+<section id="status"><div class="wrap">
+  <h2>Where it stands</h2>
+  <p class="sub"><b>Early days.</b> Lamina is very new — an alpha, free under the AGPL-3.0 and written in the open by
+  one person. Every construction technique of the original Slicer is in and the physical checks go further than it
+  did, but expect things that do not work the way you expect yet. Please go and find them, and
+  <a href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml">tell me what broke</a> — every
+  report makes the next person's cut come out better, and nothing is too small to mention. The template asks for the
+  saved project file, which carries the model and every setting. While it is this young, read the checks and test-cut
+  before committing expensive material.</p>
+  <div class="grid g3">
+    <div><h3>Not there yet</h3><p class="sub">Seams are chosen automatically — you cannot click an edge to add or
+      remove one. Insertion is simulated as a straight slide along each crossing line — a part that would have to
+      turn or flex on its way in is not caught.</p></div>
+    <div><h3>Where it gets rough</h3><p class="sub">Nesting is greedy: parts go to the corners other parts leave,
+      so concave shapes that would need to slide into each other pack looser than a no-fit-polygon nester would
+      manage. A detailed folded model takes a few seconds per change.</p></div>
+    <div><h3>What you need</h3><p class="sub">Python 3.11 or newer, <a href="https://docs.astral.sh/uv/">uv</a>, and
+      a browser with WebGL — or just Docker. Several people can share one server, each browser tab with its own
+      session, but Lamina has no login of its own: put it behind your proxy's authentication before it faces the
+      internet.</p></div>
+  </div>
+  <p class="sub" style="margin-top:18px">The
+  <a href="https://github.com/marcelfarres/lamina/blob/main/docs/roadmap.md">parity notes</a> compare Lamina option by
+  option with the original Slicer and say what is still missing. Issues and pull requests are welcome — a new
+  construction technique is one file in <code>core/modes/</code>, about 70 lines; checks, nesting and export are
+  shared.</p>
+</div></section>
+
+<section id="start"><div class="wrap">
+  <h2>Run it</h2>
+  <p class="sub">Python and <a href="https://docs.astral.sh/uv/">uv</a>; everything else is installed for you. It
+  runs locally — your models never leave your machine.</p>
+  <pre tabindex="0"><code># add --extra cad to uv sync for STEP and BREP import
+git clone https://github.com/marcelfarres/lamina.git
+cd lamina
+uv sync
+uv run uvicorn web.app:app --reload --port 8000
+# then open http://localhost:8000</code></pre>
+  <p class="sub">Or run it as a server and skip the source entirely — the image carries everything, each browser tab
+  gets its own session, and an idle one is cleaned up after a day:</p>
+  <pre tabindex="0"><code>docker run -d -p 8000:8000 -v lamina-jobs:/app/working-files ghcr.io/marcelfarres/lamina:latest</code></pre>
+  <p class="sub"><a href="https://github.com/marcelfarres/lamina/blob/main/docker-compose.yml">docker-compose.yml</a>
+  is the same thing as a stack for Portainer, Dockge or Komodo.</p>
+  <p class="sub">The Model tab opens on a bundled example, and the
+  <a href="https://github.com/marcelfarres/lamina/tree/main/examples">examples folder</a> holds 21 in all — geometric
+  shapes, a scanned head and animals. The same pipeline runs headless, so it can be scripted or put in a build:</p>
+  <pre tabindex="0"><code>uv run python -m core.plan examples/egg.stl --mode interlocked --set nx=5 ny=4 --out out/egg
+uv run python -m core.export out/egg.json --out out/egg_cut --fmt svg dxf pdf --labels
+uv run python -m core.solid out/egg.json --proto out/egg_proto --scale 0.4 --labels groove
+uv run python -m core.plan examples/egg.stl --list-params</code></pre>
+</div></section>
+
+<section id="support"><div class="wrap">
+  <h2>Support, if you would like to</h2>
+  <p class="sub">Lamina is free and always will be: AGPL-3.0, no account, no upsell, no paid tier waiting quietly
+  in the wings. None of that depends on anyone giving me anything.</p>
+  <p class="sub">If you like this or any of my other projects and you want to support the work, a donation is very
+  welcome — only if you can comfortably afford it, and with no pressure at all.</p>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px">
+    <a class="btn" href="https://ko-fi.com/marcelfarres">♥ Support on Ko-fi</a>
+    <a class="btn ghost" href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml">Send a bug report</a>
+  </div>
+  <p class="sub" style="margin-top:20px">There are other ways to help that are worth just as much: tell someone
+  who cuts sheet material that this exists, show me what you made with it, or open an issue when something goes
+  wrong. Honestly, a good bug report is worth more to me than a coffee.</p>
+</div></section>
+</main>
+
+<footer><div class="wrap">
+  Lamina · <a href="https://github.com/marcelfarres/lamina">source</a> ·
+  <a href="https://github.com/marcelfarres/lamina/blob/main/README.md">documentation</a> ·
+  <a href="https://github.com/marcelfarres/lamina/blob/main/docs/folded-panels.md">unfolding notes</a> ·
+  <a href="https://github.com/marcelfarres/lamina/blob/main/docs/roadmap.md">roadmap</a> ·
+  <a href="https://github.com/marcelfarres/lamina/blob/main/LICENSE">AGPL-3.0 licence</a> ·
+  <a href="https://ko-fi.com/marcelfarres">buy me a coffee</a>
+  <div style="margin-top:8px">Screens recorded from the running application.</div>
+  <!-- Transparency is expected even where consent is not: GoatCounter sets no cookie and keeps no IP address, so
+       there is nothing on the reader's device to ask permission for, but they should still be told plainly. -->
+  <div style="margin-top:8px">This page counts visits with
+  <a href="https://www.goatcounter.com/">GoatCounter</a>: the page you landed on, where you came from, which link
+  you clicked and which clips played. No cookies, no IP addresses kept, no account, nothing shared with anyone,
+  and no profile of you anywhere. The browser demo counts that it was opened, in the same way and nothing more —
+  what you actually <em>do</em> in it is only counted if you tick the box on its Model tab. The copy you run on
+  your own machine or server counts nothing at all, ever.</div>
+</div></footer>
+
+<script>
+// How people move through the page, in two halves: which exit they take (the app, the source, a bug report,
+// Ko-fi) and which section they jump to from the nav. Together with the referrer that brought them in, that is
+// the whole journey — arrived from X, read about Y, left towards Z. It runs only when the counter script is
+// present (the page is built without it unless COUNT_URL is set) and records what was clicked, never who.
+addEventListener("click", e => {
+  const a = e.target.closest("a");
+  if (!a || !window.goatcounter || !goatcounter.count) return;
+  const hit = name => goatcounter.count({ path: name, title: name.replace("/", ": "), event: true });
+  const to = /\/app\//.test(a.href) ? "app" : /ko-fi\.com/.test(a.href) ? "ko-fi"
+           : /issues\/new/.test(a.href) ? "bug-report" : /github\.com/.test(a.href) ? "github" : null;
+  if (to) hit("click/" + to);
+  // a same-page anchor is in-page navigation, not an exit: record the section, so it is visible which parts
+  // people actually go looking for
+  else if (a.hash && a.pathname === location.pathname && document.querySelector(a.hash)) hit("section/" + a.hash.slice(1));
+});
+</script>
+
+<script>
+// The clips carry `controls preload="none"` and no `autoplay`, so nothing downloads or moves until the reader
+// asks — 470 KB of video that used to be spent before the first scroll. Autoplaying a looping clip with no pause
+// affordance also fails WCAG 2.2.2, so this starts one only when it scrolls into view AND motion is allowed;
+// with scripting off the controls still give a play button.
+if (!window.matchMedia || !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if (e.isIntersecting) { e.target.preload = "auto"; e.target.play().catch(() => {}); } else e.target.pause();
+  }), { threshold: 0.25 });
+  for (const v of document.querySelectorAll("video")) io.observe(v);
+}
+// Which clips actually get watched. Reported once per clip per visit, on `play` rather than on becoming visible,
+// so a clip that is scrolled past without ever starting does not count. Read it as "reached and played", not as
+// deliberate interest — these autoplay when they scroll into view, so it is closer to a scroll-depth measure
+// than to a click. The file name is the technique, which is the part worth knowing.
+for (const v of document.querySelectorAll("video")) {
+  v.addEventListener("play", () => {
+    if (v.dataset.counted || !window.goatcounter || !goatcounter.count) return;
+    v.dataset.counted = "1";
+    const name = (v.getAttribute("src") || "").split("/").pop().replace(".mp4", "");
+    goatcounter.count({ path: "clip/" + name, title: "clip: " + name, event: true });
+  }, { once: false });
+}
+// the joint chips swap one picture: the same cube net, cut with each joint
+{
+  const img = document.getElementById("jointimg"), cap = document.getElementById("jointcap");
+  for (const b of document.querySelectorAll("#joints .chip")) b.addEventListener("click", () => {
+    for (const o of b.parentNode.children) o.classList.toggle("on", o === b);
+    img.src = `media/joint_${b.dataset.j}.png`;
+    img.alt = `The cut sheet of a cube net with the ${b.dataset.j} joint on every seam`;
+    cap.textContent = `${b.dataset.j} — ${b.dataset.t}`;
+  });
+}
+</script>
+</body></html>

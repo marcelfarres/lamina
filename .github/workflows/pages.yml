@@ -1,0 +1,47 @@
+name: pages
+
+# Publishes the static site — landing page + the app running its Python in the browser — to GitHub Pages on every
+# push to main, and to the Hugging Face static Space when the HF_TOKEN secret is set.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    env:
+      HAS_HF: ${{ secrets.HF_TOKEN != '' }}   # the token itself is given to the upload step only
+      COUNT_URL: ${{ vars.COUNT_URL }}    # repository variable: GoatCounter endpoint, https://<code>.goatcounter.com/count
+                                          # (optional; cookieless, published site only — unset means no counting at all)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: python deploy/build_site.py
+      # the site goes out only if a real browser can load it and slice with every technique
+      - run: uv run --with playwright playwright install --with-deps chromium
+      - run: uv run --with playwright pytest tests/test_e2e_site.py -q
+        env:
+          LAMINA_E2E: 1
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4
+      - if: env.HAS_HF == 'true'
+        continue-on-error: true            # the Space is a mirror: a revoked token must not fail the Pages deploy
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}   # secret: write access to the static Space (optional)
+        run: uvx --from huggingface_hub hf upload marcelfarres/lamina _site . --repo-type space --delete "*" --commit-message "site ${{ github.sha }}"

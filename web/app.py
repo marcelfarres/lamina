@@ -1,0 +1,247 @@
+"""Web UI + API.  Run from the repo root:   uv run uvicorn web.app:app --reload --port 8000
+
+Every request carries a client id — a random secret the browser tab keeps — and everything that client makes lives
+under working-files/jobs/<client>/, so several people can use one server without seeing each other's work.
+
+POST /api/slice        multipart: client, mode, params=<json>, and one of  model=<file> | example=<name> | job=<id> (re-slice the same model)
+                       → {job, plan (with 3D facets + sheet placement), sheets: [svg…], model: url of the processed mesh (STL)}
+GET  /api/modes        mode schemas (drive the form)
+GET  /api/examples     bundled test models
+GET  /api/session?client=<id>                                                  → what that client sliced last
+GET  /api/job/{client}/{job}/export?fmt=svg,dxf,pdf,eps&labels=1&per_piece=0   → zip of cut files
+GET  /api/job/{client}/{job}/stl?part=<label>                                  → assembled solid (or one part) as STL
+"""
+from __future__ import annotations
+import hashlib, io, json, os, pathlib, re, shutil, tempfile, time, zipfile
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, Response
+from core.plan import build, MODES, CAD_SUFFIXES
+from core.export import export, svg_doc, items_for_sheet, sheet_title
+from core.solid import assembled
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+JOBS = ROOT / "working-files" / "jobs"; JOBS.mkdir(parents=True, exist_ok=True)
+EXAMPLES = ROOT / "examples"
+MESH_SUFFIXES = {".stl", ".obj", ".3mf", ".ply", ".off", ".glb", ".gltf"} | CAD_SUFFIXES
+CLIENT_ID = re.compile(r"[A-Za-z0-9_-]{16,64}")   # long enough that nobody guesses somebody else's
+JOB_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")       # no dots: these two build every path under jobs/
+
+
+def client_dir(client: str) -> pathlib.Path:
+    """The client's own directory. Its id is the only way in — nothing under jobs/ can be listed — so one person's
+    models, cut files and session stay out of reach of everyone else on the server."""
+    if not CLIENT_ID.fullmatch(client):
+        raise HTTPException(400, "bad client id")
+    return JOBS / client
+
+
+def job_dir(client: str, job: str) -> pathlib.Path:
+    if not JOB_ID.fullmatch(job):
+        raise HTTPException(400, "bad job id")
+    return client_dir(client) / job
+
+
+TTL = float(os.environ.get("LAMINA_TTL_HOURS", 24)) * 3600            # 0 = never: only "clear my data" deletes
+MAX_UPLOAD = int(float(os.environ.get("LAMINA_MAX_UPLOAD_MB", 30)) * 1e6)   # a public server cannot take any mesh anyone sends
+
+
+def sweep():
+    """Drop clients nobody has touched for LAMINA_TTL_HOURS. A closed tab cannot tell us it is gone (and a refresh
+    would look the same), so the models, cut files and session of an idle one time out instead of piling up.
+    Only directories that are client ids: anything else under jobs/ was put there by someone else and is not ours
+    to delete."""
+    if TTL <= 0:
+        return
+    for d in JOBS.iterdir():
+        if d.is_dir() and CLIENT_ID.fullmatch(d.name) and d.stat().st_mtime < time.time() - TTL:
+            shutil.rmtree(d, ignore_errors=True)
+
+
+def model_name(jd):
+    """The model's own file name: kept in name.txt for uploads (the copy itself is renamed), else the example's."""
+    src = pathlib.Path((jd / "source.txt").read_text())
+    return (jd / "name.txt").read_text().strip() if (jd / "name.txt").exists() else src.name
+
+
+def file_base(jd, plan):
+    """<project or model>_v<rev> for download names: the project name when there is one, otherwise the model's file
+    name, so files from different models never collide."""
+    p = plan["params"]
+    stem = p.get("project") or pathlib.Path(model_name(jd)).stem or "model"
+    stem = "".join(c if c.isalnum() or c in "-_." else "_" for c in stem).strip("_.") or "model"
+    return f"{stem}_v{p.get('rev') or '1.0'}"
+
+app = FastAPI(title="Lamina")
+
+
+@app.middleware("http")
+async def refuse_oversize_bodies(request, call_next):
+    """The upload cap before the body is read: the multipart parser spools the whole request to disk before a handler
+    sees it, so a request that announces more than the cap (plus room for the form fields) is refused unread."""
+    if int(request.headers.get("content-length") or 0) > MAX_UPLOAD + 1_000_000:
+        return Response("request too large", status_code=413)
+    return await call_next(request)
+
+
+app.mount("/jobs", StaticFiles(directory=JOBS), name="jobs")
+app.mount("/static", StaticFiles(directory=ROOT / "web" / "static"), name="static")
+
+
+@app.get("/")
+def index():
+    return FileResponse(ROOT / "web" / "static" / "index.html")
+
+
+@app.get("/api/modes")
+def modes():
+    return [m.schema() for m in MODES.values()]
+
+
+@app.get("/api/examples")
+def examples():
+    return sorted(p.stem for p in EXAMPLES.glob("*.stl"))
+
+
+@app.get("/api/presets")
+def presets():
+    """The technique and parameters each bundled example opens with (examples/presets.json): every one slices clean.
+    No file (a build that did not ship it) = no presets, not a failed page."""
+    f = EXAMPLES / "presets.json"
+    return {k: v for k, v in json.loads(f.read_text(encoding="utf-8")).items() if not k.startswith("_")} if f.exists() else {}
+
+
+@app.post("/api/slice")
+def slice_model(client: str = Form(...), mode: str = Form(...), params: str = Form("{}"), example: str = Form(""),
+                job: str = Form(""), memo: str = Form("{}"), model: UploadFile | None = File(None)):
+    """A job = one source model (working-files/jobs/<client>/<id>/source.txt points at it); re-slicing reuses it.
+    Plain `def`: slicing is CPU-bound and can take 15 s, so it runs in the threadpool and nobody else waits on it."""
+    if mode not in MODES:
+        raise HTTPException(400, f"unknown mode {mode}")
+    cd = client_dir(client); sweep()                              # sweep first: it may drop this client's own stale
+    cd.mkdir(parents=True, exist_ok=True); os.utime(cd)           # directory, and a slice starts it afresh
+    if model is not None and model.filename:
+        data = model.file.read(MAX_UPLOAD + 1)
+        if len(data) > MAX_UPLOAD:
+            raise HTTPException(413, f"model over {MAX_UPLOAD // 1_000_000} MB: decimate it, or run Lamina locally")
+        job = hashlib.sha256(data).hexdigest()[:12]; jd = job_dir(client, job); jd.mkdir(exist_ok=True)
+        mpath = jd / ("upload" + pathlib.Path(model.filename).suffix.lower())
+        if mpath.suffix not in MESH_SUFFIXES:
+            raise HTTPException(400, f"unsupported file type {mpath.suffix}")
+        mpath.write_bytes(data); (jd / "source.txt").write_text(str(mpath)); (jd / "name.txt").write_text(model.filename)
+    elif job and (job_dir(client, job) / "source.txt").exists():
+        jd = job_dir(client, job); mpath = pathlib.Path((jd / "source.txt").read_text())
+    elif example:
+        job = "ex_" + example; jd = job_dir(client, job)   # validates the name before it reaches the filesystem
+        mpath = EXAMPLES / f"{example}.stl"
+        if not mpath.exists():
+            raise HTTPException(400, "unknown example")
+        jd.mkdir(exist_ok=True); (jd / "source.txt").write_text(str(mpath))
+    else:
+        raise HTTPException(400, "upload a model or pick an example")
+    t0 = time.time()
+    try:
+        prm = json.loads(params or "{}")
+        plan = build(mpath, mode, prm, jd / "plan", mesh_out=jd / "model.stl")
+    except Exception as e:
+        raise HTTPException(500, f"{type(e).__name__}: {e}") from e
+    W, H = plan["sheet"]; p = plan["params"]
+    sheets = [svg_doc(items_for_sheet(plan, si), W, H, p["labels"], True, p["font"], p["units"], sheet_title(plan, si)) for si in range(plan["sheets"])]
+    took = round(time.time() - t0, 2)
+    # the session belongs to the client, not to the server: what this tab sliced last, so its refresh resumes it
+    session = {"mode": mode, "params": prm, "job": job, "example": example or (job[3:] if job.startswith("ex_") else ""), "memo": json.loads(memo or "{}")}
+    (cd / "session.json").write_text(json.dumps(session))
+    with open(ROOT / "working-files" / "timing.log", "a") as f:   # one server-side log, outside the served jobs tree
+        f.write(f"{time.strftime('%H:%M:%S')} {mode:12s} {mpath.name:16s} {plan['counts']['parts']:4d} parts {took:6.2f} s{'  params=' + json.dumps(prm)[:300] if took > 5 else ''}\n")
+    ghost = f"/jobs/{client}/{job}/model.stl?v={int((jd / 'model.stl').stat().st_mtime_ns // 1_000_000)}"   # new URL whenever the processed model changed
+    return {"job": job, "plan": plan, "sheets": sheets, "model": ghost, "took": took}
+
+
+@app.get("/api/session")
+def session(client: str):
+    """The last thing this client sliced — mode, parameters, model job, per-technique memory — so its refresh resumes
+    it. `alive` says whether the job's model is still on disk."""
+    f = client_dir(client) / "session.json"
+    if not f.exists():
+        return {}
+    s = json.loads(f.read_text())
+    s["alive"] = bool(s.get("job")) and (job_dir(client, s["job"]) / "source.txt").exists()
+    return s
+
+
+@app.delete("/api/session")
+def clear(client: str):
+    """The UI's "clear my data": everything this tab sliced — models, cut files, session — goes at once, whatever the TTL."""
+    shutil.rmtree(client_dir(client), ignore_errors=True)
+    return {}
+
+
+@app.get("/api/job/{client}/{job}/export")
+def job_export(client: str, job: str, fmt: str = "svg,dxf", labels: int = 1, per_piece: int = 0):
+    jd = job_dir(client, job)
+    if not (jd / "plan.json").exists():
+        raise HTTPException(404)
+    plan = json.loads((jd / "plan.json").read_text())
+    fmts = [f for f in fmt.split(",") if f in ("svg", "dxf", "pdf", "eps")]
+    tmp = pathlib.Path(tempfile.mkdtemp(dir=jd))
+    try:
+        files = export(plan, tmp, fmts, bool(labels), bool(per_piece))
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            for f in files:
+                z.write(f, f.name)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    name = f"{file_base(jd, plan)}_{plan['mode']}_{'pieces' if per_piece else 'sheets'}_{'-'.join(fmts)}{'' if labels else '_plain'}.zip"
+    return Response(buf.getvalue(), media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+@app.get("/api/job/{client}/{job}/source")
+def job_source(client: str, job: str):
+    """The uploaded model as base64 (for project files that embed it)."""
+    jd = job_dir(client, job)
+    if not (jd / "source.txt").exists():
+        raise HTTPException(404)
+    src = pathlib.Path((jd / "source.txt").read_text())
+    import base64
+    return {"name": model_name(jd), "b64": base64.b64encode(src.read_bytes()).decode()}
+
+
+@app.get("/api/job/{client}/{job}/proto")
+def job_proto(client: str, job: str, scale: float = 1.0, size: float = 0.0, labels: str = "groove", min_thick: float = 1.2):
+    """Prototyping set: every part flat as STL at `scale` (or scaled so the model's longest side = `size` mm),
+    label engraved as a groove or cut as a hole, plus plate.3mf holding every part as a separate named object
+    (OrcaSlicer / PrusaSlicer can then arrange them individually) — zipped."""
+    jd = job_dir(client, job)
+    if not (jd / "plan.json").exists():
+        raise HTTPException(404)
+    plan = json.loads((jd / "plan.json").read_text())
+    if size > 0:
+        scale = size / max(plan["bbox"])
+    from core.solid import proto_plan, proto_set
+    plan, note = proto_plan(plan, scale, min_thick)            # thicker material for the print, so the slots still fit
+    tmp = pathlib.Path(tempfile.mkdtemp(dir=jd))
+    try:
+        files = proto_set(plan, tmp, scale, labels if labels in ("none", "groove", "hole") else "groove", min_thick=min_thick)
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            for f in files:
+                z.write(f, f.name)
+            if note:
+                z.writestr("README.txt", note + "\n")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    return Response(buf.getvalue(), media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{file_base(jd, plan)}_{plan["mode"]}_proto_x{scale:.3g}.zip"'})
+
+
+@app.get("/api/job/{client}/{job}/stl")
+def job_stl(client: str, job: str, part: str = ""):
+    jd = job_dir(client, job)
+    if not (jd / "plan.json").exists():
+        raise HTTPException(404)
+    plan = json.loads((jd / "plan.json").read_text())
+    if part and part not in {pc["label"] for sl in plan["slices"] for pc in sl["pieces"]}:   # a label of the plan, or nothing: it names the file too
+        raise HTTPException(404, "no such part")
+    data = assembled(plan, part or None).export(file_type="stl")
+    name = f"{file_base(jd, plan)}_{plan['mode']}_{part or 'assembled'}.stl"
+    return Response(data, media_type="model/stl", headers={"Content-Disposition": f'attachment; filename="{name}"'})

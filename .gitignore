@@ -1,0 +1,15 @@
+working-files/
+out/
+_site/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.coverage
+.mypy_cache/
+
+# scratch that must never reach a public repo
+Claude outputs/
+_to_delete/
+.playwright-mcp/

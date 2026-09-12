@@ -1,0 +1,668 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Lamina — 3D model to flat cut parts</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="static/logo.svg">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<script type="importmap">{"imports":{"three":"./static/vendor/three.module.js"}}</script>
+<style>
+:root{--bg:#141517;--panel:#1c1d21;--panel2:#232429;--line:#2f3138;--ink:#e6e6e3;--muted:#9a9ba3;--acc:#4f8cff;--err:#ff6b6b;--warn:#f5b642;--ok:#5fcf80;--sel:#ffd84a}
+*{box-sizing:border-box}html,body{height:100%}body{margin:0;font:13px/1.45 Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink);color-scheme:dark;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+header{height:44px;padding:0 14px;background:#0f1012;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center}
+header h1{font-size:15px;font-weight:600;letter-spacing:.01em;margin:0 6px 0 0;display:flex;align-items:center;gap:7px}header h1 img{width:20px;height:20px;display:block}
+header a.kofi{color:var(--muted);font-size:12px;text-decoration:none;border:1px solid var(--line);border-radius:12px;padding:2px 9px;white-space:nowrap}header a.kofi:hover{color:#ff5e5b;border-color:#ff5e5b}header .sp{flex:1}header select{width:auto}#status{color:var(--muted);font-size:12px;max-width:34vw;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#dot{width:11px;height:11px;border-radius:50%;background:var(--ok);flex:none;box-shadow:0 0 6px var(--ok)}#dot.busy{background:var(--warn);box-shadow:0 0 8px var(--warn);animation:pulse .8s infinite alternate}#dot.err{background:var(--err);box-shadow:0 0 6px var(--err)}
+@keyframes pulse{from{opacity:.4}to{opacity:1}}
+main{display:grid;grid-template-columns:400px 1fr;height:calc(100% - 44px)}
+aside{border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+nav{display:flex;border-bottom:1px solid var(--line);background:var(--panel)}nav button{flex:1;padding:9px 4px;border:0;border-bottom:2px solid transparent;background:none;color:var(--muted);font:inherit;font-size:12px;cursor:pointer}nav button.on{color:var(--ink);border-bottom-color:var(--acc)}
+#tabs{overflow:auto;padding:12px 14px 30px;flex:1}section[data-tab]{display:none}section[data-tab].on{display:block}
+h2{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:16px 0 6px}h2:first-child{margin-top:0}
+label.f,div.f{display:grid;grid-template-columns:128px 1fr;gap:8px;align-items:start;margin:5px 0}.f>.k{padding-top:5px}.f[hidden]{display:none}
+.k{cursor:help;border-bottom:1px dotted #55575f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#tip{position:fixed;z-index:50;max-width:320px;background:#2b2d34;color:#f0f0ee;padding:7px 9px;border-radius:5px;font-size:11.5px;line-height:1.4;box-shadow:0 6px 18px #000c;border:1px solid #3a3c45;pointer-events:none}#tip[hidden]{display:none}
+input,select,button{font:inherit}input,select{width:100%;padding:4px 6px;border:1px solid var(--line);border-radius:4px;background:var(--panel2);color:var(--ink)}input[type=checkbox]{width:auto;justify-self:start;margin-top:6px;accent-color:var(--acc)}input[type=file]{padding:2px;font-size:12px}input[type=range]{padding:0;accent-color:var(--acc)}
+.vec{display:flex;gap:4px}.vec input{min-width:0}.vec small{align-self:center;color:var(--muted)}
+.rows{display:flex;flex-direction:column;gap:3px}.rows .r{display:flex;gap:3px;align-items:center}.rows .r input{min-width:0}.rows .r small{color:var(--muted);min-width:44px}
+button.small{padding:3px 8px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:4px;cursor:pointer;font-size:12px;white-space:nowrap}button.small:hover{border-color:var(--acc)}button.small:disabled{opacity:.35;cursor:default;border-color:var(--line)}button.x{padding:2px 6px;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:4px;align-items:center}.chip{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:1px 8px;font-size:12px}.chip b{cursor:pointer;color:var(--muted);margin-left:4px}.chips input{width:70px;padding:2px 6px}
+.hint{color:var(--muted);font-size:11px}
+.bar select{padding:1px 4px;width:auto}
+.modes{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}.modes button{padding:6px 9px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:4px;cursor:pointer;font-size:12px}.modes button.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.desc{color:var(--muted);font-size:12px;margin:0 0 10px}
+.view{display:flex;flex-direction:column;min-height:0;min-width:0}
+#v3d{position:relative;flex:0 0 56%;border-bottom:1px solid var(--line);min-height:240px}#v3d canvas{display:block;width:100%;height:100%}
+#busy{position:absolute;inset:0;background:#141517aa;display:flex;align-items:center;justify-content:center;color:var(--warn);font-size:14px;pointer-events:none}#busy[hidden]{display:none}
+.bar{position:absolute;left:10px;top:8px;display:flex;gap:10px;align-items:center;font-size:12px;color:var(--muted);background:#0f1012cc;padding:5px 8px;border-radius:5px;flex-wrap:wrap}.bar label{display:flex;gap:5px;align-items:center}.bar input[type=range]{width:90px}.bar button{padding:2px 8px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:4px;cursor:pointer;font-size:11px}
+#sel{position:absolute;right:10px;top:8px;background:#0f1012ee;padding:8px 10px;border-radius:6px;border:1px solid var(--line);font-size:12px;width:250px}#sel[hidden]{display:none}#sel b{color:var(--sel)}#sel .row{display:grid;grid-template-columns:44px 1fr 66px;gap:6px;align-items:center;margin:4px 0}#sel .row input[type=number]{padding:2px 5px}#sel small{color:var(--muted);display:block;margin-top:4px}
+#hint{position:absolute;left:10px;bottom:8px;max-width:calc(100% - 130px);font-size:11px;color:var(--muted);background:#0f1012aa;padding:3px 7px;border-radius:4px}
+#lower{flex:1;overflow:auto;padding:12px 14px;min-height:0}
+.stats{display:flex;gap:18px;flex-wrap:wrap;margin:0 0 10px}.stats b{font-size:17px;display:block}.stats div{font-size:11px;color:var(--muted)}
+.msg{padding:5px 8px;border-radius:4px;margin:3px 0;font-size:12px}.msg[data-s]{cursor:pointer}.msg[data-s]:hover{outline:1px solid var(--sel)}.err{background:#3a1e1e;color:var(--err)}.warn{background:#3a2f18;color:var(--warn)}.ok{background:#1c3325;color:var(--ok)}.note{background:#22262e;color:var(--muted)}
+.fix{display:inline-block;margin:3px 4px 0 0;padding:2px 8px;border:1px solid #6a4040;border-radius:10px;background:#2a1a1a;color:#ffc9c9;cursor:pointer;font-size:11px}.fix:hover{border-color:var(--err)}
+.sheets{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:10px}.sheet svg{width:100%;height:auto;background:#1d1f24;border:1px solid var(--line);border-radius:4px}.sheet .t{font-size:11px;color:var(--muted);margin:2px 0;display:flex;justify-content:space-between}.sheet .t a{color:var(--acc);cursor:pointer}
+.sheet path[data-label]{cursor:pointer;pointer-events:all}.sheet path[data-label]:hover{stroke-width:0.6}.sheet path.hl{stroke:var(--sel)!important;stroke-width:0.7!important}
+.sl{display:flex;gap:6px;align-items:center}.sl input[type=range]{flex:1;min-width:60px}.sl input[type=number]{width:74px;flex:none}
+/* a slider drives these boxes, so the spin buttons only hide the digits */
+.sl input[type=number],#sel input[type=number]{appearance:textfield;-moz-appearance:textfield}
+.sl input[type=number]::-webkit-inner-spin-button,.sl input[type=number]::-webkit-outer-spin-button,#sel input[type=number]::-webkit-inner-spin-button,#sel input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+h2 button.reset{float:right;text-transform:none;letter-spacing:0;font-size:11px;padding:1px 7px;margin-top:-3px}
+#view{display:flex;flex-direction:column}#view.only3d #lower{display:none}#view.only3d #v3d{flex:1 1 auto}#view.only2d #v3d{display:none}#view.only2d #lower{flex:1}
+.dl{display:flex;flex-wrap:wrap;gap:6px}.dl a{padding:6px 10px;border:1px solid var(--line);border-radius:4px;text-decoration:none;color:var(--ink);font-size:12px;background:var(--panel2)}.dl a:hover{border-color:var(--acc)}
+table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 6px;border-bottom:1px solid var(--line);text-align:left}tr.bad td{color:var(--err)}tr:hover td{background:var(--panel2);cursor:pointer}
+</style></head><body>
+<div id="tip" hidden></div>
+<header><h1><img src="static/logo.svg" alt="">Lamina</h1><span class="k" style="color:var(--muted);font-size:12px;border:0" data-tip="Lamina turns a 3D model into flat parts you can cut from paper, cardboard, plywood or sheet metal — stacked, interlocked, radial, ribbed or folded — checks that the result holds together, nests the parts on your sheets and exports the cut files. Not the 3D-printing kind of slicing — it works out the pieces you cut from a sheet and put back together.">what is it?</span>
+<input id="pname" placeholder="project name" style="width:150px;padding:3px 6px" title="project name (printed on every sheet and used for the file name)"><span class="hint" title="revision: bump minor for small changes, major for a new design">v<span id="prev">1.0</span></span><button class="small" id="pminor" title="new minor revision (1.0 → 1.1)">+0.1</button><button class="small" id="pmajor" title="new major revision (1.x → 2.0)">+1</button>
+<button class="small" id="popen">open project</button><button class="small" id="psave2">save project</button><input type="file" id="pfile" accept=".json" hidden>
+<button class="small" id="undo" title="undo the last change (Ctrl+Z)" disabled>↶</button><button class="small" id="redo" title="redo (Ctrl+Y or Ctrl+Shift+Z)" disabled>↷</button>
+<button class="small" id="clear" title="delete everything this tab sliced — uploaded models, cut files, session (presets stay)">clear my data</button>
+<span class="sp"></span><span id="dot" title="green = ready · orange = slicing · red = error"></span><span id="status"></span>
+<label style="font-size:12px;color:var(--muted)">view <select id="viewmode"><option value="both">3D + sheets</option><option value="only3d">3D only</option><option value="only2d">sheets only</option></select></label>
+<label style="font-size:12px;color:var(--muted)">units <select id="unit"><option>mm</option><option>cm</option><option>in</option></select></label>
+<a class="kofi" href="https://marcelfarres.github.io/lamina/?ref=app" target="_blank" rel="noopener" data-tip="What Lamina does, every technique explained, how to run it yourself">docs</a><a class="kofi" href="https://github.com/marcelfarres/lamina" target="_blank" rel="noopener" data-tip="Source code, issues, releases (AGPL-3.0)">GitHub</a>
+<a class="kofi" href="https://ko-fi.com/marcelfarres" target="_blank" rel="noopener" data-tip="Lamina is free and always will be — no account, no paid tier, and none of that depends on donations. If you would like to support the work and can comfortably afford it, a coffee is very welcome. No pressure.">♥ Ko-fi</a></header>
+<main>
+<aside>
+  <nav><button data-t="model" class="on">Model</button><button data-t="technique">Technique</button><button data-t="sheet">Sheet &amp; fit</button><button data-t="checks">Checks</button><button data-t="export">Export</button></nav>
+  <div id="tabs">
+    <section data-tab="model" class="on">
+      <h2>Model <button class="small reset" data-reset="model">reset tab</button></h2>
+      <label class="f"><span class="k" data-tip="STL, OBJ, 3MF, PLY, OFF, GLB, or STEP / BREP (CAD; needs `uv sync --extra cad`)">upload</span><input type="file" id="file" accept=".stl,.obj,.3mf,.ply,.off,.glb,.gltf,.step,.stp,.brep"></label>
+      <label class="f"><span class="k" data-tip="Bundled test shapes: geometric, organic, heads and animals">example</span><select id="example"></select></label>
+      <div id="g-model"></div>
+      <div class="f"><span class="k" data-tip="Quarter turns of the whole model (the ghost and the axes in the 3D view follow)">turn</span><span class="vec"><button class="small" data-rot="0">x ±90°</button><button class="small" data-rot="1">y ±90°</button><button class="small" data-rot="2">z ±90°</button></span></div>
+      <div class="f"><span></span><button id="origsize" class="small">original size &amp; orientation</button></div>
+      <!-- Both notes live at the foot of Model, the tab everyone opens on: at the end of Export they were only
+           found by people who had already exported, which is the wrong half of the audience for either message. -->
+      <p style="color:var(--muted);font-size:12px;line-height:1.6;margin:20px 0 4px;border-top:1px solid var(--line);padding-top:14px">
+        Lamina is free and always will be. If something came out wrong,
+        <a href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml" target="_blank" rel="noopener">tell me about it</a> —
+        that helps more than anything. And if you would like to support the work and can comfortably afford it,
+        there is <a href="https://ko-fi.com/marcelfarres" target="_blank" rel="noopener">Ko-fi</a>. No pressure
+        either way.</p>
+      <!-- Hidden unless the build carries a counter endpoint, so the self-hosted and Docker versions can never
+           turn this on. Off until someone ticks it, and it says exactly what it sends. -->
+      <p id="optin" style="display:none;color:var(--muted);font-size:12px;line-height:1.6;margin:10px 0 4px">
+        <label><input type="checkbox" id="usage_optin"> Help me see how Lamina gets used</label><br>
+        Off by default. Ticking it sends the technique you pick, whether the model came from the examples or from
+        your own computer, and which file formats you export — nothing else. Never the model, never a filename,
+        never your measurements, and never an account or a cookie. Untick it any time and it stops.</p>
+    </section>
+    <section data-tab="technique">
+      <h2>Construction technique <button class="small reset" data-reset="technique">reset tab</button></h2><div class="modes" id="modes"></div><p class="desc" id="mdesc"></p>
+      <div id="g-technique"></div>
+      <details><summary class="hint">Per-slice edits (click a part in the 3D view)</summary><div id="g-slices"></div></details>
+    </section>
+    <section data-tab="sheet">
+      <h2>Manufacturing preset <button class="small reset" data-reset="sheet">reset tab</button></h2>
+      <div class="f"><span class="k" data-tip="Your saved manufacturing settings (material, sheet, fit): pick one to apply it; + saves the current values under a name, − deletes the selected one">saved</span><span class="vec"><select id="presets"></select><button id="psave" class="small" title="save current as…">+</button><button id="pdel" class="small" title="delete selected">−</button></span></div>
+      <h2>Material &amp; sheet</h2>
+      <div class="f"><span class="k" data-tip="What you cut: sets the thickness options, the sheet sizes it comes in, the 3D look and the default machine; pick the thickness next">material</span><select id="material"></select></div>
+      <div class="f"><span class="k" data-tip="Stock thicknesses of that material: sheet steel by Manufacturers' Standard Gauge (the Canadian and US standard), plate, plywood and acrylic by fraction of an inch, each with its mm and decimal-inch value. + adds the current thickness, − removes it. Type any value in the thickness field below">thickness list</span><span class="vec"><select id="thicklist"></select><button id="madd" class="small">+</button><button id="mdel" class="small">−</button></span></div>
+      <div class="f"><span class="k" data-tip="Stock sizes this material comes in, plus the beds of the machine in use. + saves the current size for this material, − deletes the selected one. Turn on `one sheet` below to ignore the height and nest everything on one strip">sheet preset</span><span class="vec"><select id="sheetpreset"></select><button id="sadd" class="small">+</button><button id="sdel" class="small">−</button></span></div>
+      <div id="g-sheet"></div>
+      <h2>Machine &amp; cut compensation</h2>
+      <div class="f"><span class="k" data-tip="The cutting process. Kerf, slot offset and corner relief belong to the machine, not the material: picking one fills the fields below, which stay editable">machine</span><select id="machine"></select></div>
+      <div id="g-fit"></div>
+    </section>
+    <section data-tab="checks"><h2>Physical checks <button class="small reset" data-reset="checks">reset tab</button></h2><div id="g-checks"></div><h2>Report</h2><div id="report"></div></section>
+    <section data-tab="export"><h2>Downloads</h2>
+      <div class="f"><span class="k" data-tip="Include the red LABEL layer (part names, leader lines, seam numbers, sheet border) in the cut files. Off = cuts and score lines only">labels in files</span><input type="checkbox" id="x_labels" checked></div>
+      <div class="dl" id="dl"></div>
+      <h2>Prototyping (3D print)</h2>
+      <div class="f"><span class="k" data-tip="Scale factor for the printed prototype (parts and thickness scale together; thickness never goes below min thickness)">scale</span><input type="number" id="pr_scale" value="0.5" min="0.05" max="5" step="0.05"></div>
+      <div class="f"><span class="k" data-tip="Or give the prototype's longest side (mm); overrides the scale when set">final size (mm)</span><input type="number" id="pr_size" value="" placeholder="e.g. 100" min="5" step="1"></div>
+      <div class="f"><span class="k" data-tip="Part labels embedded in the printed part: groove = engraved 0.6 mm deep, hole = cut through">labels</span><select id="pr_labels"><option>groove</option><option>hole</option><option>none</option></select></div>
+      <div class="f"><span class="k" data-tip="Thinnest part the printer can make (mm). Parts that would print thinner cannot simply be made thicker — their slots were cut for the thin material — so the set is planned again at the material thickness that prints to this">min thickness (mm)</span><input type="number" id="pr_min" value="1.2" min="0.2" step="0.1"></div>
+      <div class="hint" id="pr_hint" style="margin:2px 0 8px"></div>
+      <div class="dl"><a href="#" id="pr_go">download prototype set (plate.3mf for OrcaSlicer + one STL per part)</a></div>
+      <h2>Parts</h2><div id="parts"></div></section>
+  </div>
+</aside>
+<section class="view" id="view">
+  <div id="v3d">
+    <div class="bar"><label><input type="checkbox" id="ghost" checked> model</label><label>explode <input type="range" id="explode" min="1" max="3" step="0.05" value="1"></label><label>steps <input type="range" id="steps" min="0" max="1" step="1" value="1"></label><label>look <select id="look"><option value="group">by family</option><option>cardboard</option><option>paper</option><option>plywood</option><option>steel</option><option>plastic</option></select></label><label title="transparency of folded panels, to see the connectors inside">panels <input type="range" id="opacity" min="0.1" max="1" step="0.05" value="1"></label><button id="fit">fit view</button></div>
+    <div id="sel" hidden></div>
+    <div id="busy" hidden>slicing…</div>
+    <div id="hint">drag = orbit · wheel = zoom · right-drag = pan · drag a coloured ring = turn the model · click a part = select · drag the arrow = move · shift-drag = tilt · ctrl-drag = roll · alt-click = add / remove a dowel or curve point · drag a blue dot = move a curve point · click the cube = flat view</div>
+  </div>
+  <div id="lower"><div id="stats"></div><div id="msgs"></div><div class="sheets" id="sheets"></div></div>
+</section>
+</main>
+<script src="static/browser.js"></script>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from './static/vendor/OrbitControls.js';
+import {STLLoader} from './static/vendor/STLLoader.js';
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const UNIT={mm:1,cm:0.1,in:1/25.4};
+// materials: stock thicknesses as [mm, stock name] — sheet steel by Manufacturers' Standard Gauge (the Canadian and US
+// standard), aluminium by Brown & Sharpe gauge, plate / plywood / acrylic by fraction of an inch — the family that
+// decides the sheet sizes, the 3D look, and the machine that usually cuts it
+const IN=25.4, ga=(g,inch)=>[+(inch*IN).toFixed(3),`${g} ga`], fr=(txt,inch)=>[+(inch*IN).toFixed(3),`${txt}″`];
+const MATERIALS={
+  paper:{t:[[0.2],[0.3],[0.5]],family:'paper',look:'paper',machine:'co2'},
+  card:{t:[[0.8],[1],[1.5]],family:'paper',look:'paper',machine:'co2'},
+  cardboard:{t:[[1.5],[2],[3],[4],[5],[7]],family:'paper',look:'cardboard',machine:'co2'},
+  plywood:{t:[fr('1/8',0.125),[4],[5],fr('1/4',0.25),fr('3/8',0.375),fr('1/2',0.5),fr('5/8',0.625),fr('3/4',0.75)],family:'wood',look:'plywood',machine:'co2'},
+  mdf:{t:[fr('1/8',0.125),fr('1/4',0.25),fr('1/2',0.5),fr('3/4',0.75)],family:'wood',look:'plywood',machine:'co2'},
+  acrylic:{t:[fr('1/16',0.0625),fr('1/8',0.125),fr('3/16',0.1875),fr('1/4',0.25),fr('3/8',0.375),fr('1/2',0.5)],family:'plastic',look:'plastic',machine:'co2'},
+  steel:{t:[ga(22,0.0299),ga(20,0.0359),ga(18,0.0478),ga(16,0.0598),ga(14,0.0747),ga(12,0.1046),ga(11,0.1196),ga(10,0.1345),fr('3/16',0.1875),fr('1/4',0.25),fr('3/8',0.375),fr('1/2',0.5)],family:'metal',look:'steel',machine:'fiber'},
+  aluminium:{t:[ga(16,0.0508),ga(14,0.0641),ga(12,0.0808),ga(10,0.1019),fr('1/8',0.125),fr('3/16',0.1875),fr('1/4',0.25)],family:'metal',look:'steel',machine:'fiber'},
+  leather:{t:[[1.5],[2],[3]],family:'paper',look:'cardboard',machine:'co2'},
+  fabric:{t:[[0.5],[1],[2]],family:'paper',look:'paper',machine:'knife'}};
+// machines: the cut compensation belongs here, not to the material (kerf and slot offset in mm)
+const MACHINES={
+  co2:{name:'CO2 laser',kerf:0.15,slot:0.1,relief:'square',tool:0,cuts:['paper','card','cardboard','plywood','mdf','acrylic','leather','fabric'],beds:[['600 × 400 mm bed',[600,400]],['900 × 600 mm bed',[900,600]],['1300 × 900 mm bed',[1300,900]]]},
+  fiber:{name:'fiber laser (steel)',kerf:0.2,slot:0.15,relief:'square',tool:0,cuts:['steel','aluminium'],beds:[]},
+  plasma:{name:'plasma (steel)',kerf:1.5,slot:0.3,relief:'square',tool:0,cuts:['steel','aluminium'],beds:[]},
+  router:{name:'CNC router',kerf:3.175,slot:0.2,relief:'dogbone',tool:3.175,cuts:['plywood','mdf','acrylic'],beds:[]},
+  knife:{name:'knife / vinyl cutter',kerf:0,slot:0.05,relief:'square',tool:0,cuts:['paper','card','fabric','leather'],beds:[['12 in roll',[304.8,914.4]],['24 in roll',[609.6,1219.2]]]},
+  hand:{name:'by hand',kerf:0,slot:0.1,relief:'square',tool:0,cuts:['paper','card','cardboard','plywood','mdf','acrylic','steel','aluminium','leather','fabric'],beds:[]}};
+// stock sheet sizes per material family: imperial stock as sold in Canada, with its mm size
+const ft=(w,h)=>[w*12*IN,h*12*IN], inch=(w,h)=>[w*IN,h*IN];
+const SHEETS={
+  metal:[['4 × 8 ft · 1219 × 2438 mm',ft(4,8)],['4 × 10 ft · 1219 × 3048 mm',ft(4,10)],['5 × 10 ft · 1524 × 3048 mm',ft(5,10)],['2 × 4 ft · 610 × 1219 mm',ft(2,4)],['1000 × 2000 mm',[1000,2000]],['1250 × 2500 mm',[1250,2500]]],
+  wood:[['4 × 8 ft · 1219 × 2438 mm',ft(4,8)],['5 × 5 ft · 1524 × 1524 mm (baltic birch)',ft(5,5)],['4 × 4 ft · 1219 × 1219 mm',ft(4,4)],['2 × 4 ft · 610 × 1219 mm',ft(2,4)],['2 × 2 ft · 610 × 610 mm',ft(2,2)]],
+  plastic:[['4 × 8 ft · 1219 × 2438 mm',ft(4,8)],['2 × 4 ft · 610 × 1219 mm',ft(2,4)],['24 × 24 in · 610 × 610 mm',inch(24,24)],['12 × 24 in · 305 × 610 mm',inch(12,24)],['12 × 12 in · 305 × 305 mm',inch(12,12)]],
+  paper:[['A4 · 297 × 210 mm',[297,210]],['A3 · 420 × 297 mm',[420,297]],['A2 · 594 × 420 mm',[594,420]],['A1 · 841 × 594 mm',[841,594]],['A0 · 1189 × 841 mm',[1189,841]],['letter · 11 × 8.5 in',inch(11,8.5)],['tabloid · 17 × 11 in',inch(17,11)],['24 × 18 in · 610 × 457 mm',inch(24,18)],['24 × 36 in · 610 × 914 mm',inch(24,36)],['32 × 40 in · 813 × 1016 mm',inch(32,40)],['4 × 8 ft · 1219 × 2438 mm',ft(4,8)]]};
+const COLORS={X:0xd9a760,Y:0x7fb0d9,S:0xd9c080,R:0x8fd08f,C:0xc07070,F:0xc9a0e0,J:0xf0c060,P:0x9a9a9a};
+const LOOKS={cardboard:[0xb98a5a,.9,0],paper:[0xf2f0e6,.95,0],plywood:[0xd9b98a,.7,0],steel:[0xaab2bb,.35,.8],plastic:[0x6fb7e8,.25,.05]};
+const PLANE_IDX={xz:[0,2],yz:[1,2],xy:[0,1]};
+let MODES=[],mode=null,state={},job=null,plan=null,seq=0,timer=null,pendingFile=null,unit='mm',selected=null,busy=false;
+// this tab's own id: everything it slices lives under it on the server, so people sharing one server never meet.
+// sessionStorage keeps it across a refresh but not into another tab; getRandomValues (not randomUUID) so it also
+// works over plain http on a LAN.
+const CLIENT=sessionStorage.client||(sessionStorage.client=[...crypto.getRandomValues(new Uint8Array(16))].map(b=>b.toString(16).padStart(2,'0')).join(''));
+const ls=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}}, lsSet=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+
+// ---------------------------------------------------------------- tooltips (one floating box, never clipped)
+const tip=$('#tip');
+document.addEventListener('mouseover',e=>{const k=e.target.closest('[data-tip]');if(!k)return;tip.textContent=k.dataset.tip;tip.hidden=false;const r=k.getBoundingClientRect();tip.style.left=Math.min(r.left,innerWidth-340)+'px';tip.style.top=(r.bottom+6)+'px'});
+document.addEventListener('mouseout',e=>{if(e.target.closest('[data-tip]'))tip.hidden=true});
+
+// ---------------------------------------------------------------- form
+const nice=n=>n.replace(/_/g,' ');
+const isLen=p=>p.unit==='mm', F=p=>isLen(p)?UNIT[unit]:1, fmt=v=>+(+v).toPrecision(5);
+const scaleV=(v,f)=>Array.isArray(v)?v.map(x=>scaleV(x,f)):(v&&typeof v==='object')?Object.fromEntries(Object.entries(v).map(([k,x])=>[k,scaleV(x,f)])):(typeof v==='number'?+(v*f).toPrecision(6):v);
+const num=(id,v,p,f,extra='')=>`<input type="number" id="${id}" value="${fmt(v*f)}" ${p.min!=null?`min="${fmt(p.min*f)}"`:''} ${p.max!=null?`max="${fmt(p.max*f)}"`:''} step="${p.step?fmt(p.step*f):'any'}" ${extra}>`;
+// slider + number box for every bounded number (the slider drives live, the box allows exact / out-of-range values)
+const slider=(id,v,p,f,extra='')=>`<span class="sl"><input type="range" id="${id}_r" value="${fmt(v*f)}" min="${fmt(p.min*f)}" max="${fmt(p.max*f)}" step="${p.step?fmt(p.step*f):'any'}" data-for="${id}" ${extra}>${num(id,v,p,f,extra)}</span>`;
+function field(p){
+  const id='p_'+p.name, v=state[p.name], f=F(p), u=isLen(p)?` (${unit})`:p.unit==='deg'?' (°)':''; let inp;
+  if(p.type==='choice')inp=`<select id="${id}">${p.choices.map(c=>`<option ${c==v?'selected':''}>${c}</option>`).join('')}</select>`;
+  else if(p.type==='bool')inp=`<input type="checkbox" id="${id}" ${v?'checked':''}>`;
+  else if(p.type==='vec2'||p.type==='vec3'){const n=p.type==='vec2'?2:3,lab=p.name==='sheet'?['w','h']:['x','y','z'],sl=p.unit==='deg';
+    inp=sl?`<div class="rows">${[...Array(n)].map((_,i)=>`<div class="r"><small>${lab[i]}</small>${slider(id+'_'+i,(v||[])[i]||0,p,f,`data-vec="${p.name}" data-i="${i}"`)}</div>`).join('')}</div>`
+        :`<span class="vec">${[...Array(n)].map((_,i)=>`<small>${lab[i]}</small>${num(id+'_'+i,(v||[])[i]||0,p,f,`data-vec="${p.name}" data-i="${i}"`)}`).join('')}</span>`}
+  else if(p.type==='text')inp=`<input id="${id}" value="${(v||'').replace(/"/g,'&quot;')}">`;
+  else if(p.type==='points')inp=`<div class="rows" id="${id}">${(v||[]).map((q,i)=>`<div class="r"><small>${i+1}</small><input type="number" step="any" value="${fmt(q[0]*f)}" data-pt="${p.name}" data-i="${i}" data-j="0"><input type="number" step="any" value="${fmt(q[1]*f)}" data-pt="${p.name}" data-i="${i}" data-j="1"><button class="small x" data-del="${p.name}" data-i="${i}">×</button></div>`).join('')}<div class="r"><button class="small" data-add="${p.name}">+ point</button><span class="hint">or alt-click in the 3D view</span></div></div>`;
+  else if(p.type==='lines3')inp=`<div class="rows" id="${id}">${(v||[]).map((l,i)=>`<div class="r"><small>${i+1}</small>${[0,1].map(e=>[0,1,2].map(j=>`<input type="number" step="any" value="${fmt(l[e][j]*f)}" data-ln="${p.name}" data-i="${i}" data-e="${e}" data-j="${j}" title="${e?'end':'start'} ${'xyz'[j]}">`).join('')).join('<small>→</small>')}<button class="small x" data-del="${p.name}" data-i="${i}">×</button></div>`).join('')}<div class="r"><button class="small" data-add="${p.name}">+ line</button><span class="hint">start x y z → end x y z</span></div></div>`;
+  else if(p.type==='map'){const rows=Object.entries(v||{});if(selected&&!(selected in (v||{})))rows.push([selected,p.name==='thick'?state.thickness:0]);
+    inp=`<div class="rows" id="${id}">${rows.map(([k,x])=>`<div class="r"><small>${k}</small><input type="number" step="any" value="${fmt(x*f)}" data-map="${p.name}" data-k="${k}">${k in (v||{})?`<button class="small x" data-del="${p.name}" data-i="${k}">×</button>`:'<span class="hint">default</span>'}</div>`).join('')||'<span class="hint">no overrides — select a part in the 3D view and use the sliders</span>'}</div>`}
+  else if(p.type==='labels'||p.type==='chips')inp=`<div class="chips" id="${id}">${(v||[]).map((x,i)=>`<span class="chip">${p.type==='chips'?fmt(x*f):x}<b data-del="${p.name}" data-i="${i}">×</b></span>`).join('')}<input placeholder="${p.type==='chips'?'value ⏎':'label ⏎'}" data-chip="${p.name}"></div>`;
+  else inp=(p.min!=null&&p.max!=null)?slider(id,v,p,f):num(id,v,p,f);
+  return `<div class="f" data-p="${p.name}" ${p.show_if?`data-show="${p.show_if[0]}:${[].concat(p.show_if[1]).join('|')}"`:''}><span class="k" data-tip="${p.help.replace(/"/g,'&quot;')}">${nice(p.name)}${u}</span>${inp}</div>`;
+}
+function renderFields(){
+  const com=mode.common, byG=g=>com.filter(p=>p.group===g).map(field).join(''); syncProject();
+  $('#g-model').innerHTML=byG('model'); $('#g-technique').innerHTML=mode.params.map(field).join('')+byG('technique'); $('#g-slices').innerHTML=byG('slices');
+  $('#g-sheet').innerHTML=byG('sheet'); $('#g-fit').innerHTML=byG('fit'); $('#g-checks').innerHTML=byG('checks');
+  applyShowIf(); syncPresetSelects();
+}
+function applyShowIf(){for(const el of $$('.f[data-show]')){const [k,vals]=el.dataset.show.split(':');el.hidden=!vals.split('|').includes(String(state[k]))}}
+const allParams=()=>[...mode.common,...mode.params];
+function setVal(name,v){state[name]=v;applyShowIf();schedule()}
+// one delegated handler for every widget
+$('#tabs').addEventListener('input',e=>{
+  const t=e.target; if(t.id==='file')return; const P=name=>allParams().find(p=>p.name===name);
+  if(t.dataset.for){const box=document.getElementById(t.dataset.for);box.value=t.value;box.dispatchEvent(new Event('input',{bubbles:true}));return}   // slider → its number box
+  if(t.type==='number'){const r=document.getElementById(t.id+'_r');if(r)r.value=t.value}
+  if(t.dataset.vec){const p=P(t.dataset.vec),v=[...(state[p.name]||[0,0,0])];v[+t.dataset.i]=(+t.value||0)/F(p);
+    if(p.name==='size'){fitted=false;if(state.scale!==1){state.scale=1;for(const el of [$('#p_scale'),$('#p_scale_r')])if(el)el.value=1}}   // a new size is the new 100 %
+    return setVal(p.name,v)}
+  if(t.dataset.pt){const p=P(t.dataset.pt),v=(state[p.name]||[]).map(q=>[...q]);v[+t.dataset.i][+t.dataset.j]=(+t.value||0)/F(p);return setVal(p.name,v)}
+  if(t.dataset.ln){const p=P(t.dataset.ln),v=(state[p.name]||[]).map(l=>l.map(q=>[...q]));v[+t.dataset.i][+t.dataset.e][+t.dataset.j]=(+t.value||0)/F(p);return setVal(p.name,v)}
+  if(t.dataset.map){const p=P(t.dataset.map),v={...(state[p.name]||{})};v[t.dataset.k]=(+t.value||0)/F(p);return setVal(p.name,v)}
+  if(t.dataset.chip)return;
+  const p=allParams().find(p=>'p_'+p.name===t.id); if(!p)return;
+  if(p.type==='bool')setVal(p.name,t.checked); else if(p.type==='choice'||p.type==='text')setVal(p.name,t.value); else setVal(p.name,t.value===''?p.default:+t.value/F(p));
+  if(t.closest('#g-model'))fitted=false;
+});
+// reset the parameters of one tab to their defaults
+const TABGROUPS={model:['model'],technique:['technique','slices'],sheet:['sheet','fit'],checks:['checks']};
+function resetTab(tab){for(const p of mode.common)if(TABGROUPS[tab].includes(p.group))state[p.name]=structuredClone(p.default);
+  if(tab==='technique')for(const p of mode.params)state[p.name]=structuredClone(p.default);
+  if(tab==='model')fitted=false; if(tab==='sheet')applyMachine(state.machine); renderFields(); slice()}
+$('#tabs').addEventListener('click',e=>{
+  const t=e.target, P=name=>allParams().find(p=>p.name===name);
+  if(t.dataset.rot!==undefined){const r=[...(state.rotate||[0,0,0])],i=+t.dataset.rot;r[i]=((r[i]+(e.shiftKey?-90:90)+180)%360+360)%360-180;state.rotate=r;fitted=false;renderFields();schedule();return}
+  if(t.dataset.add){const p=P(t.dataset.add);setVal(p.name,[...(state[p.name]||[]),p.type==='lines3'?[[0,0,0],[0,0,0]]:[0,0]]);renderFields()}
+  else if(t.dataset.del){const p=P(t.dataset.del);if(p.type==='map'){const v={...state[p.name]};delete v[t.dataset.i];setVal(p.name,v)}else setVal(p.name,(state[p.name]||[]).filter((_,i)=>i!==+t.dataset.i));renderFields()}
+});
+$('#tabs').addEventListener('keydown',e=>{const t=e.target;if(!t.dataset.chip||e.key!=='Enter')return;const p=allParams().find(p=>p.name===t.dataset.chip);const raw=t.value.trim();if(!raw)return;
+  const v=p.type==='chips'?+raw/F(p):raw; if(p.type==='chips'&&isNaN(v))return; setVal(p.name,[...(state[p.name]||[]),v]);renderFields()});
+const memo={};   // per-technique parameter memory: switching away and back restores what you had
+function setMode(name,keep=true){
+  const prev=mode; mode=MODES.find(m=>m.name===name)||MODES[0]; location.hash=mode.name;
+  if(prev&&prev!==mode)memo[prev.name]=Object.fromEntries(prev.params.map(p=>[p.name,structuredClone(state[p.name])]));
+  for(const p of mode.common) if(!(keep&&p.name in state)) state[p.name]=structuredClone(p.default);
+  for(const p of mode.params) state[p.name]=keep&&memo[mode.name]&&p.name in memo[mode.name]?structuredClone(memo[mode.name][p.name]):(keep&&prev===mode&&p.name in state?state[p.name]:structuredClone(p.default));
+  $$('#modes button').forEach(b=>b.classList.toggle('on',b.dataset.m===mode.name)); $('#mdesc').textContent=mode.description;
+  renderFields();
+}
+function showTab(t){$$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));$$('section[data-tab]').forEach(s=>s.classList.toggle('on',s.dataset.tab===t));
+  rings.visible=t==='model';dirty=true}   // the turn rings only clutter the view outside the Model tab
+function status(s,kind){$('#status').textContent=s;$('#dot').className=kind||''}
+function schedule(){clearTimeout(timer);timer=setTimeout(slice,350)}
+
+// ---------------------------------------------------------------- undo / redo
+// The design is `state` + the technique + the units, so history is a stack of snapshots of exactly that, one taken per
+// change that reaches the slicer: a slider drag debounces into a single step instead of one per pixel.
+// ponytail: parameters only — the model (upload / example) is not on the stack, undo never swaps the model under you.
+const undos=[],redos=[]; let cur=null,restoring=false;
+const snapshot=()=>JSON.stringify({m:mode.name,u:unit,s:state});
+function record(){
+  if(restoring){restoring=false;cur=snapshot();return}                       // the slice a restore triggered is not a new step
+  const now=snapshot(); if(now===cur)return;
+  if(cur!==null){undos.push(cur);if(undos.length>60)undos.shift();redos.length=0}
+  cur=now; syncUndo();
+}
+function step(from,to){if(!from.length)return;to.push(cur);const j=from.pop();cur=j;restoring=true;
+  const d=JSON.parse(j); if(d.m!==mode.name)setMode(d.m,false);
+  for(const k of Object.keys(state))delete state[k]; Object.assign(state,d.s);
+  unit=d.u; $('#unit').value=unit; deselect(); renderFields(); syncUndo(); slice()}
+function syncUndo(){$('#undo').disabled=!undos.length;$('#redo').disabled=!redos.length}
+addEventListener('keydown',e=>{
+  if(!(e.ctrlKey||e.metaKey)||e.target.type==='text'||e.target.tagName==='TEXTAREA')return;   // a text box keeps its own undo
+  const k=e.key.toLowerCase();
+  if(k==='z'&&!e.shiftKey)step(undos,redos); else if(k==='y'||(k==='z'&&e.shiftKey))step(redos,undos); else return;
+  e.preventDefault();
+});
+
+// presets: manufacturing (sheet+fit params), materials, sheets — builtin + user (this browser)
+const PKEYS=()=>['material','machine',...mode.common.filter(p=>p.group==='sheet'||p.group==='fit').map(p=>p.name)];
+function renderPresets(sel=''){const ps=ls('slicer_presets',{});$('#presets').innerHTML='<option value="">— none —</option>'+Object.keys(ps).sort().map(n=>`<option ${n===sel?'selected':''}>${n}</option>`).join('')}
+const fam=()=>MATERIALS[state.material]?.family||'paper';
+// sheets for the current material: its family's stock sizes, the beds of the machine in use, and the user's own for that family
+const shs=()=>[...(SHEETS[fam()]||[]),...(MACHINES[state.machine]?.beds||[]),...ls('slicer_sheets',[]).filter(s=>!s[2]||s[2]===fam())];
+const thickLabel=([mm,name])=>`${name?name+' · ':''}${+mm.toFixed(3)} mm · ${(mm/IN).toFixed(3)} in`;
+const matThicks=m=>{const seen=new Map();for(const e of [...(MATERIALS[m]?.t||[]),...(ls('slicer_thick',{})[m]||[]).map(t=>[t])])if(!seen.has(e[0]))seen.set(e[0],e);return [...seen.values()].sort((a,b)=>a[0]-b[0])};
+const machinesFor=m=>Object.keys(MACHINES).filter(k=>MACHINES[k].cuts.includes(m));
+const sameSheet=(a,b)=>a&&b&&Math.abs(a[0]-b[0])<0.01&&Math.abs(a[1]-b[1])<0.01;
+function applyMachine(k){const x=MACHINES[k];if(!x)return;state.machine=k;state.kerf=x.kerf;state.slot_offset=x.slot;state.relief=x.relief;state.tool_d=x.tool}
+function syncPresetSelects(){
+  const m=state.material||(state.material='cardboard'); if(!MACHINES[state.machine]?.cuts.includes(m))state.machine=MATERIALS[m].machine;
+  $('#material').innerHTML=Object.keys(MATERIALS).map(n=>`<option ${n===m?'selected':''}>${n}</option>`).join('');
+  $('#machine').innerHTML=machinesFor(m).map(k=>`<option value="${k}" ${k===state.machine?'selected':''}>${MACHINES[k].name}</option>`).join('');
+  $('#thicklist').innerHTML='<option value="">— pick —</option>'+matThicks(m).map(e=>`<option value="${e[0]}" ${Math.abs(e[0]-state.thickness)<1e-6?'selected':''}>${thickLabel(e)}</option>`).join('');
+  $('#sheetpreset').innerHTML='<option value="">— pick —</option>'+shs().map(([n,s],i)=>`<option value="${i}" ${sameSheet(s,state.sheet)?'selected':''}>${n}</option>`).join('');
+}
+
+// ---------------------------------------------------------------- slicing
+async function slice(){
+  record();                                        // one undo step per change that gets this far
+  const my=++seq, fd=new FormData();
+  fd.append('client',CLIENT); fd.append('mode',mode.name); fd.append('params',JSON.stringify(state)); fd.append('memo',JSON.stringify(memo));   // the server keeps this as the tab's session
+  if(pendingFile)fd.append('model',pendingFile); else if(job)fd.append('job',job); else fd.append('example',$('#example').value);
+  status('slicing…','busy'); $('#busy').hidden=false; busy=true; const t0=Date.now();
+  try{
+    const r=await fetch('api/slice',{method:'POST',body:fd}); const j=await r.json();
+    if(my!==seq)return;
+    // the server was updated under an open tab: this page is the old one, so fetch it again (once — never a loop)
+    if(r.status===422&&!sessionStorage.reloaded){sessionStorage.reloaded=1;return location.reload()}
+    if(!r.ok)throw new Error(typeof j.detail==='string'?j.detail:j.detail?JSON.stringify(j.detail):r.statusText);   // a 422 details itself as objects
+    pendingFile=null; job=j.job; plan=j.plan; const t1=Date.now();
+    render3D(j.model); renderSheets(j.sheets); renderReport();
+    status(`ready · ${j.took} s · ${plan.counts.parts} parts · ${plan.sheets} sheet(s) · ${plan.counts.errors} errors`,plan.counts.errors?'err':'');
+  }catch(e){if(my===seq)status('error: '+e.message,'err')}
+  if(my===seq){$('#busy').hidden=true;busy=false}
+}
+
+// ---------------------------------------------------------------- 3D view
+const view=$('#v3d'), renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(devicePixelRatio); view.appendChild(renderer.domElement);
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x141517);
+const camera=new THREE.PerspectiveCamera(40,1,1,100000); camera.position.set(300,-400,250); camera.up.set(0,0,1);
+const controls=new OrbitControls(camera,renderer.domElement); controls.enableDamping=true;
+scene.add(new THREE.HemisphereLight(0xffffff,0x334455,1.1)); const dl=new THREE.DirectionalLight(0xffffff,1.2); dl.position.set(1,-1,2); scene.add(dl);
+const parts=new THREE.Group(), ghost=new THREE.Group(), guides=new THREE.Group(), gizmo=new THREE.Group(), axes=new THREE.Group(), rings=new THREE.Group(); scene.add(parts,ghost,guides,gizmo,axes,rings);
+rings.visible=true;   // turn rings belong to the Model tab; showTab() hides them elsewhere
+const ray=new THREE.Raycaster(); let ghostUrl=null, fitted=false, dirty=true;
+const V3=a=>new THREE.Vector3(a[0],a[1],a[2]);
+function resize(){const w=view.clientWidth,h=view.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();dirty=true}
+new ResizeObserver(resize).observe(view); resize();
+controls.addEventListener('change',()=>dirty=true);
+// view cube: a small cube in the corner that turns with the camera; click a face for a flat view (top, front, right …)
+const CUBE={size:92,pad:10}, cubeScene=new THREE.Scene(), cubeCam=new THREE.PerspectiveCamera(32,1,0.1,20), cubeRoot=new THREE.Group(); cubeCam.position.set(0,0,5.2); cubeScene.add(cubeRoot);
+function faceTex(text){const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');g.fillStyle='#2a2c33';g.fillRect(0,0,128,128);g.strokeStyle='#62656f';g.lineWidth=5;g.strokeRect(3,3,122,122);
+  g.fillStyle='#e6e6e3';g.font='bold 24px system-ui,sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(text,64,66);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t}
+// each face: outward normal, which world direction reads as "up" on it (z for the sides, y from above and below), and the
+// camera direction for its flat view — tilted a hair toward that up so the orbit never degenerates on top / bottom
+for(const [name,n,up,dir] of [['TOP',[0,0,1],[0,1,0],[0,-1e-3,1]],['BOTTOM',[0,0,-1],[0,1,0],[0,1e-3,-1]],['FRONT',[0,-1,0],[0,0,1],[0,-1,0]],['BACK',[0,1,0],[0,0,1],[0,1,0]],['RIGHT',[1,0,0],[0,0,1],[1,0,0]],['LEFT',[-1,0,0],[0,0,1],[-1,0,0]]]){
+  const f=new THREE.Mesh(new THREE.PlaneGeometry(1.7,1.7),new THREE.MeshBasicMaterial({map:faceTex(name)})),N=V3(n),U=V3(up);
+  f.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(U.clone().cross(N),U,N));f.position.copy(N).multiplyScalar(0.85);f.userData.dir=dir;cubeRoot.add(f)}
+cubeRoot.add(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.7,1.7,1.7)),new THREE.LineBasicMaterial({color:0x9a9ba3})));
+const cubeRect=()=>({x:view.clientWidth-CUBE.size-CUBE.pad,y:CUBE.pad,s:CUBE.size});   // viewport coordinates, y from the bottom
+function drawCube(){const r=cubeRect();cubeRoot.quaternion.copy(camera.quaternion).invert();renderer.clearDepth();renderer.setScissorTest(true);renderer.setViewport(r.x,r.y,r.s,r.s);renderer.setScissor(r.x,r.y,r.s,r.s);
+  renderer.render(cubeScene,cubeCam);renderer.setScissorTest(false);renderer.setViewport(0,0,view.clientWidth,view.clientHeight)}
+function cubeHit(ev){const b=renderer.domElement.getBoundingClientRect(),r=cubeRect(),x=ev.clientX-b.left-r.x,y=(b.bottom-ev.clientY)-r.y;if(x<0||y<0||x>r.s||y>r.s)return null;
+  ray.setFromCamera(new THREE.Vector2(x/r.s*2-1,y/r.s*2-1),cubeCam);const h=ray.intersectObjects(cubeRoot.children.filter(o=>o.isMesh));return h.length?h[0].object.userData.dir:null}
+function viewFrom(dir){ // swing the camera round to look along -dir at the current target, keeping its distance
+  const t=controls.target.clone(),d=camera.position.distanceTo(t),from=camera.position.clone(),to=t.clone().addScaledVector(V3(dir).normalize(),d),t0=performance.now();
+  (function step(){const k=Math.min(1,(performance.now()-t0)/220),s=k*k*(3-2*k);camera.position.lerpVectors(from,to,s).sub(t).setLength(d).add(t);camera.lookAt(t);controls.update();dirty=true;if(k<1)requestAnimationFrame(step)})()}
+(function loop(){requestAnimationFrame(loop);if(controls.update()||dirty){renderer.render(scene,camera);drawCube();dirty=false}})();   // render only when something changed
+function mat4(M){return new THREE.Matrix4().set(...M[0],...M[1],...M[2],...M[3])}
+function shape(rings){const s=new THREE.Shape(rings[0].map(([x,y])=>new THREE.Vector2(x,y)));for(const h of rings.slice(1))s.holes.push(new THREE.Path(h.map(([x,y])=>new THREE.Vector2(x,y))));return s}
+function applyLook(){const k=$('#look').value,op=+$('#opacity').value;for(const m of parts.children){const [c,r,me]=k==='group'?[COLORS[m.userData.group]||0xaaaaaa,.7,.05]:LOOKS[k];m.material.color.set(m.userData.bad?0xff5555:c);m.material.roughness=r;m.material.metalness=me;
+  const tr=m.userData.group==='F'&&op<1;m.material.transparent=tr;m.material.opacity=tr?op:1;m.material.depthWrite=!tr}dirty=true}
+// rotation rings (OrcaSlicer-style): drag a ring to turn the whole model about that axis
+function renderRings(){
+  rings.clear();
+  const L=Math.max(...plan.bbox)*0.62;
+  for(const [i,col] of [[0,0xff5c5c],[1,0x5cff7a],[2,0x5c9cff]]){const r=new THREE.Mesh(new THREE.TorusGeometry(L,L*0.012,8,96),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.55,depthTest:false}));
+    if(i===0)r.rotation.y=Math.PI/2;else if(i===1)r.rotation.x=Math.PI/2; r.userData.ring=i;r.renderOrder=9;rings.add(r)}
+}
+function label3d(text,color){const c=document.createElement('canvas');c.width=64;c.height=32;const g=c.getContext('2d');g.font='bold 26px sans-serif';g.fillStyle=color;g.fillText(text,6,26);const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false}));return s}
+function renderAxes(){ // world axes at the model's corner with X/Y/Z labels + dowel rods (stacked)
+  axes.clear(); const L=Math.max(...plan.bbox)*0.6, o=new THREE.Vector3(-plan.bbox[0]/2,-plan.bbox[1]/2,-plan.bbox[2]/2).multiplyScalar(1.15);
+  for(const [i,col,name] of [[0,0xff5c5c,'X'],[1,0x5cff7a,'Y'],[2,0x5c9cff,'Z']]){const dir=new THREE.Vector3(i===0?1:0,i===1?1:0,i===2?1:0);
+    axes.add(new THREE.ArrowHelper(dir,o,L,col,L*.12,L*.06));const s=label3d(name,'#'+col.toString(16).padStart(6,'0'));s.position.copy(o).addScaledVector(dir,L*1.12);s.scale.set(L*.16,L*.08,1);axes.add(s)}
+  for(const [a,b,d] of plan.rods||[]){const A=V3(a),B=V3(b),len=A.distanceTo(B),m=new THREE.Mesh(new THREE.CylinderGeometry(d/2,d/2,len,16),new THREE.MeshStandardMaterial({color:0xc8b48a,roughness:.6}));
+    m.position.copy(A).lerp(B,.5);m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),B.clone().sub(A).normalize());axes.add(m)}
+  renderRings();
+}
+function renderGuides(){
+  guides.clear(); renderAxes(); if(!plan.curve3d)return;
+  // the curve and its control points run through the middle of the model, so they draw on top of it (like the gizmo):
+  // otherwise the ribs hide the very thing alt-click edits
+  const onTop=o=>{o.material.depthTest=false;o.renderOrder=2;return o};
+  guides.add(onTop(new THREE.Line(new THREE.BufferGeometry().setFromPoints(plan.curve3d.map(V3)),new THREE.LineBasicMaterial({color:0xff9a3c}))));
+  const idx=PLANE_IDX[state.plane||'xz'], mid=V3(plan.mid), r=Math.max(...plan.bbox)*0.012+1;
+  const wi=3-idx[0]-idx[1];   // the plane's normal axis: the point sits where the body's centre is across the plane
+  (plan.curve_pts||[]).forEach(([u,v,w=0],i)=>{const s=onTop(new THREE.Mesh(new THREE.SphereGeometry(r*1.5,12,8),new THREE.MeshBasicMaterial({color:0x4f8cff})));s.userData.cp=i;   // a handle: drag it in the curve's plane
+    s.position.copy(mid).addScaledVector(V3(plan.axes[idx[0]]),u).addScaledVector(V3(plan.axes[idx[1]]),v).addScaledVector(V3(plan.axes[wi]),w);guides.add(s)})
+}
+function render3D(modelUrl){
+  parts.clear(); let i=0;
+  for(const s of plan.slices)for(const pc of s.pieces){
+    const geos=[];
+    for(const fc of pc.facets)for(const r of fc.rings){const g=new THREE.ExtrudeGeometry(shape(r),{depth:s.thickness,bevelEnabled:false});g.translate(0,0,-s.thickness/2);g.applyMatrix4(mat4(fc.M));geos.push(g)}
+    if(!geos.length)continue;
+    const m=new THREE.Mesh(mergeGeos(geos),new THREE.MeshStandardMaterial({color:COLORS[s.group]||0xaaaaaa,roughness:.7,metalness:.05}));
+    m.userData={slice:s.label,piece:pc.label,group:s.group,i:i++,origin:new THREE.Vector3(s.M[0][3],s.M[1][3],s.M[2][3]),normal:new THREE.Vector3(s.M[0][2],s.M[1][2],s.M[2][2]),bad:s.errors.length>0};
+    parts.add(m);
+  }
+  applyLook(); renderGuides();
+  $('#steps').max=i; $('#steps').value=i; applyExplode();
+  if(modelUrl!==ghostUrl){ghostUrl=modelUrl;ghost.clear();new STLLoader().load(modelUrl,g=>{ghost.clear();ghost.add(new THREE.Mesh(g,new THREE.MeshStandardMaterial({color:0x8899aa,transparent:true,opacity:.18,depthWrite:false})));dirty=true})}
+  ghost.visible=$('#ghost').checked; dirty=true;
+  if(selected){const m=parts.children.find(c=>c.userData.slice===selected);m?highlight(m):deselect()}
+  if(!fitted){fitView();fitted=true}
+}
+function mergeGeos(geos){
+  const ngs=geos.map(g=>g.index?g.toNonIndexed():g),n=ngs.reduce((a,g)=>a+g.attributes.position.array.length,0),pos=new Float32Array(n),nor=new Float32Array(n);let o=0;
+  for(const g of ngs){pos.set(g.attributes.position.array,o);nor.set(g.attributes.normal.array,o);o+=g.attributes.position.array.length}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('normal',new THREE.BufferAttribute(nor,3));return g}
+function fitView(){const b=new THREE.Box3().setFromObject(parts.children.length?parts:ghost);if(b.isEmpty())return;const c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3()).length();controls.target.copy(c);camera.position.copy(c).add(new THREE.Vector3(.7,-1,.6).normalize().multiplyScalar(s*1.5));camera.near=s/100;camera.far=s*20;camera.updateProjectionMatrix()}
+function applyExplode(){const e=+$('#explode').value,k=+$('#steps').value;for(const m of parts.children){m.position.copy(m.userData.origin).multiplyScalar(e-1);m.visible=m.userData.i<k}dirty=true}
+$('#explode').oninput=$('#steps').oninput=applyExplode; $('#ghost').onchange=()=>{ghost.visible=$('#ghost').checked;dirty=true}; $('#fit').onclick=()=>{fitView();dirty=true}; $('#look').onchange=$('#opacity').oninput=applyLook;
+$('#viewmode').onchange=e=>{$('#view').className='view '+(e.target.value==='both'?'':e.target.value);resize();dirty=true};
+
+// selection, gizmo, drag editing
+let down=null, drag=null;
+function ndc(ev){const r=renderer.domElement.getBoundingClientRect();return new THREE.Vector2(((ev.clientX-r.left)/r.width)*2-1,-((ev.clientY-r.top)/r.height)*2+1)}
+function hit(ev){ray.setFromCamera(ndc(ev),camera);const g=ray.intersectObjects(gizmo.children);if(g.length)return g[0];   // the arrow wins even when a part is in front of it
+  const cp=ray.intersectObjects(guides.children.filter(o=>o.userData.cp!==undefined));if(cp.length)return cp[0];               // curve handles too: they draw on top, so they pick on top
+  const rg=rings.visible?ray.intersectObjects(rings.children):[];if(rg.length)return rg[0];                                   // rotation rings (Model tab only)
+  const h=ray.intersectObjects(parts.children.filter(m=>m.visible));return h.length?h[0]:null}
+function screenAngle(ev,centre){const r=renderer.domElement.getBoundingClientRect(),c=centre.clone().project(camera);return Math.atan2(-(ev.clientY-r.top)+(1-c.y)/2*r.height*-1+r.height-(1-c.y)/2*r.height,(ev.clientX-r.left)-(c.x+1)/2*r.width)}
+const pick=ev=>{const h=hit(ev);return h&&!h.object.userData.gizmo?h.object:null};
+function drawGizmo(m){ // double arrow along the slice normal, long enough to stick out of the model on both sides
+  gizmo.clear(); if(!m)return; const L=Math.max(...plan.bbox)*0.75, o=m.userData.origin, n=m.userData.normal, mat=new THREE.MeshBasicMaterial({color:0xffd84a,depthTest:false,transparent:true,opacity:.95});
+  for(const s of [1,-1]){const c=new THREE.Mesh(new THREE.CylinderGeometry(L*.008,L*.008,L*.86,10),mat);const k=new THREE.Mesh(new THREE.ConeGeometry(L*.035,L*.12,14),mat);
+    const q=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),n.clone().multiplyScalar(s));
+    c.position.copy(o).addScaledVector(n,s*L*.43);c.quaternion.copy(q);k.position.copy(o).addScaledVector(n,s*L*.92);k.quaternion.copy(q);c.renderOrder=k.renderOrder=10;c.userData.gizmo=k.userData.gizmo=true;gizmo.add(c,k)}
+  dirty=true;
+}
+function highlight(m){for(const c of parts.children)c.material.emissive.set(c.userData.slice===m.userData.slice?0x664400:0x000000);selected=m.userData.slice;drawGizmo(m);dirty=true;
+  const g=k=>state[k]?.[selected], f=UNIT[unit], synthetic='JP'.includes(m.userData.group), ext=Math.max(...plan.bbox), s=plan.slices.find(x=>x.label===selected);
+  const row=(k,lab,v,min,max,step,u)=>`<div class="row"><span>${lab}</span><input type="range" id="r_${k}" min="${min}" max="${max}" step="${step}" value="${v}"><input type="number" id="n_${k}" step="${step}" value="${v}"><span class="hint" style="grid-column:2/4">${u}</span></div>`;
+  $('#sel').hidden=false;$('#sel').innerHTML=`<b>${selected}</b> <span class="hint">${m.userData.piece!==selected?'('+m.userData.piece+')':''} ${s?.note||''}</span>
+   ${row('offset','offset',fmt((g('offset')||0)*f),fmt(-ext/2*f),fmt(ext/2*f),fmt(0.5*f),unit)}${row('tilt','tilt',g('tilt')||0,-60,60,1,'°')}${row('roll','roll',g('roll')||0,-60,60,1,'°')}
+   ${row('thick','thick',fmt((g('thick')||state.thickness)*f),fmt(0.1*f),fmt(20*f),fmt(0.1*f),unit)}
+   <div class="row"><span></span><span style="grid-column:2/4"><button class="small" id="s_reset">reset</button> ${synthetic?'':'<button class="small" id="s_del" style="color:var(--err)">delete</button>'} <button class="small" id="s_close">close</button></span></div>
+   <small>slide or type · drag the yellow arrow to move · shift-drag = tilt · ctrl-drag = roll</small>`;
+  for(const k of ['offset','tilt','roll','thick']){const r=$('#r_'+k),n=$('#n_'+k);
+    r.oninput=()=>{n.value=r.value;preview(k,+r.value)}; r.onchange=()=>commit(k,+r.value); n.onchange=()=>{r.value=n.value;commit(k,+n.value)}}
+  $('#s_reset').onclick=()=>{for(const k of ['offset','tilt','roll','thick'])delete state[k]?.[selected];syncEdits();slice()}; $('#s_close').onclick=deselect;
+  if($('#s_del'))$('#s_del').onclick=()=>{state.skip=[...(state.skip||[]),selected];syncEdits();deselect();slice()};
+  hlSheet(selected); status(`${$('#status').textContent.replace(/ · selected.*$/,'')} · selected ${selected}`,$('#dot').className);
+}
+function preview(k,v){ // live feedback while sliding, before the re-slice
+  const ms=parts.children.filter(c=>c.userData.slice===selected), M=plan.slices.find(x=>x.label===selected).M, f=UNIT[unit];
+  for(const m of ms){m.matrixAutoUpdate=true;m.position.set(0,0,0);m.rotation.set(0,0,0);
+    if(k==='offset'){m.position.copy(m.userData.normal).multiplyScalar(v/f-(state.offset?.[selected]||0))}
+    else if(k!=='thick'){const ax=k==='tilt'?0:1,axis=new THREE.Vector3(M[0][ax],M[1][ax],M[2][ax]),o=m.userData.origin,T=new THREE.Matrix4().makeTranslation(o.x,o.y,o.z),R=new THREE.Matrix4().makeRotationAxis(axis,(v-(state[k]?.[selected]||0))*Math.PI/180);m.matrixAutoUpdate=false;m.matrix.copy(T).multiply(R).multiply(T.clone().invert())}}
+  dirty=true;
+}
+function commit(k,v){const f=k==='offset'||k==='thick'?UNIT[unit]:1;setEdit(k,v/f,k==='thick'?state.thickness:0)}
+function deselect(){selected=null;$('#sel').hidden=true;gizmo.clear();for(const c of parts.children)c.material.emissive.set(0);hlSheet(null);dirty=true}
+function setEdit(k,v,neutral=0){state[k]=state[k]||{};if(Math.abs(v-neutral)>1e-9)state[k][selected]=+v.toFixed(2);else delete state[k][selected];syncEdits();slice()}
+function syncEdits(){renderFields()}
+function togglePoint(h){ // alt-click: dowel (stacked) in the clicked slice's plane, or a curve control point in the curve plane
+  const P=h.point, s=plan.slices.find(x=>x.label===h.object.userData.slice); if(!s)return;
+  if(mode.params.some(p=>p.name==='dowels')){
+    const L=P.clone().applyMatrix4(mat4(s.M).invert()), pt=[+L.x.toFixed(1),+L.y.toFixed(1)], d=state.dowel_d||6, list=state.dowels||[];
+    const i=list.findIndex(([x,y])=>Math.hypot(x-pt[0],y-pt[1])<d); state.dowels=i>=0?list.filter((_,k)=>k!==i):[...list,pt];
+    if(state.connect==='none')state.connect='tab'; state.placement='aligned';
+  }else if(mode.params.some(p=>p.name==='curve')){
+    const idx=PLANE_IDX[state.plane||'xz'], Q=P.clone().sub(V3(plan.mid)), pt=idx.map(i=>+Q.dot(V3(plan.axes[i])).toFixed(1));
+    const list=(state.curve&&state.curve.length?state.curve:plan.curve_pts||[]).map(x=>[x[0],x[1]]), i=list.findIndex(([u,v])=>Math.hypot(u-pt[0],v-pt[1])<Math.max(...plan.bbox)*0.04);   // in-plane only: the plan's points carry a third value
+    if(i>=0)list.splice(i,1); else{list.push(pt);list.sort((a,b)=>a[0]-b[0])}   // the curve runs along the plane's first axis: a new point goes where its position says
+    state.curve=list;
+  }else return;
+  renderFields(); slice();
+}
+renderer.domElement.addEventListener('pointerdown',ev=>{if(ev.button!==0)return;const cv=cubeHit(ev);if(cv){viewFrom(cv);down=null;return}down={x:ev.clientX,y:ev.clientY};const h=hit(ev);
+  if(h&&h.object.userData.ring!==undefined){ // start turning the model about the ring's axis
+    const i=h.object.userData.ring,centre=new THREE.Vector3(0,0,0),r=renderer.domElement.getBoundingClientRect(),c=centre.clone().project(camera),cx=r.left+(c.x+1)/2*r.width,cy=r.top+(1-c.y)/2*r.height;
+    const axisDir=new THREE.Vector3(i===0?1:0,i===1?1:0,i===2?1:0),sign=axisDir.dot(camera.position.clone().sub(centre))>=0?1:-1;
+    drag={mode:'ring',axis:i,cx,cy,sign,a0:Math.atan2(ev.clientY-cy,ev.clientX-cx),delta:0};controls.enabled=false;renderer.domElement.setPointerCapture(ev.pointerId);return}
+  if(h&&h.object.userData.cp!==undefined&&!ev.altKey){ // drag a curve point: the mouse ray meets the curve's plane, so the point follows the pointer from any view
+    const idx=PLANE_IDX[state.plane||'xz'],wi=3-idx[0]-idx[1],plane=new THREE.Plane().setFromNormalAndCoplanarPoint(V3(plan.axes[wi]),h.object.position);
+    const list=(state.curve&&state.curve.length?state.curve:plan.curve_pts||[]).map(x=>[x[0],x[1]]);
+    drag={mode:'curve',i:h.object.userData.cp,sphere:h.object,plane,idx,list,pt:null};controls.enabled=false;renderer.domElement.setPointerCapture(ev.pointerId);return}
+  const m=h&&(h.object.userData.gizmo?parts.children.find(c=>c.userData.slice===selected):h.object);
+  if(m&&selected&&m.userData.slice===selected){const o=m.userData.origin.clone().project(camera),n=m.userData.origin.clone().add(m.userData.normal).project(camera);
+    const r=renderer.domElement.getBoundingClientRect(),dir=new THREE.Vector2((n.x-o.x)*r.width/2,-(n.y-o.y)*r.height/2);if(dir.length()<1e-6)dir.set(1,0);dir.normalize();
+    const dist=camera.position.distanceTo(m.userData.origin),mmPerPx=2*dist*Math.tan(camera.fov*Math.PI/360)/r.height;
+    drag={mode:ev.shiftKey?'tilt':ev.ctrlKey?'roll':'offset',dir,mmPerPx,delta:0,meshes:parts.children.filter(c=>c.userData.slice===selected)};controls.enabled=false;renderer.domElement.setPointerCapture(ev.pointerId)}});
+renderer.domElement.addEventListener('pointermove',ev=>{if(!drag)return;const dx=ev.clientX-down.x,dy=ev.clientY-down.y,f=UNIT[unit];
+  if(drag.mode==='curve'){ray.setFromCamera(ndc(ev),camera);const P=new THREE.Vector3();if(!ray.ray.intersectPlane(drag.plane,P))return;   // no hit = the plane is edge-on: hold still
+    drag.sphere.position.copy(P);const Q=P.clone().sub(V3(plan.mid));drag.pt=[+Q.dot(V3(plan.axes[drag.idx[0]])).toFixed(1),+Q.dot(V3(plan.axes[drag.idx[1]])).toFixed(1)];
+    status(`curve point ${drag.i+1}: ${drag.pt[0]}, ${drag.pt[1]} mm`,'busy');dirty=true;return}
+  if(drag.mode==='ring'){let a=Math.atan2(ev.clientY-drag.cy,ev.clientX-drag.cx)-drag.a0;a=Math.atan2(Math.sin(a),Math.cos(a));drag.delta=-drag.sign*a*180/Math.PI;
+    const axis=new THREE.Vector3(drag.axis===0?1:0,drag.axis===1?1:0,drag.axis===2?1:0);for(const g of [parts,ghost,guides])g.quaternion.setFromAxisAngle(axis,drag.delta*Math.PI/180);
+    status(`turn about ${'xyz'[drag.axis]}: ${drag.delta.toFixed(0)}°`,'busy');dirty=true;return}
+  if(drag.mode==='offset'){drag.delta=(dx*drag.dir.x+dy*drag.dir.y)*drag.mmPerPx;preview('offset',((state.offset?.[selected]||0)+drag.delta)*f);gizmo.position.copy(drag.meshes[0].userData.normal).multiplyScalar(drag.delta);dirty=true}
+  else{drag.delta=dx*0.4;preview(drag.mode,(state[drag.mode]?.[selected]||0)+drag.delta)}
+  status(`${drag.mode} ${selected}: ${drag.delta.toFixed(1)}${drag.mode==='offset'?' mm':'°'}`,'busy')});
+renderer.domElement.addEventListener('pointerup',ev=>{if(drag&&drag.mode==='curve'){controls.enabled=true;const d=drag;drag=null;
+    if(d.pt){d.list[d.i]=d.pt;d.list.sort((a,b)=>a[0]-b[0]);state.curve=d.list;renderFields();slice()}return}   // a point dragged past its neighbour swaps places with it: the curve never folds back
+  if(drag&&drag.mode==='ring'){controls.enabled=true;const d=drag;drag=null;for(const g of [parts,ghost,guides])g.quaternion.identity();dirty=true;
+    if(Math.abs(d.delta)>1){const r=[...(state.rotate||[0,0,0])];r[d.axis]=Math.round(((r[d.axis]+d.delta+180)%360+360)%360-180);state.rotate=r;fitted=false;renderFields();slice()}return}
+  if(drag){controls.enabled=true;const d=drag;drag=null;gizmo.position.set(0,0,0);for(const m of d.meshes){m.matrixAutoUpdate=true;m.matrix.identity()}
+    if(Math.abs(d.delta)>0.05){const k=d.mode,cur=state[k]?.[selected]||0;setEdit(k,cur+(k==='offset'?+d.delta.toFixed(1):Math.round(d.delta)))}else applyExplode();return}
+  if(!down||Math.hypot(ev.clientX-down.x,ev.clientY-down.y)>10)return;const h=hit(ev);if(h&&(h.object.userData.gizmo||h.object.userData.ring!==undefined))return;
+  if(h&&h.object.userData.cp!==undefined){if(ev.altKey){const list=(state.curve&&state.curve.length?state.curve:plan.curve_pts||[]).map(x=>[x[0],x[1]]);if(list.length>2){list.splice(h.object.userData.cp,1);state.curve=list;renderFields();slice()}}return}   // alt-click a dot: remove it (a curve keeps two)
+  if(h&&ev.altKey)togglePoint(h);else if(h)highlight(h.object);else deselect()});
+
+// ---------------------------------------------------------------- sheets + report
+const fmtLen=v=>`${+(v*UNIT[unit]).toPrecision(4)} ${unit}`;
+const pieceToSlice=()=>{const m={};for(const s of plan.slices)for(const pc of s.pieces)m[pc.label]=s.label;return m};
+function hlSheet(label){const map=pieceToSlice();let first=null;for(const p of $$('#sheets path[data-label]')){const on=label&&map[p.dataset.label]===label;p.classList.toggle('hl',on);if(on&&!first)first=p}
+  if(first)first.scrollIntoView({block:'nearest',behavior:'smooth'})}
+function renderSheets(svgs){
+  $('#sheets').innerHTML=svgs.map((s,i)=>`<div class="sheet"><div class="t"><span>sheet ${i+1} of ${svgs.length} — ${fmtLen(plan.sheet[0])} × ${fmtLen(plan.sheet[1])}${plan.sheet_thick?.[i]?` · ${fmtLen(plan.sheet_thick[i])} stock`:''}</span><a data-open="${i}">open full size ↗</a></div>${s}</div>`).join('');
+  const bad=new Set(plan.slices.filter(s=>s.errors.length).flatMap(s=>s.pieces.map(p=>p.label)));   // Slicer: red = part with a problem
+  // status line: what is selected (so a click is never silent)
+  if(selected)status(`${$('#status').textContent.replace(/ · selected.*$/,'')} · selected ${selected}`);
+  for(const p of $$('#sheets path[data-label]'))if(bad.has(p.dataset.label))p.setAttribute('stroke','#ff5555');
+  $('#sheets').onclick=e=>{const a=e.target.closest('a[data-open]');if(a){const s=$$('#sheets svg')[+a.dataset.open];window.open(URL.createObjectURL(new Blob([s.outerHTML],{type:'image/svg+xml'})));return}
+    const p=e.target.closest('path[data-label]');if(!p)return;const lab=pieceToSlice()[p.dataset.label],m=parts.children.find(c=>c.userData.slice===lab);if(m)highlight(m)};
+  if(selected)hlSheet(selected);
+}
+function applyFix(set){for(const [k,v] of Object.entries(set)){if(v&&typeof v==='object'&&!Array.isArray(v))state[k]={...(state[k]||{}),...v};else if(Array.isArray(v)&&['skip','extra_x','extra_y'].includes(k))state[k]=[...new Set([...(state[k]||[]),...v])];else state[k]=v}renderFields();slice()}
+// what the printed prototype parts come out at — and the re-plan the server does when that is under the printer's minimum
+function protoHint(){if(!plan)return;const size=+$('#pr_size').value||0,s=size>0?size/Math.max(...plan.bbox):(+$('#pr_scale').value||1),mn=+$('#pr_min').value||1.2;
+  const thin=Math.min(...plan.slices.map(x=>x.thickness)),printed=thin*s,h=$('#pr_hint');
+  if(printed>=mn-1e-9){h.textContent=`parts print ${printed.toFixed(2)} mm thick (${thin.toFixed(2)} mm × ${s.toFixed(3)})`;h.style.color=''}
+  else{h.textContent=`at ×${s.toFixed(3)} the ${thin.toFixed(2)} mm parts would print ${printed.toFixed(2)} mm, under the ${mn} mm minimum — the set is planned again at ${(mn/s).toFixed(2)} mm material so the slots fit the printed parts (a note travels in the zip)`;h.style.color='var(--warn)'}}
+function renderDownloads(){ // the labels checkbox applies to every cut file; the server names files <project or model>_v<rev>_…
+  protoHint();
+  const b=`api/job/${CLIENT}/${job}`,L=$('#x_labels').checked?1:0;
+  $('#dl').innerHTML=[['sheets SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}`],['sheets PDF (one page per sheet)',`${b}/export?fmt=pdf&labels=${L}`],['sheets EPS',`${b}/export?fmt=eps&labels=${L}`],
+    ['one file per piece SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&per_piece=1`],['assembled STL',`${b}/stl`],['plan.json',`jobs/${CLIENT}/${job}/plan.json`]].map(([t,u])=>`<a href="${u}">${t}</a>`).join('');
+}
+function renderReport(){
+  const c=plan.counts,p=plan;
+  // identical pieces are one part in several copies — the plan decided which, so the table and the cut files agree
+  const sliceOf={}; for(const s of p.slices)for(const pc of s.pieces)sliceOf[pc.label]=s;
+  const twins=pc=>[...(pc.same||[]),...(pc.flipped||[])];   // flipped = the same file, turned over (`mirror ok`)
+  const copies=new Set(p.slices.flatMap(s=>s.pieces.flatMap(twins)));
+  const kinds=p.slices.flatMap(s=>s.pieces.filter(pc=>!copies.has(pc.label)).map(pc=>[s,pc,[pc.label,...twins(pc)],pc.flipped||[]]));
+  $('#stats').innerHTML=`<div class="stats"><div><b>${c.parts}</b>parts</div><div class="k" data-tip="How many different parts to cut: identical ones (same outline, any quarter turn, same stock — and with mirror ok also mirror images) count once — the Parts table and the per-piece export list them once, with the quantity"><b>${kinds.length}</b>different</div><div><b>${p.sheets}</b>sheet(s)</div><div><b>${(p.sheet_usage*100).toFixed(0)}%</b>sheet used</div>
+   <div class="k" data-tip="How much of the model the parts represent: sample points inside the model that lie within a slice spacing of some part. Below 90 % parts of the model (legs, ears) have no geometry — add slices or change the axis"><b style="color:${p.coverage<0.9?'var(--warn)':'var(--ok)'}">${(p.coverage*100).toFixed(0)}%</b>model covered</div>
+   <div><b>${(p.material_area_mm2/1e4).toFixed(1)}</b>dm² material</div><div><b>${p.bbox.map(v=>+(v*UNIT[unit]).toPrecision(3)).join(' × ')}</b>model ${unit}</div>
+   <div><b style="color:${c.errors?'var(--err)':'var(--ok)'}">${c.errors}</b>errors</div><div><b style="color:${c.warnings?'var(--warn)':'var(--ok)'}">${c.warnings}</b>warnings</div></div>`;
+  const fixBtns=(s,e)=>{const f=(s.fixes||[]).find(x=>x.error===e);return f?'<br>'+f.options.map((o,i)=>`<span class="fix" data-fix='${JSON.stringify(o.set).replace(/'/g,'&#39;')}' title="${o.note||''}">${o.title}</span>`).join(''):''};
+  const msgs=[...p.notes.map(n=>`<div class="msg note">${n}</div>`),...p.errors.map(e=>`<div class="msg err">${e}</div>`),
+    ...p.dropped.flatMap(s=>s.errors.map(e=>`<div class="msg err">${s.label}: ${e}</div>`)),
+    ...p.slices.flatMap(s=>[...s.errors.map(e=>`<div class="msg err" data-s="${s.label}" title="click to select this part">${s.label}: ${e}${fixBtns(s,e)}</div>`),
+                            ...s.warnings.map(w=>`<div class="msg warn" data-s="${s.label}" title="click to select this part">${s.label}: ${w}${fixBtns(s,w)}</div>`)])];
+  const html=msgs.length?msgs.slice(0,40).join('')+(msgs.length>40?`<div class="msg note">… ${msgs.length-40} more</div>`:''):'<div class="msg ok">All physical checks passed.</div>';
+  $('#msgs').innerHTML=html; $('#report').innerHTML=html;
+  for(const el of $$('.fix'))el.onclick=e=>{e.stopPropagation();applyFix(JSON.parse(el.dataset.fix))};
+  for(const box of [$('#msgs'),$('#report')])box.onclick=e=>{   // clicking a message selects the part it is about, in 3D and on the sheet
+    if(e.target.closest('.fix'))return; const d=e.target.closest('.msg[data-s]'); if(!d)return;
+    const m=parts.children.find(c=>c.userData.slice===d.dataset.s); if(m){highlight(m);fitted=true}};
+  renderDownloads();
+  // the link itself does the download (a navigation on the server, a blob from the worker in the browser build)
+  $('#pr_go').onclick=e=>{const q=new URLSearchParams({scale:$('#pr_scale').value||1,size:$('#pr_size').value||0,labels:$('#pr_labels').value,min_thick:$('#pr_min').value||1.2});e.currentTarget.href=`api/job/${CLIENT}/${job}/proto?${q}`;countUse('export','proto-3mf')};
+  for(const id of ['#pr_scale','#pr_size','#pr_min'])$(id).oninput=protoHint;
+  // Which formats people actually take away — the strongest signal of what machines they run. The link's own
+  // query string already names them, so nothing extra has to be tracked to know it.
+  $('#dl').onclick=e=>{const a=e.target.closest('a');if(!a)return;
+    const href=a.getAttribute('href')||'', q=new URLSearchParams(href.split('?')[1]||'');
+    const fmts=q.get('fmt')?q.get('fmt').split(','):/\/stl$/.test(href)?['stl']:/plan\.json/.test(href)?['plan-json']:[];
+    fmts.forEach(f=>countUse('export',f+(q.get('per_piece')?'-per-piece':'')))};
+  // one row per different part: its own size, how many to cut, and which pieces come off it
+  const size=pc=>[pc.bbox[2]-pc.bbox[0],pc.bbox[3]-pc.bbox[1]].map(v=>+(v*UNIT[unit]).toPrecision(3)).join('×');
+  $('#parts').innerHTML=`<table><tr><th>part</th><th>qty</th><th>group</th><th>t</th><th>size (${unit})</th><th>engages</th><th class="k" data-tip="The other pieces cut from this part's file. ⇄ = its mirror image: cut it from the same file and turn it over (only when mirror ok is on)">same part</th><th>status</th></tr>${kinds.map(([s,pc,ls,fl])=>{
+    const ss=ls.map(l=>sliceOf[l]||s), e=ss.reduce((n,x)=>n+x.errors.length,0), w=ss.reduce((n,x)=>n+x.warnings.length,0), also=ls.slice(1).map(l=>fl.includes(l)?l+'⇄':l);
+    return `<tr class="${e?'bad':''}" data-s="${s.label}"><td>${pc.label}${s.note?' '+s.note:''}</td><td>${ls.length}</td><td>${s.group}</td><td>${s.thickness}</td><td>${size(pc)}</td><td>${[...new Set(s.engages)].join(', ')}</td><td title="${also.join(', ')}">${also.slice(0,3).join(', ')}${also.length>3?` +${also.length-3}`:''}</td><td>${e?'✗ '+e:w?'⚠ '+w:'✓'}</td></tr>`}).join('')}</table>`;
+  $('#parts').onclick=e=>{const tr=e.target.closest('tr[data-s]');if(!tr)return;const m=parts.children.find(c=>c.userData.slice===tr.dataset.s);if(m)highlight(m)};
+}
+
+// ---------------------------------------------------------------- project save / open
+async function saveProject(){   // everything needed to come back: technique, every parameter, per-technique memory, units, presets in use, the model itself
+  const proj={version:3,name:state.project||'',rev:state.rev||'1.0',mode:mode.name,unit,state,memo,example:job&&!job.startsWith('ex_')?'':$('#example').value};
+  if(job&&!job.startsWith('ex_')){const src=await (await fetch(`api/job/${CLIENT}/${job}/source`)).json();proj.model={name:src.name,b64:src.b64}}   // uploaded model travels inside the project file
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(proj)],{type:'application/json'}));a.download=`${proj.name||proj.model?.name||proj.example||'model'}_v${proj.rev}.lamina.json`;a.click();
+}
+async function openProject(f){
+  const s=JSON.parse(await f.text()); Object.assign(memo,s.memo||{}); setMode(s.mode||'interlocked',false); Object.assign(state,s.state||{}); unit=s.unit||state.units||'mm'; $('#unit').value=unit; state.units=unit;
+  state.project=s.name||state.project||''; state.rev=s.rev||state.rev||'1.0'; syncProject();
+  job=null; pendingFile=null; fitted=false; deselect();
+  if(s.model?.b64){const bin=atob(s.model.b64),u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);pendingFile=new File([u8],s.model.name)}
+  else if(s.example)$('#example').value=s.example;
+  renderFields(); slice();
+}
+function syncProject(){$('#pname').value=state.project||'';$('#prev').textContent=state.rev||'1.0'}
+function bump(major){const [a,b]=(state.rev||'1.0').split('.').map(Number);state.rev=major?`${a+1}.0`:`${a}.${(b||0)+1}`;syncProject();schedule()}
+
+// ---------------------------------------------------------------- init
+async function init(){
+  MODES=await (await fetch('api/modes')).json(); const ex=await (await fetch('api/examples')).json();
+  const PRESETS=await fetch('api/presets').then(r=>r.ok?r.json():{}).catch(()=>({}));
+  $('#example').innerHTML=ex.map(e=>`<option>${e}</option>`).join(''); $('#example').value=ex.includes('egg')?'egg':ex[0];
+  $('#modes').innerHTML=MODES.map(m=>`<button data-m="${m.name}">${m.title}</button>`).join('');
+  $('#modes').onclick=e=>{if(e.target.dataset.m){deselect();setMode(e.target.dataset.m);countUse('technique',e.target.dataset.m);slice()}};
+  $('#material').onchange=e=>{const n=e.target.value,m=MATERIALS[n];state.material=n;
+    if(m){const ts=matThicks(n);if(!ts.some(t=>Math.abs(t[0]-state.thickness)<1e-6))state.thickness=ts[Math.floor(ts.length/2)][0];   // a stock thickness of the new material
+      if(!MACHINES[state.machine]?.cuts.includes(n))applyMachine(m.machine);                                                              // a machine that cuts it
+      if(!shs().some(([,s])=>sameSheet(s,state.sheet)))state.sheet=[...shs()[0][1]];                                                       // a sheet it comes in
+      $('#look').value=m.look;applyLook()}
+    renderFields();schedule()};
+  $('#machine').onchange=e=>{applyMachine(e.target.value);renderFields();schedule()};
+  $('#thicklist').onchange=e=>{if(e.target.value){state.thickness=+e.target.value;renderFields();schedule()}};
+  $('#sheetpreset').onchange=e=>{const s=shs()[+e.target.value];if(s){state.sheet=[...s[1]];renderFields();schedule()}};
+  $('#madd').onclick=()=>{const m=state.material||'cardboard',u=ls('slicer_thick',{});u[m]=[...new Set([...(u[m]||[]),state.thickness])];lsSet('slicer_thick',u);syncPresetSelects()};
+  $('#mdel').onclick=()=>{const m=state.material||'cardboard',t=+$('#thicklist').value,u=ls('slicer_thick',{});if(u[m]&&u[m].includes(t)){u[m]=u[m].filter(x=>x!==t);lsSet('slicer_thick',u);syncPresetSelects()}else status('built-in thicknesses cannot be deleted')};
+  $$('button.reset').forEach(b=>b.onclick=()=>resetTab(b.dataset.reset));
+  $('#sadd').onclick=()=>{const n=prompt(`sheet preset name for ${fmtLen(state.sheet[0])} × ${fmtLen(state.sheet[1])}`);if(n){lsSet('slicer_sheets',[...ls('slicer_sheets',[]),[n,[...state.sheet],fam()]]);syncPresetSelects()}};
+  $('#sdel').onclick=()=>{const idx=+$('#sheetpreset').value,u=ls('slicer_sheets',[]),mine=u.filter(s=>!s[2]||s[2]===fam()),s=mine[idx-(shs().length-mine.length)];   // user sizes come after the built-ins
+    if(s){u.splice(u.indexOf(s),1);lsSet('slicer_sheets',u);syncPresetSelects()}else status('built-in sizes cannot be deleted')};
+  renderPresets();
+  $('#presets').onchange=e=>{const ps=ls('slicer_presets',{})[e.target.value];if(ps){Object.assign(state,structuredClone(ps));unit=state.units||unit;$('#unit').value=unit;renderFields();renderPresets(e.target.value);schedule()}};
+  $('#psave').onclick=()=>{const n=prompt('preset name',$('#presets').value||'');if(!n)return;const ps=ls('slicer_presets',{});ps[n]=Object.fromEntries(PKEYS().map(k=>[k,state[k]]));lsSet('slicer_presets',ps);renderPresets(n)};
+  $('#pdel').onclick=()=>{const n=$('#presets').value;if(!n)return;const ps=ls('slicer_presets',{});delete ps[n];lsSet('slicer_presets',ps);renderPresets()};
+  $('#origsize').onclick=()=>{state.scale=1;state.size=[0,0,0];state.rotate=[0,0,0];state.up_axis='z';renderFields();fitted=false;slice()};
+  $('#undo').onclick=()=>step(undos,redos); $('#redo').onclick=()=>step(redos,undos);
+  $('#clear').onclick=async()=>{if(!confirm('Delete everything this tab has sliced — uploaded models, cut files and the session? Presets are kept.'))return;await fetch(`api/session?client=${CLIENT}`,{method:'DELETE'});location.reload()};
+  $('#psave2').onclick=saveProject; $('#popen').onclick=()=>$('#pfile').click(); $('#pfile').onchange=e=>{if(e.target.files[0])openProject(e.target.files[0]);e.target.value=''};
+  $('#pname').oninput=e=>{state.project=e.target.value;schedule()}; $('#pminor').onclick=()=>bump(false); $('#pmajor').onclick=()=>bump(true);
+  $('#unit').onchange=e=>{unit=e.target.value;state.units=unit;renderFields();if(plan){renderReport();renderSheets([...$$('#sheets svg')].map(s=>s.outerHTML))}};
+  $('#x_labels').onchange=()=>{if(job)renderDownloads()};
+  $$('nav button').forEach(b=>b.onclick=()=>showTab(b.dataset.t));
+  const newModel=()=>{job=null;fitted=false;deselect();Object.assign(state,{offset:{},tilt:{},roll:{},thick:{},skip:[],dowels:[],curve:[],extra_x:[],extra_y:[]});renderFields()};
+  // `model/example` vs `model/upload` says whether people bring real work or only try the samples — the file
+  // itself never leaves the browser and its name is never sent, only which of the two it was.
+  // a bundled example opens on its preset (examples/presets.json): its technique, standing the right way up, sliced
+  // clean — the model preparation is reset first so nothing carries over from the previous shape
+  const applyPreset=()=>{const pr=PRESETS[$('#example').value];if(!pr)return;
+    setMode(pr.mode,false);Object.assign(state,{rotate:[0,0,0],size:[0,0,0],scale:1,round:0,thicken:0,shrinkwrap:0,smooth:0,hollow:0,space:0},structuredClone(pr.params));renderFields()};
+  $('#example').onchange=()=>{pendingFile=null;newModel();applyPreset();countUse('model','example');slice()};
+  $('#file').onchange=e=>{pendingFile=e.target.files[0]||null;newModel();if(pendingFile){countUse('model','upload');slice()}};
+  // the session belongs to this tab (mode, every parameter, the model's job, per-technique memory), so a refresh
+  // resumes it instead of starting over; another tab is another session and sees nothing of this one
+  const sess=await fetch(`api/session?client=${CLIENT}`).then(r=>r.ok?r.json():{}).catch(()=>({}));
+  if(sess.mode){Object.assign(memo,sess.memo||{});setMode(sess.mode,false);Object.assign(state,sess.params||{});unit=state.units||unit;$('#unit').value=unit;
+    if(sess.example)$('#example').value=sess.example; job=sess.alive?sess.job:null;
+    if(!sess.alive&&sess.job)status('the uploaded model of the last session is gone — upload it again or pick an example','err');
+    renderFields()}
+  else{setMode(location.hash.slice(1)||'interlocked',false);applyMachine(MATERIALS[state.material].machine);applyPreset();renderFields()}   // a fresh start gets the machine's compensation and the example's preset (the #technique in the URL is the app's own mirror of its state, not a request)
+  slice();
+}
+init();
+
+// Counting, in two clearly separate halves. Only the published build carries <meta name="count-url">; a
+// self-hosted or Docker copy has none, so neither half exists there and nothing can ever be sent.
+//
+//  1. A plain pageview, no opt-in. /app/ is a published web page like any other and this says only that it was
+//     opened — the same fact the landing page records about itself. Treating the two differently was inconsistent.
+//  2. What someone *does* in it — technique, where the model came from, which formats they export — only after
+//     they tick the box. Unticking stops it at once (the loaded script stays, but nothing calls it again).
+const COUNT_URL=document.querySelector('meta[name="count-url"]')?.content;
+let countUse=()=>{};
+if(COUNT_URL){
+  const s=document.createElement('script');
+  s.async=true;s.src='//gc.zgo.at/count.js';s.dataset.goatcounter=COUNT_URL;
+  document.head.appendChild(s);                                    // pageview on load, nothing else
+  const box=$('#usage_optin'); $('#optin').style.display='';
+  box.checked=ls('usage_optin',false);
+  box.onchange=()=>lsSet('usage_optin',box.checked);
+  countUse=(kind,name)=>{if(box.checked&&window.goatcounter?.count)
+    goatcounter.count({path:kind+'/'+name,title:kind+': '+name,event:true})};
+}
+
+// test and capture hook (working-files/ui_cdp.mjs, working-files/capture.mjs)
+window.__t={parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>plan,job:()=>job,
+  select:l=>{const m=parts.children.find(c=>c.userData.slice===l);if(m)highlight(m)},deselect,applyFix,
+  pickAt:(x,y)=>pick({clientX:x,clientY:y})?.userData.slice,
+  hitAt:(x,y)=>{const h=hit({clientX:x,clientY:y});return h?(h.object.userData.gizmo?'gizmo':h.object.userData.slice):null},
+  cam:(az,el,dist)=>{const t=controls.target,r=dist||camera.position.distanceTo(t),a=az*Math.PI/180,e=el*Math.PI/180;
+    camera.position.set(t.x+r*Math.cos(e)*Math.cos(a),t.y+r*Math.cos(e)*Math.sin(a),t.z+r*Math.sin(e));camera.lookAt(t);controls.update();dirty=true;renderer.render(scene,camera)},
+  frame:()=>{dirty=true;renderer.render(scene,camera)}};
+</script></body></html>

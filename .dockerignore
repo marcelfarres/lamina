@@ -1,0 +1,10 @@
+# allow-list: the repo also holds .venv, working-files/ and scratch folders, none of which belong in the image
+*
+!core
+!web
+!examples
+!pyproject.toml
+!uv.lock
+!LICENSE
+!README.md
+**/__pycache__

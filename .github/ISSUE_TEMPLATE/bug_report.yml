@@ -1,0 +1,65 @@
+name: Bug report
+description: Something sliced, nested, exported or rendered wrong
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks. Lamina is in alpha, so reports like this are how it gets stable. The fastest way to a fix is a model and the settings that reproduce it.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: technique
+    attributes:
+      label: Technique
+      options:
+        - Stacked slices
+        - Interlocked slices
+        - Radial slices
+        - Curve (ribs)
+        - Folded panels
+        - Not technique-specific (import, export, UI, install)
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: |
+        The model plus the settings. The easiest way is **save project** in the UI and attach the file, since it embeds the model and every parameter. Otherwise attach the STL (or name the bundled example) and paste the settings or the CLI command.
+      placeholder: |
+        1. Load examples/egg.stl
+        2. Interlocked, nx=5 ny=4, thickness 3
+        3. Export SVG
+        4. Part X-3 has a slot cut through the outline
+    validations:
+      required: true
+
+  - type: textarea
+    id: report
+    attributes:
+      label: What the checks said
+      description: Paste the errors and warnings from the report panel, or the CLI output. Say if the checks reported nothing.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The commit or tag you are on (`git rev-parse --short HEAD`), and your OS and Python version.
+      placeholder: "a34b630 · Windows 11 · Python 3.12"
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Screenshots of the 3D view or the cut sheet help a lot for geometry problems.

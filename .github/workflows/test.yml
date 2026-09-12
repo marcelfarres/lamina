@@ -1,0 +1,21 @@
+name: test
+
+# The suite behind every change: pipeline, nesting, checks, exports, the web API, the browser build's code path and
+# the parameter sweep. Runs on every push and pull request; the docker and pages workflows publish only from main.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --frozen
+      - run: uv run ruff check
+      - run: uv run pytest tests -q
