@@ -86,6 +86,21 @@ def test_a_part_of_another_thickness_gets_its_own_sheet_and_says_so(tmp_path):
     assert any(f.startswith("Z-1") and f.endswith("_3mm.svg") for f in pieces)
 
 
+def test_a_disc_nests_inside_a_ring():
+    """What the no-fit polygons buy over a corner search: the free region of a ring includes its hole, so a disc that
+    fits the hole goes there, and one sheet holds both where two used to be needed."""
+    from types import SimpleNamespace
+    from shapely.geometry import Point
+    from core.geometry import as_multi
+    from core.model import Piece
+    stock = SimpleNamespace(thickness=3)
+    ring = Piece("ring", as_multi(Point(0, 0).buffer(40).difference(Point(0, 0).buffer(30))), stock)
+    disc = Piece("disc", as_multi(Point(0, 0).buffer(25)), stock)
+    assert nest.nest([ring, disc], (100, 100), gap=2, margin=0) == 1
+    assert ring.placed.geoms[0].interiors[0].envelope.contains(disc.placed)
+    assert ring.placed.distance(disc.placed) >= 2 - 1e-6
+
+
 def test_all_parts_are_placed_somewhere(monkeypatch):
     """Sanity check independent of the sheet/overlap geometry: every piece the plan says exists has a
     place, and the total placed-piece count across sheets matches counts.parts."""

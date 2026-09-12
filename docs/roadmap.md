@@ -81,7 +81,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Summary stats (sheets, slices, parts) | ✅ plus sheet usage % and material area |
 | Cut sheets view, click to magnify | ✅ |
 | Part labels `Axis-Slice-Part` | ✅ engraved beside the part with a leader line |
-| Automatic nesting | ✅ polygon nesting on the part outlines (extreme-point placement, min-rect angle plus quarter turns); a bounding-rectangle packer takes over above 150 parts, for speed |
+| Automatic nesting | ✅ no-fit-polygon nesting on the part outlines after [Deepnest](https://github.com/Jack000/Deepnest) (min-rect angle plus quarter turns, lowest-left free point, parts slide into cavities and holes); a bounding-rectangle packer takes over above 150 parts, for speed |
 | Colour coding blue / green / yellow / red | ✅ OUTER / INNER / SCORE layers; parts with errors are drawn red in the UI (3D and sheet) |
 | Prototyping (extra) | ✅ scaled 3D-print set: one flat STL per part + plate, labels engraved (groove) or cut (hole), printable minimum thickness |
 | PDF | ✅ multi-page (one sheet per page) |
@@ -115,7 +115,14 @@ What makes more models buildable comes first; polish and speed after.
    panel edges, fewer vertices per outline).
 4. **Folded panels**: simulated annealing / tabu search over the spanning tree, shape relaxation for single-patch
    unfolding (docs/folded-panels.md).
-5. **No-fit-polygon nesting**, so concave parts can slide into each other (the extreme-point search only tries corners).
+5. **Nesting, the quadratic half**: the no-fit polygons (after Deepnest, 2026-09-12) take the placed parts as convex
+   pieces but the part on its way in as its hull, so it slides into a placed cavity or hole but does not wrap its own
+   cavity around a placed bulge (a crescent in a crescent). The pieces-against-pieces version is one argument away in
+   `core/nest.py` (`turned[r]` for `hull[r]`), at pieces × pieces rings per no-fit polygon; Deepnest's genetic
+   search over the part order, and its merging of shared cut lines, were left out. Measured 2026-09-12 against the
+   corner search it replaced: one sheet fewer on the snowman, the bowl and the folded pear (38 → 51 %, 25 → 33 %,
+   14 → 21 % usage), the same sheets elsewhere; nesting time within 1.5× on every case (bunny 2.5 → 3.3 s, cow 3.4 →
+   5.6 s) once parts with more than 16 pieces are nested by their hull.
 6. **Speed**: the browser now runs within about 2× of the local version (README → How long a slice takes) and shows
    its progress per stage. Next: cache the section polygons of a slice frame between parameter changes that do not
    move the slices (slot width, notch ratio, sheet), so a fit tweak on a scan answers in a second.

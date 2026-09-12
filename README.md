@@ -200,9 +200,11 @@ does not slip through. It carries the most signal for stacked and folded work; d
 
 ### Cut sheets and export
 
-- **Nesting** on the part outlines: largest first, at the corners left by already placed parts, each part tried at
-  its minimum-rectangle angle plus quarter turns. Above 150 parts a rectangle packer takes over; measured on jobs of
-  that size it packs the same and runs a hundred times faster. Usage per sheet is shown.
+- **Nesting** with no-fit polygons, after [Deepnest](https://github.com/Jack000/Deepnest): largest part first, each
+  tried at its minimum-rectangle angle plus quarter turns and placed at the lowest, leftmost point where it clears
+  every placed part, so a part slides into a placed part's cavity or hole (a disc into a ring, a small radial
+  section into a big one). Above 150 parts a rectangle packer takes over; measured on jobs of that size it packs the
+  same and runs far faster. Usage per sheet is shown.
 - **One thickness per sheet**: a part whose thickness you changed is cut from another piece of material, so it is
   nested on sheets of its own. Every sheet title says the stock it is cut from, the sheet header in the UI repeats
   it, and as soon as a job mixes thicknesses the file names carry it (`sheet2_6mm.svg`, `Z-2_6mm.svg`) — a sheet cut

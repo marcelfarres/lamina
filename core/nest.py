@@ -1,23 +1,35 @@
-"""Polygon nesting: parts are placed one by one (largest first) at bottom-left "extreme points" — the corners
-left by already placed parts — trying the part pre-rotated to its minimum bounding rectangle plus 90° turns.
-Collision tests are on the real outlines (buffered by half the gap), so round and concave parts pack closer
-than their bounding boxes. Labels are placed afterwards in free space next to each part, with a leader line.
+"""Polygon nesting with no-fit polygons, after Deepnest (Jack Qiao, github.com/Jack000/Deepnest, MIT) and its
+predecessor SVGnest. For the next part, the positions where it would overlap a placed part are that part's no-fit
+polygon: the Minkowski sum of the placed outline and the negated new one. The positions where it stays on the sheet
+are the inner-fit rectangle. The rectangle minus the union of the no-fit polygons is the free region, and the part
+goes to its lowest, then leftmost, vertex: it slides into concavities and holes, where a corner search only tries the
+corners of bounding boxes. Deepnest computes the Minkowski sum with Clipper; here each outline is cut into convex
+pieces (constrained Delaunay triangles merged while they stay convex) and the sum is the union of the hulls of the
+piece pairs, which shapely does. Parts are placed one by one, largest first, each tried at its minimum-rectangle
+angle plus quarter turns; labels afterwards, in free space next to each part, with a leader line.
 
-Limits: extreme-point greedy with polygon tests (O(n² · rotations) shapely queries). No-fit-polygon nesting
-(SVGnest / libnest2d) would pack concavities that need sliding; a metaheuristic over the part order would pack tighter.
+Not taken from Deepnest: its genetic algorithm over the part order and rotations (minutes of search for a few
+percent of sheet) and its merging of shared cut lines.
 """
 from __future__ import annotations
 import math
 import numpy as np
 import shapely
 from shapely import affinity
-from shapely.geometry import Point, box
+from scipy.ndimage import binary_erosion, distance_transform_edt
+from shapely.geometry import LineString, Point, box
+from shapely.ops import split
 from shapely.strtree import STRtree
 from .geometry import as_multi
 
 ROTS = (0, 90, 180, 270)
-TRIES = 150         # candidate corners examined per part and rotation, half of them the lowest and half spread over
-                    # the rest of the sheet (see `candidates`), which bounds the cost without blinding the search.
+CELL = 2.0          # mm: the raster of a sheet that says which parts cannot fit it (Sheet.room)
+PIECES = 16         # convex pieces a placed part may cost the no-fit polygons; past that it is its hull (see _convex_pieces)
+TOL = 0.5           # mm: the nesting outline is grown by this and simplified by this, so the parts never come closer
+                    # than the gap and rarely more than the gap plus TOL
+POCKET = 2.0        # mm: the convex pieces of an outline may overrun its concavities by this, so a part nested in a
+                    # pocket keeps up to this much more than the gap to the pocket wall; a concave arc needs a chord
+                    # every 2·sqrt(2·radius·POCKET), which is what the count of pieces, and the nesting time, follow
 
 
 def _min_rect_angle(geom):
@@ -34,69 +46,134 @@ def _xf(pc, rot, dx, dy):
     return as_multi(T(pc.kerfed)), [(s, T(l)) for s, l in pc.lines], [(*T(Point(x, y)).coords[0], t) for x, y, t in pc.marks]
 
 
+def _hull(geom):
+    return _ccw(np.asarray(geom.convex_hull.exterior.coords)[:-1])
+
+
+def _convex_pieces(geom, tol, cap):
+    """Convex pieces whose union covers geom and overruns it by at most `tol` (an approximate convex decomposition):
+    each piece is split at its deepest notch, along the bisector of the notch, until the hull of every piece is
+    within `tol` of it. Holes are notches too, so a ring becomes a few wedges around an open middle. Coordinate
+    arrays, one hull each. More than `cap` pieces and the answer is the one hull: the no-fit polygons cost a ring
+    per piece of every placed part, and a scanned outline with dozens of shallow pockets is not worth that."""
+    out, todo = [], list(as_multi(geom).geoms)
+    while todo:
+        if len(out) + len(todo) > cap:
+            return [_hull(geom)]
+        p = todo.pop()
+        hull = p.convex_hull
+        deepest = None
+        for k, ring in enumerate((p.exterior, *p.interiors)):
+            c = np.asarray(ring.coords)[:-1]
+            d = shapely.distance(hull.exterior, shapely.points(c))
+            j = int(np.argmax(d))
+            if deepest is None or d[j] > deepest[0]:
+                deepest = (d[j], c, j, k > 0)
+        depth, c, j, in_hole = deepest
+        if depth <= tol:
+            out.append(_hull(p)); continue
+        v = c[j]; u = [c[j - 1] - v, c[(j + 1) % len(c)] - v]
+        u = [e / np.hypot(*e) for e in u]
+        into = -(u[0] + u[1])                                 # the bisector of the notch, pointing into the part
+        if np.hypot(*into) < 1e-9:
+            into = np.array([-u[0][1], u[0][0]])
+        into /= np.hypot(*into)
+        if not p.contains(Point(*(v + into * 1e-6))):
+            into = -into
+        span = math.hypot(*(np.subtract(hull.bounds[2:], hull.bounds[:2])))
+        t = (shapely.get_coordinates(p.boundary.intersection(LineString([v - into * span, v + into * span]))) - v) @ into
+        ahead, behind = t[t > 1e-6], -t[t < -1e-6]
+        # Ahead, to the first boundary the bisector meets. From a hole, one chord to the outside is a bridge that
+        # does not cut, so the cut also runs back across the hole and through the far wall (the second hit behind).
+        t0, t1 = (np.sort(behind)[1] if len(behind) > 1 else None) if in_hole else 0.0, ahead.min() if len(ahead) else None
+        halves = [] if t0 is None or t1 is None else [q for q in split(p, LineString([v - into * (t0 + 1e-6), v + into * (t1 + 1e-6)])).geoms if q.area > 1e-9]
+        if len(halves) < 2:                                   # no cut found: the hull, which is safe, just coarse
+            out.append(_hull(p)); continue
+        todo += halves
+    return out
+
+
+def _ccw(c):
+    x, y = c[:, 0], c[:, 1]
+    return c if np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1)) >= 0 else c[::-1]
+
+
+def _rot(pieces, deg):
+    c, s = math.cos(math.radians(deg)), math.sin(math.radians(deg))
+    R = np.array([[c, s], [-s, c]])                       # p @ R turns each row counter-clockwise, like affinity.rotate
+    return [p @ R for p in pieces]
+
+
+def _edges(c):
+    """A convex, counter-clockwise piece ready for Minkowski sums: its lowest point and its edges sorted by angle."""
+    e = np.roll(c, -1, 0) - c
+    e = e[np.hypot(e[:, 0], e[:, 1]) > 1e-12]
+    ang = np.arctan2(e[:, 1], e[:, 0]) % (2 * np.pi)
+    o = np.argsort(ang, kind="stable")
+    return c[np.lexsort((c[:, 0], c[:, 1]))[0]], e[o], ang[o]
+
+
+def _minkowski(A, b):
+    """Convex ⊕ convex for every piece of A with the piece b, from their `_edges`: from the sum of the lowest points,
+    the edges of both merged by angle. One sort for all the pairs; the rings come back as one polygon array."""
+    sizes = np.array([len(a[1]) + len(b[1]) for a in A])
+    seg = np.repeat(np.arange(len(A)), sizes)
+    e = np.concatenate([np.concatenate([a[1], b[1]]) for a in A])
+    ang = np.concatenate([np.concatenate([a[2], b[2]]) for a in A])
+    e = e[np.lexsort((ang, seg))]
+    before = np.cumsum(e, 0) - e                            # sum of the edges before each one, over all segments
+    starts = np.cumsum(sizes) - sizes
+    pts = before - np.repeat(before[starts], sizes, 0) + np.repeat([a[0] + b[0] for a in A], sizes, 0)
+    return shapely.polygons(shapely.linearrings(pts, indices=seg))
+
+
 class Sheet:
-    """Parts already placed on one sheet, with their bounding boxes for cheap screening: the hot loop tries hundreds
-    of candidate positions per part, so a candidate is screened on its bounding box with numpy and the translated
-    polygon is only built when a neighbour's box actually overlaps."""
+    """Parts already placed on one sheet: their grown outlines (for the labels) and convex pieces (for the no-fit polygons)."""
     def __init__(self, W, H, margin):
         self.W, self.H, self.margin = W, H, margin
-        self.placed, self.pieces, self.probes = [], [], []
-        self.boxes = np.zeros((0, 4))                     # x0, y0, x1, y1 per placed part
-        self.points = {(margin, margin)}                  # candidate bottom-left corners
+        self.placed, self.pieces, self.convex = [], [], []
+        # A raster of the sheet, CELL wide, a cell blocked when a placed part covers it whole, and the radius of the
+        # largest disc the free cells hold (a distance transform): a part whose hull holds a bigger disc cannot fit,
+        # and is not searched for a spot, which costs a union per rotation. A blocked frame stands for the margin.
+        self.blocked = np.ones((int(H / CELL) + 3, int(W / CELL) + 3), bool)
+        self.blocked[self.cell(margin):self.cell(H - margin) + 1, self.cell(margin):self.cell(W - margin) + 1] = False
+        self.room_r = distance_transform_edt(~self.blocked).max() * CELL
 
-    def candidates(self, n=TRIES):
-        """Positions to try, bottom-left first. Half the budget is the lowest corners and half is spread evenly over
-        the rest of the sheet: with the lowest corners alone a sheet looks full as soon as its bottom row is blocked."""
-        pts = sorted(self.points, key=lambda q: (q[1], q[0]))
-        if len(pts) <= n:
-            return pts
-        head, rest = pts[: n // 2], pts[n // 2:]
-        step = max(1, len(rest) // (n - n // 2))
-        return head + rest[::step]
+    def cell(self, v):
+        return int(v / CELL) + 1
 
-    def in_sheet(self, b):
-        return b[0] >= self.margin - 1e-6 and b[1] >= self.margin - 1e-6 and b[2] <= self.W - self.margin + 1e-6 and b[3] <= self.H - self.margin + 1e-6
-
-    def near(self, b):
-        """Indices of placed parts whose bounding box overlaps b (numpy, no geometry built)."""
-        if not len(self.boxes):
-            return []
-        B = self.boxes
-        hit = (B[:, 0] < b[2] - 1e-9) & (B[:, 2] > b[0] + 1e-9) & (B[:, 1] < b[3] - 1e-9) & (B[:, 3] > b[1] + 1e-9)
-        return np.nonzero(hit)[0]
-
-    def free(self, geom, idxs):
-        """Free of real overlap. Candidates sit exactly on a neighbour's corner and shapely counts touching as
-        intersecting, so each placed part keeps a `probe` shrunk by a micron: touching it is fine, entering it is not.
-        The probes are prepared, so this is an indexed predicate rather than an intersection-area computation."""
-        return not any(shapely.intersects(self.probes[i], geom) for i in idxs)
-
-    def fits(self, geom):
-        b = geom.bounds
-        return self.in_sheet(b) and self.free(geom, self.near(b))
-
-    def add(self, geom, pc, track=True):
-        """track=False records the part for label placement only — the candidate-point bookkeeping below is
-        quadratic and pointless for the rectangle path, which never searches corners."""
+    def add(self, geom, pc, convex=()):
         self.placed.append(geom); self.pieces.append(pc)
-        if not track:
-            return
-        probe = geom.buffer(-1e-3)
-        shapely.prepare(probe)
-        self.probes.append(probe)
+        self.convex += [_edges(p) for p in convex]
         x0, y0, x1, y1 = geom.bounds
-        self.boxes = np.vstack([self.boxes, [x0, y0, x1, y1]])
-        # new corners to try next: right of the part, above it, and the same on the sheet's edges
-        self.points |= {(x1, y0), (x0, y1), (x1, self.margin), (self.margin, y1)}
-        B = self.boxes
-        keep = set()
-        for px, py in self.points:                       # drop points outside the sheet or buried inside a part
-            if px >= self.W - self.margin or py >= self.H - self.margin:
-                continue
-            if np.any((B[:, 0] < px - 1e-9) & (B[:, 2] > px + 1e-9) & (B[:, 1] < py - 1e-9) & (B[:, 3] > py + 1e-9)):
-                continue
-            keep.add((px, py))
-        self.points = keep
+        ny, nx = self.blocked.shape                                       # a part too big for the sheet sticks out
+        r0, r1, c0, c1 = max(self.cell(y0), 0), min(self.cell(y1) + 1, ny), max(self.cell(x0), 0), min(self.cell(x1) + 1, nx)
+        if r1 <= r0 or c1 <= c0:
+            return
+        ys, xs = np.mgrid[r0:r1, c0:c1] * CELL - CELL / 2                 # cell centres
+        inside = shapely.contains_xy(geom, xs, ys)
+        self.blocked[r0:r1, c0:c1] |= binary_erosion(inside)              # only cells whose neighbours are inside too
+        self.room_r = distance_transform_edt(~self.blocked).max() * CELL
+
+    def room(self, r):
+        return r <= self.room_r + 1.5 * CELL
+
+    def spot(self, pieces, bounds):
+        """Lowest, then leftmost, position of a part's origin where it fits, touching allowed, or None: the inner-fit
+        rectangle (the sheet inside the margin, less the part's extent) minus the no-fit polygons of the placed parts.
+        A no-fit polygon, the positions of the part's origin where it overlaps a placed one, is the placed outline ⊕
+        the negated part: the union of the Minkowski sums of the convex pieces, pairwise."""
+        bx0, by0, bx1, by1 = bounds
+        x0, y0, x1, y1 = self.margin - bx0, self.margin - by0, self.W - self.margin - bx1, self.H - self.margin - by1
+        if x1 < x0 or y1 < y0:
+            return None
+        free = box(x0, y0, x1 + 1e-9, y1 + 1e-9)          # a hair wide even when the part exactly spans the sheet
+        if self.convex:
+            free = free.difference(shapely.union_all(np.concatenate([_minkowski(self.convex, _edges(-p)) for p in pieces])))
+        if free.is_empty:
+            return None
+        c = shapely.get_coordinates(free)
+        return c[np.lexsort((c[:, 0], c[:, 1]))[0]]
 
 
 MANY = 150          # above this many pieces the rectangle packer takes over (see nest)
@@ -104,9 +181,9 @@ MANY = 150          # above this many pieces the rectangle packer takes over (se
 
 def _rect_nest(prepared, sheet, gap, margin):
     """Rectangle packing of the parts' minimum bounding boxes — the path for many pieces. Above `MANY` parts the
-    polygon search is about 100x slower and, measured on 200 and 400 identical crescents, packs no tighter (same
-    sheet count and usage either way), so the count is the right gate. Skyline rather than MaxRects: MaxRects
-    de-duplicates its free-rectangle list on every insert, which is quadratic in the part count."""
+    polygon nesting is far slower (quadratic in the part count) and, measured on 200 and 400 identical crescents with
+    the corner search it replaced, packed no tighter, so the count is the gate. Skyline rather than MaxRects:
+    MaxRects de-duplicates its free-rectangle list on every insert, which is quadratic in the part count."""
     from rectpack import newPacker, SkylineBlWm, PackingMode, PackingBin, SORT_AREA
     W, H = sheet[0] - 2 * margin, sheet[1] - 2 * margin
     packer = newPacker(mode=PackingMode.Offline, bin_algo=PackingBin.BFF, pack_algo=SkylineBlWm, sort_algo=SORT_AREA, rotation=True)
@@ -129,7 +206,7 @@ def _rect_nest(prepared, sheet, gap, margin):
         geom, lines, marks = _xf(pc, rot, dx, dy)
         pc.place = (b, geom.bounds[0], geom.bounds[1], rot)
         pc.placed, pc.placed_lines, pc.placed_marks = geom, lines, marks
-        sheets.setdefault(b, Sheet(sheet[0], sheet[1], margin)).add(geom, pc, track=False)
+        sheets.setdefault(b, Sheet(sheet[0], sheet[1], margin)).add(geom, pc)
         done.add(i)
     n = max(sheets) + 1 if sheets else 0
     for i, (pc, rot0) in enumerate(prepared):                  # bigger than a whole sheet (already flagged)
@@ -137,7 +214,7 @@ def _rect_nest(prepared, sheet, gap, margin):
             g = affinity.rotate(pc.kerfed, rot0, origin=(0, 0))
             geom, lines, marks = _xf(pc, rot0, margin - g.bounds[0], margin - g.bounds[1])
             pc.place = (n, margin, margin, rot0); pc.placed, pc.placed_lines, pc.placed_marks = geom, lines, marks
-            sheets.setdefault(n, Sheet(sheet[0], sheet[1], margin)).add(geom, pc, track=False); n += 1
+            sheets.setdefault(n, Sheet(sheet[0], sheet[1], margin)).add(geom, pc); n += 1
     return [sheets[k] for k in sorted(sheets)]
 
 
@@ -179,48 +256,41 @@ def _nest(pieces, sheet, gap, margin, kerf=0.0, label_h=0.0, font=4.0):
     sheets = [Sheet(W, H, margin)]
     for i in order:
         pc, rot0 = prepared[i]
-        placed_ok = False
-        # Round joins, with the offset measured on the buffered bounds: under a mitre join a sharp corner grows a
-        # spike far beyond `half`, and the part would stick out past the sheet margin and be rejected even by an
-        # empty sheet. One buffer per part (it was the nesting's biggest cost), turned for each rotation.
-        grown = pc.kerfed.buffer(half, join_style=1)                 # keep the gap to the neighbours
-        turned = {r: affinity.rotate(grown, rot0 + r, origin=(0, 0)) for r in ROTS}
-        for sh in sheets + [None]:
+        grown = pc.kerfed.buffer(half + TOL, join_style=1).simplify(TOL)   # half the gap on each part keeps them the gap apart
+        convex = _convex_pieces(grown, POCKET, PIECES)
+        turned = {r: _rot(convex, rot0 + r) for r in ROTS}
+        # ponytail: the part on its way in is its convex hull, the placed ones their pieces, so the no-fit polygons
+        # cost pieces × 1 rings, not pieces × pieces: a part slides into a placed part's cavity or hole, but not its
+        # own cavity around a placed part's bulge. Pass turned[r] to spot() for that, at the quadratic cost.
+        hull = {r: _rot([_hull(grown)], rot0 + r) for r in ROTS}
+        disc = shapely.maximum_inscribed_circle(grown.convex_hull, TOL).length
+        best = None
+        for sh in sheets + [None]:                                # first sheet it fits on
             if sh is None:
                 sh = Sheet(W, H, margin); sheets.append(sh)
-            best = None
-            spots = sh.candidates()                          # same list for every rotation: sorting once per sheet
+            if not sh.room(disc):
+                continue
             for r in ROTS:
-                gb = turned[r]
-                gx0, gy0, gx1, gy1 = gb.bounds
-                w, h = gx1 - gx0, gy1 - gy0
-                for (px, py) in spots:
-                    b = (px, py, px + w, py + h)
-                    if not sh.in_sheet(b):
-                        continue
-                    idxs = sh.near(b)
-                    dx, dy = px - gx0, py - gy0
-                    cand = None
-                    if len(idxs):                                     # only now is the polygon worth building
-                        cand = affinity.translate(gb, dx, dy)
-                        if not sh.free(cand, idxs):
-                            continue
-                    score = (b[3], b[2])                              # lowest top, then leftmost right edge
-                    if best is None or score < best[0]:
-                        best = (score, r, dx, dy, cand if cand is not None else affinity.translate(gb, dx, dy))
-                    break                                             # first (lowest) point that fits for this rotation
+                pts = np.concatenate(turned[r])
+                bounds = (*pts.min(0), *pts.max(0))
+                xy = sh.spot(hull[r], bounds)
+                if xy is None:
+                    continue
+                score = (xy[1] + bounds[3], xy[0] + bounds[2])    # lowest top, then leftmost right edge
+                if best is None or score < best[0]:
+                    best = (score, r, float(xy[0]), float(xy[1]))
             if best is not None:
-                _, r, dx, dy, cand = best
-                geom, lines, marks = _xf(pc, rot0 + r, dx, dy)
-                pc.place = (sheets.index(sh), geom.bounds[0], geom.bounds[1], rot0 + r)
-                pc.placed, pc.placed_lines, pc.placed_marks = geom, lines, marks
-                sh.add(cand, pc); placed_ok = True
                 break
-        if not placed_ok:                                           # genuinely bigger than one sheet (already flagged)
-            sh = Sheet(W, H, margin); sheets.append(sh)
+        if best is None:                                            # genuinely bigger than one sheet (already flagged)
             geom, lines, marks = _xf(pc, rot0, margin - pc.kerfed.bounds[0], margin - pc.kerfed.bounds[1])
             pc.place = (len(sheets) - 1, margin, margin, rot0); pc.placed, pc.placed_lines, pc.placed_marks = geom, lines, marks
             sh.add(geom, pc)
+            continue
+        _, r, x, y = best
+        geom, lines, marks = _xf(pc, rot0 + r, x, y)
+        pc.place = (sheets.index(sh), geom.bounds[0], geom.bounds[1], rot0 + r)
+        pc.placed, pc.placed_lines, pc.placed_marks = geom, lines, marks
+        sh.add(affinity.translate(affinity.rotate(grown, rot0 + r, origin=(0, 0)), x, y), pc, [p + (x, y) for p in turned[r]])
     if label_h:
         for sh in sheets:
             place_labels(sh, font)
