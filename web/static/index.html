@@ -32,7 +32,10 @@ button.small{padding:3px 8px;border:1px solid var(--line);background:var(--panel
 .desc{color:var(--muted);font-size:12px;margin:0 0 10px}
 .view{display:flex;flex-direction:column;min-height:0;min-width:0}
 #v3d{position:relative;flex:0 0 56%;border-bottom:1px solid var(--line);min-height:240px}#v3d canvas{display:block;width:100%;height:100%}
-#busy{position:absolute;inset:0;background:#141517aa;display:flex;align-items:center;justify-content:center;color:var(--warn);font-size:14px;pointer-events:none}#busy[hidden]{display:none}
+#busy{position:absolute;inset:0;background:#141517aa;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--warn);font-size:14px;pointer-events:none}#busy[hidden]{display:none}
+#busy .bar{width:240px;height:6px;background:#2a2c33;border-radius:3px;overflow:hidden}#busy .bar i{display:block;height:100%;width:30%;background:var(--warn);border-radius:3px;animation:slide 1.1s infinite linear}
+#busy .bar.known i{animation:none;transition:width .3s}@keyframes slide{from{margin-left:-30%}to{margin-left:100%}}
+#busy_note{max-width:420px;text-align:center;color:var(--muted);font-size:12px;line-height:1.4}#busy_note:empty{display:none}
 .bar{position:absolute;left:10px;top:8px;display:flex;gap:10px;align-items:center;font-size:12px;color:var(--muted);background:#0f1012cc;padding:5px 8px;border-radius:5px;flex-wrap:wrap}.bar label{display:flex;gap:5px;align-items:center}.bar input[type=range]{width:90px}.bar button{padding:2px 8px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:4px;cursor:pointer;font-size:11px}
 #sel{position:absolute;right:10px;top:8px;background:#0f1012ee;padding:8px 10px;border-radius:6px;border:1px solid var(--line);font-size:12px;width:250px}#sel[hidden]{display:none}#sel b{color:var(--sel)}#sel .row{display:grid;grid-template-columns:44px 1fr 66px;gap:6px;align-items:center;margin:4px 0}#sel .row input[type=number]{padding:2px 5px}#sel small{color:var(--muted);display:block;margin-top:4px}
 #hint{position:absolute;left:10px;bottom:8px;max-width:calc(100% - 130px);font-size:11px;color:var(--muted);background:#0f1012aa;padding:3px 7px;border-radius:4px}
@@ -124,7 +127,7 @@ table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 6px;b
   <div id="v3d">
     <div class="bar"><label><input type="checkbox" id="ghost" checked> model</label><label>explode <input type="range" id="explode" min="1" max="3" step="0.05" value="1"></label><label>steps <input type="range" id="steps" min="0" max="1" step="1" value="1"></label><label>look <select id="look"><option value="group">by family</option><option>cardboard</option><option>paper</option><option>plywood</option><option>steel</option><option>plastic</option></select></label><label title="transparency of folded panels, to see the connectors inside">panels <input type="range" id="opacity" min="0.1" max="1" step="0.05" value="1"></label><button id="fit">fit view</button></div>
     <div id="sel" hidden></div>
-    <div id="busy" hidden>slicing…</div>
+    <div id="busy" hidden><span id="busy_txt">slicing…</span><div class="bar"><i></i></div><span id="busy_note"></span></div>
     <div id="hint">drag = orbit · wheel = zoom · right-drag = pan · drag a coloured ring = turn the model · click a part = select · drag the arrow = move · shift-drag = tilt · ctrl-drag = roll · alt-click = add / remove a dowel or curve point · drag a blue dot = move a curve point · click the cube = flat view</div>
   </div>
   <div id="lower"><div id="stats"></div><div id="msgs"></div><div class="sheets" id="sheets"></div></div>
@@ -170,7 +173,7 @@ const SHEETS={
 const COLORS={X:0xd9a760,Y:0x7fb0d9,S:0xd9c080,R:0x8fd08f,C:0xc07070,F:0xc9a0e0,J:0xf0c060,P:0x9a9a9a};
 const LOOKS={cardboard:[0xb98a5a,.9,0],paper:[0xf2f0e6,.95,0],plywood:[0xd9b98a,.7,0],steel:[0xaab2bb,.35,.8],plastic:[0x6fb7e8,.25,.05]};
 const PLANE_IDX={xz:[0,2],yz:[1,2],xy:[0,1]};
-let MODES=[],mode=null,state={},job=null,plan=null,seq=0,timer=null,pendingFile=null,unit='mm',selected=null,busy=false;
+let MODES=[],mode=null,state={},job=null,plan=null,seq=0,timer=null,pendingFile=null,unit='mm',selected=null,busy=false,busySince=0;
 // this tab's own id: everything it slices lives under it on the server, so people sharing one server never meet.
 // sessionStorage keeps it across a refresh but not into another tab; getRandomValues (not randomUUID) so it also
 // works over plain http on a LAN.
@@ -306,7 +309,7 @@ async function slice(){
   const my=++seq, fd=new FormData();
   fd.append('client',CLIENT); fd.append('mode',mode.name); fd.append('params',JSON.stringify(state)); fd.append('memo',JSON.stringify(memo));   // the server keeps this as the tab's session
   if(pendingFile)fd.append('model',pendingFile); else if(job)fd.append('job',job); else fd.append('example',$('#example').value);
-  status('slicing…','busy'); $('#busy').hidden=false; busy=true; const t0=Date.now();
+  status('slicing…','busy'); $('#busy').hidden=false; $('#busy_txt').textContent='slicing…'; $('#busy_note').textContent=''; $('#busy .bar').className='bar'; busy=true; busySince=Date.now(); const t0=busySince;
   try{
     const r=await fetch('api/slice',{method:'POST',body:fd}); const j=await r.json();
     if(my!==seq)return;
@@ -316,9 +319,17 @@ async function slice(){
     pendingFile=null; job=j.job; plan=j.plan; const t1=Date.now();
     render3D(j.model); renderSheets(j.sheets); renderReport();
     status(`ready · ${j.took} s · ${plan.counts.parts} parts · ${plan.sheets} sheet(s) · ${plan.counts.errors} errors`,plan.counts.errors?'err':'');
+    // where the time went, for anyone tuning it: the build's stages (seconds), the round trip around them, and the page's own drawing
+    console.info('lamina timing', mode.name, {...plan.timing, 'round trip beyond the build': +((t1-t0)/1000-j.took).toFixed(2), 'page drawing': (Date.now()-t1)/1000});
   }catch(e){if(my===seq)status('error: '+e.message,'err')}
   if(my===seq){$('#busy').hidden=true;busy=false}
 }
+// the browser build reports build() stages (browser.js relays them); the server answers in one go and keeps the sliding bar
+window.addEventListener('lamina-progress',e=>{if(!busy)return;const {progress:text,frac}=e.detail,pct=Math.round(frac*100);
+  $('#busy_txt').textContent=`${text} · ${pct}%`;$('#busy .bar').className='bar known';$('#busy .bar i').style.width=pct+'%';status(`slicing… ${pct}%`,'busy')});
+// in the browser build a big model takes minutes where the local version takes seconds: say so once the wait is real
+const SLOW_NOTE='Running in the browser: a detailed model takes minutes here, seconds in the local or Docker version (README → Quick start). It is working — the percentage moves.';
+setInterval(()=>{if(busy&&document.documentElement.dataset.static&&Date.now()-busySince>20000&&!$('#busy_note').textContent)$('#busy_note').textContent=SLOW_NOTE},1000);
 
 // ---------------------------------------------------------------- 3D view
 const view=$('#v3d'), renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(devicePixelRatio); view.appendChild(renderer.domElement);

@@ -22,6 +22,8 @@ const ready = (async () => {
   // your own machine: nothing expires on its own, "clear my data" is the only delete
   py.runPython(`import os, sys; os.environ['LAMINA_TTL_HOURS'] = '0'; sys.path.insert(0, ${JSON.stringify(APP)})`);
   const handle = py.pyimport('web.browser').handle;
+  py.globals.set('report', (text, frac) => postMessage({progress: text, frac}));   // build() stages → the page's progress bar
+  py.runPython('import core.plan; core.plan.report = report');
   say('');
   return {py, handle};
 })().catch(err => { say('Python could not be loaded — ' + err); throw err });

@@ -51,6 +51,20 @@ def test_a_prototype_too_thin_to_print_is_planned_again_thicker():
     assert all(sl["thickness"] == 4.8 for sl in thick["slices"])
 
 
+def test_build_reports_its_progress_from_start_to_one():
+    """The browser worker shows these on the page: every stage in order, per-slice sections, ending at 1.0."""
+    import core.plan as P
+    seen = []
+    P.progress = lambda text, frac: seen.append((text, frac))
+    try:
+        build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 4, "autofix": "off"})
+    finally:
+        P.progress = lambda text, frac: None
+    fr = [f for _, f in seen]
+    assert fr == sorted(fr) and fr[0] < 0.1 and fr[-1] == 1.0
+    assert sum("sectioning" in t for t, _ in seen) == 4 and any("nesting" in t for t, _ in seen)
+
+
 def test_square_dowel_keeps_its_wall_to_the_outline():
     """Random points are sampled a margin inside the overlap; that margin must come from the hole's real reach (a
     square's corner, 0.71 d), or the wall check flags every hole near a curved edge."""

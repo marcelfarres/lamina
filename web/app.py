@@ -146,13 +146,16 @@ def slice_model(client: str = Form(...), mode: str = Form(...), params: str = Fo
     except Exception as e:
         raise HTTPException(500, f"{type(e).__name__}: {e}") from e
     W, H = plan["sheet"]; p = plan["params"]
+    t1 = time.time()
     sheets = [svg_doc(items_for_sheet(plan, si), W, H, p["labels"], True, p["font"], p["units"], sheet_title(plan, si)) for si in range(plan["sheets"])]
+    plan["timing"]["drawing the sheets"] = round(time.time() - t1, 3)
     took = round(time.time() - t0, 2)
     # the session belongs to the client, not to the server: what this tab sliced last, so its refresh resumes it
     session = {"mode": mode, "params": prm, "job": job, "example": example or (job[3:] if job.startswith("ex_") else ""), "memo": json.loads(memo or "{}")}
     (cd / "session.json").write_text(json.dumps(session))
     with open(ROOT / "working-files" / "timing.log", "a") as f:   # one server-side log, outside the served jobs tree
-        f.write(f"{time.strftime('%H:%M:%S')} {mode:12s} {mpath.name:16s} {plan['counts']['parts']:4d} parts {took:6.2f} s{'  params=' + json.dumps(prm)[:300] if took > 5 else ''}\n")
+        stages = " ".join(f"{k.split(' ')[0]}={v:.1f}" for k, v in plan["timing"].items() if v >= 0.05)
+        f.write(f"{time.strftime('%H:%M:%S')} {mode:12s} {mpath.name:16s} {plan['counts']['parts']:4d} parts {took:6.2f} s  {stages}{'  params=' + json.dumps(prm)[:300] if took > 5 else ''}\n")
     ghost = f"/jobs/{client}/{job}/model.stl?v={int((jd / 'model.stl').stat().st_mtime_ns // 1_000_000)}"   # new URL whenever the processed model changed
     return {"job": job, "plan": plan, "sheets": sheets, "model": ghost, "took": took}
 

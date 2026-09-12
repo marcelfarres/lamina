@@ -121,6 +121,29 @@ set: the landing page records the visit, the referrer, which link was clicked an
 records that it was opened. What someone *does* in the demo — technique, whether the model came from the examples or
 their own computer, which formats they export — is sent only if they tick the box at the foot of its Model tab.
 
+### How long a slice takes
+
+The browser version is the whole program, compiled to WebAssembly and running on your own CPU, so it is a little
+slower than the local version rather than a lot; while it works, the overlay shows the stage and a percentage, and
+after twenty seconds it says so in words. Measured on the bundled examples at their presets (one core of a 2024
+laptop, Chrome; the local column is `uv run`, the Docker image is the same):
+
+| example | technique | faces | parts | local | browser |
+|---|---|---|---|---|---|
+| head_igea (scan, remeshed and smoothed) | radial 14 × 6 | 281 k | 34 | 12 s | 24 s |
+| bunny (scan) | stacked, random dowels | 187 k | 64 | 13 s | 31 s |
+| cow_spot (scan) | stacked, dowels | 89 k | 67 | 7 s | 11 s |
+| pear (scan) | radial 10 × 5 | 71 k | 25 | 4 s | 6 s |
+| snowman | radial 10 × 6 | 14 k | 28 | 5 s | ~8 s |
+| everything else (synthetic shapes) | any | ≤ 20 k | ≤ 36 | 0.1 – 4 s | 0.2 – 7 s |
+
+What costs time: the face count of the model after Modify Form (a fine `shrinkwrap` pitch on a big model makes a
+large mesh), the number of slices that cross each other (every crossing pair is a ray cast and an insertion check),
+and `smooth` passes. `uv run python working-files/time_head.py --browser head_igea` prints the seconds per stage
+for any example, with or without the compiled extras the browser build lacks. If a slice takes minutes in the
+browser, it is a model well beyond these: run the local version, or reduce the model first (a coarser
+`shrinkwrap`, a decimated mesh).
+
 [docker-compose.yml](docker-compose.yml) is the same thing as a stack for Portainer / Dockge / Komodo: paste it,
 and `docker compose pull && docker compose up -d` moves it to the newest build. Every push to `main` publishes
 `:latest`, a `v*` tag publishes that version, and jobs live in the `/app/working-files` volume.

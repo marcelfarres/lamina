@@ -68,8 +68,9 @@ def test_one_sheet_nests_everything_on_one_strip():
 
 
 def test_build_is_deterministic():
-    """Same model and params, same plan JSON: the coverage sampler is seeded, nothing else draws randomness."""
+    """Same model and params, same plan JSON: the coverage sampler is seeded, nothing else draws randomness.
+    The stage timing is the one thing in a plan that is allowed to differ between two runs."""
     params = {"nx": 4, "ny": 3, "autofix": "off"}
-    p1 = build(EXAMPLES / "egg.stl", "interlocked", params)
-    p2 = build(EXAMPLES / "egg.stl", "interlocked", params)
+    p1 = build(EXAMPLES / "egg.stl", "interlocked", params); p1.pop("timing", None)
+    p2 = build(EXAMPLES / "egg.stl", "interlocked", params); p2.pop("timing", None)
     assert json.dumps(p1, sort_keys=True) == json.dumps(p2, sort_keys=True)

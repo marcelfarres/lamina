@@ -11,7 +11,8 @@
     worker = new Worker('static/browser-worker.js', {type: 'module'});
     worker.onmessage = e => {
       const m = e.data;
-      if (m.progress !== undefined) { m.progress ? box().textContent = m.progress : box().remove(); return }
+      if (m.frac !== undefined) { window.dispatchEvent(new CustomEvent('lamina-progress', {detail: m})); return }   // a slice under way
+      if (m.progress !== undefined) { m.progress ? box().textContent = m.progress : box().remove(); return }       // Python loading
       const w = waiting.get(m.id); waiting.delete(m.id); w(m);
     };
   }
@@ -29,7 +30,7 @@
     if (mode !== 'static') {
       const r = await real(url, opts).catch(() => null);
       if (mode === 'server' || (r && r.status !== 404)) { mode = 'server'; return r }
-      mode = 'static';
+      mode = 'static'; document.documentElement.dataset.static = '1';   // the page tells the user what running in the browser costs
     }
     return viaWorker(u, opts);
   };

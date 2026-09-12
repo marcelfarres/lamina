@@ -3,7 +3,7 @@
     uv run python -m core.plan examples/egg.stl --mode interlocked --set nx=5 ny=4 thickness=3 --out working-files/egg
 """
 from __future__ import annotations
-import argparse, json, pathlib
+import argparse, json, pathlib, time
 import numpy as np
 import trimesh
 from shapely import affinity
@@ -17,6 +17,29 @@ from .model import Piece
 
 MODES = load_all()
 CAD_SUFFIXES = {".step", ".stp", ".brep", ".iges", ".igs"}
+
+
+def report(text, frac):
+    """Where progress() forwards each stage of build(): what is happening and how far along (0..1). A no-op here; the
+    browser worker points it at the page, where a slice of a big model in Pyodide takes long enough to look stuck."""
+
+
+STAGES: list[tuple[str, float]] = []      # (stage text, clock) marks of the build under way — one build at a time per process
+
+
+def progress(text, frac):
+    STAGES.append((text, time.perf_counter()))
+    report(text, frac)
+
+
+def timing() -> dict[str, float]:
+    """Seconds per stage of the build, read off the progress marks; a counted stage ("sectioning 3 / 16") folds into
+    one row. This is what an optimisation has to move, so it rides in the plan and in the server's timing log."""
+    out = {}
+    for (text, t0), (_, t1) in zip(STAGES, STAGES[1:]):
+        k = text.split(" ")[0] if text[-1].isdigit() else text
+        out[k] = round(out.get(k, 0.0) + t1 - t0, 3)
+    return out
 
 
 def coerce_params(mode, raw: dict) -> dict:
@@ -48,14 +71,56 @@ def load_cad(path) -> trimesh.Trimesh:
     return trimesh.util.concatenate(meshes)
 
 
+def rasterize(seg, shape):
+    """Even-odd scanline fill of one layer from its cut segments (n, 2, 2) in grid units: the point (i, j) is inside
+    when an odd number of segments cross the row j to its left. Works on the bare segment soup — no loop linking, so
+    a missing triangle (an open loop) costs nothing, and it is one numpy pass for the whole layer."""
+    y = np.arange(shape[1])[:, None]
+    (x0, y0), (x1, y1) = seg[:, 0].T[:, None, :], seg[:, 1].T[:, None, :]           # (1, n) each, against rows (m, 1)
+    cross = (y0 <= y) != (y1 <= y)                                                    # half-open rule: a vertex on the row counts once
+    with np.errstate(divide="ignore", invalid="ignore"):
+        x = np.where(cross, x0 + (y - y0) * (x1 - x0) / (y1 - y0), 0)
+    rows, cols = np.nonzero(cross)[0], np.clip(np.ceil(x[cross]), 0, None).astype(int)   # a crossing left of the grid counts for every point
+    keep = cols < shape[0]
+    count = np.zeros(shape, int)
+    np.add.at(count, (cols[keep], rows[keep]), 1)
+    return np.cumsum(count, axis=0) % 2 == 1
+
+
+def voxelize_solid(mesh, pitch):
+    """Occupancy grid of the solid at `pitch` — the matrix and the world position of its [0, 0, 0] voxel. The mesh is
+    cut at every layer and the cut rasterised, so the grid is solid from the start. trimesh's own voxeliser splits
+    every triangle down to half a voxel and then fills the shell: 13 s on a 40k-face head at 1 mm, where this takes
+    about a second. Like that shell, this is conservative: the samples sit at the voxels' corners and a voxel is solid
+    when any of its eight corners is inside, so the solid grows by half a voxel and a thin feature — a bunny's ear
+    at 1.7 mm — survives instead of vanishing between voxel centres."""
+    from scipy import ndimage
+    from trimesh.intersections import mesh_plane
+    lo = np.floor(mesh.bounds[0] / pitch).astype(int) - 1
+    n = np.ceil(mesh.bounds[1] / pitch).astype(int) + 2 - lo
+    c = np.zeros(n + 1, bool)                          # corner samples: c[j] sits at (lo + j - 0.5) * pitch
+    for k in range(n[2] + 1):
+        seg = mesh_plane(mesh, [0, 0, 1], [0, 0, (lo[2] + k - 0.5) * pitch])
+        if not len(seg):
+            continue
+        seg = seg[:, :, :2] / pitch - lo[:2] + 0.5
+        _, ends = np.unique(np.round(seg.reshape(-1, 2), 4), axis=0, return_counts=True)
+        if (ends % 2).any():                  # an end where an odd number of segments meet: a loop is open (a hole in a
+            chains = trimesh.load_path(seg).discrete   # scan) — link the segments into chains and close each straight across
+            seg = np.concatenate([np.stack([ch, np.roll(ch, -1, 0)], 1) for ch in chains])
+        c[:, :, k] = rasterize(seg, n[:2] + 1)
+    m = c[:-1] | c[1:]; m = m[:, :-1] | m[:, 1:]; m = m[:, :, :-1] | m[:, :, 1:]
+    return ndimage.binary_fill_holes(m), lo * pitch     # a cavity — a scan's inner surface, a duplicated shell — is solid, as before
+
+
 def modify_form(mesh, p, notes):
     """Slicer's Modify Form: shrinkwrap (voxel remesh), round (drop features smaller than r and round corners =
     morphological opening + closing), thicken (dilate), hollow (keep a wall). One voxel pass."""
     from scipy import ndimage
     pitch = max(p["shrinkwrap"] or max(mesh.extents) / 120, max(mesh.extents) / 300)   # 300³ voxels at most: a fine pitch on a big model is a memory request, not a detail
     pad = int(np.ceil((p["thicken"] + p["round"]) / pitch)) + 2
-    vox = mesh.voxelized(pitch).fill()
-    m = np.pad(vox.matrix, pad)
+    m, origin = voxelize_solid(mesh, pitch)
+    m = np.pad(m, pad)
     if p["round"]:
         n = max(1, int(round(p["round"] / pitch)))
         ball = ndimage.generate_binary_structure(3, 1)
@@ -67,7 +132,7 @@ def modify_form(mesh, p, notes):
         n = max(1, int(round(p["hollow"] / pitch)))
         m = m & ~ndimage.binary_erosion(m, iterations=n)
     out = trimesh.voxel.ops.matrix_to_marching_cubes(m, pitch=pitch)
-    out.apply_translation(vox.translation - pad * pitch)
+    out.apply_translation(origin - pad * pitch)
     notes.append(f"modify form: remeshed at {pitch:.2f} mm voxels ({len(out.faces)} faces)")
     return out
 
@@ -118,6 +183,7 @@ def coverage(mesh, slices, r, lat=3.0):
 def load_mesh(path, params, notes=None, mode=""):
     notes = [] if notes is None else notes
     path = pathlib.Path(path)
+    progress("loading the model", 0.02)
     mesh = load_cad(path) if path.suffix.lower() in CAD_SUFFIXES else trimesh.load(path, force="mesh")
     if params["up_axis"] != "z":
         src = "xyz".index(params["up_axis"])
@@ -143,8 +209,10 @@ def load_mesh(path, params, notes=None, mode=""):
     if params["shrinkwrap"] or params["hollow"] or params["thicken"] or params["round"] or (not mesh.is_watertight and not open_surface):
         if not mesh.is_watertight and not params["shrinkwrap"]:
             notes.append("mesh is not watertight — auto shrinkwrap applied (set shrinkwrap to control the resolution)")
+        progress("modify form: remeshing", 0.06)
         mesh = modify_form(mesh, params, notes)
     if params["smooth"]:
+        progress("smoothing", 0.16)
         mesh = smooth_mesh(mesh, params["smooth"])
     mesh.apply_translation(-mesh.bounds.mean(0))
     return mesh
@@ -188,8 +256,10 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     mode = MODES[mode_name]
     p = coerce_params(mode, raw_params)
     notes = []
+    STAGES.clear()
     mesh = load_mesh(model_path, p, notes, mode_name)
     if mesh_out:                                    # processed model for the browser's ghost view (decimated)
+        progress("preparing the preview model", 0.18)
         ghost = mesh
         if len(mesh.faces) > 30000:
             try:
@@ -204,10 +274,12 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         p["sheet"] = [sheet0[0], ONE_SHEET_H]
     # build → section → check; with autofix = add, floating regions get a crossing slice and we build again (2 rounds)
     for attempt in range(3):
+        progress("placing slices and slots", 0.2)
         ctx = Ctx(mesh, p)
         slices = mode.build(ctx)
         kept = []
-        for sl in slices:                       # sections → profiles (modes may hand over a finished `raw` for synthetic parts)
+        for i, sl in enumerate(slices):         # sections → profiles (modes may hand over a finished `raw` for synthetic parts)
+            progress(f"sectioning {i + 1} / {len(slices)}", 0.35 + 0.35 * i / len(slices))
             if sl.raw is None:
                 raw = section_polygons(mesh, sl.M)
                 if sl.clip is not None:
@@ -227,6 +299,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
             kept.append(sl)
         dropped = [s for s in slices if s not in kept]
         slices = kept
+        progress("checking the parts and the assembly", 0.7)
         n_err, n_warn = check_plan(slices, p, mesh, ctx.span)
         if p["autofix"] != "add" or not n_err or attempt == 2:
             break
@@ -246,6 +319,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     n_err += len(ctx.errors) + len(dropped)
 
     # split + pack
+    progress("nesting the parts on sheets", 0.85)
     for sl in slices:
         if p["split"] and sl.facets is None:
             split_slice(sl, p["sheet"], p["sheet_margin"], p["tab"])
@@ -267,7 +341,9 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     if p["one_sheet"]:                              # report the strip at the length the parts actually took
         top = max((pc.placed.bounds[3] for pc in pieces), default=0.0) + p["sheet_margin"]
         sheet_out = [sheet0[0], float(np.ceil(top))]; p["sheet"] = sheet0
+    progress("measuring coverage", 0.94)
     cov = coverage(mesh, slices, getattr(ctx, "cover_r", max(mesh.extents) / 8), lat=max(3.0, p["thickness"]))
+    progress("done", 1.0)
     if getattr(ctx, "notes_extra", None):
         notes.append(ctx.notes_extra)
     if cov < 0.9:
@@ -285,6 +361,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         "errors": ctx.errors,
         "material_area_mm2": float(sum(pc.geom.area for pc in pieces)),
         "coverage": cov,
+        "timing": timing(),
         "core_d_min": getattr(ctx, "core_d_min", None),
         "sheet_usage": float(sum(pc.geom.area for pc in pieces) / max(1e-9, n_sheets * sheet_out[0] * sheet_out[1])),
         "slices": [{

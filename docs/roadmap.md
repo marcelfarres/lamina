@@ -116,9 +116,9 @@ What makes more models buildable comes first; polish and speed after.
 4. **Folded panels**: simulated annealing / tabu search over the spanning tree, shape relaxation for single-patch
    unfolding (docs/folded-panels.md).
 5. **No-fit-polygon nesting**, so concave parts can slide into each other (the extreme-point search only tries corners).
-6. **Speed in the browser**: the bunny takes 30 s in Pyodide and 4 s on the server. Cache the section polygons of
-   a slice frame between parameter changes that do not move the slices (slot width, notch ratio, sheet), and show
-   progress per stage instead of one spinner.
+6. **Speed**: the browser now runs within about 2× of the local version (README → How long a slice takes) and shows
+   its progress per stage. Next: cache the section polygons of a slice frame between parameter changes that do not
+   move the slices (slot width, notch ratio, sheet), so a fit tweak on a scan answers in a second.
 7. **Touch**: the 3D view's drag / shift-drag / ctrl-drag editing has no touch equivalent; a tablet at the laser is
    a common place to use it.
 

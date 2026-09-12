@@ -6,6 +6,12 @@ import trimesh
 from shapely.geometry import Polygon, MultiPolygon, Point, LineString, MultiLineString
 from shapely.ops import unary_union
 
+try:
+    import rtree  # noqa: F401 — trimesh's ray broad phase. Decided once: asking trimesh on every cast makes it compute
+    HAVE_RTREE = True   # the bounds of every triangle before it finds out (0.15 s a cast on a 280k-face head, never cached)
+except ImportError:                                       # the browser build has none
+    HAVE_RTREE = False
+
 
 def frame(origin, normal, up_hint=(0, 0, 1)) -> np.ndarray:
     """4x4 local->world. Local z = normal; local y = up_hint projected onto the plane; local x = y × z."""
@@ -82,13 +88,19 @@ def line_segments_in_mesh(mesh, p0, d, span) -> list[tuple[float, float]]:
     """Inside-segments (s_in, s_out) of the line p0 + s*d against the mesh."""
     d = np.asarray(d, float); d = d / np.linalg.norm(d)
     origin = np.asarray(p0, float) - d * span
-    try:
+    if HAVE_RTREE:
         locs, _, _ = mesh.ray.intersects_location([origin], [d], multiple_hits=True)   # rtree broad phase, cached on the mesh
-    except ImportError:                                   # the browser build has no rtree: every triangle is a candidate, vectorised
-        from types import SimpleNamespace
+    else:                                                 # the browser build: a broad phase of our own — only the triangles
+        from types import SimpleNamespace                 # whose bounding sphere the line passes through are tested
         from trimesh.ray.ray_triangle import ray_triangle_id
-        every = SimpleNamespace(bounds=mesh.bounds, intersection=lambda b: range(len(mesh.faces)))
-        _, _, locs = ray_triangle_id(mesh.triangles, [origin], [d], triangles_normal=mesh.face_normals, tree=every, multiple_hits=True)
+        cache = mesh.metadata.setdefault("lamina_spheres", {})
+        if "c" not in cache:                              # once per mesh
+            tri = mesh.triangles; c = tri.mean(1)
+            cache.update(c=c, r2=(np.linalg.norm(tri - c[:, None], axis=2).max(1) + 1e-6) ** 2)
+        v = cache["c"] - origin; t = v @ d
+        near = np.flatnonzero(np.einsum("ij,ij->i", v, v) - t * t <= cache["r2"])   # squared distance to the line
+        tree = SimpleNamespace(bounds=mesh.bounds, intersection=lambda b: near)
+        _, _, locs = ray_triangle_id(mesh.triangles, [origin], [d], triangles_normal=mesh.face_normals, tree=tree, multiple_hits=True)
     if len(locs) == 0:
         return []
     s = np.sort((locs - p0) @ d)
