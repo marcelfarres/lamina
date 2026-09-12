@@ -180,17 +180,18 @@ def _nest(pieces, sheet, gap, margin, kerf=0.0, label_h=0.0, font=4.0):
     for i in order:
         pc, rot0 = prepared[i]
         placed_ok = False
+        # Round joins, with the offset measured on the buffered bounds: under a mitre join a sharp corner grows a
+        # spike far beyond `half`, and the part would stick out past the sheet margin and be rejected even by an
+        # empty sheet. One buffer per part (it was the nesting's biggest cost), turned for each rotation.
+        grown = pc.kerfed.buffer(half, join_style=1)                 # keep the gap to the neighbours
+        turned = {r: affinity.rotate(grown, rot0 + r, origin=(0, 0)) for r in ROTS}
         for sh in sheets + [None]:
             if sh is None:
                 sh = Sheet(W, H, margin); sheets.append(sh)
             best = None
             spots = sh.candidates()                          # same list for every rotation: sorting once per sheet
             for r in ROTS:
-                g = affinity.rotate(pc.kerfed, rot0 + r, origin=(0, 0))
-                # Round joins, with the offset measured on the buffered bounds: under a mitre join a sharp corner
-                # grows a spike far beyond `half`, and the part would stick out past the sheet margin and be
-                # rejected even by an empty sheet.
-                gb = g.buffer(half, join_style=1)                    # keep the gap to the neighbours
+                gb = turned[r]
                 gx0, gy0, gx1, gy1 = gb.bounds
                 w, h = gx1 - gx0, gy1 - gy0
                 for (px, py) in spots:

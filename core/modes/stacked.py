@@ -1,5 +1,6 @@
 """Stacked: parallel sections, touching or spaced apart, connected by dowel rods, flat pegs, or tabbed spacers."""
 import numpy as np
+import shapely
 from shapely.geometry import Polygon, Point
 from shapely.ops import unary_union
 from . import Mode, Param, register
@@ -118,7 +119,6 @@ class Stacked(Mode):
             islands += [h for h in getattr(isl, "geoms", [isl]) if h.area > 0]
         if not islands:
             return []
-        far = lambda q: all(np.hypot(q[0] - r[0], q[1] - r[1]) >= 2 * d for r in taken)
         out = []
         if p["placement"] == "aligned":
             fixed = [q for q in list(p["dowels"]) + self.common_points(ctx, margin) if overlap.contains(Point(q))]
@@ -129,10 +129,15 @@ class Stacked(Mode):
             rng = np.random.default_rng(1000 + i)
             for isl in islands:
                 x0, y0, x1, y1 = isl.bounds; got = []
-                for _ in range(800):
-                    q = (round(rng.uniform(x0, x1), 1), round(rng.uniform(y0, y1), 1))
-                    if isl.contains(Point(q)) and far(q) and all(np.hypot(q[0] - r[0], q[1] - r[1]) > 2 * d for r in got):
-                        got.append(q)
+                # 800 candidates at once: inside the island and clear of the holes already cut, then the first ones
+                # that also keep clear of each other (one shapely call per island instead of one per candidate)
+                q = np.round(rng.uniform((x0, y0), (x1, y1), (800, 2)), 1)
+                q = q[shapely.contains_xy(isl, q[:, 0], q[:, 1])]
+                if len(q) and taken:
+                    q = q[(np.linalg.norm(q[:, None] - np.asarray(taken, float), axis=2) >= 2 * d).all(1)]
+                for pt in q:
+                    if all(np.hypot(pt[0] - r[0], pt[1] - r[1]) > 2 * d for r in got):
+                        got.append((float(pt[0]), float(pt[1])))
                         if len(got) == p["n_points"]:
                             break
                 out += got
