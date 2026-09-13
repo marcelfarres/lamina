@@ -230,6 +230,9 @@ does not slip through. It carries the most signal for stacked and folded work; d
   at least the letter height you ask for in printed millimetres (5 mm by default, whatever the scale), and sits
   where the part is widest, away from slots and edges; a part with no room for it gets none and README.txt in the
   zip names it.
+- **Fit test** before the model: five small assemblies with the job's joints (its thickness, connectors, and every
+  radial half-slice, since that is what wedges) at slot offsets of the job's own and ±1, ±2 steps, each part
+  engraved with its offset, on one plate. Print, assemble: the loosest that still holds is the slot offset to set.
 - **Every zip carries the project file** (`….lamina.json`) that the UI's *open project* reads back: technique, every
   parameter and the uploaded model itself, so a printed part or a cut file found later leads back to what made it.
 

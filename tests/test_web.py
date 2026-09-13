@@ -92,6 +92,8 @@ def test_the_solid_downloads_of_a_job(api):
     assert "plate.3mf" in same and "README.txt" not in same
     thin = names(api.get(f"/api/job/{MINE}/{job}/proto", params={"scale": 0.1, "min_thick": 1.2}))
     assert "plate.3mf" in thin and "README.txt" in thin
+    fit = names(api.get(f"/api/job/{MINE}/{job}/fit", params={"scale": 1, "step": 0.05}))
+    assert "plate.3mf" in fit and "README.txt" in fit and "fit_0.05.stl" in fit and "fit_-0.10.stl" in fit
 
 
 def test_every_zip_carries_the_project_file_that_reopens_the_job(api):

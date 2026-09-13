@@ -4,9 +4,10 @@ which opens in OrcaSlicer / PrusaSlicer as one named object per part, ready to a
 
     uv run python -m core.solid working-files/egg.json --out working-files/egg_assembled.stl [--part X-3]
     uv run python -m core.solid working-files/egg.json --proto working-files/egg_proto --scale 0.5 --labels groove
+    uv run python -m core.solid working-files/egg.json --fit working-files/egg_fit --step 0.1     # 5 slot offsets to try first
 """
 from __future__ import annotations
-import argparse, contextlib, json, pathlib
+import argparse, contextlib, json, math, pathlib, tempfile
 import numpy as np
 import trimesh
 from shapely import affinity
@@ -163,6 +164,32 @@ def proto_plan(plan, scale, min_thick):
     return build(plan["model"], plan["mode"], p), note
 
 
+def _plate(plan, scene, scale, labels, font, min_thick, dx=0.0, tag=None):
+    """Every part of the plan flat in the scene as the nester laid it out (turned as it was nested, sheets stacked in
+    y, `dx` along x), each its own named object. `tag` replaces the engraved text and prefixes the names (the fit
+    test engraves its offset). Yields (piece, mesh at the origin, mesh as placed, whether it got its label)."""
+    sheet_h = plan["sheet"][1] + 20
+    for sl in plan["slices"]:
+        for pc in sl["pieces"]:
+            m, labeled = proto_part({**pc, "label": tag or pc["label"]}, sl["thickness"], scale, labels, font, min_thick)
+            si, x, y, rot = pc["place"]                       # the nested part's lower-left corner and its turn
+            q = m.copy(); q.apply_transform(trimesh.transformations.rotation_matrix(np.radians(rot), [0, 0, 1]))
+            q.apply_translation([dx + x * scale - q.bounds[0][0], (y + si * sheet_h) * scale - q.bounds[0][1], 0])
+            name = f"{tag} {pc['label']}" if tag else pc["label"]
+            scene.add_geometry(q, node_name=name, geom_name=name)
+            yield pc, m, q, labeled
+
+
+def _readme(out_dir, lines, files):
+    if lines:
+        f = out_dir / "README.txt"; f.write_text("\n".join(lines) + "\n", encoding="utf-8"); files.append(f)
+    return files
+
+
+def _unlabeled_note(unlabeled, font):
+    return f"no room for a {font:g} mm label on {len(unlabeled)} part(s): {', '.join(unlabeled)} — a smaller label size would fit them"
+
+
 def proto_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2, plate=True, note=None):
     """One STL per part (flat) plus plate.3mf holding every part as its own named object, and README.txt when there
     is something to say: `note` (the re-plan, see proto_plan) and the parts that had no room for a label `font` mm
@@ -174,38 +201,92 @@ def proto_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2
     out_dir = pathlib.Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
     files, unlabeled = [], []
     scene = trimesh.Scene()
-    sheet_h = plan["sheet"][1] + 20
-    for sl in plan["slices"]:
-        for pc in sl["pieces"]:
-            m, labeled = proto_part(pc, sl["thickness"], scale, labels, font, min_thick)
-            if not labeled:
-                unlabeled.append(pc["label"])
-            f = out_dir / f"{pc['label']}.stl"; m.export(f); files.append(f)
-            if plate:
-                si, x, y, rot = pc["place"]
-                q = m.copy(); q.apply_translation([x * scale, (y + si * sheet_h) * scale, 0])
-                scene.add_geometry(q, node_name=pc["label"], geom_name=pc["label"])
+    for pc, m, _, labeled in _plate(plan, scene, scale, labels, font, min_thick):
+        if not labeled:
+            unlabeled.append(pc["label"])
+        f = out_dir / f"{pc['label']}.stl"; m.export(f); files.append(f)
     if plate and len(scene.geometry):
         f = out_dir / "plate.3mf"
         f.write_bytes(scene.export(file_type="3mf"))
         files.append(f)
     lines = [note] if note else []
     if unlabeled:
-        lines.append(f"no room for a {font:g} mm label on {len(unlabeled)} part(s): {', '.join(unlabeled)} — a smaller label size would fit them")
-    if lines:
-        f = out_dir / "README.txt"; f.write_text("\n".join(lines) + "\n", encoding="utf-8"); files.append(f)
-    return files
+        lines.append(_unlabeled_note(unlabeled, font))
+    return _readme(out_dir, lines, files)
+
+
+# ---------------------------------------------------------------- fit test: the job's joints on a small stand-in, at offsets around its own
+FIT_SIZE = 40.0     # mm across the stand-in sphere; radial grows it so 2 × count half-slices have room around the core
+FIT_DROP = ("skip", "offset", "tilt", "roll", "thick", "grow", "extra_x", "extra_y", "dowels", "lines", "curve", "center")   # edits of the model's own slices
+
+
+def fit_plan(plan, k, step):
+    """The job's parameters on a small sphere, the slot offset moved by `k` steps of `step` mm: the joints the model
+    is held by, at the fit to try, without the model. Per-slice edits belong to the model and are dropped; the count
+    that makes an assembly tight stays (every radial half-slice wedges at once), the others are cut to a few."""
+    p = {key: v for key, v in plan["params"].items() if key not in FIT_DROP}
+    p["slot_offset"] = round(p["slot_offset"] + k * step, 3)
+    p.update(scale=1.0, size=[0, 0, 0], rotate=[0, 0, 0], split=False, autofix="off")
+    mode, size = plan["mode"], FIT_SIZE
+    if mode == "radial":
+        p.update(rings="count", ring_count=min(p["ring_count"], 2))
+        need = 2 * (p["count"] * (p["thickness"] + p["slot_offset"]) / math.pi + p["thickness"])    # as radial.py sizes the core
+        size = max(size, 2 * need)
+    elif mode == "interlocked":
+        p.update(distribution="count", nx=min(p["nx"], 4), ny=min(p["ny"], 4))
+    elif mode in ("stacked", "curve"):
+        p.update(distribution="count", count=min(p["count"], 3))
+    p["sheet"] = [max(200.0, 1.2 * size)] * 2                    # the sheet only lays the parts out here: keep them close
+    from .plan import build
+    with tempfile.NamedTemporaryFile(suffix=".stl", delete=False) as f:
+        trimesh.creation.icosphere(3, size / 2).export(f.name)
+    try:
+        return build(pathlib.Path(f.name), mode, p)
+    finally:
+        pathlib.Path(f.name).unlink(missing_ok=True)
+
+
+def fit_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2, step=0.1, steps=2):
+    """Small assemblies to print and try before the model: the job's joints at its slot offset and at ±1 … ±`steps`
+    × `step` mm around it, every part engraved with its offset. The loosest that slides together without forcing and
+    still holds is the slot offset to set. One plate.3mf with the variants side by side, one STL per variant, and a
+    README that says which is which."""
+    out_dir = pathlib.Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
+    files, unlabeled, tags = [], [], []
+    scene = trimesh.Scene(); dx = 0.0
+    for k in range(-steps, steps + 1):
+        vp, _ = proto_plan(fit_plan(plan, k, step), scale, min_thick)
+        tag = f"{vp['params']['slot_offset']:.2f}"; tags.append(tag)
+        placed = []
+        for pc, _, q, labeled in _plate(vp, scene, scale, labels, font, min_thick, dx, tag):
+            placed.append(q)
+            if not labeled:
+                unlabeled.append(f"{tag} {pc['label']}")
+        v = trimesh.util.concatenate(placed); v.apply_translation([-dx, 0, 0])
+        f = out_dir / f"fit_{tag}.stl"; v.export(f); files.append(f)
+        dx = scene.bounds[1][0] + 10
+    f = out_dir / "plate.3mf"; f.write_bytes(scene.export(file_type="3mf")); files.append(f)
+    lines = [f"Fit test for the {plan['mode']} job: {len(tags)} small assemblies with its joints, at slot offsets {', '.join(tags)} mm "
+             f"(the job's own, {tags[steps]}, in the middle), every part engraved with its offset. Print them and put each together: "
+             "the loosest that slides on without forcing and still holds is the slot offset to set (Fit → slot offset)."]
+    if unlabeled:
+        lines.append(_unlabeled_note(unlabeled, font))
+    return _readme(out_dir, lines, files)
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("plan"); ap.add_argument("--out"); ap.add_argument("--part")
     ap.add_argument("--proto", help="output dir for the prototyping set"); ap.add_argument("--scale", type=float, default=1.0)
+    ap.add_argument("--fit", help="output dir for the fit test: the job's joints on a small stand-in at 5 slot offsets"); ap.add_argument("--step", type=float, default=0.1)
     ap.add_argument("--labels", choices=["none", "groove", "hole"], default="groove"); ap.add_argument("--min-thick", type=float, default=1.2)
     ap.add_argument("--font", type=float, default=5.0, help="label letter height in printed mm, whatever the scale")
     a = ap.parse_args(argv)
     plan = json.loads(pathlib.Path(a.plan).read_text())
-    if a.proto:
+    if a.fit:
+        for f in fit_set(plan, a.fit, a.scale, a.labels, a.font, a.min_thick, a.step):
+            print(f)
+    elif a.proto:
         plan, note = proto_plan(plan, a.scale, a.min_thick)
         if note:
             print(note)

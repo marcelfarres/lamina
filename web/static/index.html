@@ -121,6 +121,8 @@ table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 6px;b
       <div class="f"><span class="k" data-tip="Thinnest part the printer can make (mm). Parts that would print thinner cannot simply be made thicker — their slots were cut for the thin material — so the set is planned again at the material thickness that prints to this">min thickness (mm)</span><input type="number" id="pr_min" value="1.2" min="0.2" step="0.1"></div>
       <div class="hint" id="pr_hint" style="margin:2px 0 8px"></div>
       <div class="dl"><a href="#" id="pr_go">download prototype set (plate.3mf for OrcaSlicer + one STL per part)</a></div>
+      <div class="f" style="margin-top:8px"><span class="k" data-tip="Print this before the model. Five small assemblies with this job's joints — same thickness, connectors and counts that make the assembly tight (every radial half-slice) — at slot offsets of yours −2, −1, 0, +1, +2 steps, each part engraved with its offset. The loosest that slides together without forcing and still holds is the slot offset to set under Fit">fit step (mm)</span><input type="number" id="pr_step" value="0.1" min="0.01" step="0.05"></div>
+      <div class="dl"><a href="#" id="fit_go">download fit test (5 slot offsets around yours, at the scale above)</a></div>
       <h2>Parts</h2><div id="parts"></div></section>
   </div>
 </aside>
@@ -561,7 +563,9 @@ function renderReport(){
     const m=parts.children.find(c=>c.userData.slice===d.dataset.s); if(m){highlight(m);fitted=true}};
   renderDownloads();
   // the link itself does the download (a navigation on the server, a blob from the worker in the browser build)
-  $('#pr_go').onclick=e=>{const q=new URLSearchParams({scale:$('#pr_scale').value||1,size:$('#pr_size').value||0,labels:$('#pr_labels').value,font:$('#pr_font').value||5,min_thick:$('#pr_min').value||1.2});e.currentTarget.href=`api/job/${CLIENT}/${job}/proto?${q}`;countUse('export','proto-3mf')};
+  const prq=()=>new URLSearchParams({scale:$('#pr_scale').value||1,size:$('#pr_size').value||0,labels:$('#pr_labels').value,font:$('#pr_font').value||5,min_thick:$('#pr_min').value||1.2});
+  $('#pr_go').onclick=e=>{e.currentTarget.href=`api/job/${CLIENT}/${job}/proto?${prq()}`;countUse('export','proto-3mf')};
+  $('#fit_go').onclick=e=>{const q=prq();q.set('step',$('#pr_step').value||0.1);e.currentTarget.href=`api/job/${CLIENT}/${job}/fit?${q}`;countUse('export','fit-3mf')};
   for(const id of ['#pr_scale','#pr_size','#pr_min'])$(id).oninput=protoHint;
   // Which formats people actually take away — the strongest signal of what machines they run. The link's own
   // query string already names them, so nothing extra has to be tracked to know it.

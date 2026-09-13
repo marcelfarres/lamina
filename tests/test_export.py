@@ -142,6 +142,25 @@ def test_proto_set_says_which_parts_had_no_room_for_a_label(tmp_path):
     assert all(pc["label"] in readme for sl in plan["slices"] for pc in sl["pieces"])
 
 
+def test_fit_test_is_the_jobs_joints_at_five_offsets_on_a_small_stand_in(tmp_path):
+    """Before printing the model, five small assemblies with its joints: the job's own slot offset in the middle and
+    two steps either way, every radial half-slice kept (that is what makes the real one tight), rings cut to two,
+    each part engraved with its offset, all on one plate and one STL per offset."""
+    from core.solid import fit_plan, fit_set
+    plan = build(EXAMPLES / "egg.stl", "radial", {"count": 5, "ring_count": 3, "slot_offset": 0.1, "autofix": "off"})
+    v = fit_plan(plan, 2, 0.1)
+    assert abs(v["params"]["slot_offset"] - 0.3) < 1e-9 and v["params"]["count"] == 5 and v["params"]["ring_count"] == 2
+    assert max(v["bbox"]) < 100 and v["counts"]["parts"] == 12                   # 2 rings + 10 half-slices, small
+    files = {f.name for f in fit_set(plan, tmp_path, step=0.1)}
+    assert {"fit_-0.10.stl", "fit_0.00.stl", "fit_0.10.stl", "fit_0.20.stl", "fit_0.30.stl", "plate.3mf", "README.txt"} <= files
+    scene = trimesh.load(tmp_path / "plate.3mf")
+    per_tag = {}
+    for name in scene.geometry:
+        per_tag[name.split(" ")[0]] = per_tag.get(name.split(" ")[0], 0) + 1
+    assert per_tag == {t: 12 for t in ("-0.10", "0.00", "0.10", "0.20", "0.30")}
+    assert "0.10, in the middle" in (tmp_path / "README.txt").read_text(encoding="utf-8")
+
+
 def test_proto_set_3mf_reloads_with_one_named_geometry_per_part(tmp_path):
     plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 3, "autofix": "off"})
     proto_set(plan, tmp_path)
