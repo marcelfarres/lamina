@@ -64,6 +64,7 @@ table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 6px;b
 <label style="font-size:12px;color:var(--muted)">view <select id="viewmode"><option value="both">3D + sheets</option><option value="only3d">3D only</option><option value="only2d">sheets only</option></select></label>
 <label style="font-size:12px;color:var(--muted)">units <select id="unit"><option>mm</option><option>cm</option><option>in</option></select></label>
 <a class="kofi" href="https://marcelfarres.github.io/lamina/?ref=app" target="_blank" rel="noopener" data-tip="What Lamina does, every technique explained, how to run it yourself">docs</a><a class="kofi" href="https://github.com/marcelfarres/lamina" target="_blank" rel="noopener" data-tip="Source code, issues, releases (AGPL-3.0)">GitHub</a>
+<a class="kofi" data-feedback href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml" target="_blank" rel="noopener" data-tip="Something came out wrong? Write a sentence here and the report fills in the rest: the technique, every setting, what the checks said, and the model saved ready to attach unless you untick that box. It then opens a prefilled email or the GitHub issue form for you to send — email needs no account.">report a problem</a>
 <a class="kofi" href="https://ko-fi.com/marcelfarres" target="_blank" rel="noopener" data-tip="Lamina is free and always will be — no account, no paid tier, and none of that depends on donations. If you would like to support the work and can comfortably afford it, a coffee is very welcome. No pressure.">♥ Ko-fi</a></header>
 <main>
 <aside>
@@ -80,8 +81,9 @@ table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 6px;b
            found by people who had already exported, which is the wrong half of the audience for either message. -->
       <p style="color:var(--muted);font-size:12px;line-height:1.6;margin:20px 0 4px;border-top:1px solid var(--line);padding-top:14px">
         Lamina is free and always will be. If something came out wrong,
-        <a href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml" target="_blank" rel="noopener">tell me about it</a> —
-        that helps more than anything. And if you would like to support the work and can comfortably afford it,
+        <a data-feedback href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml" target="_blank" rel="noopener">tell me about it</a> —
+        it takes a sentence, the report fills in the rest, and that helps more than anything. And if you would like
+        to support the work and can comfortably afford it,
         there is <a href="https://ko-fi.com/marcelfarres" target="_blank" rel="noopener">Ko-fi</a>. No pressure
         either way.</p>
       <!-- Hidden unless the build carries a counter endpoint, so the self-hosted and Docker versions can never
@@ -138,6 +140,7 @@ table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 6px;b
 </section>
 </main>
 <script src="static/browser.js"></script>
+<script src="static/feedback.js"></script>
 <script type="module">
 import * as THREE from 'three';
 import {OrbitControls} from './static/vendor/OrbitControls.js';
@@ -585,17 +588,33 @@ function renderReport(){
 }
 
 // ---------------------------------------------------------------- project save / open
-async function saveProject(){   // everything needed to come back: technique, every parameter, per-technique memory, units, presets in use, the model itself
+// everything needed to come back: technique, every parameter, per-technique memory, units, presets in use, the
+// model itself. One definition of the data model, used by save project, by the export zips (web/app.py) and by a
+// bug report — which is the only caller that ever leaves the model out, and only when its box is unticked.
+async function projectObj(withModel=true){
   const proj={version:3,name:state.project||'',rev:state.rev||'1.0',mode:mode.name,unit,state,memo,example:job&&!job.startsWith('ex_')?'':$('#example').value};
-  if(job&&!job.startsWith('ex_')){const src=await (await fetch(`api/job/${CLIENT}/${job}/source`)).json();proj.model={name:src.name,b64:src.b64}}   // uploaded model travels inside the project file
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(proj)],{type:'application/json'}));a.download=`${proj.name||proj.model?.name||proj.example||'model'}_v${proj.rev}.lamina.json`;a.click();
+  // the uploaded model travels inside the project file — when the server still has it. A job swept by the TTL, a
+  // restarted server or a slice still in flight answers with nothing, and a project file without its model is far
+  // better than a save that dies half way: whoever opens it is told which model to bring.
+  if(withModel&&job&&!job.startsWith('ex_')){
+    const r=await fetch(`api/job/${CLIENT}/${job}/source`), src=r.ok?await r.json():null;
+    if(src?.b64)proj.model={name:src.name,b64:src.b64}; else proj.missing_model=modelName();
+  }
+  return proj;
 }
+const modelName=()=>$('#file').files[0]?.name||pendingFile?.name||'the uploaded model';
+async function saveProject(){
+  const proj=await projectObj();
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(proj)],{type:'application/json'}));a.download=projName(proj);a.click();
+}
+const projName=proj=>`${proj.name||proj.model?.name||proj.example||'model'}_v${proj.rev}.lamina.json`;
 async function openProject(f){
   const s=JSON.parse(await f.text()); Object.assign(memo,s.memo||{}); setMode(s.mode||'interlocked',false); Object.assign(state,s.state||{}); unit=s.unit||state.units||'mm'; $('#unit').value=unit; state.units=unit;
   state.project=s.name||state.project||''; state.rev=s.rev||state.rev||'1.0'; syncProject();
   job=null; pendingFile=null; fitted=false; deselect();
   if(s.model?.b64){const bin=atob(s.model.b64),u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);pendingFile=new File([u8],s.model.name)}
   else if(s.example)$('#example').value=s.example;
+  else if(s.missing_model)status(`this project was saved without its model — the settings are here, upload ${s.missing_model} again`,'err');
   renderFields(); slice();
 }
 function syncProject(){$('#pname').value=state.project||'';$('#prev').textContent=state.rev||'1.0'}
@@ -675,6 +694,33 @@ if(COUNT_URL){
   countUse=(kind,name)=>{if(box.checked&&window.goatcounter?.count)
     goatcounter.count({path:kind+'/'+name,title:kind+': '+name,event:true})};
 }
+
+// ---------------------------------------------------------------- bug reports (static/feedback.js draws the dialog)
+// What a report carries from here: the checks in words — small enough to read in an issue — and the project file,
+// which is the whole data model and reopens the job exactly as it was. The model is inside it only while the
+// reporter leaves the box ticked; everything else is the same either way.
+const TECHNIQUE={stacked:'Stacked slices',interlocked:'Interlocked slices',radial:'Radial slices',curve:'Curve (ribs)',folded:'Folded panels'};
+function reportSummary(){
+  if(!plan)return 'nothing sliced yet';
+  const p=plan.params, c=plan.counts, n=v=>+(+v).toPrecision(4);
+  const msgs=[...plan.notes.map(x=>'note: '+x),...plan.errors.map(x=>'error: '+x),
+    ...plan.dropped.flatMap(s=>s.errors.map(e=>`error ${s.label}: ${e}`)),
+    ...plan.slices.flatMap(s=>[...s.errors.map(e=>`error ${s.label}: ${e}`),...s.warnings.map(w=>`warning ${s.label}: ${w}`)])];
+  return [`technique      ${plan.mode}`,
+    `model          ${job?.startsWith('ex_')?'bundled example '+job.slice(3):'uploaded by the reporter'}, ${plan.bbox.map(n).join(' × ')} mm, ${c.faces} faces`,
+    `result         ${c.slices} slices, ${c.parts} parts, ${plan.sheets} sheet(s) at ${n(plan.sheet_usage*100)}% used, ${c.errors} errors, ${c.warnings} warnings`,
+    `material       ${state.material} ${p.thickness} mm on ${state.machine}, kerf ${p.kerf}, slot offset ${p.slot_offset}, relief ${p.relief}`,   // material and machine are the form's own, not the planner's
+    `sheet          ${plan.sheet.map(n).join(' × ')} mm, units ${p.units}`,
+    `timing (s)     ${Object.entries(plan.timing).map(([k,v])=>`${k}=${v}`).join(', ')}`,
+    `running        ${document.documentElement.dataset.static?'in the browser (Pyodide)':'against a local server'}`,
+    '', ...(msgs.length?msgs.slice(0,60):['the checks reported nothing'])].join('\n');
+}
+window.laminaFeedback?.(async withModel=>{
+  const proj=await projectObj(withModel);
+  const gone=proj.missing_model?`\n(the model could not be attached: ${proj.missing_model} is no longer on the server)`:'';
+  return {technique:TECHNIQUE[plan?.mode]||'Not technique-specific (import, export, UI, install)', summary:reportSummary()+gone,
+          file:new File([JSON.stringify(proj)],projName(proj),{type:'application/json'})};
+});
 
 // test and capture hook (working-files/ui_cdp.mjs, working-files/capture.mjs)
 window.__t={parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>plan,job:()=>job,

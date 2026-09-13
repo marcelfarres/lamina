@@ -48,6 +48,11 @@ if count := os.environ.get("COUNT_URL"):
         (app / "index.html").read_text(encoding="utf-8")
         .replace("</head>", f'<meta name="count-url" content="{count}"></head>', 1), encoding="utf-8")
 
+# The "report a problem" dialog is one file, shared by the landing page and the app. It posts nowhere — it opens a
+# prefilled email or the GitHub issue form — so there is nothing to configure and it behaves the same here as in a
+# self-hosted copy.
+shutil.copy(ROOT / "web" / "static" / "feedback.js", site / "feedback.js")
+
 (site / "README.md").write_text("---\ntitle: Lamina\nemoji: 🪚\nsdk: static\napp_file: index.html\nlicense: agpl-3.0\n"
                                 "short_description: Turn a 3D model into flat parts you can cut\n---\n", encoding="utf-8")   # Hugging Face static Space
 print(f"_site: {sum(f.stat().st_size for f in site.rglob('*') if f.is_file()) / 1e6:.1f} MB, app/static/py: {reqs}")

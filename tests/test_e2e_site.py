@@ -9,11 +9,17 @@ import functools
 import http.server
 import os
 import pathlib
+import re
 import threading
+import urllib.parse
 
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+# The issue form prefills a dropdown by matching an option's text, so a technique the app names has to be one of
+# them — read off the template itself, since a rename on either side is exactly what would break the prefill.
+TEMPLATE_TECHNIQUES = re.findall(r"^ +- (\S.*)$", (ROOT / ".github/ISSUE_TEMPLATE/bug_report.yml")
+                                 .read_text(encoding="utf-8").split("options:")[1].split("validations:")[0], re.M)
 pytestmark = pytest.mark.skipif(not os.environ.get("LAMINA_E2E"), reason="set LAMINA_E2E=1 (needs _site/ and playwright's chromium)")
 
 
@@ -60,4 +66,43 @@ def test_the_site_slices_in_the_browser(site):
         with page.expect_download() as dl:
             page.click("#dl a")
         assert dl.value.suggested_filename.endswith(".zip")
+
+        # A bug report carries the data model, and its tick box is the only promise the dialog makes about the
+        # model itself: ticked, the project file holds the uploaded mesh; unticked, not a byte of it travels.
+        page.click("header [data-feedback]")
+        said = "part X-3 has a slot cut through the outline"
+        page.fill("#fb_what", said)
+        carried = lambda: page.evaluate("""async () => {
+            const p = (await window.__feedback.build()).get('project');
+            return [p.size, JSON.parse(await p.text()).model?.name || ''];
+        }""")
+        ticked = carried()
+        page.uncheck("#fb_tick")
+        plain = carried()
+        assert ticked[1] == "pear.stl", ticked                     # the mesh that was uploaded, by name
+        assert plain[1] == "", plain
+        assert ticked[0] > 2 * plain[0], (ticked, plain)           # and it is the mesh that makes up the size
+
+        # both ways out, built from that same report: a prefilled email and a prefilled issue form
+        page.check("#fb_tick")
+        routes = page.evaluate("""async () => {
+            const fd = await window.__feedback.build(), file = fd.get('project');
+            return [window.__feedback.mailto(fd, file), window.__feedback.issueUrl(fd, file)];
+        }""")
+        mail, issue = (urllib.parse.urlsplit(u) for u in routes)
+        mq, iq = (urllib.parse.parse_qs(u.query) for u in (mail, issue))
+        assert mail.path == "lamina.3d.app@gmail.com", mail.path
+        assert said in mq["body"][0] and said in iq["what"][0]                 # what the reporter typed, both ways
+        assert "pear.stl_v1.0.lamina.json" in mq["body"][0], mq["body"][0]     # and which file to attach
+        assert mq["body"][0].startswith(said) and "parts" in mq["body"][0]     # with the checks under it
+        assert len(routes[0]) < 2000, len(routes[0])                           # mail clients cut long ones
+        assert iq["template"] == ["bug_report.yml"]
+        assert iq["technique"][0] in TEMPLATE_TECHNIQUES, iq["technique"]      # must match an option of the dropdown
+        assert iq["report"][0].startswith("technique"), iq["report"][0][:80]
+        assert len(routes[1]) < 8000, len(routes[1])                           # GitHub refuses more
+        # pressing it saves the file to attach and leaves the dialog saying so
+        with page.expect_download() as report_dl:
+            page.click("#fb_gh")
+        assert report_dl.value.suggested_filename.endswith(".lamina.json")
+        assert "attach" in page.text_content("#fb_note")
         assert not errors, errors

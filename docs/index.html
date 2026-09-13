@@ -426,10 +426,20 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
   <p class="sub"><b>Early days.</b> Lamina is very new — an alpha, free under the AGPL-3.0 and written in the open by
   one person. Every construction technique of the original Slicer is in and the physical checks go further than it
   did, but expect things that do not work the way you expect yet. Please go and find them, and
-  <a href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml">tell me what broke</a> — every
-  report makes the next person's cut come out better, and nothing is too small to mention. The template asks for the
-  saved project file, which carries the model and every setting. While it is this young, read the checks and test-cut
-  before committing expensive material.</p>
+  <a data-feedback href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml">tell me what broke</a> — every
+  report makes the next person's cut come out better, and nothing is too small to mention. While it is this young,
+  read the checks and test-cut before committing expensive material.</p>
+  <p class="sub" style="margin-bottom:16px">The button below takes a sentence and fills in the rest, then opens
+  either a prefilled email or the prefilled issue form for you to send — <b>email needs no account anywhere</b>,
+  and an issue is public where an email is not. From inside the app it also gathers the technique, every setting
+  and what the checks said, and saves the model ready to attach unless you untick that box, which is what makes a
+  report reproducible. It shows you what it has gathered before anything goes anywhere. By hand works just as
+  well: <a href="mailto:lamina.3d.app@gmail.com">lamina.3d.app@gmail.com</a> or the
+  <a href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml">GitHub issue form</a>.</p>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">
+    <a class="btn" data-feedback href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml">Report a problem</a>
+    <a class="btn ghost" href="app/index.html">Report it from the app, with the model</a>
+  </div>
   <div class="grid g3">
     <div><h3>Not there yet</h3><p class="sub">Seams are chosen automatically — you cannot click an edge to add or
       remove one. Insertion is simulated as a straight slide along each crossing line — a part that would have to
@@ -481,7 +491,7 @@ uv run python -m core.plan examples/egg.stl --list-params</code></pre>
   welcome — only if you can comfortably afford it, and with no pressure at all.</p>
   <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px">
     <a class="btn" href="https://ko-fi.com/marcelfarres">♥ Support on Ko-fi</a>
-    <a class="btn ghost" href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml">Send a bug report</a>
+    <a class="btn ghost" data-feedback href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml">Send a bug report</a>
   </div>
   <p class="sub" style="margin-top:20px">There are other ways to help that are worth just as much: tell someone
   who cuts sheet material that this exists, show me what you made with it, or open an issue when something goes
@@ -559,4 +569,8 @@ for (const v of document.querySelectorAll("video")) {
   });
 }
 </script>
+<!-- The "report a problem" dialog, the same file the app loads. deploy/build_site.py copies it here at build time;
+     a checkout served straight from docs/ has none, and every data-feedback link stays the plain GitHub link it is
+     written as. -->
+<script src="feedback.js"></script>
 </body></html>

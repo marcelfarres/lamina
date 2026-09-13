@@ -81,9 +81,17 @@ Nothing is too small to mention.
 One habit worth keeping while it is this young: read the checks, and test-cut using the calibration bar on every
 sheet before you commit expensive material.
 
-**Found a bug?** [Open an issue](https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml). The
-template asks for the model and the settings that reproduce it. The quickest way to give both is **save project**
-in the UI, which writes one file with the model embedded and every parameter in it.
+**Found a bug?** There are two ways to say so, and neither is better than the other.
+
+- **report a problem**, in the app's header and on the landing page. Write a sentence and it fills in the rest:
+  the technique, every setting, what the checks said, and — unless you untick the box — the model itself, saved
+  ready to attach, which is what makes a report reproducible. It shows you exactly what it has gathered, then
+  opens either a prefilled email to `lamina.3d.app@gmail.com` or the prefilled GitHub issue form, and you press
+  send. **Email needs no account anywhere**; an issue is public, an email is not.
+- **[The issue form](https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml)**, filled in by
+  hand. It asks for the model and the settings that reproduce the problem; the quickest way to give both is
+  **save project** in the UI, which writes one file with the model embedded and every parameter in it — the same
+  file the button attaches.
 
 ## Quick start
 
@@ -344,6 +352,14 @@ uv run python -m http.server 8080 --directory docs   # then open http://localhos
 ```
 
 The `.md` files next to it (`roadmap.md`, `folded-panels.md`) are read on GitHub rather than through the page.
+
+`deploy/build_site.py` assembles what actually gets published — the landing page plus the app running its Python
+in the browser. Its one optional repository variable, set in the `pages` workflow, is `COUNT_URL`, the GoatCounter
+endpoint; unset means nothing is counted anywhere.
+
+**report a problem** needs no configuration at all: `web/static/feedback.js` gathers the report and opens a
+prefilled email or the GitHub issue form, so it behaves identically published, in Docker and offline. The address
+it writes to is one constant at the top of that file; a fork changes that line.
 
 ## Contributing
 
