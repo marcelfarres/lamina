@@ -226,7 +226,12 @@ does not slip through. It carries the most signal for stacked and folded work; d
   the fit. Turn it on under Machine & cut compensation when yours does not.
 - **Solids**: STL of the assembled model or one part, and a **prototyping set** for test-printing a design: every part
   flat at a scale or target size, thickness raised to a printable minimum, label engraved as a groove or cut through,
-  as one STL per part plus a 3MF that OrcaSlicer or PrusaSlicer opens as separate named objects.
+  as one STL per part plus a 3MF that OrcaSlicer or PrusaSlicer opens as separate named objects. The label is bold,
+  at least the letter height you ask for in printed millimetres (5 mm by default, whatever the scale), and sits
+  where the part is widest, away from slots and edges; a part with no room for it gets none and README.txt in the
+  zip names it.
+- **Every zip carries the project file** (`….lamina.json`) that the UI's *open project* reads back: technique, every
+  parameter and the uploaded model itself, so a printed part or a cut file found later leads back to what made it.
 
 ### The web UI
 

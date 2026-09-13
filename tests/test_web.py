@@ -94,6 +94,19 @@ def test_the_solid_downloads_of_a_job(api):
     assert "plate.3mf" in thin and "README.txt" in thin
 
 
+def test_every_zip_carries_the_project_file_that_reopens_the_job(api):
+    """A cut file or a printed part found later has to lead back to the model that made it: the zips carry the same
+    project file the UI's "open project" reads (technique, every parameter, and an uploaded model itself)."""
+    import json
+    job = api.post("/api/slice", data={"client": MINE, **CUBE}).json()["job"]
+    for url in (f"/api/job/{MINE}/{job}/export", f"/api/job/{MINE}/{job}/proto?scale=1"):
+        z = zipfile.ZipFile(io.BytesIO(api.get(url).content))
+        name = next(n for n in z.namelist() if n.endswith(".lamina.json"))
+        proj = json.loads(z.read(name))
+        assert proj["mode"] == "stacked" and proj["example"] == "cube" and proj["state"]["count"] == 3
+        assert "model" not in proj                                       # a bundled example is named, not embedded
+
+
 def test_a_job_id_cannot_climb_out_of_its_client(api):
     assert api.get(f"/api/job/{MINE}/ex_.././ex_cube/export").status_code in (400, 404)
     assert api.post("/api/slice", data={"client": MINE, "mode": "stacked", "example": "../cube"}).status_code == 400

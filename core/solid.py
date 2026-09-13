@@ -60,14 +60,16 @@ def assembled(plan, part=None) -> trimesh.Trimesh:
 
 # ---------------------------------------------------------------- text → polygons (labels engraved in prototypes)
 def text_polygons(text, height, res=8) -> MultiPolygon:
-    """Glyph outlines of `text` as polygons `height` mm tall (rendered with Pillow, traced with scikit-image)."""
+    """Glyph outlines of `text` as polygons, the capitals `height` mm tall (rendered with Pillow, traced with
+    scikit-image). Bold, so the strokes print: at 5 mm they are about 0.8 mm wide, two passes of a 0.4 mm nozzle."""
     from PIL import Image, ImageDraw, ImageFont
     from skimage import measure
-    px = int(height * res)
-    try:
-        font = ImageFont.truetype("arial.ttf", px)
-    except OSError:
-        font = ImageFont.load_default(size=px)
+    px = int(height * res * 1.4)                                         # the em is about 1.4 capitals
+    for name in ("arialbd.ttf", "arial.ttf"):
+        try:
+            font = ImageFont.truetype(name, px); break
+        except OSError:
+            font = ImageFont.load_default(size=px)
     x0, y0, x1, y1 = font.getbbox(text)
     img = Image.new("L", (x1 - x0 + 4, y1 - y0 + 4), 0)
     ImageDraw.Draw(img).text((2 - x0, 2 - y0), text, fill=255, font=font)
@@ -88,28 +90,50 @@ def text_polygons(text, height, res=8) -> MultiPolygon:
             out.append(g)
         else:
             out[out.index(holder)] = holder.difference(g)
-    return unary_union(out) if out else MultiPolygon()
+    if not out:
+        return MultiPolygon()
+    g = unary_union(out)
+    k = height / (g.bounds[3] - g.bounds[1])
+    return affinity.scale(g, k, k, origin=(0, 0))
 
 
-def proto_part(pc, thickness, scale, labels, font, min_thick) -> trimesh.Trimesh:
-    """One part flat on z = 0 at `scale`, with its label as a groove (half depth) or a hole (through)."""
+def label_inside(geom, text, min_h, inset=1.0):
+    """The label as polygons inside the part: at the fattest spot of its largest region (the centre of the biggest
+    inscribed circle, so away from every edge and slot), turned along the region's long axis and slid along it as
+    far as a label length when the fat spot is near an end, 1.5 × `min_h` tall where that fits and `min_h`
+    otherwise. None when even `min_h` fits nowhere: the part then gets no label and the README says so, rather
+    than a label too small to read or one cut into an edge."""
+    from .nest import _min_rect_angle
+    txt = text_polygons(text, min_h)
+    tx, ty = (txt.bounds[0] + txt.bounds[2]) / 2, (txt.bounds[1] + txt.bounds[3]) / 2
+    w = txt.bounds[2] - txt.bounds[0]
+    inner = geom.buffer(-inset)
+    for g in sorted(getattr(inner, "geoms", [inner]), key=lambda g: -g.area)[:3]:
+        if g.is_empty:
+            continue
+        cx, cy = shapely.maximum_inscribed_circle(g, 0.1).coords[0]
+        along = -_min_rect_angle(g)
+        for rot in (along, along + 90):
+            rot = (rot + 90) % 180 - 90                                  # never upside down
+            ux, uy = np.cos(np.radians(rot)), np.sin(np.radians(rot))
+            for f in (1.5, 1.0):
+                base = affinity.rotate(affinity.scale(txt, f, f, origin=(tx, ty)), rot, origin=(tx, ty))
+                for s in (0, -0.25, 0.25, -0.5, 0.5, -1, 1):
+                    tt = affinity.translate(base, cx - tx + s * f * w * ux, cy - ty + s * f * w * uy)
+                    if g.contains(tt):
+                        return tt
+    return None
+
+
+def proto_part(pc, thickness, scale, labels, font, min_thick):
+    """One part flat on z = 0 at `scale`, its label (`font` mm tall at least, see label_inside) as a groove (half
+    depth, 0.6 mm at most) or a hole (through). Returns the mesh and whether the part got its label."""
     geom = unary_union([Polygon(r[0], r[1:]) for r in pc["kerfed"]]).buffer(0)
     geom = affinity.scale(geom, scale, scale, origin=(0, 0))
     x0, y0, x1, y1 = geom.bounds
     geom = affinity.translate(geom, -x0, -y0)
     t = max(thickness * scale, min_thick)
-    label = None
-    if labels != "none":
-        txt = text_polygons(pc["label"], font)
-        tx0, ty0, tx1, ty1 = txt.bounds
-        c = geom.representative_point()
-        # place the label at the biggest inscribed spot; shrink it until it fits inside the part with a margin
-        for f in (1.0, 0.75, 0.55, 0.4):
-            tt = affinity.scale(txt, f, f, origin=(0, 0))
-            bx0, by0, bx1, by1 = tt.bounds
-            tt = affinity.translate(tt, c.x - (bx0 + bx1) / 2, c.y - (by0 + by1) / 2)
-            if geom.buffer(-0.6).contains(tt):
-                label = tt; break
+    label = label_inside(geom, pc["label"], font) if labels != "none" else None
     if label is not None and labels == "hole":
         geom = geom.difference(label)
     mesh = trimesh.util.concatenate([extrude(g, t) for g in getattr(geom, "geoms", [geom]) if g.area > 0])
@@ -119,7 +143,7 @@ def proto_part(pc, thickness, scale, labels, font, min_thick) -> trimesh.Trimesh
         groove.apply_translation([0, 0, t - depth])
         with contextlib.suppress(Exception):               # engine missing (the browser build): leave the part plain;
             mesh = trimesh.boolean.difference([mesh, groove], engine="manifold")   # named, or trimesh may wait on a Blender it finds
-    return mesh
+    return mesh, label is not None or labels == "none"
 
 
 def proto_plan(plan, scale, min_thick):
@@ -139,20 +163,23 @@ def proto_plan(plan, scale, min_thick):
     return build(plan["model"], plan["mode"], p), note
 
 
-def proto_set(plan, out_dir, scale=1.0, labels="groove", font=None, min_thick=1.2, plate=True):
-    """One STL per part (flat) plus plate.3mf holding every part as its own named object.
+def proto_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2, plate=True, note=None):
+    """One STL per part (flat) plus plate.3mf holding every part as its own named object, and README.txt when there
+    is something to say: `note` (the re-plan, see proto_plan) and the parts that had no room for a label `font` mm
+    tall. `font` is the letter height in printed millimetres whatever the scale: a label has to be read, not scaled.
 
     The plate is a 3MF scene rather than one concatenated STL because a slicer treats each <object> / <build><item>
     as a separate body: OrcaSlicer and PrusaSlicer can then move, copy and arrange the parts individually.
     """
     out_dir = pathlib.Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
-    font = font or max(2.5, plan["params"].get("font", 4.0) * scale)
-    files = []
+    files, unlabeled = [], []
     scene = trimesh.Scene()
     sheet_h = plan["sheet"][1] + 20
     for sl in plan["slices"]:
         for pc in sl["pieces"]:
-            m = proto_part(pc, sl["thickness"], scale, labels, font, min_thick)
+            m, labeled = proto_part(pc, sl["thickness"], scale, labels, font, min_thick)
+            if not labeled:
+                unlabeled.append(pc["label"])
             f = out_dir / f"{pc['label']}.stl"; m.export(f); files.append(f)
             if plate:
                 si, x, y, rot = pc["place"]
@@ -162,6 +189,11 @@ def proto_set(plan, out_dir, scale=1.0, labels="groove", font=None, min_thick=1.
         f = out_dir / "plate.3mf"
         f.write_bytes(scene.export(file_type="3mf"))
         files.append(f)
+    lines = [note] if note else []
+    if unlabeled:
+        lines.append(f"no room for a {font:g} mm label on {len(unlabeled)} part(s): {', '.join(unlabeled)} — a smaller label size would fit them")
+    if lines:
+        f = out_dir / "README.txt"; f.write_text("\n".join(lines) + "\n", encoding="utf-8"); files.append(f)
     return files
 
 
@@ -170,13 +202,14 @@ def main(argv=None):
     ap.add_argument("plan"); ap.add_argument("--out"); ap.add_argument("--part")
     ap.add_argument("--proto", help="output dir for the prototyping set"); ap.add_argument("--scale", type=float, default=1.0)
     ap.add_argument("--labels", choices=["none", "groove", "hole"], default="groove"); ap.add_argument("--min-thick", type=float, default=1.2)
+    ap.add_argument("--font", type=float, default=5.0, help="label letter height in printed mm, whatever the scale")
     a = ap.parse_args(argv)
     plan = json.loads(pathlib.Path(a.plan).read_text())
     if a.proto:
         plan, note = proto_plan(plan, a.scale, a.min_thick)
         if note:
             print(note)
-        for f in proto_set(plan, a.proto, a.scale, a.labels, min_thick=a.min_thick):
+        for f in proto_set(plan, a.proto, a.scale, a.labels, a.font, a.min_thick, note=note):
             print(f)
     else:
         assembled(plan, a.part).export(a.out); print(a.out)

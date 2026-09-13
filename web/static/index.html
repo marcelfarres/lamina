@@ -117,6 +117,7 @@ table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 6px;b
       <div class="f"><span class="k" data-tip="Scale factor for the printed prototype (parts and thickness scale together; thickness never goes below min thickness)">scale</span><input type="number" id="pr_scale" value="0.5" min="0.05" max="5" step="0.05"></div>
       <div class="f"><span class="k" data-tip="Or give the prototype's longest side (mm); overrides the scale when set">final size (mm)</span><input type="number" id="pr_size" value="" placeholder="e.g. 100" min="5" step="1"></div>
       <div class="f"><span class="k" data-tip="Part labels embedded in the printed part: groove = engraved 0.6 mm deep, hole = cut through">labels</span><select id="pr_labels"><option>groove</option><option>hole</option><option>none</option></select></div>
+      <div class="f"><span class="k" data-tip="Letter height of the labels in printed mm, whatever the scale: 5 mm reads well and its bold strokes print with a 0.4 mm nozzle. A label sits where its part is widest, away from slots and edges, 1.5× this size where that fits. A part with no room for it gets none, and README.txt in the zip lists them — lower this to label them">label size (mm)</span><input type="number" id="pr_font" value="5" min="1" step="0.5"></div>
       <div class="f"><span class="k" data-tip="Thinnest part the printer can make (mm). Parts that would print thinner cannot simply be made thicker — their slots were cut for the thin material — so the set is planned again at the material thickness that prints to this">min thickness (mm)</span><input type="number" id="pr_min" value="1.2" min="0.2" step="0.1"></div>
       <div class="hint" id="pr_hint" style="margin:2px 0 8px"></div>
       <div class="dl"><a href="#" id="pr_go">download prototype set (plate.3mf for OrcaSlicer + one STL per part)</a></div>
@@ -560,7 +561,7 @@ function renderReport(){
     const m=parts.children.find(c=>c.userData.slice===d.dataset.s); if(m){highlight(m);fitted=true}};
   renderDownloads();
   // the link itself does the download (a navigation on the server, a blob from the worker in the browser build)
-  $('#pr_go').onclick=e=>{const q=new URLSearchParams({scale:$('#pr_scale').value||1,size:$('#pr_size').value||0,labels:$('#pr_labels').value,min_thick:$('#pr_min').value||1.2});e.currentTarget.href=`api/job/${CLIENT}/${job}/proto?${q}`;countUse('export','proto-3mf')};
+  $('#pr_go').onclick=e=>{const q=new URLSearchParams({scale:$('#pr_scale').value||1,size:$('#pr_size').value||0,labels:$('#pr_labels').value,font:$('#pr_font').value||5,min_thick:$('#pr_min').value||1.2});e.currentTarget.href=`api/job/${CLIENT}/${job}/proto?${q}`;countUse('export','proto-3mf')};
   for(const id of ['#pr_scale','#pr_size','#pr_min'])$(id).oninput=protoHint;
   // Which formats people actually take away — the strongest signal of what machines they run. The link's own
   // query string already names them, so nothing extra has to be tracked to know it.

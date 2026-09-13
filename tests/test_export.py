@@ -119,6 +119,29 @@ def test_solid_assembled_is_watertight_trimesh_with_positive_volume():
     assert mesh.is_watertight
 
 
+def test_proto_label_is_readable_and_clear_of_the_slot():
+    """A printed label is a groove: it has to be read, so it is never shrunk below the asked height, and it goes where
+    the part is widest, not beside the slot it slides on. A part with no room for it gets none, not a tiny one."""
+    from shapely.geometry import box
+    from core.solid import label_inside
+    slot = box(28, 10, 32, 20)
+    part = box(0, 0, 60, 20).difference(slot)                          # a 60 × 20 bar with a slot from the top edge
+    lab = label_inside(part, "Z-12-3", 5.0)
+    assert lab is not None
+    assert lab.bounds[3] - lab.bounds[1] >= 5.0 - 1e-6                  # capitals at least 5 mm tall
+    assert part.buffer(-1.0 + 1e-6).contains(lab)                        # inside, a millimetre off every edge
+    assert lab.distance(slot) >= 1.0 - 1e-6                              # the slot included
+    assert label_inside(box(0, 0, 60, 6), "Z-12-3", 5.0) is None         # a 6 mm bar cannot hold 5 mm letters
+
+
+def test_proto_set_says_which_parts_had_no_room_for_a_label(tmp_path):
+    plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 3, "autofix": "off"})
+    files = proto_set(plan, tmp_path, font=150)                          # "Z-1" in 150 mm letters fits no 180 mm square
+    readme = (tmp_path / "README.txt").read_text(encoding="utf-8")
+    assert tmp_path / "README.txt" in files
+    assert all(pc["label"] in readme for sl in plan["slices"] for pc in sl["pieces"])
+
+
 def test_proto_set_3mf_reloads_with_one_named_geometry_per_part(tmp_path):
     plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 3, "autofix": "off"})
     proto_set(plan, tmp_path)

@@ -12,7 +12,7 @@ GET  /api/job/{client}/{job}/export?fmt=svg,dxf,pdf,eps&labels=1&per_piece=0   �
 GET  /api/job/{client}/{job}/stl?part=<label>                                  → assembled solid (or one part) as STL
 """
 from __future__ import annotations
-import hashlib, io, json, os, pathlib, re, shutil, tempfile, time, zipfile
+import base64, hashlib, io, json, os, pathlib, re, shutil, tempfile, time, zipfile
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
@@ -179,6 +179,26 @@ def clear(client: str):
     return {}
 
 
+def project_file(client: str, jd: pathlib.Path, plan: dict) -> tuple[str, str]:
+    """The job as the project file the UI's "open project" reads back (technique, every parameter, per-technique
+    memory, and an uploaded model itself), for the zips: a cut file or a printed part found later has to lead back
+    to the model that made it. The session has the parameters as the form holds them; the plan's are the fallback."""
+    sess = {}
+    f = client_dir(client) / "session.json"
+    if f.exists():
+        sess = json.loads(f.read_text())
+        if sess.get("job") != jd.name:
+            sess = {}
+    state = sess.get("params") or plan["params"]
+    example = jd.name.startswith("ex_")                       # a bundled example is named; an upload travels along
+    proj = {"version": 3, "name": state.get("project", ""), "rev": state.get("rev", "1.0"), "mode": plan["mode"], "unit": state.get("units", "mm"),
+            "state": state, "memo": sess.get("memo", {}), "example": jd.name[3:] if example else ""}
+    if not example and (jd / "source.txt").exists():
+        src = pathlib.Path((jd / "source.txt").read_text())
+        proj["model"] = {"name": model_name(jd), "b64": base64.b64encode(src.read_bytes()).decode()}
+    return f"{file_base(jd, plan)}.lamina.json", json.dumps(proj)
+
+
 @app.get("/api/job/{client}/{job}/export")
 def job_export(client: str, job: str, fmt: str = "svg,dxf", labels: int = 1, per_piece: int = 0):
     jd = job_dir(client, job)
@@ -193,6 +213,7 @@ def job_export(client: str, job: str, fmt: str = "svg,dxf", labels: int = 1, per
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
             for f in files:
                 z.write(f, f.name)
+            z.writestr(*project_file(client, jd, plan))
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     name = f"{file_base(jd, plan)}_{plan['mode']}_{'pieces' if per_piece else 'sheets'}_{'-'.join(fmts)}{'' if labels else '_plain'}.zip"
@@ -211,10 +232,11 @@ def job_source(client: str, job: str):
 
 
 @app.get("/api/job/{client}/{job}/proto")
-def job_proto(client: str, job: str, scale: float = 1.0, size: float = 0.0, labels: str = "groove", min_thick: float = 1.2):
+def job_proto(client: str, job: str, scale: float = 1.0, size: float = 0.0, labels: str = "groove", font: float = 5.0, min_thick: float = 1.2):
     """Prototyping set: every part flat as STL at `scale` (or scaled so the model's longest side = `size` mm),
-    label engraved as a groove or cut as a hole, plus plate.3mf holding every part as a separate named object
-    (OrcaSlicer / PrusaSlicer can then arrange them individually) — zipped."""
+    label engraved as a groove or cut as a hole, `font` mm tall at least, plus plate.3mf holding every part as a
+    separate named object (OrcaSlicer / PrusaSlicer can then arrange them individually) — zipped, with the project
+    file and a README when the job was re-planned or a part had no room for its label."""
     jd = job_dir(client, job)
     if not (jd / "plan.json").exists():
         raise HTTPException(404)
@@ -225,13 +247,12 @@ def job_proto(client: str, job: str, scale: float = 1.0, size: float = 0.0, labe
     plan, note = proto_plan(plan, scale, min_thick)            # thicker material for the print, so the slots still fit
     tmp = pathlib.Path(tempfile.mkdtemp(dir=jd))
     try:
-        files = proto_set(plan, tmp, scale, labels if labels in ("none", "groove", "hole") else "groove", min_thick=min_thick)
+        files = proto_set(plan, tmp, scale, labels if labels in ("none", "groove", "hole") else "groove", font, min_thick, note=note)
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            z.writestr(*project_file(client, jd, plan))
             for f in files:
                 z.write(f, f.name)
-            if note:
-                z.writestr("README.txt", note + "\n")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     return Response(buf.getvalue(), media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{file_base(jd, plan)}_{plan["mode"]}_proto_x{scale:.3g}.zip"'})
