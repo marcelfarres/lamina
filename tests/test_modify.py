@@ -18,6 +18,15 @@ def test_thicken_smaller_than_a_voxel_does_not_fill_the_box():
     assert plan["bbox"][2] < 415                    # one voxel of growth, not the padding
 
 
+def test_a_union_that_left_a_seam_is_mended_not_remeshed():
+    """The pear is two spheres joined with a seam of duplicate faces: not watertight, no open edge. That is mended and
+    sliced as modelled — smooth outlines — where a voxel remesh would have left stairs on every slice."""
+    plan = build(EXAMPLES / "pear.stl", "radial", {"count": 6, "ring_count": 4, "autofix": "off"})
+    assert any("mended" in n for n in plan["notes"]) and not any("remeshed" in n for n in plan["notes"])
+    ring = next(pc for sl in plan["slices"] if sl["label"] == "Z-2" for pc in sl["pieces"])
+    assert len(ring["placed"][0][0]) < 400                          # the sphere's own facets; a 1/120 remesh gave twice that
+
+
 def test_a_gap_means_nothing_is_glued():
     """With a space between the layers, an island without a connector hangs in the air and the layers touch nothing:
     the checks must say so (errors), where the same stack at gap 0 is merely glued (warnings)."""

@@ -113,11 +113,12 @@ def voxelize_solid(mesh, pitch):
     return ndimage.binary_fill_holes(m), lo * pitch     # a cavity — a scan's inner surface, a duplicated shell — is solid, as before
 
 
-def modify_form(mesh, p, notes):
+def modify_form(mesh, p, notes, fine=False):
     """Slicer's Modify Form: shrinkwrap (voxel remesh), round (drop features smaller than r and round corners =
-    morphological opening + closing), thicken (dilate), hollow (keep a wall). One voxel pass."""
+    morphological opening + closing), thicken (dilate), hollow (keep a wall). One voxel pass; `fine` takes the
+    finest grid, for a remesh nobody asked for."""
     from scipy import ndimage
-    pitch = max(p["shrinkwrap"] or max(mesh.extents) / 120, max(mesh.extents) / 300)   # 300³ voxels at most: a fine pitch on a big model is a memory request, not a detail
+    pitch = max(p["shrinkwrap"] or max(mesh.extents) / (300 if fine else 120), max(mesh.extents) / 300)   # 300³ voxels at most: a fine pitch on a big model is a memory request, not a detail
     pad = int(np.ceil((p["thicken"] + p["round"]) / pitch)) + 2
     m, origin = voxelize_solid(mesh, pitch)
     m = np.pad(m, pad)
@@ -201,19 +202,23 @@ def load_mesh(path, params, notes=None, mode=""):
             mesh.apply_scale([tgt[i] / ext[i] if tgt[i] > 0 else 1 for i in range(3)])
     if params["scale"] != 1:                          # multiplies the target size when one is set
         mesh.apply_scale(params["scale"])
-    if not mesh.is_watertight:
-        trimesh.repair.fill_holes(mesh)
+    if not mesh.is_watertight:                        # a union that left a seam, a scan with a hole: mend before anything drastic
+        mesh.merge_vertices(); mesh.update_faces(mesh.nondegenerate_faces()); mesh.update_faces(mesh.unique_faces())
+        trimesh.repair.fill_holes(mesh); trimesh.repair.fix_normals(mesh)
+        if mesh.is_watertight:
+            notes.append("mesh was not watertight: mended (vertices merged, duplicate faces dropped, holes filled) and sliced as modelled")
     open_surface = not mesh.is_watertight and mode == "folded"      # masks, clothing patterns: keep the surface, no repair
     if open_surface:
         notes.append("open surface (not a closed solid): kept as is — its boundary edges stay open, only inner edges get joints")
+    auto = not mesh.is_watertight and not open_surface and not params["shrinkwrap"]
     if params["shrinkwrap"] or params["hollow"] or params["thicken"] or params["round"] or (not mesh.is_watertight and not open_surface):
-        if not mesh.is_watertight and not params["shrinkwrap"]:
-            notes.append("mesh is not watertight — auto shrinkwrap applied (set shrinkwrap to control the resolution)")
+        if auto:                                      # the voxel grid leaves stairs: the finest grid, then smoothed
+            notes.append("mesh is not watertight and could not be mended — remeshed on a fine voxel grid and smoothed (set shrinkwrap to choose the resolution)")
         progress("modify form: remeshing", 0.06)
-        mesh = modify_form(mesh, params, notes)
-    if params["smooth"]:
+        mesh = modify_form(mesh, params, notes, fine=auto)
+    if params["smooth"] or auto:
         progress("smoothing", 0.16)
-        mesh = smooth_mesh(mesh, params["smooth"])
+        mesh = smooth_mesh(mesh, params["smooth"] or 10)
     mesh.apply_translation(-mesh.bounds.mean(0))
     return mesh
 
