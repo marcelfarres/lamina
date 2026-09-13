@@ -147,21 +147,28 @@ def proto_part(pc, thickness, scale, labels, font, min_thick):
     return mesh, label is not None or labels == "none"
 
 
-def proto_plan(plan, scale, min_thick):
+def proto_plan(plan, scale, min_thick, offset=None):
     """The plan the prototype is cut from. Parts scaled below `min_thick` cannot simply be printed thicker: their
     slots and holes were sized for the thin material and nothing would fit. So the whole job is planned again at the
-    material thickness that prints to `min_thick` — every slot follows. Returns (plan, note); note is None when the
-    plan as it stands prints thick enough."""
-    thin = min(sl["thickness"] for sl in plan["slices"]) if plan["slices"] else plan["params"]["thickness"]
-    if thin * scale >= min_thick - 1e-9:
-        return plan, None
+    material thickness that prints to `min_thick` — every slot follows. `offset` is the slot offset the print gets,
+    in printed millimetres: a fit is a clearance in millimetres, not a ratio, so the job's own offset (for the real
+    material, at 1:1) is replaced by offset / scale. Returns (plan, note); note is None when the plan stands."""
     from .plan import build
-    p = dict(plan["params"]); need = round(min_thick / scale, 3)
-    p["thickness"] = max(p["thickness"], need)
-    p["thick"] = {k: max(v, need) for k, v in dict(p.get("thick") or {}).items()}
-    note = (f"re-planned at {p['thickness']:g} mm material: at x{scale:.3g} the {plan['params']['thickness']:g} mm parts would print "
-            f"{plan['params']['thickness'] * scale:.2g} mm, thinner than the {min_thick:g} mm minimum, and thicker parts would not fit slots cut for thin ones")
-    return build(plan["model"], plan["mode"], p), note
+    p = dict(plan["params"]); notes = []
+    thin = min(sl["thickness"] for sl in plan["slices"]) if plan["slices"] else p["thickness"]
+    if thin * scale < min_thick - 1e-9:
+        need = round(min_thick / scale, 3)
+        p["thickness"] = max(p["thickness"], need)
+        p["thick"] = {k: max(v, need) for k, v in dict(p.get("thick") or {}).items()}
+        notes.append(f"re-planned at {p['thickness']:g} mm material: at x{scale:.3g} the {plan['params']['thickness']:g} mm parts would print "
+                     f"{plan['params']['thickness'] * scale:.2g} mm, thinner than the {min_thick:g} mm minimum, and thicker parts would not fit slots cut for thin ones")
+    if offset is not None and abs(p["slot_offset"] * scale - offset) > 1e-9:
+        p["slot_offset"] = round(offset / scale, 4)
+        notes.append(f"slots {offset:g} mm wider than the material in the print (slot offset {p['slot_offset']:g} mm at x{scale:.3g}); "
+                     f"the job's own {plan['params']['slot_offset']:g} mm is for the real material at 1:1")
+    if not notes:
+        return plan, None
+    return build(plan["model"], plan["mode"], p), "; ".join(notes)
 
 
 def _plate(plan, scene, scale, labels, font, min_thick, dx=0.0, tag=None):
@@ -220,12 +227,14 @@ FIT_SIZE = 40.0     # mm across the stand-in sphere; radial grows it so 2 × cou
 FIT_DROP = ("skip", "offset", "tilt", "roll", "thick", "grow", "extra_x", "extra_y", "dowels", "lines", "curve", "center")   # edits of the model's own slices
 
 
-def fit_plan(plan, k, step):
-    """The job's parameters on a small sphere, the slot offset moved by `k` steps of `step` mm: the joints the model
-    is held by, at the fit to try, without the model. Per-slice edits belong to the model and are dropped; the count
-    that makes an assembly tight stays (every radial half-slice wedges at once), the others are cut to a few."""
+def fit_plan(plan, slot_offset, sheet=None, thickness=None):
+    """The job's parameters on a small sphere at `slot_offset` (and `thickness`, the print's when it has to be
+    thicker): the joints the model is held by, at the fit to try, without the model. Per-slice edits belong to the
+    model and are dropped; the count that makes an assembly tight stays (every radial half-slice wedges at once),
+    the others are cut to a few. `sheet` is the job's for cut files; the print gets a small one so the parts lie close."""
     p = {key: v for key, v in plan["params"].items() if key not in FIT_DROP}
-    p["slot_offset"] = round(p["slot_offset"] + k * step, 3)
+    p["slot_offset"] = round(slot_offset, 4)
+    p["thickness"] = thickness or p["thickness"]
     p.update(scale=1.0, size=[0, 0, 0], rotate=[0, 0, 0], split=False, autofix="off")
     mode, size = plan["mode"], FIT_SIZE
     if mode == "radial":
@@ -236,7 +245,7 @@ def fit_plan(plan, k, step):
         p.update(distribution="count", nx=min(p["nx"], 4), ny=min(p["ny"], 4))
     elif mode in ("stacked", "curve"):
         p.update(distribution="count", count=min(p["count"], 3))
-    p["sheet"] = [max(200.0, 1.2 * size)] * 2                    # the sheet only lays the parts out here: keep them close
+    p["sheet"] = sheet or [max(200.0, 1.2 * size)] * 2
     from .plan import build
     with tempfile.NamedTemporaryFile(suffix=".stl", delete=False) as f:
         trimesh.creation.icosphere(3, size / 2).export(f.name)
@@ -246,17 +255,20 @@ def fit_plan(plan, k, step):
         pathlib.Path(f.name).unlink(missing_ok=True)
 
 
-def fit_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2, step=0.1, steps=2):
-    """Small assemblies to print and try before the model: the job's joints at its slot offset and at ±1 … ±`steps`
-    × `step` mm around it, every part engraved with its offset. The loosest that slides together without forcing and
-    still holds is the slot offset to set. One plate.3mf with the variants side by side, one STL per variant, and a
-    README that says which is which."""
+def fit_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2, offset=0.2, step=0.1, steps=2):
+    """Small assemblies to print and try before the prototype: the job's joints at the print slot offset `offset`
+    (printed mm) and at ±1 … ±`steps` × `step` mm around it, every part engraved with its offset. The loosest that
+    slides together without forcing and still holds is the print slot offset to set. One plate.3mf with the variants
+    side by side, one STL per variant, and a README that says which is which. This dials in the print, and only the
+    print: a clearance is millimetres, not a ratio, so the real material gets its own test, fit_sheets."""
     out_dir = pathlib.Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
     files, unlabeled, tags = [], [], []
     scene = trimesh.Scene(); dx = 0.0
+    thickness = max(plan["params"]["thickness"], round(min_thick / scale, 3))   # as proto_plan: thick enough to print
     for k in range(-steps, steps + 1):
-        vp, _ = proto_plan(fit_plan(plan, k, step), scale, min_thick)
-        tag = f"{vp['params']['slot_offset']:.2f}"; tags.append(tag)
+        printed = round(offset + k * step, 3)
+        vp = fit_plan(plan, printed / scale, thickness=thickness)
+        tag = f"{printed:.2f}"; tags.append(tag)
         placed = []
         for pc, _, q, labeled in _plate(vp, scene, scale, labels, font, min_thick, dx, tag):
             placed.append(q)
@@ -266,11 +278,34 @@ def fit_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2, 
         f = out_dir / f"fit_{tag}.stl"; v.export(f); files.append(f)
         dx = scene.bounds[1][0] + 10
     f = out_dir / "plate.3mf"; f.write_bytes(scene.export(file_type="3mf")); files.append(f)
-    lines = [f"Fit test for the {plan['mode']} job: {len(tags)} small assemblies with its joints, at slot offsets {', '.join(tags)} mm "
-             f"(the job's own, {tags[steps]}, in the middle), every part engraved with its offset. Print them and put each together: "
-             "the loosest that slides on without forcing and still holds is the slot offset to set (Fit → slot offset)."]
+    lines = [f"Print fit test for the {plan['mode']} job at x{scale:.3g}: {len(tags)} small assemblies with its joints, slots {', '.join(tags)} mm "
+             f"wider than the material as printed (the print slot offset you set, {tags[steps]}, in the middle), every part engraved with its "
+             "value. Print them and put each together: the loosest that slides on without forcing and still holds is the print slot offset to "
+             "set (Prototyping). It says nothing about the real material at 1:1 — that is the cut-file fit test (Downloads)."]
     if unlabeled:
         lines.append(_unlabeled_note(unlabeled, font))
+    return _readme(out_dir, lines, files)
+
+
+def fit_sheets(plan, out_dir, fmts=("svg", "dxf"), labels=True, step=0.1, steps=2):
+    """The fit test as cut files at 1:1, for the real machine and material: the job's joints on the stand-in at its
+    slot offset and ±1 … ±`steps` × `step` mm, a folder of sheets per offset, every part labelled with its offset.
+    The loosest that still holds is the slot offset to set. This is the test that predicts the model's fit; a
+    scaled print (fit_set) cannot, a clearance being millimetres, not a ratio, and the process and material theirs."""
+    from .export import export
+    out_dir = pathlib.Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
+    files, tags = [], []
+    for k in range(-steps, steps + 1):
+        off = round(plan["params"]["slot_offset"] + k * step, 3); tag = f"{off:.2f}"; tags.append(tag)
+        vp = fit_plan(plan, off, plan["params"]["sheet"])
+        for sl in vp["slices"]:
+            for pc in sl["pieces"]:
+                pc["label"] = tag                              # as short as the name it replaces: the label box was nested for that
+        files += export(vp, out_dir / f"fit_{tag}", fmts, labels)
+    lines = [f"Fit test for the {plan['mode']} job as cut files at 1:1, for the real machine and material: {len(tags)} small assemblies with "
+             f"its joints, at slot offsets {', '.join(tags)} mm (the job's own, {tags[steps]}, in the middle), a folder of sheets each, every "
+             "part labelled with its offset. Cut them and put each together: the loosest that slides on without forcing and still holds is "
+             "the slot offset to set (Fit → slot offset)."]
     return _readme(out_dir, lines, files)
 
 
@@ -281,13 +316,14 @@ def main(argv=None):
     ap.add_argument("--fit", help="output dir for the fit test: the job's joints on a small stand-in at 5 slot offsets"); ap.add_argument("--step", type=float, default=0.1)
     ap.add_argument("--labels", choices=["none", "groove", "hole"], default="groove"); ap.add_argument("--min-thick", type=float, default=1.2)
     ap.add_argument("--font", type=float, default=5.0, help="label letter height in printed mm, whatever the scale")
+    ap.add_argument("--offset", type=float, default=0.2, help="print slot offset: slots this much wider than the material, in printed mm")
     a = ap.parse_args(argv)
     plan = json.loads(pathlib.Path(a.plan).read_text())
     if a.fit:
-        for f in fit_set(plan, a.fit, a.scale, a.labels, a.font, a.min_thick, a.step):
+        for f in fit_set(plan, a.fit, a.scale, a.labels, a.font, a.min_thick, a.offset, a.step):
             print(f)
     elif a.proto:
-        plan, note = proto_plan(plan, a.scale, a.min_thick)
+        plan, note = proto_plan(plan, a.scale, a.min_thick, a.offset)
         if note:
             print(note)
         for f in proto_set(plan, a.proto, a.scale, a.labels, a.font, a.min_thick, note=note):

@@ -232,11 +232,11 @@ def job_source(client: str, job: str):
 
 
 @app.get("/api/job/{client}/{job}/proto")
-def job_proto(client: str, job: str, scale: float = 1.0, size: float = 0.0, labels: str = "groove", font: float = 5.0, min_thick: float = 1.2):
-    """Prototyping set: every part flat as STL at `scale` (or scaled so the model's longest side = `size` mm),
-    label engraved as a groove or cut as a hole, `font` mm tall at least, plus plate.3mf holding every part as a
-    separate named object (OrcaSlicer / PrusaSlicer can then arrange them individually) — zipped, with the project
-    file and a README when the job was re-planned or a part had no room for its label."""
+def job_proto(client: str, job: str, scale: float = 1.0, size: float = 0.0, labels: str = "groove", font: float = 5.0, min_thick: float = 1.2, offset: float = 0.2):
+    """Prototyping set: every part flat as STL at `scale` (or scaled so the model's longest side = `size` mm), slots
+    `offset` printed mm wider than the material, label engraved as a groove or cut as a hole, `font` mm tall at
+    least, plus plate.3mf holding every part as a separate named object (OrcaSlicer / PrusaSlicer can then arrange
+    them individually) — zipped, with the project file and a README saying how the print differs from the job."""
     jd = job_dir(client, job)
     if not (jd / "plan.json").exists():
         raise HTTPException(404)
@@ -244,7 +244,7 @@ def job_proto(client: str, job: str, scale: float = 1.0, size: float = 0.0, labe
     if size > 0:
         scale = size / max(plan["bbox"])
     from core.solid import proto_plan, proto_set
-    plan, note = proto_plan(plan, scale, min_thick)            # thicker material for the print, so the slots still fit
+    plan, note = proto_plan(plan, scale, min_thick, offset)    # thicker material and the print's own clearance, so the slots fit
     tmp = pathlib.Path(tempfile.mkdtemp(dir=jd))
     try:
         files = proto_set(plan, tmp, scale, labels if labels in ("none", "groove", "hole") else "groove", font, min_thick, note=note)
@@ -259,9 +259,9 @@ def job_proto(client: str, job: str, scale: float = 1.0, size: float = 0.0, labe
 
 
 @app.get("/api/job/{client}/{job}/fit")
-def job_fit(client: str, job: str, scale: float = 1.0, size: float = 0.0, labels: str = "groove", font: float = 5.0, min_thick: float = 1.2, step: float = 0.1):
-    """Fit test before the model: five small assemblies with the job's joints at slot offsets around its own, each
-    part engraved with its offset (see core.solid.fit_set) — plate.3mf, one STL per variant, README, zipped."""
+def job_fit(client: str, job: str, scale: float = 1.0, size: float = 0.0, labels: str = "groove", font: float = 5.0, min_thick: float = 1.2, offset: float = 0.2, step: float = 0.1):
+    """Print fit test: five small assemblies with the job's joints at print slot offsets around `offset` (printed
+    mm), each part engraved with its value (see core.solid.fit_set) — plate.3mf, one STL per variant, README, zipped."""
     jd = job_dir(client, job)
     if not (jd / "plan.json").exists():
         raise HTTPException(404)
@@ -271,7 +271,7 @@ def job_fit(client: str, job: str, scale: float = 1.0, size: float = 0.0, labels
     from core.solid import fit_set
     tmp = pathlib.Path(tempfile.mkdtemp(dir=jd))
     try:
-        files = fit_set(plan, tmp, scale, labels if labels in ("none", "groove", "hole") else "groove", font, min_thick, step)
+        files = fit_set(plan, tmp, scale, labels if labels in ("none", "groove", "hole") else "groove", font, min_thick, offset, step)
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
             z.writestr(*project_file(client, jd, plan))
@@ -279,7 +279,30 @@ def job_fit(client: str, job: str, scale: float = 1.0, size: float = 0.0, labels
                 z.write(f, f.name)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
-    return Response(buf.getvalue(), media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{file_base(jd, plan)}_{plan["mode"]}_fit_x{scale:.3g}.zip"'})
+    return Response(buf.getvalue(), media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{file_base(jd, plan)}_{plan["mode"]}_printfit_x{scale:.3g}.zip"'})
+
+
+@app.get("/api/job/{client}/{job}/fitcut")
+def job_fitcut(client: str, job: str, fmt: str = "svg,dxf", labels: int = 1, step: float = 0.1):
+    """Fit test as cut files at 1:1 for the real machine and material: five small assemblies with the job's joints
+    at slot offsets around its own, a folder of sheets each (see core.solid.fit_sheets) — zipped with a README."""
+    jd = job_dir(client, job)
+    if not (jd / "plan.json").exists():
+        raise HTTPException(404)
+    plan = json.loads((jd / "plan.json").read_text())
+    fmts = [f for f in fmt.split(",") if f in ("svg", "dxf", "pdf", "eps")]
+    from core.solid import fit_sheets
+    tmp = pathlib.Path(tempfile.mkdtemp(dir=jd))
+    try:
+        files = fit_sheets(plan, tmp, fmts, bool(labels), step)
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            z.writestr(*project_file(client, jd, plan))
+            for f in files:
+                z.write(f, f.relative_to(tmp).as_posix())
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    return Response(buf.getvalue(), media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{file_base(jd, plan)}_{plan["mode"]}_fit_{"-".join(fmts)}.zip"'})
 
 
 @app.get("/api/job/{client}/{job}/stl")

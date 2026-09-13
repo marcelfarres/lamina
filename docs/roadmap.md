@@ -83,7 +83,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Part labels `Axis-Slice-Part` | ✅ engraved beside the part with a leader line |
 | Automatic nesting | ✅ no-fit-polygon nesting on the part outlines after [Deepnest](https://github.com/Jack000/Deepnest) (min-rect angle plus quarter turns, lowest-left free point, parts slide into cavities and holes); a bounding-rectangle packer takes over above 150 parts, for speed |
 | Colour coding blue / green / yellow / red | ✅ OUTER / INNER / SCORE layers; parts with errors are drawn red in the UI (3D and sheet) |
-| Prototyping (extra) | ✅ scaled 3D-print set: one flat STL per part + plate, labels engraved (groove) or cut (hole) at a minimum letter height in printed mm, placed where the part is widest and off the slots, printable minimum thickness; a fit test (the job's joints on a small stand-in at five slot offsets, engraved) to print before the model; every zip carries the project file that reopens the job |
+| Prototyping (extra) | ✅ scaled 3D-print set: one flat STL per part + plate, labels engraved (groove) or cut (hole) at a minimum letter height in printed mm, placed where the part is widest and off the slots, printable minimum thickness; a print slot offset in printed mm (a clearance is not a ratio); fit tests (the job's joints on a small stand-in at five slot offsets, marked) as cut files at 1:1 for the real material and as a print for the print; every zip carries the project file that reopens the job |
 | PDF | ✅ multi-page (one sheet per page) |
 | EPS | ✅ one per sheet, zipped |
 | DXF with unit choice | ✅ |

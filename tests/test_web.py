@@ -88,12 +88,14 @@ def test_the_solid_downloads_of_a_job(api):
     stl = api.get(f"/api/job/{MINE}/{job}/stl")
     assert stl.status_code == 200 and len(stl.content) > 84                       # binary STL: header + triangles
     names = lambda r: zipfile.ZipFile(io.BytesIO(r.content)).namelist()
-    same = names(api.get(f"/api/job/{MINE}/{job}/proto", params={"scale": 1}))
-    assert "plate.3mf" in same and "README.txt" not in same
+    same = names(api.get(f"/api/job/{MINE}/{job}/proto", params={"scale": 1, "offset": 0}))
+    assert "plate.3mf" in same and "README.txt" not in same                     # the job as it is: nothing to say
     thin = names(api.get(f"/api/job/{MINE}/{job}/proto", params={"scale": 0.1, "min_thick": 1.2}))
     assert "plate.3mf" in thin and "README.txt" in thin
-    fit = names(api.get(f"/api/job/{MINE}/{job}/fit", params={"scale": 1, "step": 0.05}))
-    assert "plate.3mf" in fit and "README.txt" in fit and "fit_0.05.stl" in fit and "fit_-0.10.stl" in fit
+    fit = names(api.get(f"/api/job/{MINE}/{job}/fit", params={"scale": 1, "offset": 0.2, "step": 0.05}))
+    assert "plate.3mf" in fit and "README.txt" in fit and "fit_0.25.stl" in fit and "fit_0.10.stl" in fit
+    cut = names(api.get(f"/api/job/{MINE}/{job}/fitcut", params={"fmt": "svg", "step": 0.1}))
+    assert "README.txt" in cut and {n.split("/")[0] for n in cut if "/" in n} == {"fit_-0.20", "fit_-0.10", "fit_0.00", "fit_0.10", "fit_0.20"}
 
 
 def test_every_zip_carries_the_project_file_that_reopens_the_job(api):

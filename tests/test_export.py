@@ -146,19 +146,36 @@ def test_fit_test_is_the_jobs_joints_at_five_offsets_on_a_small_stand_in(tmp_pat
     """Before printing the model, five small assemblies with its joints: the job's own slot offset in the middle and
     two steps either way, every radial half-slice kept (that is what makes the real one tight), rings cut to two,
     each part engraved with its offset, all on one plate and one STL per offset."""
-    from core.solid import fit_plan, fit_set
+    from core.solid import fit_plan, fit_set, fit_sheets
     plan = build(EXAMPLES / "egg.stl", "radial", {"count": 5, "ring_count": 3, "slot_offset": 0.1, "autofix": "off"})
-    v = fit_plan(plan, 2, 0.1)
+    v = fit_plan(plan, 0.3)
     assert abs(v["params"]["slot_offset"] - 0.3) < 1e-9 and v["params"]["count"] == 5 and v["params"]["ring_count"] == 2
     assert max(v["bbox"]) < 100 and v["counts"]["parts"] == 12                   # 2 rings + 10 half-slices, small
-    files = {f.name for f in fit_set(plan, tmp_path, step=0.1)}
-    assert {"fit_-0.10.stl", "fit_0.00.stl", "fit_0.10.stl", "fit_0.20.stl", "fit_0.30.stl", "plate.3mf", "README.txt"} <= files
-    scene = trimesh.load(tmp_path / "plate.3mf")
+    # the print test: offsets in printed mm around the print slot offset, whatever the scale
+    files = {f.name for f in fit_set(plan, tmp_path / "print", scale=0.5, offset=0.2, step=0.1)}
+    assert {"fit_0.00.stl", "fit_0.10.stl", "fit_0.20.stl", "fit_0.30.stl", "fit_0.40.stl", "plate.3mf", "README.txt"} <= files
+    scene = trimesh.load(tmp_path / "print" / "plate.3mf")
     per_tag = {}
     for name in scene.geometry:
         per_tag[name.split(" ")[0]] = per_tag.get(name.split(" ")[0], 0) + 1
-    assert per_tag == {t: 12 for t in ("-0.10", "0.00", "0.10", "0.20", "0.30")}
-    assert "0.10, in the middle" in (tmp_path / "README.txt").read_text(encoding="utf-8")
+    assert per_tag == {t: 12 for t in ("0.00", "0.10", "0.20", "0.30", "0.40")}
+    assert "0.20, in the middle" in (tmp_path / "print" / "README.txt").read_text(encoding="utf-8")
+    # the cut-file test: offsets around the job's own, at 1:1 on the job's sheet, a folder each
+    cut = fit_sheets(plan, tmp_path / "cut", ("svg",), step=0.1)
+    folders = {f.parent.name for f in cut if f.suffix == ".svg"}
+    assert folders == {"fit_-0.10", "fit_0.00", "fit_0.10", "fit_0.20", "fit_0.30"}
+    svg = next(f for f in cut if f.parent.name == "fit_0.30" and f.suffix == ".svg").read_text(encoding="utf-8")
+    assert svg.count(">0.30<") == 12 and "0.10, in the middle" in (tmp_path / "cut" / "README.txt").read_text(encoding="utf-8")
+
+
+def test_the_print_gets_its_own_slot_offset_in_printed_mm(tmp_path):
+    """A fit is a clearance in millimetres, not a ratio: the job's slot offset is for the real material at 1:1, and
+    a print at ×0.5 with 0.2 mm printed clearance is planned at 0.4 mm slot offset, the README saying so."""
+    from core.solid import proto_plan
+    plan = build(EXAMPLES / "cube.stl", "interlocked", {"nx": 2, "ny": 2, "slot_offset": 0.05, "autofix": "off"})
+    p, note = proto_plan(plan, 0.5, 0.5, offset=0.2)
+    assert abs(p["params"]["slot_offset"] - 0.4) < 1e-9 and "0.2 mm wider" in note and "0.05 mm is for the real material" in note
+    assert proto_plan(plan, 0.5, 0.5, offset=0.025)[1] is None                 # what the job already gives: nothing to redo
 
 
 def test_proto_set_3mf_reloads_with_one_named_geometry_per_part(tmp_path):

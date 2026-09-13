@@ -112,6 +112,7 @@ table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 6px;b
     <section data-tab="checks"><h2>Physical checks <button class="small reset" data-reset="checks">reset tab</button></h2><div id="g-checks"></div><h2>Report</h2><div id="report"></div></section>
     <section data-tab="export"><h2>Downloads</h2>
       <div class="f"><span class="k" data-tip="Include the red LABEL layer (part names, leader lines, seam numbers, sheet border) in the cut files. Off = cuts and score lines only">labels in files</span><input type="checkbox" id="x_labels" checked></div>
+      <div class="f"><span class="k" data-tip="Step between the five slot offsets of a fit test: yours −2, −1, 0, +1, +2 steps. A fit test is five small assemblies with this job's joints — same thickness, connectors and the counts that make the assembly tight (every radial half-slice) — each part marked with its offset. The loosest that slides together without forcing and still holds is the offset to set. The cut-file test below is at 1:1 on your real material and machine and is the one that predicts the model's fit; the print test under Prototyping dials in the print only — a clearance is millimetres, not a ratio">fit step (mm)</span><input type="number" id="pr_step" value="0.1" min="0.01" step="0.05"></div>
       <div class="dl" id="dl"></div>
       <h2>Prototyping (3D print)</h2>
       <div class="f"><span class="k" data-tip="Scale factor for the printed prototype (parts and thickness scale together; thickness never goes below min thickness)">scale</span><input type="number" id="pr_scale" value="0.5" min="0.05" max="5" step="0.05"></div>
@@ -119,10 +120,10 @@ table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 6px;b
       <div class="f"><span class="k" data-tip="Part labels embedded in the printed part: groove = engraved 0.6 mm deep, hole = cut through">labels</span><select id="pr_labels"><option>groove</option><option>hole</option><option>none</option></select></div>
       <div class="f"><span class="k" data-tip="Letter height of the labels in printed mm, whatever the scale: 5 mm reads well and its bold strokes print with a 0.4 mm nozzle. A label sits where its part is widest, away from slots and edges, 1.5× this size where that fits. A part with no room for it gets none, and README.txt in the zip lists them — lower this to label them">label size (mm)</span><input type="number" id="pr_font" value="5" min="1" step="0.5"></div>
       <div class="f"><span class="k" data-tip="Thinnest part the printer can make (mm). Parts that would print thinner cannot simply be made thicker — their slots were cut for the thin material — so the set is planned again at the material thickness that prints to this">min thickness (mm)</span><input type="number" id="pr_min" value="1.2" min="0.2" step="0.1"></div>
+      <div class="f"><span class="k" data-tip="How much wider than the material the print's slots and holes are, in printed mm, whatever the scale. A fit is a clearance in millimetres, not a ratio: the job's slot offset (Fit) is for the real material at 1:1 and would print 5× too tight at ×0.2, so the print gets its own. 0.2 suits most FDM printers; dial it in with the print fit test below">print slot offset (mm)</span><input type="number" id="pr_offset" value="0.2" min="-1" max="2" step="0.05"></div>
       <div class="hint" id="pr_hint" style="margin:2px 0 8px"></div>
       <div class="dl"><a href="#" id="pr_go">download prototype set (plate.3mf for OrcaSlicer + one STL per part)</a></div>
-      <div class="f" style="margin-top:8px"><span class="k" data-tip="Print this before the model. Five small assemblies with this job's joints — same thickness, connectors and counts that make the assembly tight (every radial half-slice) — at slot offsets of yours −2, −1, 0, +1, +2 steps, each part engraved with its offset. The loosest that slides together without forcing and still holds is the slot offset to set under Fit">fit step (mm)</span><input type="number" id="pr_step" value="0.1" min="0.01" step="0.05"></div>
-      <div class="dl"><a href="#" id="fit_go">download fit test (5 slot offsets around yours, at the scale above)</a></div>
+      <div class="dl"><a href="#" id="fit_go">download print fit test (5 print slot offsets around yours, at the scale above)</a></div>
       <h2>Parts</h2><div id="parts"></div></section>
   </div>
 </aside>
@@ -535,9 +536,10 @@ function protoHint(){if(!plan)return;const size=+$('#pr_size').value||0,s=size>0
   else{h.textContent=`at ×${s.toFixed(3)} the ${thin.toFixed(2)} mm parts would print ${printed.toFixed(2)} mm, under the ${mn} mm minimum — the set is planned again at ${(mn/s).toFixed(2)} mm material so the slots fit the printed parts (a note travels in the zip)`;h.style.color='var(--warn)'}}
 function renderDownloads(){ // the labels checkbox applies to every cut file; the server names files <project or model>_v<rev>_…
   protoHint();
-  const b=`api/job/${CLIENT}/${job}`,L=$('#x_labels').checked?1:0;
+  const b=`api/job/${CLIENT}/${job}`,L=$('#x_labels').checked?1:0,step=$('#pr_step').value||0.1;
   $('#dl').innerHTML=[['sheets SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}`],['sheets PDF (one page per sheet)',`${b}/export?fmt=pdf&labels=${L}`],['sheets EPS',`${b}/export?fmt=eps&labels=${L}`],
-    ['one file per piece SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&per_piece=1`],['assembled STL',`${b}/stl`],['plan.json',`jobs/${CLIENT}/${job}/plan.json`]].map(([t,u])=>`<a href="${u}">${t}</a>`).join('');
+    ['one file per piece SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&per_piece=1`],['assembled STL',`${b}/stl`],['plan.json',`jobs/${CLIENT}/${job}/plan.json`],
+    ['fit test SVG + DXF (5 slot offsets around yours, cut at 1:1 first)',`${b}/fitcut?fmt=svg,dxf&labels=${L}&step=${step}`],['fit test PDF',`${b}/fitcut?fmt=pdf&labels=${L}&step=${step}`]].map(([t,u])=>`<a href="${u}">${t}</a>`).join('');
 }
 function renderReport(){
   const c=plan.counts,p=plan;
@@ -563,15 +565,16 @@ function renderReport(){
     const m=parts.children.find(c=>c.userData.slice===d.dataset.s); if(m){highlight(m);fitted=true}};
   renderDownloads();
   // the link itself does the download (a navigation on the server, a blob from the worker in the browser build)
-  const prq=()=>new URLSearchParams({scale:$('#pr_scale').value||1,size:$('#pr_size').value||0,labels:$('#pr_labels').value,font:$('#pr_font').value||5,min_thick:$('#pr_min').value||1.2});
+  const prq=()=>new URLSearchParams({scale:$('#pr_scale').value||1,size:$('#pr_size').value||0,labels:$('#pr_labels').value,font:$('#pr_font').value||5,min_thick:$('#pr_min').value||1.2,offset:$('#pr_offset').value||0.2});
   $('#pr_go').onclick=e=>{e.currentTarget.href=`api/job/${CLIENT}/${job}/proto?${prq()}`;countUse('export','proto-3mf')};
   $('#fit_go').onclick=e=>{const q=prq();q.set('step',$('#pr_step').value||0.1);e.currentTarget.href=`api/job/${CLIENT}/${job}/fit?${q}`;countUse('export','fit-3mf')};
   for(const id of ['#pr_scale','#pr_size','#pr_min'])$(id).oninput=protoHint;
+  $('#pr_step').oninput=renderDownloads;
   // Which formats people actually take away — the strongest signal of what machines they run. The link's own
   // query string already names them, so nothing extra has to be tracked to know it.
   $('#dl').onclick=e=>{const a=e.target.closest('a');if(!a)return;
     const href=a.getAttribute('href')||'', q=new URLSearchParams(href.split('?')[1]||'');
-    const fmts=q.get('fmt')?q.get('fmt').split(','):/\/stl$/.test(href)?['stl']:/plan\.json/.test(href)?['plan-json']:[];
+    const fmts=(q.get('fmt')?q.get('fmt').split(','):/\/stl$/.test(href)?['stl']:/plan\.json/.test(href)?['plan-json']:[]).map(f=>/fitcut/.test(href)?'fit-'+f:f);
     fmts.forEach(f=>countUse('export',f+(q.get('per_piece')?'-per-piece':'')))};
   // one row per different part: its own size, how many to cut, and which pieces come off it
   const size=pc=>[pc.bbox[2]-pc.bbox[0],pc.bbox[3]-pc.bbox[1]].map(v=>+(v*UNIT[unit]).toPrecision(3)).join('×');
