@@ -7,6 +7,7 @@ file downloads, no uncaught error. This is what gates the deploy in .github/work
 """
 import functools
 import http.server
+import json
 import os
 import pathlib
 import re
@@ -105,4 +106,47 @@ def test_the_site_slices_in_the_browser(site):
             page.click("#fb_gh")
         assert report_dl.value.suggested_filename.endswith(".lamina.json")
         assert "attach" in page.text_content("#fb_note")
+
+        # The same dialog shares one machine or one material: no model, that one thing as JSON, into its own template.
+        page.click("#fb_no")
+        page.click('nav button[data-t="sheet"]')
+
+        def shared(kind, said):
+            page.click(f'[data-feedback="{kind}"]')
+            assert page.is_hidden("#fb_att")
+            page.fill("#fb_what", said)
+            routes = page.evaluate("""async () => {
+                const fd = await window.__feedback.build();
+                return [window.__feedback.mailto(fd, null), window.__feedback.issueUrl(fd, null), fd.has('project')];
+            }""")
+            assert routes[2] is False
+            mq, iq = (urllib.parse.parse_qs(urllib.parse.urlsplit(u).query) for u in routes[:2])
+            assert iq["template"] == ["preset.yml"] and iq["kind"] == [kind.capitalize()] and "repro" not in iq
+            assert mq["subject"][0].startswith(f"Lamina {kind}") and said in mq["body"][0]
+            page.click("#fb_no")
+            return json.loads(iq["settings"][0])
+
+        # a machine of your own: the numbers as they stand, kept under the name typed, shared under it, deleted again
+        page.fill("#p_slot_offset", "0.123")
+        page.once("dialog", lambda d: d.accept("my K40"))
+        page.click("#kadd")
+        assert page.eval_on_selector("#machine", "s => s.value") == "my K40"
+        m = shared("machine", "K40 with the stock lens")
+        assert m["name"] == "my K40" and abs(m["slot_offset"] - 0.123) < 1e-9 and {"kerf", "relief", "tool_d", "bed"} <= set(m), m
+        assert "material" not in m
+        page.click("#kdel")
+        assert "my K40" not in page.eval_on_selector_all("#machine option", "os => os.map(o => o.value)")
+        mat = shared("material", "3 mm birch from the yard")
+        assert mat["material"] == page.evaluate("window.__t.state().material") and {"thickness", "sheet", "thicknesses", "sheets"} <= set(mat), mat
+        assert "kerf" not in mat
+
+        # A project file is somebody else's text once a bug report is opened: markup in it must land as text, not run.
+        bad = '<img src=x onerror="window.__pwned=1">'
+        proj = json.dumps({"version": 3, "mode": "interlocked", "state": {"skip": [bad], "project": '"' + bad, "thick": {bad: 3}}, "example": "egg"})
+        page.set_input_files("#pfile", {"name": "evil.lamina.json", "mimeType": "application/json", "buffer": proj.encode()})
+        sliced("crafted project")
+        assert page.evaluate("window.__pwned") is None
+        assert page.evaluate("document.querySelectorAll('aside img').length") == 0
+        assert page.text_content("#g-slices .chip").startswith(bad)                   # shown as it was written
+        assert page.input_value("#pname") == '"' + bad
         assert not errors, errors

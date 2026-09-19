@@ -1,0 +1,42 @@
+name: Machine or material
+description: A machine or a material that cuts well for you, to ship with Lamina
+labels: [preset]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks. A machine or a material proven on the real thing is worth more than any default: once added, the next person with the same one starts from it. The **share** buttons on the Sheet & fit tab fill this in; by hand, paste the values below.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What this is
+      options:
+        - Machine
+        - Material
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: Which one
+      description: A machine — make and model, and whether the kerf and slot offset come from a test cut. A material — what it is, where it is from, and what you cut it on.
+      placeholder: xTool P2 (55 W CO2); kerf measured on 3 mm birch, slot offset from the fit test.
+    validations:
+      required: true
+
+  - type: textarea
+    id: settings
+    attributes:
+      label: The settings
+      description: What the share button fills in — a machine's kerf, slot offset, corner relief, tool diameter and bed; a material's thickness and sheet sizes.
+      render: json
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Browser / version
+      description: Filled in by the share button; by hand, the commit or tag you are on.

@@ -93,6 +93,14 @@ sheet before you commit expensive material.
   **save project** in the UI, which writes one file with the model embedded and every parameter in it — the same
   file the button attaches.
 
+**A machine or material that cuts well for you?** Each has a **share** button beside it on the Sheet & fit tab
+that sends that one thing the same two ways (email, or the
+[machine or material issue form](https://github.com/marcelfarres/lamina/issues/new?template=preset.yml)): a
+machine's kerf, slot offset, corner relief, tool diameter and bed; a material's thickness and sheet sizes. Nothing
+else travels. A machine that is not on the list: set the numbers, press **+** beside the machine to keep it under
+its own name, then share it. They are added to the built-in lists by hand, so the next person with the same one
+starts from your numbers.
+
 ## Quick start
 
 Needs Python 3.11 or newer and [uv](https://docs.astral.sh/uv/); everything else is installed for you.

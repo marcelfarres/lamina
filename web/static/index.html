@@ -103,12 +103,12 @@ table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 6px;b
       <h2>Manufacturing preset <button class="small reset" data-reset="sheet">reset tab</button></h2>
       <div class="f"><span class="k" data-tip="Your saved manufacturing settings (material, sheet, fit): pick one to apply it; + saves the current values under a name, − deletes the selected one">saved</span><span class="vec"><select id="presets"></select><button id="psave" class="small" title="save current as…">+</button><button id="pdel" class="small" title="delete selected">−</button></span></div>
       <h2>Material &amp; sheet</h2>
-      <div class="f"><span class="k" data-tip="What you cut: sets the thickness options, the sheet sizes it comes in, the 3D look and the default machine; pick the thickness next">material</span><select id="material"></select></div>
+      <div class="f"><span class="k" data-tip="What you cut: sets the thickness options, the sheet sizes it comes in, the 3D look and the default machine; pick the thickness next">material</span><span class="vec"><select id="material"></select><button class="small" data-feedback="material" title="Share this material — its name, the thickness and sheet size in use and the ones you added, nothing else — so it ships with Lamina. Opens a prefilled email or GitHub issue for you to send">share</button></span></div>
       <div class="f"><span class="k" data-tip="Stock thicknesses of that material: sheet steel by Manufacturers' Standard Gauge (the Canadian and US standard), plate, plywood and acrylic by fraction of an inch, each with its mm and decimal-inch value. + adds the current thickness, − removes it. Type any value in the thickness field below">thickness list</span><span class="vec"><select id="thicklist"></select><button id="madd" class="small">+</button><button id="mdel" class="small">−</button></span></div>
       <div class="f"><span class="k" data-tip="Stock sizes this material comes in, plus the beds of the machine in use. + saves the current size for this material, − deletes the selected one. Turn on `one sheet` below to ignore the height and nest everything on one strip">sheet preset</span><span class="vec"><select id="sheetpreset"></select><button id="sadd" class="small">+</button><button id="sdel" class="small">−</button></span></div>
       <div id="g-sheet"></div>
       <h2>Machine &amp; cut compensation</h2>
-      <div class="f"><span class="k" data-tip="The cutting process. Kerf, slot offset and corner relief belong to the machine, not the material: picking one fills the fields below, which stay editable">machine</span><select id="machine"></select></div>
+      <div class="f"><span class="k" data-tip="The cutting process. Kerf, slot offset and corner relief belong to the machine, not the material: picking one fills the fields below, which stay editable. Not on the list? Set kerf, slot offset and sheet size, then + keeps them as a machine of your own under its name, − deletes it, and share sends it in to get on the list">machine</span><span class="vec"><select id="machine"></select><button id="kadd" class="small" title="keep the kerf, slot offset, relief, tool and sheet size as a machine of your own, under a name">+</button><button id="kdel" class="small" title="delete the selected machine of yours">−</button><button class="small" data-feedback="machine" title="Share this machine — its name, kerf, slot offset, corner relief, tool diameter and bed, nothing else — so it ships with Lamina for the next person who owns one. Opens a prefilled email or GitHub issue for you to send">share</button></span></div>
       <div id="g-fit"></div>
     </section>
     <section data-tab="checks"><h2>Physical checks <button class="small reset" data-reset="checks">reset tab</button></h2><div id="g-checks"></div><h2>Report</h2><div id="report"></div></section>
@@ -194,6 +194,8 @@ document.addEventListener('mouseout',e=>{if(e.target.closest('[data-tip]'))tip.h
 
 // ---------------------------------------------------------------- form
 const nice=n=>n.replace(/_/g,' ');
+// a value from a project file is somebody else's text once a bug report is opened: it goes into the form as text, never as markup
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const isLen=p=>p.unit==='mm', F=p=>isLen(p)?UNIT[unit]:1, fmt=v=>+(+v).toPrecision(5);
 const scaleV=(v,f)=>Array.isArray(v)?v.map(x=>scaleV(x,f)):(v&&typeof v==='object')?Object.fromEntries(Object.entries(v).map(([k,x])=>[k,scaleV(x,f)])):(typeof v==='number'?+(v*f).toPrecision(6):v);
 const num=(id,v,p,f,extra='')=>`<input type="number" id="${id}" value="${fmt(v*f)}" ${p.min!=null?`min="${fmt(p.min*f)}"`:''} ${p.max!=null?`max="${fmt(p.max*f)}"`:''} step="${p.step?fmt(p.step*f):'any'}" ${extra}>`;
@@ -206,12 +208,12 @@ function field(p){
   else if(p.type==='vec2'||p.type==='vec3'){const n=p.type==='vec2'?2:3,lab=p.name==='sheet'?['w','h']:['x','y','z'],sl=p.unit==='deg';
     inp=sl?`<div class="rows">${[...Array(n)].map((_,i)=>`<div class="r"><small>${lab[i]}</small>${slider(id+'_'+i,(v||[])[i]||0,p,f,`data-vec="${p.name}" data-i="${i}"`)}</div>`).join('')}</div>`
         :`<span class="vec">${[...Array(n)].map((_,i)=>`<small>${lab[i]}</small>${num(id+'_'+i,(v||[])[i]||0,p,f,`data-vec="${p.name}" data-i="${i}"`)}`).join('')}</span>`}
-  else if(p.type==='text')inp=`<input id="${id}" value="${(v||'').replace(/"/g,'&quot;')}">`;
+  else if(p.type==='text')inp=`<input id="${id}" value="${esc(v)}">`;
   else if(p.type==='points')inp=`<div class="rows" id="${id}">${(v||[]).map((q,i)=>`<div class="r"><small>${i+1}</small><input type="number" step="any" value="${fmt(q[0]*f)}" data-pt="${p.name}" data-i="${i}" data-j="0"><input type="number" step="any" value="${fmt(q[1]*f)}" data-pt="${p.name}" data-i="${i}" data-j="1"><button class="small x" data-del="${p.name}" data-i="${i}">×</button></div>`).join('')}<div class="r"><button class="small" data-add="${p.name}">+ point</button><span class="hint">or alt-click in the 3D view</span></div></div>`;
   else if(p.type==='lines3')inp=`<div class="rows" id="${id}">${(v||[]).map((l,i)=>`<div class="r"><small>${i+1}</small>${[0,1].map(e=>[0,1,2].map(j=>`<input type="number" step="any" value="${fmt(l[e][j]*f)}" data-ln="${p.name}" data-i="${i}" data-e="${e}" data-j="${j}" title="${e?'end':'start'} ${'xyz'[j]}">`).join('')).join('<small>→</small>')}<button class="small x" data-del="${p.name}" data-i="${i}">×</button></div>`).join('')}<div class="r"><button class="small" data-add="${p.name}">+ line</button><span class="hint">start x y z → end x y z</span></div></div>`;
   else if(p.type==='map'){const rows=Object.entries(v||{});if(selected&&!(selected in (v||{})))rows.push([selected,p.name==='thick'?state.thickness:0]);
-    inp=`<div class="rows" id="${id}">${rows.map(([k,x])=>`<div class="r"><small>${k}</small><input type="number" step="any" value="${fmt(x*f)}" data-map="${p.name}" data-k="${k}">${k in (v||{})?`<button class="small x" data-del="${p.name}" data-i="${k}">×</button>`:'<span class="hint">default</span>'}</div>`).join('')||'<span class="hint">no overrides — select a part in the 3D view and use the sliders</span>'}</div>`}
-  else if(p.type==='labels'||p.type==='chips')inp=`<div class="chips" id="${id}">${(v||[]).map((x,i)=>`<span class="chip">${p.type==='chips'?fmt(x*f):x}<b data-del="${p.name}" data-i="${i}">×</b></span>`).join('')}<input placeholder="${p.type==='chips'?'value ⏎':'label ⏎'}" data-chip="${p.name}"></div>`;
+    inp=`<div class="rows" id="${id}">${rows.map(([k,x])=>`<div class="r"><small>${esc(k)}</small><input type="number" step="any" value="${fmt(x*f)}" data-map="${p.name}" data-k="${esc(k)}">${k in (v||{})?`<button class="small x" data-del="${p.name}" data-i="${esc(k)}">×</button>`:'<span class="hint">default</span>'}</div>`).join('')||'<span class="hint">no overrides — select a part in the 3D view and use the sliders</span>'}</div>`}
+  else if(p.type==='labels'||p.type==='chips')inp=`<div class="chips" id="${id}">${(v||[]).map((x,i)=>`<span class="chip">${p.type==='chips'?fmt(x*f):esc(x)}<b data-del="${p.name}" data-i="${i}">×</b></span>`).join('')}<input placeholder="${p.type==='chips'?'value ⏎':'label ⏎'}" data-chip="${p.name}"></div>`;
   else inp=(p.min!=null&&p.max!=null)?slider(id,v,p,f):num(id,v,p,f);
   return `<div class="f" data-p="${p.name}" ${p.show_if?`data-show="${p.show_if[0]}:${[].concat(p.show_if[1]).join('|')}"`:''}><span class="k" data-tip="${p.help.replace(/"/g,'&quot;')}">${nice(p.name)}${u}</span>${inp}</div>`;
 }
@@ -296,16 +298,19 @@ const PKEYS=()=>['material','machine',...mode.common.filter(p=>p.group==='sheet'
 function renderPresets(sel=''){const ps=ls('slicer_presets',{});$('#presets').innerHTML='<option value="">— none —</option>'+Object.keys(ps).sort().map(n=>`<option ${n===sel?'selected':''}>${n}</option>`).join('')}
 const fam=()=>MATERIALS[state.material]?.family||'paper';
 // sheets for the current material: its family's stock sizes, the beds of the machine in use, and the user's own for that family
-const shs=()=>[...(SHEETS[fam()]||[]),...(MACHINES[state.machine]?.beds||[]),...ls('slicer_sheets',[]).filter(s=>!s[2]||s[2]===fam())];
+const shs=()=>[...(SHEETS[fam()]||[]),...(machineOf(state.machine)?.beds||[]),...ls('slicer_sheets',[]).filter(s=>!s[2]||s[2]===fam())];
 const thickLabel=([mm,name])=>`${name?name+' · ':''}${+mm.toFixed(3)} mm · ${(mm/IN).toFixed(3)} in`;
 const matThicks=m=>{const seen=new Map();for(const e of [...(MATERIALS[m]?.t||[]),...(ls('slicer_thick',{})[m]||[]).map(t=>[t])])if(!seen.has(e[0]))seen.set(e[0],e);return [...seen.values()].sort((a,b)=>a[0]-b[0])};
-const machinesFor=m=>Object.keys(MACHINES).filter(k=>MACHINES[k].cuts.includes(m));
+// machines of your own (this browser) sit beside the built-ins in the same shape, keyed by the name you gave them
+const userMachines=()=>ls('slicer_machines',{});
+const machineOf=k=>MACHINES[k]||userMachines()[k];
+const machinesFor=m=>[...Object.keys(MACHINES),...Object.keys(userMachines())].filter(k=>machineOf(k).cuts.includes(m));
 const sameSheet=(a,b)=>a&&b&&Math.abs(a[0]-b[0])<0.01&&Math.abs(a[1]-b[1])<0.01;
-function applyMachine(k){const x=MACHINES[k];if(!x)return;state.machine=k;state.kerf=x.kerf;state.slot_offset=x.slot;state.relief=x.relief;state.tool_d=x.tool}
+function applyMachine(k){const x=machineOf(k);if(!x)return;state.machine=k;state.kerf=x.kerf;state.slot_offset=x.slot;state.relief=x.relief;state.tool_d=x.tool}
 function syncPresetSelects(){
-  const m=state.material||(state.material='cardboard'); if(!MACHINES[state.machine]?.cuts.includes(m))state.machine=MATERIALS[m].machine;
+  const m=state.material||(state.material='cardboard'); if(!machineOf(state.machine)?.cuts.includes(m))state.machine=MATERIALS[m].machine;
   $('#material').innerHTML=Object.keys(MATERIALS).map(n=>`<option ${n===m?'selected':''}>${n}</option>`).join('');
-  $('#machine').innerHTML=machinesFor(m).map(k=>`<option value="${k}" ${k===state.machine?'selected':''}>${MACHINES[k].name}</option>`).join('');
+  $('#machine').innerHTML=machinesFor(m).map(k=>`<option value="${esc(k)}" ${k===state.machine?'selected':''}>${esc(machineOf(k).name)}</option>`).join('');
   $('#thicklist').innerHTML='<option value="">— pick —</option>'+matThicks(m).map(e=>`<option value="${e[0]}" ${Math.abs(e[0]-state.thickness)<1e-6?'selected':''}>${thickLabel(e)}</option>`).join('');
   $('#sheetpreset').innerHTML='<option value="">— pick —</option>'+shs().map(([n,s],i)=>`<option value="${i}" ${sameSheet(s,state.sheet)?'selected':''}>${n}</option>`).join('');
 }
@@ -629,11 +634,17 @@ async function init(){
   $('#modes').onclick=e=>{if(e.target.dataset.m){deselect();setMode(e.target.dataset.m);countUse('technique',e.target.dataset.m);slice()}};
   $('#material').onchange=e=>{const n=e.target.value,m=MATERIALS[n];state.material=n;
     if(m){const ts=matThicks(n);if(!ts.some(t=>Math.abs(t[0]-state.thickness)<1e-6))state.thickness=ts[Math.floor(ts.length/2)][0];   // a stock thickness of the new material
-      if(!MACHINES[state.machine]?.cuts.includes(n))applyMachine(m.machine);                                                              // a machine that cuts it
+      if(!machineOf(state.machine)?.cuts.includes(n))applyMachine(m.machine);                                                              // a machine that cuts it
       if(!shs().some(([,s])=>sameSheet(s,state.sheet)))state.sheet=[...shs()[0][1]];                                                       // a sheet it comes in
       $('#look').value=m.look;applyLook()}
     renderFields();schedule()};
   $('#machine').onchange=e=>{applyMachine(e.target.value);renderFields();schedule()};
+  // a machine of your own: the compensation and sheet as they stand, cutting what the machine it was made from cuts
+  $('#kadd').onclick=()=>{const b=machineOf(state.machine),n=prompt('machine name (make and model)',userMachines()[state.machine]?state.machine:'');if(!n)return;
+    if(MACHINES[n])return status('that name is a built-in machine — pick another','err');
+    const u=userMachines();u[n]={name:n,base:u[state.machine]?.base||state.machine,kerf:state.kerf,slot:state.slot_offset,relief:state.relief,tool:state.tool_d,cuts:b.cuts,beds:[[`${n} bed · ${fmtLen(state.sheet[0])} × ${fmtLen(state.sheet[1])}`,[...state.sheet]]]};
+    lsSet('slicer_machines',u);state.machine=n;syncPresetSelects()};
+  $('#kdel').onclick=()=>{const u=userMachines();if(!u[state.machine])return status('built-in machines cannot be deleted');delete u[state.machine];lsSet('slicer_machines',u);applyMachine(MATERIALS[state.material].machine);renderFields();schedule()};
   $('#thicklist').onchange=e=>{if(e.target.value){state.thickness=+e.target.value;renderFields();schedule()}};
   $('#sheetpreset').onchange=e=>{const s=shs()[+e.target.value];if(s){state.sheet=[...s[1]];renderFields();schedule()}};
   $('#madd').onclick=()=>{const m=state.material||'cardboard',u=ls('slicer_thick',{});u[m]=[...new Set([...(u[m]||[]),state.thickness])];lsSet('slicer_thick',u);syncPresetSelects()};
@@ -715,12 +726,18 @@ function reportSummary(){
     `running        ${document.documentElement.dataset.static?'in the browser (Pyodide)':'against a local server'}`,
     '', ...(msgs.length?msgs.slice(0,60):['the checks reported nothing'])].join('\n');
 }
-window.laminaFeedback?.(async withModel=>{
+window.laminaFeedback?.({bug:async withModel=>{
   const proj=await projectObj(withModel);
   const gone=proj.missing_model?`\n(the model could not be attached: ${proj.missing_model} is no longer on the server)`:'';
   return {technique:TECHNIQUE[plan?.mode]||'Not technique-specific (import, export, UI, install)', summary:reportSummary()+gone,
           file:new File([JSON.stringify(proj)],projName(proj),{type:'application/json'})};
-});
+ },
+ // a machine to ship: what MACHINES holds for one — the compensation as it stands, and its bed when it has exactly one
+ machine:async()=>{const x=machineOf(state.machine)||{};
+  return {summary:JSON.stringify({name:x.name,base:x.base||state.machine,kerf:state.kerf,slot_offset:state.slot_offset,relief:state.relief,tool_d:state.tool_d,bed:x.beds?.length===1?x.beds[0][1]:state.sheet},null,1)}},
+ // a material to ship: what MATERIALS and SHEETS hold for one — the thickness and sheet in use, and the ones added here
+ material:async()=>({summary:JSON.stringify({material:state.material,thickness:state.thickness,thicknesses:ls('slicer_thick',{})[state.material]||[],sheet:state.sheet,
+  sheets:ls('slicer_sheets',[]).filter(s=>!s[2]||s[2]===fam()).map(([n,s])=>[n,s]),units:state.units},null,1)})});
 
 // test and capture hook (working-files/ui_cdp.mjs, working-files/capture.mjs)
 window.__t={parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>plan,job:()=>job,
