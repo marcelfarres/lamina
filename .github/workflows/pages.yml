@@ -40,8 +40,16 @@ jobs:
           path: _site
       - id: deploy
         uses: actions/deploy-pages@v4
-      - if: env.HAS_HF == 'true'
+      - name: mirror to the Hugging Face Space
+        if: env.HAS_HF == 'true'
         continue-on-error: true            # the Space is a mirror: a revoked token must not fail the Pages deploy
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}   # secret: write access to the static Space (optional)
-        run: uvx --from huggingface_hub hf upload marcelfarres/lamina _site . --repo-type space --delete "*" --commit-message "site ${{ github.sha }}"
+        # …but it must not fail quietly either: continue-on-error reports a failed step as a success, and the Space
+        # sat ten days behind the site before anyone noticed. A warning says so on the run's summary page.
+        run: |
+          uvx --from huggingface_hub hf upload marcelfarres/lamina _site . --repo-type space --delete "*" \
+            --commit-message "site ${{ github.sha }}" || {
+            echo "::warning title=Hugging Face Space not updated::the upload failed — the Space stays on its last good build until HF_TOKEN is renewed. The site on GitHub Pages is unaffected."
+            exit 1
+          }
