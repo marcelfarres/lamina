@@ -19,6 +19,7 @@ from ..unfold import unfold
 JOINTS = ["seam", "tab", "multitab", "diamond", "ticked", "gear", "tongue", "puzzle", "rivet", "laced", "loops", "strip", "rib"]
 MAX_HOLES = 60                        # holes along one seam (rivet / laced / strip)
 MAX_FACES = 4000                      # triangles this can unfold and lay out in a usable time
+MAX_PANELS = 400                      # …and parts, when `separate` makes every triangle one (see build)
 JOINT_HELP = ("seam = plain edge (glue / sew) · tab = one glue tab · multitab = several small tabs · diamond = triangular ticks · "
               "ticked = dense small ticks along the seam · "
               "gear = rectangular teeth · tongue = tab into a slot on the other panel · puzzle = round-head tab into a matching hole · "
@@ -77,6 +78,9 @@ class Folded(Mode):
     title = "Folded Panels"
     description = ("Unfolds the surface into flat panels with fold (score) lines, joined at the seams by tabs, holes, "
                    "strips or ribs. Works on any closed shape (heads, animals): cavities and undercuts just become more seams.")
+    legend = ("P-7 = the 7th panel · the number engraved beside a seam is the seam number, and the panel carrying the same "
+              "number on one of its edges is the one that edge folds to · S-n = the connecting strip for seam n, "
+              "R-n = the angle rib for seam n · on the score layer a solid line is a mountain fold, a dashed line a valley fold")
     params = [
         Param("facet", "number", 15, "Detail: average triangle edge after simplification (mm). Bigger = fewer, simpler panels; joints need triangles a few times bigger than the joint. 0 = keep every triangle of the model", 0, 200, 1, unit="mm"),
         Param("separate", "bool", False, "Every face is its own panel (no folds): each triangle is cut alone and joined to its neighbours along every edge"),
@@ -101,15 +105,20 @@ class Folded(Mode):
         # target_faces return 0 and skipped this guard entirely — the one route into unfold() with no limit, so a
         # scanned mesh of 200 000 faces never came back and the server looked hung. Whichever way the count was
         # asked for, it is capped here and the preview degrades instead of stalling.
+        # `separate` cuts every triangle as its own panel, so there the ceiling is a number of parts to cut and glue,
+        # not a number of triangles to unfold: 4000 of them is not a job anyone would take on, and checking and
+        # nesting them takes longer than anyone will wait.
+        cap = MAX_PANELS if p["separate"] else MAX_FACES
         target = target_faces(ctx.mesh, p["facet"])
         want = target or len(ctx.mesh.faces)
-        if want > MAX_FACES:
-            need = math.sqrt(ctx.mesh.area / (0.433 * MAX_FACES))
+        if want > cap:
+            need = math.sqrt(ctx.mesh.area / (0.433 * cap))
             asked = f"facet {p['facet']:g} mm needs" if p["facet"] else "facet 0 keeps every triangle of this model —"
-            ctx.errors.append(f"{asked} {want} triangles, more than the {MAX_FACES} this can unfold: set the facet "
-                              f"size to {need:.0f} mm or more, or use `separate` faces. Simplified to {MAX_FACES} "
+            limit = f"the {cap} separate faces this will cut" if p["separate"] else f"the {cap} this can unfold"
+            ctx.errors.append(f"{asked} {want} triangles, more than {limit}: set the facet size to {need:.0f} mm or "
+                              f"more{'' if p['separate'] else ', or use `separate` faces'}. Simplified to {cap} "
                               f"triangles so you can still see the result.")
-            target = MAX_FACES
+            target = cap
         mesh = simplify(ctx.mesh, target)
         self.mesh = mesh
         ctx.cover_r = t                                       # coverage: surface points within the sheet thickness of a panel

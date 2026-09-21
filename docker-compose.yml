@@ -10,7 +10,7 @@ services:
       - "8000:8000"
     environment:
       LAMINA_TTL_HOURS: 0               # delete a tab's models and cut files this many hours after its last slice; 0 = never (only its "clear my data" button does)
-      LAMINA_MAX_UPLOAD_MB: 30          # bigger models are refused (413); raise it on a private server
+      LAMINA_MAX_UPLOAD_MB: 0           # 0 = no cap, for your own machine. On a public address set a number (MB): bigger models are then refused (413)
       WEB_CONCURRENCY: 2                # slices that run at the same time (uvicorn workers): one per core you can spare, ~300 MB each
     volumes:
       - lamina-jobs:/app/working-files   # sliced jobs and the session survive a restart

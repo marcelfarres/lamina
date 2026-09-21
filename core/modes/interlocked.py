@@ -10,6 +10,8 @@ class Interlocked(Mode):
     name = "interlocked"
     title = "Interlocked Slices"
     description = "Two perpendicular families of slotted slices that lock together egg-crate style."
+    legend = ("X-2 = the 2nd slice of the X family, Y-4 = the 4th of the Y family, each counted from the low end · "
+              "the two families cross at right angles and half-lap into each other: X slots drop in from one side, Y from the other")
     params = [
         Param("up", "choice", "z", "Assembly axis: 1st family is inserted from +up, 2nd family from −up", choices=["x", "y", "z"]),
         Param("distribution", "choice", "count", "count = N slices per family; distance = one slice every `spacing` mm", choices=["count", "distance"]),

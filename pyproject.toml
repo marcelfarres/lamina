@@ -1,6 +1,6 @@
 [project]
 name = "lamina"
-version = "0.1.0"
+version = "0.2.0"
 license = "AGPL-3.0-or-later"
 description = "Lamina: turns 3D models into flat cut parts (stacked, interlocked, radial, ribbed, folded panels) for paper, cardboard and sheet metal"
 requires-python = ">=3.11"

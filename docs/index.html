@@ -239,15 +239,35 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
     </div>
   </article>
   <article class="tech">
-    <video src="media/radial.mp4" poster="media/radial_poster.jpg" width="1100" height="825" muted loop playsinline controls preload="none"
-           aria-label="A snowman in radial half-slices, orbiting; then 6, 14 and 10 slices, and 3, 9 and 6 ring slices"></video>
+    <div>
+      <video src="media/radial.mp4" poster="media/radial_poster.jpg" width="1100" height="825" muted loop playsinline controls preload="none"
+             aria-label="A scanned head in radial half-slices about one axis, orbiting; then 6, 14 and 10 slices, and 3, 9 and 6 ring slices"></video>
+      <video src="media/axes.mp4" poster="media/axes_poster.jpg" width="1100" height="825" muted loop playsinline controls preload="none" style="margin-top:14px"
+             aria-label="A dumbbell with an axis through each ball and the plane between them at the neck; then one axis through both, back to two, and the neck plane raised and tilted"></video>
+    </div>
     <div>
       <h3>Radial slices</h3>
       <p>Half-slices fanning out from an axis you can move and turn, locked by horizontal ring slices with radial slots.
       Made for shapes with a centre line — vases, heads, figures, lamps. Lamina works out the smallest core the slices
       can share around the axis and refuses a smaller one instead of letting them collide there.</p>
-      <p class="clip"><b>In the clip:</b> the snowman, 10 half-slices and 6 rings in 3 mm cardboard; then 6, 14 and
-      10 slices, and 3, 9 and 6 rings. More rings lock it stiffer, more slices smooth the silhouette.</p>
+      <p>A shape with several centres — a dumbbell's two balls, a snowman's three, a head above a body — takes <b>an
+      axis each</b>. Neighbouring lobes are parted by a flat plane between their axes — placed at the waist for you, and
+      shown as a translucent sheet you click and move or tilt like any slice — so the fans never run into each other, and a
+      <b>spine</b> — one full plane cut in one piece through every axis, slotted into every ring — is what holds one
+      lobe to the next. It is automatic and comes from how the axes lie: on one line, as many as you like; on one plane,
+      exactly one, with every fan turned to start on it; on no plane at all, Lamina says so and names the fix rather than
+      letting the lobes come apart. Every axis is drawn in the 3D view where it passes through the model: drag it whole
+      or by either end — it stays on the plane the others share, so the spine survives the drag — alt-click the model
+      for a parallel axis through that point, split one in two for a snowman, alt-click an axis to remove it. The bundled
+      <b>dumbbell</b> — two spheres on a neck — opens this way: an axis through each ball, the lobes meeting at the
+      neck, one spine through both; the <b>snowman</b> opens with a vertical axis through each of its three balls and
+      one spine up the leaning stack.</p>
+      <p class="clip"><b>In the first clip:</b> the scanned head about one axis, 10 half-slices and 6 rings in 3 mm
+      cardboard; then 6, 14 and 10 slices, and 3, 9 and 6 rings. More rings lock it stiffer, more slices smooth the
+      silhouette.</p>
+      <p class="clip"><b>In the second:</b> the dumbbell, an axis through each ball and the plane between them at the
+      neck; then one axis through both — the fan cuts across both balls, which is what an axis each is for — back to
+      two, and the neck plane raised 30 mm and tilted 15°, like any other slice.</p>
       <p class="clip"><b>Parameters:</b> axis and centre · slice count · fan angle · core diameter · ring count or
       spacing · centre hole for a rod.</p>
     </div>
@@ -404,6 +424,14 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
         <li><b>PDF</b> as one page per sheet, and <b>EPS</b> per sheet.</li>
         <li><b>One file per piece</b> when your cutter wants them separately — identical pieces once, with the
             quantity in the name, and a cut list.</li>
+        <li><b>An assembly key</b> — what this technique's labels mean, then every part with its centre, what it
+            slots onto, and the order the 3D view builds them in. The same legend sits in the export tab, so the
+            scheme is clear before the cut rather than guessed after it; a tickbox leaves the file out of the zip.</li>
+        <li><b>Puzzle mode</b> — every part engraved with a short code instead of its position, and the per-piece
+            files named after it, so nothing on the parts says where they go. The app still shows the real labels,
+            the key maps them back, and leaving it out of the zip keeps the puzzle a puzzle.</li>
+        <li><b>An assembly video</b> — the build order played and recorded in the page itself as a .webm, so you can
+            send someone the film of it going together. Nothing is uploaded.</li>
         <li><b>One thickness per sheet</b> — change a part's thickness and it is cut from other stock, so it gets
             sheets of its own. Every sheet says the stock it needs, and the file names carry it as soon as a job
             mixes them.</li>
@@ -461,22 +489,65 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
 
 <section id="start"><div class="wrap">
   <h2>Run it</h2>
-  <p class="sub">Python and <a href="https://docs.astral.sh/uv/">uv</a>; everything else is installed for you. It
-  runs locally — your models never leave your machine.</p>
+  <p class="sub">Three ways in, and the first one needs nothing at all. Whichever you pick, your models stay on your
+  own machine: Lamina has no accounts, no uploads and no cloud.</p>
+
+  <h3 style="margin-top:26px">1 · In this browser — nothing to install</h3>
+  <p class="sub"><a href="app/index.html">Open the app</a> and use it. The whole program, Python and all, is
+  downloaded into the page the first time (about 60 MB, cached afterwards) and runs inside the tab. Best for trying
+  it and for everyday models — a few hundred thousand triangles slice in seconds to half a minute. Past roughly
+  50 MB of mesh it warns you: that size takes minutes in a tab, and can run the tab out of memory. It is not a
+  ceiling Lamina sets, it is what a browser tab is; the two options below have neither limit.</p>
+
+  <h3 style="margin-top:26px">2 · On your computer — double-click, no commands</h3>
+  <p class="sub">The fastest version, no size limit, works with no internet after the first run. You do not need to
+  know what a terminal is; a window with scrolling text is part of it, and you can ignore it.</p>
+  <ol class="sub" style="margin:10px 0 0 18px;padding:0">
+    <li style="margin:6px 0"><b>Download Lamina:</b>
+      <a href="https://github.com/marcelfarres/lamina/archive/refs/heads/main.zip">lamina-main.zip</a> (about 30 MB).</li>
+    <li style="margin:6px 0"><b>Unzip it</b> — double-click the file on Windows or macOS — and open the folder that
+      appears. Put it somewhere you will find again, like Documents.</li>
+    <li style="margin:6px 0"><b>Double-click the starter for your computer</b>, right there in the folder:
+      <code>Start Lamina (Windows).bat</code> · <code>Start Lamina (Mac).command</code> ·
+      <code>Start Lamina (Linux).sh</code>.</li>
+    <li style="margin:6px 0">The first run asks once whether it may install <a href="https://docs.astral.sh/uv/">uv</a>
+      — a small tool that fetches Python and the libraries into your own user folder, nowhere else. Answer
+      <code>y</code>. It then downloads them, which takes a few minutes and happens only once.</li>
+    <li style="margin:6px 0">Your browser opens at <code>http://localhost:8000</code> and Lamina is running on your
+      machine. Leave the text window open while you work; closing it stops Lamina. Next time it starts in seconds.</li>
+  </ol>
+  <p class="sub" style="margin-top:12px"><b>If macOS refuses to open the file</b> ("cannot be opened because it is
+  from an unidentified developer"): right-click it → <b>Open</b> → <b>Open</b>. That is macOS asking whether you
+  trust a file you downloaded; you only have to do it once. <b>On Windows</b>, SmartScreen may ask the same way:
+  <b>More info</b> → <b>Run anyway</b>. <b>On Linux</b>, if double-clicking does nothing, mark it executable
+  (Properties → Permissions, or <code>chmod +x</code>) and choose "Run in Terminal".</p>
+  <p class="sub"><b>Is there a normal installer — a .dmg, a .exe?</b> Not yet. An installed app has to be signed by
+  Apple and by Microsoft or their systems block it, which costs money every year and is not something I can promise
+  to keep paying for a free tool. The starter above is the same thing without the signature: one double-click, and
+  nothing installed outside your own user folder. If you would rather work from a terminal, the commands are below.</p>
+
+  <h3 style="margin-top:26px">3 · As a server, with Docker</h3>
+  <p class="sub">For a workshop machine, a NAS or a maker space: one image with everything in it, each browser tab
+  with its own session, idle ones cleaned up after a day. Lamina has no login of its own — put it behind your
+  proxy's authentication before it faces the internet.</p>
+  <pre tabindex="0"><code>docker run -d -p 8000:8000 -v lamina-jobs:/app/working-files ghcr.io/marcelfarres/lamina:latest</code></pre>
+  <p class="sub"><a href="https://github.com/marcelfarres/lamina/blob/main/docker-compose.yml">docker-compose.yml</a>
+  is the same thing as a stack for Portainer, Dockge or Komodo.</p>
+
+  <h3 style="margin-top:26px">From a terminal</h3>
+  <p class="sub">If you have Python and <a href="https://docs.astral.sh/uv/">uv</a> already, the starters are only
+  wrapping these:</p>
   <pre tabindex="0"><code># add --extra cad to uv sync for STEP and BREP import
 git clone https://github.com/marcelfarres/lamina.git
 cd lamina
 uv sync
 uv run uvicorn web.app:app --reload --port 8000
 # then open http://localhost:8000</code></pre>
-  <p class="sub">Or run it as a server and skip the source entirely — the image carries everything, each browser tab
-  gets its own session, and an idle one is cleaned up after a day:</p>
-  <pre tabindex="0"><code>docker run -d -p 8000:8000 -v lamina-jobs:/app/working-files ghcr.io/marcelfarres/lamina:latest</code></pre>
-  <p class="sub"><a href="https://github.com/marcelfarres/lamina/blob/main/docker-compose.yml">docker-compose.yml</a>
-  is the same thing as a stack for Portainer, Dockge or Komodo.</p>
   <p class="sub">The Model tab opens on a bundled example, and the
-  <a href="https://github.com/marcelfarres/lamina/tree/main/examples">examples folder</a> holds 21 in all — geometric
-  shapes, a scanned head and animals. The same pipeline runs headless, so it can be scripted or put in a build:</p>
+  <a href="https://github.com/marcelfarres/lamina/tree/main/examples">examples folder</a> holds 22 in all — geometric
+  shapes, a scanned head and animals; the dumbbell and the snowman open with a radial axis per ball and a spine
+  through them all.
+  The same pipeline runs headless, so it can be scripted or put in a build:</p>
   <pre tabindex="0"><code>uv run python -m core.plan examples/egg.stl --mode interlocked --set nx=5 ny=4 --out out/egg
 uv run python -m core.export out/egg.json --out out/egg_cut --fmt svg dxf pdf --labels
 uv run python -m core.solid out/egg.json --proto out/egg_proto --scale 0.4 --labels groove

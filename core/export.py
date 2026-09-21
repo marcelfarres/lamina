@@ -24,13 +24,16 @@ PT = 72 / 25.4
 
 
 class Item:
-    """One piece ready to draw: rings [(layer, [(x,y)...])], scores [(style, [(x,y)...])], marks [(x, y, text)], label."""
-    def __init__(self, pc, rings_key, note=""):
+    """One piece ready to draw: rings [(layer, [(x,y)...])], scores [(style, [(x,y)...])], marks [(x, y, text)], label.
+    `names` (puzzle mode) replaces what is engraved; `key` stays the real label, which is what the sheet and the 3D
+    view match a selection on."""
+    def __init__(self, pc, rings_key, note="", names=None):
         self.rings = []
         for region in pc[rings_key]:
             self.rings.append(("OUTER", region[0]))
             self.rings += [("INNER", r) for r in region[1:]]
-        self.label = pc["label"] + (f" {note}" if note else "")
+        self.key = pc["label"]
+        self.label = (names or {}).get(pc["label"], pc["label"]) + (f" {note}" if note else "")
         self.label_pos = pc.get("label_pos")
         self.leader = pc.get("leader")
         self.scores = pc.get("lines") or []
@@ -38,7 +41,8 @@ class Item:
 
 
 def items_for_sheet(plan, si):
-    items = [Item(pc, "placed", sl.get("note", "")) for sl in plan["slices"] for pc in sl["pieces"] if pc["place"][0] == si]
+    names = plan.get("codes") or {}
+    items = [Item(pc, "placed", sl.get("note", ""), names) for sl in plan["slices"] for pc in sl["pieces"] if pc["place"][0] == si]
     coupon = scale_check_item(plan, si)
     return items + [coupon] if coupon else items
 
@@ -104,9 +108,9 @@ def identical_groups(plan):
             for sl in plan["slices"] for pc in sl["pieces"] if pc["label"] not in copies]
 
 
-def item_for_piece(pc, note="", pad=1.0):
+def item_for_piece(pc, note="", pad=1.0, names=None):
     """Piece alone at the origin (kerf applied, no sheet placement): cuts and label only."""
-    it = Item(pc, "kerfed", note)
+    it = Item(pc, "kerfed", note, names)
     xs = [x for _, r in it.rings for x, _ in r]; ys = [y for _, r in it.rings for _, y in r]
     x0, y0 = min(xs) - pad, min(ys) - pad
     it.rings = [(l, [(x - x0, y - y0) for x, y in r]) for l, r in it.rings]
@@ -157,7 +161,7 @@ def svg_doc(items, width, height, labels, border=False, font=4.0, units="mm", ti
         for it in items:
             for lay, ring in it.rings:
                 if lay == layer:
-                    out.append(f'<path data-label="{it.label.split(" ")[0]}" d="' + " ".join(f"{'M' if i == 0 else 'L'}{x:.3f},{height - y:.3f}" for i, (x, y) in enumerate(ring)) + ' Z"/>')
+                    out.append(f'<path data-label="{it.key}" d="' + " ".join(f"{'M' if i == 0 else 'L'}{x:.3f},{height - y:.3f}" for i, (x, y) in enumerate(ring)) + ' Z"/>')
         out.append("</g>")
     if any(it.scores for it in items):
         out.append(f'<g id="SCORE" fill="none" stroke="{COLORS["SCORE"]}" stroke-width="0.15">')
@@ -294,10 +298,46 @@ def eps_doc(items, w, h, labels, border, font):
     return "\n".join(out)
 
 
+# ------------------------------------------------------------------ assembly key: the map that comes out of the cut
+GROUPS = {"S": "stacked slice", "X": "X slice", "Y": "Y slice", "R": "radial half-slice", "C": "ring slice",
+          "F": "folded panel", "J": "joint part", "P": "peg"}
+
+
+def key_text(plan):
+    """What the labels mean, which part is which, and the order the 3D view builds them in — written beside the cut
+    files so the plan survives the walk from the machine to the bench. In puzzle mode what is engraved is a code that
+    says nothing about where its part goes, and this file is the only way back."""
+    p = plan["params"]; codes = plan.get("codes") or {}
+    u = p.get("units", "mm"); f = UNIT[u]
+    title = f"{p.get('project') or 'Lamina'} v{p.get('rev') or '1.0'} — assembly key"
+    out = [title, "=" * len(title),
+           f"{plan['mode']} · {plan['counts']['slices']} slices · {plan['counts']['parts']} parts · {plan['sheets']} sheet(s)",
+           "", "How the labels read"]
+    out += ["  " + s.strip() for s in (plan.get("legend") or "").split(" · ") if s.strip()]
+    out += ["  A part too big for the sheet is cut into pieces and the piece number comes last: Z-3-2 is the second piece of Z-3.",
+            "  Each label is engraved beside its own part on the sheet, with a line pointing at it."]
+    if codes:
+        out += ["  Puzzle mode: what is engraved is the code in the first column below — it says nothing about where the part goes.",
+                "  This file is the only way back, so leave it out of the zip (the tickbox under Export) to keep the puzzle."]
+    out += ["", f"Build order — the order the 3D view plays on the steps slider. Centres are in {u} from the middle of the model.", "",
+            f"{'step':>4}  " + ("code   " if codes else "") + f"{'part':<12}{'what':<20}{'centre':<24}goes onto"]
+    step = 0
+    for sl in plan["slices"]:
+        what = GROUPS.get(sl["group"], sl["group"])
+        onto = ", ".join(sl.get("engages") or [])
+        centre = "(%.0f, %.0f, %.0f)" % tuple(sl["M"][i][3] * f for i in range(3))
+        for pc in sl["pieces"]:
+            step += 1
+            out.append(f"{step:>4}  " + (f"{codes.get(pc['label'], '--'):<7}" if codes else "")
+                       + f"{pc['label']:<12}{what:<20}{centre:<24}{onto[:60]}")
+    return "\n".join(out) + "\n"
+
+
 # ------------------------------------------------------------------ driver
-def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, border=True, font=None, units=None):
+def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, border=True, font=None, units=None, key=False):
     out_dir = pathlib.Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
     font = font or plan["params"].get("font", 4.0); units = units or plan["params"].get("units", "mm")
+    names = plan.get("codes") or {}                 # puzzle mode: engraved codes instead of positions
     written = []
 
     def write(stem, items, w, h, border_, fmts=fmts, title=""):
@@ -317,12 +357,13 @@ def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, bor
         thick = {pc["label"]: sl["thickness"] for sl in plan["slices"] for pc in sl["pieces"]}
         for pc, note, labels, flips in identical_groups(plan):
             n = len(labels); t = thick[pc["label"]]
-            stem = pc["label"] + (f"_x{n}" if n > 1 else "") + thick_tag(plan, t)
+            # in puzzle mode the file is named after the code too: a folder of Z-1, Z-2 … gives the order away
+            stem = names.get(pc["label"], pc["label"]) + (f"_x{n}" if n > 1 else "") + thick_tag(plan, t)
             # the drawing carries the count and how many of them are turned over; the cut list names which ones
-            it, w, h = item_for_piece(pc, " ".join(x for x in ([f"×{n}"] if n > 1 else []) + [f"({len(flips)} turned over)" if flips else "", note] if x))
+            it, w, h = item_for_piece(pc, " ".join(x for x in ([f"×{n}"] if n > 1 else []) + [f"({len(flips)} turned over)" if flips else "", note] if x), names=names)
             write(stem, [it], w, h, False)
-            also = "also " + ", ".join(labels[1:]) if n > 1 else note
-            rows.append((stem, n, "; ".join(x for x in [also, "turn over " + ", ".join(flips) if flips else ""] if x)))
+            also = "also " + ", ".join(names.get(l, l) for l in labels[1:]) if n > 1 else note
+            rows.append((stem, n, "; ".join(x for x in [also, "turn over " + ", ".join(names.get(l, l) for l in flips) if flips else ""] if x)))
         f = out_dir / "cut-list.txt"
         f.write_text("file                  qty  notes\n" + "".join(f"{s:22s}{n:3d}  {t}\n".rstrip() + "\n" for s, n, t in rows), encoding="utf-8")
         written.append(f)
@@ -334,6 +375,8 @@ def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, bor
                   [x for x in fmts if x != "pdf"], sheet_title(plan, si) if labels else "")
         if "pdf" in fmts:                           # one multi-page PDF for all sheets
             f = out_dir / "sheets.pdf"; pdf_doc(f, pages, labels, border, font); written.append(f)
+    if key:
+        f = out_dir / "assembly-key.txt"; f.write_text(key_text(plan), encoding="utf-8"); written.append(f)
     return written
 
 
@@ -344,9 +387,10 @@ def main(argv=None):
     ap.add_argument("--labels", action="store_true"); ap.add_argument("--per-piece", action="store_true")
     ap.add_argument("--no-border", action="store_true"); ap.add_argument("--font", type=float)
     ap.add_argument("--units", choices=["mm", "cm", "in"])
+    ap.add_argument("--no-key", action="store_true", help="leave out assembly-key.txt (what the labels mean, the build order, and in puzzle mode the codes)")
     a = ap.parse_args(argv)
     plan = json.loads(pathlib.Path(a.plan).read_text())
-    for f in export(plan, a.out, a.fmt, a.labels, a.per_piece, not a.no_border, a.font, a.units):
+    for f in export(plan, a.out, a.fmt, a.labels, a.per_piece, not a.no_border, a.font, a.units, key=not a.no_key):
         print(f)
 
 

@@ -1,0 +1,4 @@
+# The double-click launchers are run by /bin/sh on machines that are not this one: a CRLF would make the shebang
+# line "#!/bin/sh\r", which fails with "bad interpreter". Keep them LF wherever they are checked out.
+*.sh text eol=lf
+*.command text eol=lf

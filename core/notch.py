@@ -64,8 +64,13 @@ def _clip_segments(segments, p0, d, slices):
     return segments
 
 
-def cut_slots(a, b, ctx, open_toward, ratio):
-    """Add to slice `a` the slots where slice `b` crosses it."""
+def cut_slots(a, b, ctx, open_toward, ratio, through=False):
+    """Add to slice `a` the slots where slice `b` crosses it — one per in-mesh segment of the crossing line. With
+    `through` (a spine and a ring: one sheet each along the line) it is one slot for the whole line instead, from
+    a's own edge on the open side across every segment to the closed end — cut through where the line leaves the
+    material and comes back (a chord grazing a neck), half-lapped in the segment that holds the closed end. One
+    half-lap per segment is a slot no part can slide past, and a slot that stops at the lobe boundary while the
+    sheet's material goes on is a slit inside it that nothing slides into."""
     p = ctx.p
     ln = plane_plane_line(a.M, b.M)
     if ln is None:
@@ -75,15 +80,24 @@ def cut_slots(a, b, ctx, open_toward, ratio):
         d = -d
     width = b.thickness + p["slot_offset"]
     made = 0
-    for s_in, s_out in _clip_segments(line_segments_in_mesh(ctx.mesh, p0, d, ctx.span), p0, d, (a, b)):
+    segs = line_segments_in_mesh(ctx.mesh, p0, d, ctx.span)
+    pieces = _clip_segments(segs, p0, d, (a, b))
+    spans, edge = pieces, None
+    if through and pieces:
+        spans = [(min(s for s, _ in pieces), max(e for _, e in pieces))]
+        edge = max(e for _, e in _clip_segments(segs, p0, d, (a,)))
+    for s_in, s_out in spans:
         # d points toward the open side; the open end is s_out, closed end is s_out - ratio*length
         length = s_out - s_in
-        closed = p0 + d * (s_out - ratio * length)
-        opening = p0 + d * (s_out + 1.0 + width)       # overshoot past the surface so the slot is open
+        sc = s_out - ratio * length
+        closed = p0 + d * sc
+        opening = p0 + d * ((s_out if edge is None else edge) + 1.0 + width)   # overshoot past the surface so the slot is open
         a_open, a_end = to_local(a.M, [opening, closed])
         cut = slot_polygon(a_open, a_end, width, p)
         a.cuts.append(cut)
-        a.links.append((b.label, cut, tuple(p0 + d * (s_in + s_out) / 2)))   # who this slot is for + where (world) → connectivity check
+        # who this slot is for + where (world) → connectivity check: the piece of material that holds the closed end
+        hold = min(pieces, key=lambda m: 0.0 if m[0] <= sc <= m[1] else min(abs(sc - m[0]), abs(sc - m[1])))
+        a.links.append((b.label, cut, tuple(p0 + d * (hold[0] + hold[1]) / 2)))
         made += 1
     if made:
         a.engages.append(b.label)

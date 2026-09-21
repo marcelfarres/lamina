@@ -22,7 +22,14 @@ const ready = (async () => {
   // your own machine: nothing expires on its own, "clear my data" is the only delete
   py.runPython(`import os, sys; os.environ['LAMINA_TTL_HOURS'] = '0'; sys.path.insert(0, ${JSON.stringify(APP)})`);
   const handle = py.pyimport('web.browser').handle;
-  py.globals.set('report', (text, frac) => postMessage({progress: text, frac}));   // build() stages → the page's progress bar
+  // build() stages → the page's progress bar. An `artifact` is a file the build has finished with and the page can
+  // show at once (the preview mesh): the worker is busy building, so it cannot answer a fetch for it — the bytes
+  // travel with the message instead. readFile hands back a view into the WASM heap, so it has to be copied.
+  py.globals.set('report', (text, frac, artifact) => {
+    let model = null;
+    if (artifact) { try { model = py.FS.readFile(artifact).slice() } catch (e) { model = null } }
+    postMessage({progress: text, frac, model}, model ? [model.buffer] : []);
+  });
   py.runPython('import core.plan; core.plan.report = report');
   say('');
   return {py, handle};
@@ -41,6 +48,11 @@ onmessage = async e => {
     r.destroy();
     if (m.method !== 'GET') py.FS.syncfs(false, () => {});
     postMessage({id: m.id, status, headers, body});
+    // A plan is a graph with back-references — every piece names its slice, every slice holds its pieces — so it
+    // only goes when the cyclic collector runs. Left to itself that is not before the next slice asks for its own
+    // arrays, and a heap under that much pressure stops giving GEOS numbers it can work with: slicing the same
+    // model a fourth way returned "orientationIndex encountered NaN". One collection per request costs milliseconds.
+    py.runPython('import gc; gc.collect()');
   } catch (err) {
     postMessage({id: m.id, status: 500, headers: {'content-type': 'application/json'}, body: new TextEncoder().encode(JSON.stringify({detail: String(err)}))});
   }

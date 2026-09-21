@@ -9,6 +9,7 @@ shutil.copytree(ROOT / "docs", site)
 app = site / "app"
 shutil.copytree(ROOT / "web" / "static", app / "static")
 shutil.move(app / "static" / "index.html", app / "index.html")        # app/index.html + app/static/… = the server's layout
+shutil.copy(ROOT / "CHANGELOG.md", app / "changelog.md")              # what's new, beside the page that fetches it
 py = app / "static" / "py"; py.mkdir()
 
 with zipfile.ZipFile(py / "core.zip", "w", zipfile.ZIP_DEFLATED) as z:

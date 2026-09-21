@@ -66,10 +66,10 @@ COMMON: list[Param] = [
     P("rotate", "vec3", [0, 0, 0], "Rotate the whole model about x, y, z (deg) before slicing — re-align it or slice at an angle", -180, 180, 5, group="model", unit="deg"),
     P("scale", "number", 1.0, "Uniform scale factor, applied on top of `size` when one is set (size 30 in at scale 0.8 = 24 in)", 0.001, 1000, 0.01, group="model"),
     P("size", "vec3", [0, 0, 0], "Target size x, y, z (mm); 0 = keep the original; one value = uniform fit to that size. `scale` multiplies it", 0, 10000, 1, group="model", unit="mm"),
-    P("shrinkwrap", "number", 0.0, "Modify form: voxel-remesh the model at this resolution (mm); rounds off small details and closes holes. 0 = off (auto-on for broken meshes)", 0, 50, 0.1, group="model", unit="mm"),
+    P("shrinkwrap", "number", 0.0, "Modify form: voxel-remesh the model at this resolution (mm); rounds off small details and closes holes. The steps a grid leaves are smoothed off for you, so a smooth model stays smooth. 0 = off (auto-on for broken meshes)", 0, 50, 0.1, group="model", unit="mm"),
     P("hollow", "number", 0.0, "Modify form: keep only a wall of this thickness (mm) — saves material. 0 = solid", 0, 100, 0.5, group="model", unit="mm"),
     P("thicken", "number", 0.0, "Modify form: grow the model outward by this much (mm) so thin features survive cutting. 0 = off", 0, 50, 0.5, group="model", unit="mm"),
-    P("round", "number", 0.0, "Modify form: remove features thinner than this (mm) and round every corner to that radius (morphological opening + closing). 0 = off", 0, 50, 0.5, group="model", unit="mm"),
+    P("round", "number", 0.0, "Modify form: remove features thinner than this (mm) and round every corner to that radius (morphological opening + closing). Works on a voxel grid fine enough for the radius you ask for, and the steps it leaves are smoothed off, so a curve stays a curve. 0 = off", 0, 50, 0.5, group="model", unit="mm"),
     P("smooth", "int", 0, "Modify form: smoothing passes (Taubin, volume-preserving) that soften pointy vertices and noise. 0 = off, 5–20 typical", 0, 100, 1, group="model"),
     # -- sheet / material
     P("units", "choice", "mm", "Units for the DXF export and for the numbers in this form", choices=["mm", "cm", "in"], group="sheet"),
@@ -79,6 +79,10 @@ COMMON: list[Param] = [
     P("gap", "number", 3, "Gap between parts on the sheet (mm)", 0, 50, 0.5, group="sheet", unit="mm"),
     P("labels", "bool", True, "Engrave part labels beside each part, with a leader line to the part (LABEL layer)", group="sheet"),
     P("font", "number", 4.0, "Label text height (mm)", 1, 30, 0.5, group="sheet", unit="mm"),
+    P("label_style", "choice", "position", "What the engraved label says. position = where the part belongs (Z-3, R-2a, P-7) · "
+      "code = a short code that gives nothing away, for a puzzle: the app, the Parts list and the 3D view still show the real "
+      "labels, and assembly-key.txt in the export maps code → part. Leave that file out of the zip and the puzzle stays a puzzle",
+      choices=["position", "code"], group="sheet", show_if=("labels", True)),
     P("compensate", "bool", False, "Apply the kerf compensation below to the cut files. Leave it off when the machine's own software compensates for its kerf, or the parts come out compensated twice", group="fit"),
     P("kerf", "number", 0.0, "Cut compensation: beam/plasma kerf width (mm). Outer edges grow, holes and slots shrink by kerf/2", 0, 5, 0.01, group="fit", unit="mm", show_if=("compensate", True)),
     # -- fit
@@ -97,6 +101,9 @@ COMMON: list[Param] = [
     P("roll", "map", {}, "Rotate a slice about its in-plane y axis (deg)", group="slices", unit="deg"),
     P("thick", "map", {}, "Per-slice thickness override (mm), for mixing materials", group="slices", unit="mm"),
     P("grow", "map", {}, "Grow a slice's outline by this much (mm) — the bridge-thinner fix: thin necks get 2× this wider, the rest is a hair bigger than the model", group="slices", unit="mm"),
+    # Placed by the 3D view, never typed: the world point a tilted / rolled slice turns about — its own middle, which
+    # only the drawn part knows. Absent, a slice turns about its frame origin, as it always did.
+    P("pivot", "map", {}, "Where a tilted slice turns: the part's own middle, set when you drag its rings", group="hidden"),
     P("project", "text", "", "Project name (printed on every sheet)", group="hidden"),
     P("rev", "text", "1.0", "Revision major.minor (printed on every sheet)", group="hidden"),
     # -- sheet fitting + checks
@@ -115,7 +122,8 @@ class Mode:
     name: str = ""
     title: str = ""
     description: str = ""
-    params: list[Param] = []
+    legend: str = ""                   # what this mode's part labels mean — shown in the Export tab, written into
+    params: list[Param] = []           # assembly-key.txt beside the cut files, and the only key in puzzle mode
     hidden_common: tuple = ()          # common params that make no sense for this mode
 
     def build(self, ctx) -> list:
@@ -131,7 +139,7 @@ class Mode:
 
     @classmethod
     def schema(cls):
-        return {"name": cls.name, "title": cls.title, "description": cls.description,
+        return {"name": cls.name, "title": cls.title, "description": cls.description, "legend": cls.legend,
                 "params": [p.__dict__ for p in cls.params],
                 "common": [p.__dict__ for p in COMMON if p.name not in cls.hidden_common]}
 
@@ -172,12 +180,20 @@ class Ctx:
         return self.override("thick", label, self.p["thickness"])
 
     def frame(self, label, origin, normal, up_hint=(0, 0, 1)):
-        """Slice frame with the user's per-slice edits applied: offset along the normal, tilt/roll about the in-plane axes."""
+        """Slice frame with the user's per-slice edits applied: offset along the normal, tilt/roll about the in-plane
+        axes. A plane turns about `pivot` when the 3D view has said where the part's own middle is — without one it
+        turns about its frame origin, which for a radial half-slice sits out on the fan axis and swings the part
+        across the model instead of tilting it where it stands."""
         M = frame(origin, normal, up_hint)
         M[:3, 3] += M[:3, 2] * self.override("offset", label)
         tilt, roll = self.override("tilt", label), self.override("roll", label)
         if tilt or roll:
-            M[:3, :3] = rot_about(M[:3, 1], roll) @ rot_about(M[:3, 0], tilt) @ M[:3, :3]
+            R = rot_about(M[:3, 1], roll) @ rot_about(M[:3, 0], tilt)
+            M[:3, :3] = R @ M[:3, :3]
+            c = dict(self.p.get("pivot") or {}).get(label)
+            if c is not None:
+                c = np.asarray(c, float)
+                M[:3, 3] = c + R @ (M[:3, 3] - c)
         return M
 
     def positions(self, length, thicknesses):

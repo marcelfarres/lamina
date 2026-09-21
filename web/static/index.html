@@ -36,6 +36,11 @@ button.small{padding:3px 8px;border:1px solid var(--line);background:var(--panel
 #busy .bar{width:240px;height:6px;background:#2a2c33;border-radius:3px;overflow:hidden}#busy .bar i{display:block;height:100%;width:30%;background:var(--warn);border-radius:3px;animation:slide 1.1s infinite linear}
 #busy .bar.known i{animation:none;transition:width .3s}@keyframes slide{from{margin-left:-30%}to{margin-left:100%}}
 #busy_note{max-width:420px;text-align:center;color:var(--muted);font-size:12px;line-height:1.4}#busy_note:empty{display:none}
+/* the stages of a slice, so a long wait has a shape: what is done, what is running, what is still to come */
+#busy_steps{list-style:none;margin:2px 0 0;padding:0;font-size:11.5px;line-height:1.55;color:#6f727c;min-width:250px}
+#busy_steps li{white-space:nowrap}#busy_steps li::before{content:'○ ';opacity:.6}
+#busy_steps li.done{color:var(--ok)}#busy_steps li.done::before{content:'✓ '}
+#busy_steps li.now{color:var(--warn);font-weight:500}#busy_steps li.now::before{content:'▸ '}
 .bar{position:absolute;left:10px;top:8px;display:flex;gap:10px;align-items:center;font-size:12px;color:var(--muted);background:#0f1012cc;padding:5px 8px;border-radius:5px;flex-wrap:wrap}.bar label{display:flex;gap:5px;align-items:center}.bar input[type=range]{width:90px}.bar button{padding:2px 8px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:4px;cursor:pointer;font-size:11px}
 #sel{position:absolute;right:10px;top:8px;background:#0f1012ee;padding:8px 10px;border-radius:6px;border:1px solid var(--line);font-size:12px;width:250px}#sel[hidden]{display:none}#sel b{color:var(--sel)}#sel .row{display:grid;grid-template-columns:44px 1fr 66px;gap:6px;align-items:center;margin:4px 0}#sel .row input[type=number]{padding:2px 5px}#sel small{color:var(--muted);display:block;margin-top:4px}
 #hint{position:absolute;left:10px;bottom:8px;max-width:calc(100% - 130px);font-size:11px;color:var(--muted);background:#0f1012aa;padding:3px 7px;border-radius:4px}
@@ -44,7 +49,21 @@ button.small{padding:3px 8px;border:1px solid var(--line);background:var(--panel
 .msg{padding:5px 8px;border-radius:4px;margin:3px 0;font-size:12px}.msg[data-s]{cursor:pointer}.msg[data-s]:hover{outline:1px solid var(--sel)}.err{background:#3a1e1e;color:var(--err)}.warn{background:#3a2f18;color:var(--warn)}.ok{background:#1c3325;color:var(--ok)}.note{background:#22262e;color:var(--muted)}
 .fix{display:inline-block;margin:3px 4px 0 0;padding:2px 8px;border:1px solid #6a4040;border-radius:10px;background:#2a1a1a;color:#ffc9c9;cursor:pointer;font-size:11px}.fix:hover{border-color:var(--err)}
 .sheets{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:10px}.sheet svg{width:100%;height:auto;background:#1d1f24;border:1px solid var(--line);border-radius:4px}.sheet .t{font-size:11px;color:var(--muted);margin:2px 0;display:flex;justify-content:space-between}.sheet .t a{color:var(--acc);cursor:pointer}
-.sheet path[data-label]{cursor:pointer;pointer-events:all}.sheet path[data-label]:hover{stroke-width:0.6}.sheet path.hl{stroke:var(--sel)!important;stroke-width:0.7!important}
+.sheet path[data-label]{cursor:pointer;pointer-events:all}.sheet path[data-label]:hover{stroke-width:2.5px}.sheet path.hl{stroke:var(--sel)!important;stroke-width:3px!important}
+/* On screen only. The files keep the cut / score / engrave colours machines are set up to read (blue outline, green
+   inner, yellow score, red engrave) — a laser's software maps operations by exactly those. Against this dark panel
+   the darkest of them nearly vanish: a reporter could only find the blue outlines by hovering them. So the preview
+   is drawn in the Okabe–Ito set, which stays distinguishable with any common colour blindness, and nothing about
+   the exported file changes. A part with an error keeps the red the page gives it: its own attribute beats this. */
+.sheet svg g[id="OUTER"]{stroke:#56b4e9}
+.sheet svg g[id="INNER"]{stroke:#e69f00}
+.sheet svg g[id="SCORE"]{stroke:#f0e442}
+.sheet svg g[id="LABEL"]{stroke:#cc79a7;fill:#cc79a7}
+/* A 0.15 mm line on a 600 mm sheet drawn 500 px wide is an eighth of a pixel — which is the other half of why the
+   outlines could only be found by hovering them. non-scaling-stroke measures the width in pixels instead, so the
+   cut lines stay a clean hairline at any zoom without the file carrying a width no machine wants. */
+.sheet svg g[id]{stroke-width:1.2px;vector-effect:non-scaling-stroke}
+.sheet svg g[id] *{vector-effect:non-scaling-stroke}
 .sl{display:flex;gap:6px;align-items:center}.sl input[type=range]{flex:1;min-width:60px}.sl input[type=number]{width:74px;flex:none}
 /* a slider drives these boxes, so the spin buttons only hide the digits */
 .sl input[type=number],#sel input[type=number]{appearance:textfield;-moz-appearance:textfield}
@@ -53,12 +72,55 @@ h2 button.reset{float:right;text-transform:none;letter-spacing:0;font-size:11px;
 #view{display:flex;flex-direction:column}#view.only3d #lower{display:none}#view.only3d #v3d{flex:1 1 auto}#view.only2d #v3d{display:none}#view.only2d #lower{flex:1}
 .dl{display:flex;flex-wrap:wrap;gap:6px}.dl a{padding:6px 10px;border:1px solid var(--line);border-radius:4px;text-decoration:none;color:var(--ink);font-size:12px;background:var(--panel2)}.dl a:hover{border-color:var(--acc)}
 table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 6px;border-bottom:1px solid var(--line);text-align:left}tr.bad td{color:var(--err)}tr:hover td{background:var(--panel2);cursor:pointer}
+dialog{width:min(620px,92vw);border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);padding:22px;font:14px/1.55 Inter,system-ui,sans-serif}
+dialog::backdrop{background:#000b}dialog h3{margin:0 0 8px;font-size:18px}dialog a{color:var(--acc)}
+dialog .row{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
+dialog button{padding:8px 15px;border-radius:6px;border:1px solid var(--line);background:var(--panel2);color:inherit;font:inherit;cursor:pointer}
+dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-weight:600}
+#oops .msg{border-left:3px solid var(--err);background:#0003;padding:10px 13px;margin:12px 0;border-radius:6px;font-size:13px;color:#ffc9c9;word-break:break-word}
+#newsdlg{max-height:82vh;overflow:auto;max-width:720px}
+#newsdlg h4{margin:16px 0 2px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+#newsdlg h5{margin:14px 0 4px;font-size:15px}#newsdlg ul{margin:4px 0;padding-left:20px}#newsdlg li{margin:4px 0}
+#newsdlg code{background:var(--panel2);border-radius:3px;padding:0 4px;font:12px ui-monospace,monospace}
+#helpdlg{max-height:82vh;overflow:auto}#helpdlg h4{margin:18px 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+#helpdlg ol,#helpdlg ul{margin:4px 0;padding-left:20px}#helpdlg li{margin:3px 0}#helpdlg kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;font:12px ui-monospace,monospace}
 </style></head><body>
 <div id="tip" hidden></div>
+<dialog id="oops"><h3 id="oops_title">That model did not load</h3><div class="msg" id="oops_msg"></div><div id="oops_help"></div>
+  <div class="row"><button id="oops_no" hidden>Cancel</button><button id="oops_go" class="go">OK</button></div></dialog>
+<dialog id="newsdlg"><h3 id="news_title">What's new</h3><div id="news_body"></div>
+  <div class="row"><button id="news_go" class="go">OK</button></div></dialog>
+<dialog id="helpdlg"><h3>How Lamina works</h3>
+  <p style="margin:0;color:var(--muted)">Five tabs, left to right, in the order you use them. Everything re-slices as you change it.</p>
+  <h4>The workflow</h4>
+  <ol>
+    <li><b>Model</b> — upload your own (STL, OBJ, 3MF, PLY, OFF, GLB, STEP) or pick an example, then set how big you want the finished piece: type one of the <b>size</b> boxes and the other two follow the model's proportions. <b>turn</b> stands it the right way up.</li>
+    <li><b>Technique</b> — how the model is taken apart: stacked layers, interlocked slices, a radial fan, ribs along a curve, folded panels. Each has its own settings underneath.</li>
+    <li><b>Sheet &amp; fit</b> — what you cut and on what: material, thickness, sheet size (your machine's bed), and the cut compensation. Not on the list? Type any thickness or sheet size and press <b>+</b> to keep it.</li>
+    <li><b>Checks</b> — whether it holds together. Every error offers one-click fixes; press one and it re-slices.</li>
+    <li><b>Export</b> — the cut files (SVG, DXF, PDF, EPS), a 3D-printable prototype, a fit test, the assembly key.</li>
+  </ol>
+  <h4>In the 3D view</h4>
+  <ul><li>drag = orbit · wheel = zoom · right-drag = pan · click the corner cube = flat view</li>
+    <li>drag a coloured ring on the model = turn the whole model · click a part = select it</li>
+    <li>a selected part gets its own handles, on the part itself: the <b>yellow arrow</b> slides it along its normal,
+      the <b>green ring</b> tilts it and the <b>blue ring</b> rolls it, both about the part's own middle, so it turns
+      where it stands (shift-drag and ctrl-drag still do the same two)</li>
+    <li>alt-click = add or remove a connection point, a curve point or a radial axis</li></ul>
+  <h4>Keyboard</h4>
+  <ul><li><kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Ctrl</kbd>+<kbd>Y</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redo — the last 60 changes, including a part you moved by accident (⌘ on a Mac)</li>
+    <li><kbd>?</kbd> this help · <kbd>Esc</kbd> close a dialog or deselect</li></ul>
+  <h4>When something does not fit</h4>
+  <ul><li>Parts bigger than your sheet: the Checks tab says so and offers the size that fits, <b>split</b> (cut into pieces joined by puzzle tabs), or <b>one sheet</b> (one long strip).</li>
+    <li>A big model in this browser version takes minutes where the local version takes seconds — and never a layer of your model goes anywhere: <a href="https://marcelfarres.github.io/lamina/#start" target="_blank" rel="noopener">how to run it on your own computer</a>.</li>
+    <li>Something came out wrong? <a data-feedback href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml" target="_blank" rel="noopener">Report it</a> — a sentence, and the report fills in the rest.</li></ul>
+  <div class="row"><button id="help_go" class="go">Close</button></div></dialog>
 <header><h1><img src="static/logo.svg" alt="">Lamina</h1><span class="k" style="color:var(--muted);font-size:12px;border:0" data-tip="Lamina turns a 3D model into flat parts you can cut from paper, cardboard, plywood or sheet metal — stacked, interlocked, radial, ribbed or folded — checks that the result holds together, nests the parts on your sheets and exports the cut files. Not the 3D-printing kind of slicing — it works out the pieces you cut from a sheet and put back together.">what is it?</span>
 <input id="pname" placeholder="project name" style="width:150px;padding:3px 6px" title="project name (printed on every sheet and used for the file name)"><span class="hint" title="revision: bump minor for small changes, major for a new design">v<span id="prev">1.0</span></span><button class="small" id="pminor" title="new minor revision (1.0 → 1.1)">+0.1</button><button class="small" id="pmajor" title="new major revision (1.x → 2.0)">+1</button>
 <button class="small" id="popen">open project</button><button class="small" id="psave2">save project</button><input type="file" id="pfile" accept=".json" hidden>
-<button class="small" id="undo" title="undo the last change (Ctrl+Z)" disabled>↶</button><button class="small" id="redo" title="redo (Ctrl+Y or Ctrl+Shift+Z)" disabled>↷</button>
+<button class="small" id="undo" title="undo the last change (Ctrl+Z)" disabled>↶ undo</button><button class="small" id="redo" title="redo (Ctrl+Y or Ctrl+Shift+Z)" disabled>↷</button>
+<button class="small" id="helpbtn" title="how it works, every shortcut, and what to do when something does not fit (?)">? help</button>
+<button class="small" id="newsbtn" title="what changed in this version, and every version before it">what's new</button>
 <button class="small" id="clear" title="delete everything this tab sliced — uploaded models, cut files, session (presets stay)">clear my data</button>
 <span class="sp"></span><span id="dot" title="green = ready · orange = slicing · red = error"></span><span id="status"></span>
 <label style="font-size:12px;color:var(--muted)">view <select id="viewmode"><option value="both">3D + sheets</option><option value="only3d">3D only</option><option value="only2d">sheets only</option></select></label>
@@ -108,12 +170,14 @@ table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 6px;b
       <div class="f"><span class="k" data-tip="Stock sizes this material comes in, plus the beds of the machine in use. + saves the current size for this material, − deletes the selected one. Turn on `one sheet` below to ignore the height and nest everything on one strip">sheet preset</span><span class="vec"><select id="sheetpreset"></select><button id="sadd" class="small">+</button><button id="sdel" class="small">−</button></span></div>
       <div id="g-sheet"></div>
       <h2>Machine &amp; cut compensation</h2>
-      <div class="f"><span class="k" data-tip="The cutting process. Kerf, slot offset and corner relief belong to the machine, not the material: picking one fills the fields below, which stay editable. Not on the list? Set kerf, slot offset and sheet size, then + keeps them as a machine of your own under its name, − deletes it, and share sends it in to get on the list">machine</span><span class="vec"><select id="machine"></select><button id="kadd" class="small" title="keep the kerf, slot offset, relief, tool and sheet size as a machine of your own, under a name">+</button><button id="kdel" class="small" title="delete the selected machine of yours">−</button><button class="small" data-feedback="machine" title="Share this machine — its name, kerf, slot offset, corner relief, tool diameter and bed, nothing else — so it ships with Lamina for the next person who owns one. Opens a prefilled email or GitHub issue for you to send">share</button></span></div>
+      <div class="f"><span class="k" data-tip="Your machine, or the process it uses. Kerf, slot offset and corner relief belong to the machine, not the material: picking one fills the fields below, which stay editable, and a machine listed by name also sets its bed as the sheet. A * means the bed size is the manufacturer's published figure and the kerf is a good guess for that class of machine — not measured on your material. Cut the fit test (Export tab) once and correct the two numbers. Not on the list? Set kerf, slot offset and sheet size, then + keeps them as a machine of your own under its name, − deletes it, and share sends it in to get on the list">machine</span><span class="vec"><select id="machine"></select><button id="kadd" class="small" title="keep the kerf, slot offset, relief, tool and sheet size as a machine of your own, under a name">+</button><button id="kdel" class="small" title="delete the selected machine of yours">−</button><button class="small" data-feedback="machine" title="Share this machine — its name, kerf, slot offset, corner relief, tool diameter and bed, nothing else — so it ships with Lamina for the next person who owns one. Opens a prefilled email or GitHub issue for you to send">share</button></span></div>
       <div id="g-fit"></div>
     </section>
     <section data-tab="checks"><h2>Physical checks <button class="small reset" data-reset="checks">reset tab</button></h2><div id="g-checks"></div><h2>Report</h2><div id="report"></div></section>
     <section data-tab="export"><h2>Downloads</h2>
       <div class="f"><span class="k" data-tip="Include the red LABEL layer (part names, leader lines, seam numbers, sheet border) in the cut files. Off = cuts and score lines only">labels in files</span><input type="checkbox" id="x_labels" checked></div>
+      <div class="f"><span class="k" data-tip="assembly-key.txt in the zip: what the labels mean, every part with where its centre sits and what it slots onto, in the order the 3D view builds them. In puzzle mode it is also the only way from an engraved code back to a part — untick it and the puzzle stays a puzzle (the file can always be downloaded later)">assembly key in the zip</span><input type="checkbox" id="x_key" checked></div>
+      <div class="hint" id="legend" style="margin:2px 0 8px"></div>
       <div class="f"><span class="k" data-tip="Step between the five slot offsets of a fit test: yours −2, −1, 0, +1, +2 steps. A fit test is five small assemblies with this job's joints — same thickness, connectors and the counts that make the assembly tight (every radial half-slice) — each part marked with its offset. The loosest that slides together without forcing and still holds is the offset to set. The cut-file test below is at 1:1 on your real material and machine and is the one that predicts the model's fit; the print test under Prototyping dials in the print only — a clearance is millimetres, not a ratio">fit step (mm)</span><input type="number" id="pr_step" value="0.1" min="0.01" step="0.05"></div>
       <div class="dl" id="dl"></div>
       <h2>Prototyping (3D print)</h2>
@@ -126,6 +190,8 @@ table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 6px;b
       <div class="hint" id="pr_hint" style="margin:2px 0 8px"></div>
       <div class="dl"><a href="#" id="pr_go">download prototype set (plate.3mf for OrcaSlicer + one STL per part)</a></div>
       <div class="dl"><a href="#" id="fit_go">download print fit test (5 print slot offsets around yours, at the scale above)</a></div>
+      <h2>Assembly</h2>
+      <div class="dl"><a href="#" id="vid_go">record the assembly video (webm) — the steps slider played and saved</a></div>
       <h2>Parts</h2><div id="parts"></div></section>
   </div>
 </aside>
@@ -133,8 +199,8 @@ table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 6px;b
   <div id="v3d">
     <div class="bar"><label><input type="checkbox" id="ghost" checked> model</label><label>explode <input type="range" id="explode" min="1" max="3" step="0.05" value="1"></label><label>steps <input type="range" id="steps" min="0" max="1" step="1" value="1"></label><label>look <select id="look"><option value="group">by family</option><option>cardboard</option><option>paper</option><option>plywood</option><option>steel</option><option>plastic</option></select></label><label title="transparency of folded panels, to see the connectors inside">panels <input type="range" id="opacity" min="0.1" max="1" step="0.05" value="1"></label><button id="fit">fit view</button></div>
     <div id="sel" hidden></div>
-    <div id="busy" hidden><span id="busy_txt">slicing…</span><div class="bar"><i></i></div><span id="busy_note"></span></div>
-    <div id="hint">drag = orbit · wheel = zoom · right-drag = pan · drag a coloured ring = turn the model · click a part = select · drag the arrow = move · shift-drag = tilt · ctrl-drag = roll · alt-click = add / remove a dowel or curve point · drag a blue dot = move a curve point · click the cube = flat view</div>
+    <div id="busy" hidden><span id="busy_txt">slicing…</span><div class="bar"><i></i></div><ol id="busy_steps"></ol><span id="busy_note"></span></div>
+    <div id="hint">drag = orbit · wheel = zoom · right-drag = pan · drag a coloured ring = turn the model · click a part = select · on a selected part: yellow arrow = move it along its normal, green ring = tilt, blue ring = roll (about its own middle) · alt-click = add / remove a dowel, a curve point or a radial axis · drag a blue dot = move a curve point · drag a radial axis or its end = move it · click the plane between two lobes = move / tilt it like a slice · click the cube = flat view</div>
   </div>
   <div id="lower"><div id="stats"></div><div id="msgs"></div><div class="sheets" id="sheets"></div></div>
 </section>
@@ -155,21 +221,46 @@ const MATERIALS={
   paper:{t:[[0.2],[0.3],[0.5]],family:'paper',look:'paper',machine:'co2'},
   card:{t:[[0.8],[1],[1.5]],family:'paper',look:'paper',machine:'co2'},
   cardboard:{t:[[1.5],[2],[3],[4],[5],[7]],family:'paper',look:'cardboard',machine:'co2'},
-  plywood:{t:[fr('1/8',0.125),[4],[5],fr('1/4',0.25),fr('3/8',0.375),fr('1/2',0.5),fr('5/8',0.625),fr('3/4',0.75)],family:'wood',look:'plywood',machine:'co2'},
-  mdf:{t:[fr('1/8',0.125),fr('1/4',0.25),fr('1/2',0.5),fr('3/4',0.75)],family:'wood',look:'plywood',machine:'co2'},
-  acrylic:{t:[fr('1/16',0.0625),fr('1/8',0.125),fr('3/16',0.1875),fr('1/4',0.25),fr('3/8',0.375),fr('1/2',0.5)],family:'plastic',look:'plastic',machine:'co2'},
+  plywood:{t:[[3],fr('1/8',0.125),[4],[5],[6],fr('1/4',0.25),[9],fr('3/8',0.375),[12],fr('1/2',0.5),fr('5/8',0.625),[18],fr('3/4',0.75)],family:'wood',look:'plywood',machine:'co2'},
+  mdf:{t:[[3],fr('1/8',0.125),[6],fr('1/4',0.25),[9],[12],fr('1/2',0.5),[18],fr('3/4',0.75),[25]],family:'wood',look:'plywood',machine:'co2'},
+  acrylic:{t:[fr('1/16',0.0625),[2],[3],fr('1/8',0.125),[4],[5],fr('3/16',0.1875),[6],fr('1/4',0.25),[8],[10],fr('3/8',0.375),fr('1/2',0.5)],family:'plastic',look:'plastic',machine:'co2'},
   steel:{t:[ga(22,0.0299),ga(20,0.0359),ga(18,0.0478),ga(16,0.0598),ga(14,0.0747),ga(12,0.1046),ga(11,0.1196),ga(10,0.1345),fr('3/16',0.1875),fr('1/4',0.25),fr('3/8',0.375),fr('1/2',0.5)],family:'metal',look:'steel',machine:'fiber'},
   aluminium:{t:[ga(16,0.0508),ga(14,0.0641),ga(12,0.0808),ga(10,0.1019),fr('1/8',0.125),fr('3/16',0.1875),fr('1/4',0.25)],family:'metal',look:'steel',machine:'fiber'},
   leather:{t:[[1.5],[2],[3]],family:'paper',look:'cardboard',machine:'co2'},
   fabric:{t:[[0.5],[1],[2]],family:'paper',look:'paper',machine:'knife'}};
 // machines: the cut compensation belongs here, not to the material (kerf and slot offset in mm)
+const CO2_CUTS=['paper','card','cardboard','plywood','mdf','acrylic','leather','fabric'];
+const DIODE_CUTS=['paper','card','cardboard','plywood','mdf','leather','fabric'];
 const MACHINES={
-  co2:{name:'CO2 laser',kerf:0.15,slot:0.1,relief:'square',tool:0,cuts:['paper','card','cardboard','plywood','mdf','acrylic','leather','fabric'],beds:[['600 × 400 mm bed',[600,400]],['900 × 600 mm bed',[900,600]],['1300 × 900 mm bed',[1300,900]]]},
+  co2:{name:'CO2 laser',kerf:0.15,slot:0.1,relief:'square',tool:0,cuts:CO2_CUTS,
+    beds:[['300 × 200 mm bed',[300,200]],['400 × 400 mm bed',[400,400]],['510 × 300 mm bed',[510,300]],
+          ['600 × 400 mm bed',[600,400]],['700 × 500 mm bed',[700,500]],['900 × 600 mm bed',[900,600]],['1300 × 900 mm bed',[1300,900]]]},
   fiber:{name:'fiber laser (steel)',kerf:0.2,slot:0.15,relief:'square',tool:0,cuts:['steel','aluminium'],beds:[]},
   plasma:{name:'plasma (steel)',kerf:1.5,slot:0.3,relief:'square',tool:0,cuts:['steel','aluminium'],beds:[]},
   router:{name:'CNC router',kerf:3.175,slot:0.2,relief:'dogbone',tool:3.175,cuts:['plywood','mdf','acrylic'],beds:[]},
   knife:{name:'knife / vinyl cutter',kerf:0,slot:0.05,relief:'square',tool:0,cuts:['paper','card','fabric','leather'],beds:[['12 in roll',[304.8,914.4]],['24 in roll',[609.6,1219.2]]]},
-  hand:{name:'by hand',kerf:0,slot:0.1,relief:'square',tool:0,cuts:['paper','card','cardboard','plywood','mdf','acrylic','steel','aluminium','leather','fabric'],beds:[]}};
+  hand:{name:'by hand',kerf:0,slot:0.1,relief:'square',tool:0,cuts:['paper','card','cardboard','plywood','mdf','acrylic','steel','aluminium','leather','fabric'],beds:[]},
+  // Machines by name, so nobody has to translate their machine into a process first. A * means the bed size is the
+  // manufacturer's published one and the kerf is an educated guess for that class of machine — nobody has measured
+  // this one on your material. Pick it, then cut the fit test (Export tab) and correct kerf and slot offset: two
+  // numbers, and they belong to the machine, not to us. Everything else can be typed in and saved with `+`.
+  glowforge:{name:'Glowforge Basic / Plus / Pro *',kerf:0.2,slot:0.1,relief:'square',tool:0,cuts:CO2_CUTS,beds:[['Glowforge bed · 495 × 279 mm',[495,279]]]},
+  xtool_p2:{name:'xTool P2 (55 W CO2) *',kerf:0.15,slot:0.1,relief:'square',tool:0,cuts:CO2_CUTS,beds:[['xTool P2 bed · 600 × 308 mm',[600,308]]]},
+  omtech_polar:{name:'OMTech Polar / Polar+ *',kerf:0.15,slot:0.1,relief:'square',tool:0,cuts:CO2_CUTS,beds:[['OMTech Polar bed · 510 × 300 mm',[510,300]]]},
+  k40:{name:'K40 desktop laser *',kerf:0.2,slot:0.1,relief:'square',tool:0,cuts:CO2_CUTS,beds:[['K40 bed · 300 × 200 mm',[300,200]]]},
+  epilog:{name:'Epilog Fusion Maker 24 *',kerf:0.15,slot:0.1,relief:'square',tool:0,cuts:CO2_CUTS,beds:[['Epilog Maker 24 bed · 610 × 305 mm',[610,305]]]},
+  thunder:{name:'Thunder Laser Nova 35 *',kerf:0.15,slot:0.1,relief:'square',tool:0,cuts:CO2_CUTS,beds:[['Nova 35 bed · 900 × 600 mm',[900,600]]]},
+  trotec:{name:'Trotec Speedy 400 *',kerf:0.15,slot:0.1,relief:'square',tool:0,cuts:CO2_CUTS,beds:[['Speedy 400 bed · 1000 × 610 mm',[1000,610]]]},
+  // diode lasers: they cut thin wood, card and leather slowly and do not cut clear acrylic at all (it passes the
+  // blue light straight through), so acrylic is deliberately not in their list
+  xtool_s1:{name:'xTool S1 (diode) *',kerf:0.12,slot:0.1,relief:'square',tool:0,cuts:DIODE_CUTS,beds:[['xTool S1 bed · 498 × 319 mm',[498,319]]]},
+  xtool_d1:{name:'xTool D1 Pro (diode) *',kerf:0.15,slot:0.1,relief:'square',tool:0,cuts:DIODE_CUTS,beds:[['xTool D1 Pro bed · 430 × 400 mm',[430,400]]]},
+  diode400:{name:'Atomstack / Ortur / Falcon (diode) *',kerf:0.15,slot:0.1,relief:'square',tool:0,cuts:DIODE_CUTS,beds:[['400 × 400 mm frame',[400,400]]]},
+  shapeoko:{name:'Shapeoko 4 XXL (CNC) *',kerf:3.175,slot:0.2,relief:'dogbone',tool:3.175,cuts:['plywood','mdf','acrylic'],beds:[['Shapeoko 4 XXL · 838 × 838 mm',[838,838]]]},
+  xcarve:{name:'X-Carve / Onefinity (CNC) *',kerf:3.175,slot:0.2,relief:'dogbone',tool:3.175,cuts:['plywood','mdf','acrylic'],beds:[['750 × 750 mm bed',[750,750]]]},
+  genmitsu:{name:'Genmitsu 3018 (desktop CNC) *',kerf:3.175,slot:0.2,relief:'dogbone',tool:3.175,cuts:['plywood','mdf','acrylic'],beds:[['3018 bed · 300 × 180 mm',[300,180]]]},
+  cricut:{name:'Cricut Maker / Explore *',kerf:0,slot:0.05,relief:'square',tool:0,cuts:['paper','card','fabric','leather'],beds:[['12 × 12 in mat · 305 × 305 mm',[305,305]],['12 × 24 in mat · 305 × 610 mm',[305,610]]]},
+  cameo:{name:'Silhouette Cameo 4 *',kerf:0,slot:0.05,relief:'square',tool:0,cuts:['paper','card','fabric','leather'],beds:[['12 × 12 in mat · 305 × 305 mm',[305,305]],['12 × 24 in mat · 305 × 610 mm',[305,610]]]}};
 // stock sheet sizes per material family: imperial stock as sold in Canada, with its mm size
 const ft=(w,h)=>[w*12*IN,h*12*IN], inch=(w,h)=>[w*IN,h*IN];
 const SHEETS={
@@ -177,7 +268,7 @@ const SHEETS={
   wood:[['4 × 8 ft · 1219 × 2438 mm',ft(4,8)],['5 × 5 ft · 1524 × 1524 mm (baltic birch)',ft(5,5)],['4 × 4 ft · 1219 × 1219 mm',ft(4,4)],['2 × 4 ft · 610 × 1219 mm',ft(2,4)],['2 × 2 ft · 610 × 610 mm',ft(2,2)]],
   plastic:[['4 × 8 ft · 1219 × 2438 mm',ft(4,8)],['2 × 4 ft · 610 × 1219 mm',ft(2,4)],['24 × 24 in · 610 × 610 mm',inch(24,24)],['12 × 24 in · 305 × 610 mm',inch(12,24)],['12 × 12 in · 305 × 305 mm',inch(12,12)]],
   paper:[['A4 · 297 × 210 mm',[297,210]],['A3 · 420 × 297 mm',[420,297]],['A2 · 594 × 420 mm',[594,420]],['A1 · 841 × 594 mm',[841,594]],['A0 · 1189 × 841 mm',[1189,841]],['letter · 11 × 8.5 in',inch(11,8.5)],['tabloid · 17 × 11 in',inch(17,11)],['24 × 18 in · 610 × 457 mm',inch(24,18)],['24 × 36 in · 610 × 914 mm',inch(24,36)],['32 × 40 in · 813 × 1016 mm',inch(32,40)],['4 × 8 ft · 1219 × 2438 mm',ft(4,8)]]};
-const COLORS={X:0xd9a760,Y:0x7fb0d9,S:0xd9c080,R:0x8fd08f,C:0xc07070,F:0xc9a0e0,J:0xf0c060,P:0x9a9a9a};
+const COLORS={X:0xd9a760,Y:0x7fb0d9,S:0xd9c080,R:0x8fd08f,C:0xc07070,F:0xc9a0e0,J:0xf0c060,P:0x9a9a9a,B:0x4fd1ff};
 const LOOKS={cardboard:[0xb98a5a,.9,0],paper:[0xf2f0e6,.95,0],plywood:[0xd9b98a,.7,0],steel:[0xaab2bb,.35,.8],plastic:[0x6fb7e8,.25,.05]};
 const PLANE_IDX={xz:[0,2],yz:[1,2],xy:[0,1]};
 let MODES=[],mode=null,state={},job=null,plan=null,seq=0,timer=null,pendingFile=null,unit='mm',selected=null,busy=false,busySince=0;
@@ -198,7 +289,7 @@ const nice=n=>n.replace(/_/g,' ');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const isLen=p=>p.unit==='mm', F=p=>isLen(p)?UNIT[unit]:1, fmt=v=>+(+v).toPrecision(5);
 const scaleV=(v,f)=>Array.isArray(v)?v.map(x=>scaleV(x,f)):(v&&typeof v==='object')?Object.fromEntries(Object.entries(v).map(([k,x])=>[k,scaleV(x,f)])):(typeof v==='number'?+(v*f).toPrecision(6):v);
-const num=(id,v,p,f,extra='')=>`<input type="number" id="${id}" value="${fmt(v*f)}" ${p.min!=null?`min="${fmt(p.min*f)}"`:''} ${p.max!=null?`max="${fmt(p.max*f)}"`:''} step="${p.step?fmt(p.step*f):'any'}" ${extra}>`;
+const num=(id,v,p,f,extra='')=>`<input type="number" id="${id}" value="${v==null?'':fmt(v*f)}" ${p.min!=null?`min="${fmt(p.min*f)}"`:''} ${p.max!=null?`max="${fmt(p.max*f)}"`:''} step="${p.step?fmt(p.step*f):'any'}" ${extra}>`;
 // slider + number box for every bounded number (the slider drives live, the box allows exact / out-of-range values)
 const slider=(id,v,p,f,extra='')=>`<span class="sl"><input type="range" id="${id}_r" value="${fmt(v*f)}" min="${fmt(p.min*f)}" max="${fmt(p.max*f)}" step="${p.step?fmt(p.step*f):'any'}" data-for="${id}" ${extra}>${num(id,v,p,f,extra)}</span>`;
 function field(p){
@@ -207,10 +298,12 @@ function field(p){
   else if(p.type==='bool')inp=`<input type="checkbox" id="${id}" ${v?'checked':''}>`;
   else if(p.type==='vec2'||p.type==='vec3'){const n=p.type==='vec2'?2:3,lab=p.name==='sheet'?['w','h']:['x','y','z'],sl=p.unit==='deg';
     inp=sl?`<div class="rows">${[...Array(n)].map((_,i)=>`<div class="r"><small>${lab[i]}</small>${slider(id+'_'+i,(v||[])[i]||0,p,f,`data-vec="${p.name}" data-i="${i}"`)}</div>`).join('')}</div>`
-        :`<span class="vec">${[...Array(n)].map((_,i)=>`<small>${lab[i]}</small>${num(id+'_'+i,(v||[])[i]||0,p,f,`data-vec="${p.name}" data-i="${i}"`)}`).join('')}</span>`}
+        // `size` left at 0 is "however big the model is": the box is empty and shows what came out as a placeholder,
+        // so typing one dimension tells you the other two instead of leaving three zeros that mean three things
+        :`<span class="vec">${[...Array(n)].map((_,i)=>`<small>${lab[i]}</small>${num(id+'_'+i,(v||[])[i]||(p.name==='size'?null:0),p,f,`data-vec="${p.name}" data-i="${i}" ${p.name==='size'?`placeholder="${plan?fmt(plan.bbox[i]*f):'auto'}"`:''}`)}`).join('')}</span>`}
   else if(p.type==='text')inp=`<input id="${id}" value="${esc(v)}">`;
   else if(p.type==='points')inp=`<div class="rows" id="${id}">${(v||[]).map((q,i)=>`<div class="r"><small>${i+1}</small><input type="number" step="any" value="${fmt(q[0]*f)}" data-pt="${p.name}" data-i="${i}" data-j="0"><input type="number" step="any" value="${fmt(q[1]*f)}" data-pt="${p.name}" data-i="${i}" data-j="1"><button class="small x" data-del="${p.name}" data-i="${i}">×</button></div>`).join('')}<div class="r"><button class="small" data-add="${p.name}">+ point</button><span class="hint">or alt-click in the 3D view</span></div></div>`;
-  else if(p.type==='lines3')inp=`<div class="rows" id="${id}">${(v||[]).map((l,i)=>`<div class="r"><small>${i+1}</small>${[0,1].map(e=>[0,1,2].map(j=>`<input type="number" step="any" value="${fmt(l[e][j]*f)}" data-ln="${p.name}" data-i="${i}" data-e="${e}" data-j="${j}" title="${e?'end':'start'} ${'xyz'[j]}">`).join('')).join('<small>→</small>')}<button class="small x" data-del="${p.name}" data-i="${i}">×</button></div>`).join('')}<div class="r"><button class="small" data-add="${p.name}">+ line</button><span class="hint">start x y z → end x y z</span></div></div>`;
+  else if(p.type==='lines3')inp=`<div class="rows" id="${id}">${(v||[]).map((l,i)=>`<div class="r"><small>${i+1}</small>${[0,1].map(e=>[0,1,2].map(j=>`<input type="number" step="any" value="${fmt(l[e][j]*f)}" data-ln="${p.name}" data-i="${i}" data-e="${e}" data-j="${j}" title="${e?'end':'start'} ${'xyz'[j]}">`).join('')).join('<small>→</small>')}<button class="small x" data-del="${p.name}" data-i="${i}">×</button></div>`).join('')}<div class="r"><button class="small" data-add="${p.name}">${p.name==='axes'?'+ split an axis':'+ line'}</button><span class="hint">${p.name==='axes'?'or alt-click the model for a parallel axis · drag them in the 3D view':'start x y z → end x y z'}</span></div></div>`;
   else if(p.type==='map'){const rows=Object.entries(v||{});if(selected&&!(selected in (v||{})))rows.push([selected,p.name==='thick'?state.thickness:0]);
     inp=`<div class="rows" id="${id}">${rows.map(([k,x])=>`<div class="r"><small>${esc(k)}</small><input type="number" step="any" value="${fmt(x*f)}" data-map="${p.name}" data-k="${esc(k)}">${k in (v||{})?`<button class="small x" data-del="${p.name}" data-i="${esc(k)}">×</button>`:'<span class="hint">default</span>'}</div>`).join('')||'<span class="hint">no overrides — select a part in the 3D view and use the sliders</span>'}</div>`}
   else if(p.type==='labels'||p.type==='chips')inp=`<div class="chips" id="${id}">${(v||[]).map((x,i)=>`<span class="chip">${p.type==='chips'?fmt(x*f):esc(x)}<b data-del="${p.name}" data-i="${i}">×</b></span>`).join('')}<input placeholder="${p.type==='chips'?'value ⏎':'label ⏎'}" data-chip="${p.name}"></div>`;
@@ -250,12 +343,20 @@ function resetTab(tab){for(const p of mode.common)if(TABGROUPS[tab].includes(p.g
 $('#tabs').addEventListener('click',e=>{
   const t=e.target, P=name=>allParams().find(p=>p.name===name);
   if(t.dataset.rot!==undefined){const r=[...(state.rotate||[0,0,0])],i=+t.dataset.rot;r[i]=((r[i]+(e.shiftKey?-90:90)+180)%360+360)%360-180;state.rotate=r;fitted=false;renderFields();schedule();return}
-  if(t.dataset.add){const p=P(t.dataset.add);setVal(p.name,[...(state[p.name]||[]),p.type==='lines3'?[[0,0,0],[0,0,0]]:[0,0]]);renderFields()}
+  if(t.dataset.add){const p=P(t.dataset.add);
+    // + on the axes table splits the axis you can already see: the list starts from the one the plan used, so it is
+    // kept rather than replaced (a zero-length line would draw nothing and slice nothing)
+    if(p.name==='axes')setVal('axes',splitAxis(axisList()));
+    else setVal(p.name,[...(state[p.name]||[]),p.type==='lines3'?[[0,0,0],[0,0,0]]:[0,0]]);
+    renderFields()}
   else if(t.dataset.del){const p=P(t.dataset.del);if(p.type==='map'){const v={...state[p.name]};delete v[t.dataset.i];setVal(p.name,v)}else setVal(p.name,(state[p.name]||[]).filter((_,i)=>i!==+t.dataset.i));renderFields()}
 });
 $('#tabs').addEventListener('keydown',e=>{const t=e.target;if(!t.dataset.chip||e.key!=='Enter')return;const p=allParams().find(p=>p.name===t.dataset.chip);const raw=t.value.trim();if(!raw)return;
   const v=p.type==='chips'?+raw/F(p):raw; if(p.type==='chips'&&isNaN(v))return; setVal(p.name,[...(state[p.name]||[]),v]);renderFields()});
 const memo={};   // per-technique parameter memory: switching away and back restores what you had
+// …but only what still means anything. These are placed on a particular model — in its millimetres, or under its
+// part labels — so a new model clears them from the memory as well as from the form (see newModel).
+const MODEL_BOUND=['axes','curve','dowels','skip','offset','tilt','roll','thick','grow','pivot','center','extra_x','extra_y'];
 function setMode(name,keep=true){
   const prev=mode; mode=MODES.find(m=>m.name===name)||MODES[0]; location.hash=mode.name;
   if(prev&&prev!==mode)memo[prev.name]=Object.fromEntries(prev.params.map(p=>[p.name,structuredClone(state[p.name])]));
@@ -281,17 +382,59 @@ function record(){
   if(cur!==null){undos.push(cur);if(undos.length>60)undos.shift();redos.length=0}
   cur=now; syncUndo();
 }
+// schedule(), not slice(): holding Ctrl+Z walks back several steps, and one slice of the step you land on is the
+// point — a slice per step queues minutes of work in the browser build and looks like a hang
 function step(from,to){if(!from.length)return;to.push(cur);const j=from.pop();cur=j;restoring=true;
   const d=JSON.parse(j); if(d.m!==mode.name)setMode(d.m,false);
   for(const k of Object.keys(state))delete state[k]; Object.assign(state,d.s);
-  unit=d.u; $('#unit').value=unit; deselect(); renderFields(); syncUndo(); slice()}
+  unit=d.u; $('#unit').value=unit; deselect(); renderFields(); syncUndo(); schedule()}
 function syncUndo(){$('#undo').disabled=!undos.length;$('#redo').disabled=!redos.length}
 addEventListener('keydown',e=>{
-  if(!(e.ctrlKey||e.metaKey)||e.target.type==='text'||e.target.tagName==='TEXTAREA')return;   // a text box keeps its own undo
+  const typing=e.target.type==='text'||e.target.tagName==='TEXTAREA';   // a text box keeps its own undo, and its own ?
+  if(e.key==='?'&&!typing&&!e.ctrlKey&&!e.metaKey){$('#helpdlg').showModal();return e.preventDefault()}
+  if(!(e.ctrlKey||e.metaKey)||typing)return;
   const k=e.key.toLowerCase();
   if(k==='z'&&!e.shiftKey)step(undos,redos); else if(k==='y'||(k==='z'&&e.shiftKey))step(redos,undos); else return;
   e.preventDefault();
 });
+
+// What's new. CHANGELOG.md is the one copy — the server serves it and the published build copies it beside the
+// page, so the same relative path works either way, and its first `## x.y.z` heading *is* the version: nothing to
+// bump in two places. The dialog opens itself once when that version is not the one this browser last saw, and the
+// header button opens the whole list, newest first. A browser that has never seen Lamina is not shown it: for them
+// none of it is new.
+const MDESC={'&':'&amp;','<':'&lt;','>':'&gt;'};
+const md2html=s=>s.replace(/[&<>]/g,c=>MDESC[c])
+  .replace(/^### +(.+)$/gm,'\n<h4>$1</h4>\n')
+  .replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/(?<!\*)\*([^*]+)\*/g,'<i>$1</i>')
+  .split(/\n{2,}/).map(b=>{
+    b=b.trim(); if(!b)return '';
+    if(b.startsWith('<h4>'))return b;
+    if(b.startsWith('- '))return '<ul>'+b.split(/\n(?=- )/).map(li=>`<li>${li.replace(/^- /,'').replace(/\s*\n\s+/g,' ')}</li>`).join('')+'</ul>';
+    return `<p>${b.replace(/\s*\n\s*/g,' ')}</p>`;
+  }).join('');
+let NEWS;
+async function news(){
+  if(!NEWS){
+    const txt=await (await fetch('changelog.md',{cache:'no-cache'})).text();
+    NEWS=txt.split(/^## +/m).slice(1).map(p=>({v:p.slice(0,p.indexOf('\n')).trim(),body:p.slice(p.indexOf('\n')+1)}));
+  }
+  return NEWS;
+}
+async function showNews(all){
+  const vs=await news(); if(!vs.length)return;
+  $('#news_title').textContent=all?'What’s new':`What’s new in ${vs[0].v}`;
+  $('#news_body').innerHTML=(all?vs:vs.slice(0,1)).map(s=>(all?`<h5>Version ${s.v}</h5>`:'')+md2html(s.body)).join('');
+  if(!$('#newsdlg').open)$('#newsdlg').showModal();
+  $('#newsdlg').scrollTop=0;                             // focus lands on OK, which would otherwise open it at the end
+}
+async function whatsNew(){
+  try{
+    const vs=await news(); if(!vs.length)return;
+    const seen=ls('slicer_seen_version',null); lsSet('slicer_seen_version',vs[0].v);
+    if(seen&&seen!==vs[0].v)showNews(false);
+  }catch(e){}                                            // no changelog beside the page: the button still works
+}
 
 // presets: manufacturing (sheet+fit params), materials, sheets — builtin + user (this browser)
 const PKEYS=()=>['material','machine',...mode.common.filter(p=>p.group==='sheet'||p.group==='fit').map(p=>p.name)];
@@ -306,7 +449,8 @@ const userMachines=()=>ls('slicer_machines',{});
 const machineOf=k=>MACHINES[k]||userMachines()[k];
 const machinesFor=m=>[...Object.keys(MACHINES),...Object.keys(userMachines())].filter(k=>machineOf(k).cuts.includes(m));
 const sameSheet=(a,b)=>a&&b&&Math.abs(a[0]-b[0])<0.01&&Math.abs(a[1]-b[1])<0.01;
-function applyMachine(k){const x=machineOf(k);if(!x)return;state.machine=k;state.kerf=x.kerf;state.slot_offset=x.slot;state.relief=x.relief;state.tool_d=x.tool}
+function applyMachine(k){const x=machineOf(k);if(!x)return;state.machine=k;state.kerf=x.kerf;state.slot_offset=x.slot;state.relief=x.relief;state.tool_d=x.tool;
+  if(x.beds.length===1)state.sheet=[...x.beds[0][1]]}    // a machine by name has one bed, and that is the sheet
 function syncPresetSelects(){
   const m=state.material||(state.material='cardboard'); if(!machineOf(state.machine)?.cuts.includes(m))state.machine=MATERIALS[m].machine;
   $('#material').innerHTML=Object.keys(MATERIALS).map(n=>`<option ${n===m?'selected':''}>${n}</option>`).join('');
@@ -318,27 +462,92 @@ function syncPresetSelects(){
 // ---------------------------------------------------------------- slicing
 async function slice(){
   record();                                        // one undo step per change that gets this far
-  const my=++seq, fd=new FormData();
+  const my=++seq, fd=new FormData(), loading=pendingFile;
   fd.append('client',CLIENT); fd.append('mode',mode.name); fd.append('params',JSON.stringify(state)); fd.append('memo',JSON.stringify(memo));   // the server keeps this as the tab's session
   if(pendingFile)fd.append('model',pendingFile); else if(job)fd.append('job',job); else fd.append('example',$('#example').value);
-  status('slicing…','busy'); $('#busy').hidden=false; $('#busy_txt').textContent='slicing…'; $('#busy_note').textContent=''; $('#busy .bar').className='bar'; busy=true; busySince=Date.now(); const t0=busySince;
+  status('slicing…','busy'); $('#busy').hidden=false; $('#busy_txt').textContent='slicing…'; $('#busy_note').textContent=''; $('#busy .bar').className='bar';
+  expectStages(); $('#busy_steps').innerHTML=''; ghostLive=false;   // this slice's own stages, counted from the settings it runs with
+  busy=true; busySince=Date.now(); const t0=busySince;
+  pollProgress(my);
   try{
-    const r=await fetch('api/slice',{method:'POST',body:fd}); const j=await r.json();
+    const r=await fetch('api/slice',{method:'POST',body:fd});
+    const j=await r.json().catch(()=>({detail:r.statusText||`HTTP ${r.status}`}));   // a refusal before the app (413) is not JSON
     if(my!==seq)return;
     // the server was updated under an open tab: this page is the old one, so fetch it again (once — never a loop)
     if(r.status===422&&!sessionStorage.reloaded){sessionStorage.reloaded=1;return location.reload()}
     if(!r.ok)throw new Error(typeof j.detail==='string'?j.detail:j.detail?JSON.stringify(j.detail):r.statusText);   // a 422 details itself as objects
     pendingFile=null; job=j.job; plan=j.plan; const t1=Date.now();
-    render3D(j.model); renderSheets(j.sheets); renderReport();
+    render3D(j.model); renderSheets(j.sheets); renderReport(); syncSizeHints();
     status(`ready · ${j.took} s · ${plan.counts.parts} parts · ${plan.sheets} sheet(s) · ${plan.counts.errors} errors`,plan.counts.errors?'err':'');
     // where the time went, for anyone tuning it: the build's stages (seconds), the round trip around them, and the page's own drawing
     console.info('lamina timing', mode.name, {...plan.timing, 'round trip beyond the build': +((t1-t0)/1000-j.took).toFixed(2), 'page drawing': (Date.now()-t1)/1000});
-  }catch(e){if(my===seq)status('error: '+e.message,'err')}
+  }catch(e){if(my===seq){status('error: '+e.message,'err'); if(loading)modelFailed(loading,e.message)}}
   if(my===seq){$('#busy').hidden=true;busy=false}
 }
-// the browser build reports build() stages (browser.js relays them); the server answers in one go and keeps the sliding bar
-window.addEventListener('lamina-progress',e=>{if(!busy)return;const {progress:text,frac}=e.detail,pct=Math.round(frac*100);
-  $('#busy_txt').textContent=`${text} · ${pct}%`;$('#busy .bar').className='bar known';$('#busy .bar i').style.width=pct+'%';status(`slicing… ${pct}%`,'busy')});
+// The model never arrived, so the 3D view still shows the one before it and the file box still names this one —
+// which is exactly how a failed upload reads as "it loaded the wrong model". Clear the box and say so in a dialog:
+// a line of red text in the header is missed precisely when it matters most.
+function modelFailed(file,msg){
+  pendingFile=null; $('#file').value='';
+  const big=/too large|over \d+ *MB|up to \d+ MB|Memory|allocat/i.test(msg);
+  popup(`${file.name} could not be loaded`, msg,
+    (big?`<p>That file is ${(file.size/1e6).toFixed(0)} MB. ${document.documentElement.dataset.static?'This published version runs entirely inside your browser, which is why there is a ceiling at all.':''}
+       Running Lamina on your own computer has no size limit and is far faster — <a href="${LOCAL_DOC}" target="_blank" rel="noopener">how to install it</a> (a double-click installer, or one command).
+       Or open the model in your 3D program and reduce / decimate it to fewer triangles first.</p>`
+      :`<p>Try another file, or <a data-feedback href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml" target="_blank" rel="noopener">report it</a> if the model is fine elsewhere.</p>`)
+    +`<p style="color:var(--muted);font-size:12.5px">The view still shows <b>${job&&job.startsWith('ex_')?job.slice(3):'the previous model'}</b> — nothing about your job has changed.</p>`);
+}
+const LOCAL_DOC='https://marcelfarres.github.io/lamina/#start';
+// one dialog for everything fatal: a model that did not load, a file big enough to be worth a warning first
+const oops=$('#oops');
+function popup(title,msg,help,ok='OK',onOk=null){
+  $('#oops_title').textContent=title; $('#oops_msg').textContent=msg; $('#oops_msg').hidden=!msg;
+  $('#oops_help').innerHTML=help; $('#oops_go').textContent=ok; $('#oops_no').hidden=!onOk;
+  oops.returnValue=''; oops.onclose=()=>{if(onOk)onOk(oops.returnValue==='go')};   // onOk(false) = cancelled or Esc
+  if(!oops.open)oops.showModal();
+}
+// the browser build reports build() stages (browser.js relays them); on a server they are polled, so the local
+// version says what it is doing too instead of "slicing…" for a minute
+async function pollProgress(my){
+  while(my===seq&&busy){
+    await new Promise(r=>setTimeout(r,500));
+    if(my!==seq||!busy||document.documentElement.dataset.static)return;     // in the browser the worker posts them
+    const d=await fetch(`api/progress?client=${CLIENT}`).then(r=>r.ok?r.json():null).catch(()=>null);
+    if(d&&d.frac!==undefined&&my===seq&&busy)window.dispatchEvent(new CustomEvent('lamina-progress',{detail:d}));
+  }
+}
+function syncSizeHints(){const p=allParams().find(q=>q.name==='size'); if(!p||!plan)return;
+  for(let i=0;i<3;i++){const el=$('#p_size_'+i); if(el)el.placeholder=fmt(plan.bbox[i]*F(p))}}
+// What a slice is made of, in the order it happens, so a long wait has a shape: a bare percentage said nothing about
+// how many of these there are, and the per-stage counters ("12 of 34") looked like the whole job restarting. The
+// three marked 0 only run when the model asks for them, so they appear in the list only once they have.
+const STAGES=[['loading the model',1],['modify form: remeshing',0],['smoothing',0],['preparing the preview model',1],
+  ['placing slices and slots',1],['sectioning',1],['checking the parts and the assembly',1],
+  ['nesting the parts on sheets',1],['measuring coverage',1]];
+const seenStages=new Set();
+// The two that only run when the model preparation asks for them are known from the settings before the slice
+// starts, so the count is right from the first frame instead of growing under you. (A mesh that has to be remeshed
+// because it will not close is the one case nobody can predict; that one appears when it happens.)
+function expectStages(){seenStages.clear();
+  if(state.shrinkwrap||state.hollow||state.thicken||state.round)seenStages.add('modify form: remeshing');
+  if(state.smooth)seenStages.add('smoothing');}
+function renderStages(now,detail){
+  const rows=STAGES.filter(([n,always])=>always||seenStages.has(n)), at=rows.findIndex(([n])=>n===now), end=now==='done';
+  $('#busy_steps').innerHTML=rows.map(([n],i)=>`<li class="${end||i<at?'done':i===at?'now':''}">${esc(n)}${i===at&&detail?' · '+esc(detail):''}</li>`).join('');
+  return at<0?'':`step ${at+1} of ${rows.length}`;
+}
+// one overlay for both: the browser build's worker posts these, a server's are polled above
+window.addEventListener('lamina-progress',e=>{
+  const {progress:text,frac,model}=e.detail;
+  if(model){showGhost(model);ghostLive=true}        // the mesh, ready before the slices: show it now
+  if(!busy)return;
+  const pct=Math.round(frac*100);
+  if(text){                                         // a stage; an artifact on its own leaves the line where it was
+    const [name,...rest]=text.split(' · '); seenStages.add(name);
+    const step=renderStages(name,rest.join(' · '));
+    $('#busy_txt').textContent=`${step?step+' · ':''}${name} · ${pct}%`;
+  }
+  $('#busy .bar').className='bar known';$('#busy .bar i').style.width=pct+'%';status(`slicing… ${pct}%`,'busy')});
 // in the browser build a big model takes minutes where the local version takes seconds: say so once the wait is real
 const SLOW_NOTE='Running in the browser: a detailed model takes minutes here, seconds in the local or Docker version (README → Quick start). It is working — the percentage moves.';
 setInterval(()=>{if(busy&&document.documentElement.dataset.static&&Date.now()-busySince>20000&&!$('#busy_note').textContent)$('#busy_note').textContent=SLOW_NOTE},1000);
@@ -351,7 +560,7 @@ const controls=new OrbitControls(camera,renderer.domElement); controls.enableDam
 scene.add(new THREE.HemisphereLight(0xffffff,0x334455,1.1)); const dl=new THREE.DirectionalLight(0xffffff,1.2); dl.position.set(1,-1,2); scene.add(dl);
 const parts=new THREE.Group(), ghost=new THREE.Group(), guides=new THREE.Group(), gizmo=new THREE.Group(), axes=new THREE.Group(), rings=new THREE.Group(); scene.add(parts,ghost,guides,gizmo,axes,rings);
 rings.visible=true;   // turn rings belong to the Model tab; showTab() hides them elsewhere
-const ray=new THREE.Raycaster(); let ghostUrl=null, fitted=false, dirty=true;
+const ray=new THREE.Raycaster(); let ghostUrl=null, ghostLive=false, fitted=false, dirty=true;
 const V3=a=>new THREE.Vector3(a[0],a[1],a[2]);
 function resize(){const w=view.clientWidth,h=view.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();dirty=true}
 new ResizeObserver(resize).observe(view); resize();
@@ -377,7 +586,8 @@ function viewFrom(dir){ // swing the camera round to look along -dir at the curr
 (function loop(){requestAnimationFrame(loop);if(controls.update()||dirty){renderer.render(scene,camera);drawCube();dirty=false}})();   // render only when something changed
 function mat4(M){return new THREE.Matrix4().set(...M[0],...M[1],...M[2],...M[3])}
 function shape(rings){const s=new THREE.Shape(rings[0].map(([x,y])=>new THREE.Vector2(x,y)));for(const h of rings.slice(1))s.holes.push(new THREE.Path(h.map(([x,y])=>new THREE.Vector2(x,y))));return s}
-function applyLook(){const k=$('#look').value,op=+$('#opacity').value;for(const m of parts.children){const [c,r,me]=k==='group'?[COLORS[m.userData.group]||0xaaaaaa,.7,.05]:LOOKS[k];m.material.color.set(m.userData.bad?0xff5555:c);m.material.roughness=r;m.material.metalness=me;
+function applyLook(){const k=$('#look').value,op=+$('#opacity').value;for(const m of parts.children){if(m.userData.group==='B')continue;   // a lobe boundary is a guide, not material: it keeps its own look
+  const [c,r,me]=k==='group'?[COLORS[m.userData.group]||0xaaaaaa,.7,.05]:LOOKS[k];m.material.color.set(m.userData.bad?0xff5555:c);m.material.roughness=r;m.material.metalness=me;
   const tr=m.userData.group==='F'&&op<1;m.material.transparent=tr;m.material.opacity=tr?op:1;m.material.depthWrite=!tr}dirty=true}
 // rotation rings (OrcaSlicer-style): drag a ring to turn the whole model about that axis
 function renderRings(){
@@ -395,11 +605,26 @@ function renderAxes(){ // world axes at the model's corner with X/Y/Z labels + d
     m.position.copy(A).lerp(B,.5);m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),B.clone().sub(A).normalize());axes.add(m)}
   renderRings();
 }
+function placeRod(rod,A,B){rod.position.copy(A).lerp(B,.5);rod.scale.set(1,Math.max(A.distanceTo(B),1e-3),1);rod.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),B.clone().sub(A).normalize())}
 function renderGuides(){
-  guides.clear(); renderAxes(); if(!plan.curve3d)return;
+  guides.clear(); renderAxes();
   // the curve and its control points run through the middle of the model, so they draw on top of it (like the gizmo):
   // otherwise the ribs hide the very thing alt-click edits
   const onTop=o=>{o.material.depthTest=false;o.renderOrder=2;return o};
+  // radial: every fan's axis where it passes through the model — a rod you can drag whole, a handle at each end. The
+  // plan sends the axes it actually used, so the single default one can be taken hold of before `axes` has ever
+  // been filled in
+  const hr=Math.max(...plan.bbox)*0.014+1;
+  (plan.axes3d||[]).forEach((seg,i)=>{
+    const A=V3(seg[0]),B=V3(seg[1]);
+    const rod=onTop(new THREE.Mesh(new THREE.CylinderGeometry(hr*.35,hr*.35,1,8),new THREE.MeshBasicMaterial({color:0x4fd1ff,transparent:true,opacity:.8})));
+    rod.userData.axline=i; placeRod(rod,A,B); guides.add(rod);
+    for(const [e,P] of [[0,A],[1,B]]){
+      const s=onTop(new THREE.Mesh(new THREE.SphereGeometry(hr,12,8),new THREE.MeshBasicMaterial({color:0x4fd1ff})));
+      s.userData.ax={i,e}; s.position.copy(P); guides.add(s);
+    }
+  });
+  if(!plan.curve3d)return;
   guides.add(onTop(new THREE.Line(new THREE.BufferGeometry().setFromPoints(plan.curve3d.map(V3)),new THREE.LineBasicMaterial({color:0xff9a3c}))));
   const idx=PLANE_IDX[state.plane||'xz'], mid=V3(plan.mid), r=Math.max(...plan.bbox)*0.012+1;
   const wi=3-idx[0]-idx[1];   // the plane's normal axis: the point sits where the body's centre is across the plane
@@ -416,64 +641,216 @@ function render3D(modelUrl){
     m.userData={slice:s.label,piece:pc.label,group:s.group,i:i++,origin:new THREE.Vector3(s.M[0][3],s.M[1][3],s.M[2][3]),normal:new THREE.Vector3(s.M[0][2],s.M[1][2],s.M[2][2]),bad:s.errors.length>0};
     parts.add(m);
   }
+  // radial: the plane between two lobes is a part too — translucent, outside the build order (i = -1 keeps it on every
+  // step) — so the one select / arrow / shift / ctrl-drag and the sliders move and tilt it, and the plan's per-slice
+  // offset / tilt / roll carry the edit under its label
+  for(const b of plan.bounds3d||[]){
+    // Into the geometry, exactly like the slices above — never onto the mesh. Everything that moves a part (the
+    // gizmo, the sliders, the live preview) starts by clearing the mesh's own position and rotation, because for a
+    // slice those hold nothing but the explode offset. A lobe plane that kept its frame there lost it at the first
+    // drag: it snapped to the middle of the model, flat, and came back only when the re-slice rebuilt it.
+    const g=new THREE.PlaneGeometry(b.size,b.size); g.applyMatrix4(mat4(b.M));
+    const m=new THREE.Mesh(g,new THREE.MeshStandardMaterial({color:COLORS.B,transparent:true,opacity:.22,depthWrite:false,side:THREE.DoubleSide,roughness:.9}));
+    m.renderOrder=1;
+    m.userData={slice:b.label,piece:b.label,group:'B',i:-1,origin:new THREE.Vector3(b.M[0][3],b.M[1][3],b.M[2][3]),normal:new THREE.Vector3(b.M[0][2],b.M[1][2],b.M[2][2]),bad:false};
+    parts.add(m);
+  }
   applyLook(); renderGuides();
   $('#steps').max=i; $('#steps').value=i; applyExplode();
-  if(modelUrl!==ghostUrl){ghostUrl=modelUrl;ghost.clear();new STLLoader().load(modelUrl,g=>{ghost.clear();ghost.add(new THREE.Mesh(g,new THREE.MeshStandardMaterial({color:0x8899aa,transparent:true,opacity:.18,depthWrite:false})));dirty=true})}
+  if(!ghostLive)showGhost(modelUrl);   // already shown mid-build: the same mesh, and fetching it again is not free
   ghost.visible=$('#ghost').checked; dirty=true;
   if(selected){const m=parts.children.find(c=>c.userData.slice===selected);m?highlight(m):deselect()}
   if(!fitted){fitView();fitted=true}
+}
+// The translucent model behind the parts, loaded on its own: the build finishes with the mesh a second or two in and
+// says so, so the 3D view fills with your model while the slices are still being worked out instead of staying empty
+// until the last sheet is nested. Until there are parts, the view frames the model itself.
+function showGhost(modelUrl){
+  if(!modelUrl||modelUrl===ghostUrl)return;
+  if(ghostUrl?.startsWith('blob:'))URL.revokeObjectURL(ghostUrl);   // the browser build hands over the mesh itself
+  ghostUrl=modelUrl; ghost.clear();
+  new STLLoader().load(modelUrl,g=>{
+    ghost.clear(); ghost.add(new THREE.Mesh(g,new THREE.MeshStandardMaterial({color:0x8899aa,transparent:true,opacity:.18,depthWrite:false})));
+    ghost.visible=$('#ghost').checked;
+    if(!fitted&&!parts.children.length)fitView();       // not `fitted = true`: the parts get their own fit when they land
+    dirty=true});
 }
 function mergeGeos(geos){
   const ngs=geos.map(g=>g.index?g.toNonIndexed():g),n=ngs.reduce((a,g)=>a+g.attributes.position.array.length,0),pos=new Float32Array(n),nor=new Float32Array(n);let o=0;
   for(const g of ngs){pos.set(g.attributes.position.array,o);nor.set(g.attributes.normal.array,o);o+=g.attributes.position.array.length}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('normal',new THREE.BufferAttribute(nor,3));return g}
 function fitView(){const b=new THREE.Box3().setFromObject(parts.children.length?parts:ghost);if(b.isEmpty())return;const c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3()).length();controls.target.copy(c);camera.position.copy(c).add(new THREE.Vector3(.7,-1,.6).normalize().multiplyScalar(s*1.5));camera.near=s/100;camera.far=s*20;camera.updateProjectionMatrix()}
-function applyExplode(){const e=+$('#explode').value,k=+$('#steps').value;for(const m of parts.children){m.position.copy(m.userData.origin).multiplyScalar(e-1);m.visible=m.userData.i<k}dirty=true}
+function applyExplode(){const e=+$('#explode').value,k=+$('#steps').value;for(const m of parts.children){if(m.userData.group==='B')continue;m.position.copy(m.userData.origin).multiplyScalar(e-1);m.visible=m.userData.i<k}
+  const s=selected&&parts.children.find(c=>c.userData.slice===selected); if(s)drawGizmo(s);   // the handles ride with the part
+  dirty=true}
 $('#explode').oninput=$('#steps').oninput=applyExplode; $('#ghost').onchange=()=>{ghost.visible=$('#ghost').checked;dirty=true}; $('#fit').onclick=()=>{fitView();dirty=true}; $('#look').onchange=$('#opacity').oninput=applyLook;
+// The build order as a video: the steps slider played into a MediaRecorder reading the canvas the view already
+// draws. Nothing is uploaded and nothing is rendered twice — the file is made in the page and saved from it.
+async function recordAssembly(el){
+  const st=$('#steps'), max=+st.max, cv=renderer.domElement;
+  if(!max)return status('nothing to record yet');
+  if(!cv.captureStream||!window.MediaRecorder)return status('this browser cannot record the canvas — use the steps slider');
+  const rec=new MediaRecorder(cv.captureStream(30),{mimeType:'video/webm'}), chunks=[], was=st.value, txt=el.textContent;
+  rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+  const done=new Promise(r=>rec.onstop=r);
+  el.textContent='recording the assembly…'; rec.start();
+  const hold=Math.min(700,Math.max(90,4000/max));
+  for(let k=0;k<=max;k++){st.value=k;applyExplode();await new Promise(r=>setTimeout(r,hold))}
+  await new Promise(r=>setTimeout(r,700)); rec.stop(); await done;
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(chunks,{type:'video/webm'}));
+  a.download=`${(state.project||'lamina').replace(/\W+/g,'_')}_${mode.name}_assembly.webm`; a.click();
+  URL.revokeObjectURL(a.href); st.value=was; applyExplode(); el.textContent=txt; countUse('export','video');
+}
+$('#vid_go').onclick=e=>{e.preventDefault();recordAssembly(e.currentTarget)};
 $('#viewmode').onchange=e=>{$('#view').className='view '+(e.target.value==='both'?'':e.target.value);resize();dirty=true};
 
 // selection, gizmo, drag editing
 let down=null, drag=null;
 function ndc(ev){const r=renderer.domElement.getBoundingClientRect();return new THREE.Vector2(((ev.clientX-r.left)/r.width)*2-1,-((ev.clientY-r.top)/r.height)*2+1)}
 function hit(ev){ray.setFromCamera(ndc(ev),camera);const g=ray.intersectObjects(gizmo.children);if(g.length)return g[0];   // the arrow wins even when a part is in front of it
-  const cp=ray.intersectObjects(guides.children.filter(o=>o.userData.cp!==undefined));if(cp.length)return cp[0];               // curve handles too: they draw on top, so they pick on top
+  const cp=ray.intersectObjects(guides.children.filter(o=>o.userData.cp!==undefined||o.userData.ax!==undefined||o.userData.axline!==undefined));if(cp.length)return cp[0];   // curve points, axis rods and ends too: they draw on top, so they pick on top
   const rg=rings.visible?ray.intersectObjects(rings.children):[];if(rg.length)return rg[0];                                   // rotation rings (Model tab only)
   const h=ray.intersectObjects(parts.children.filter(m=>m.visible));return h.length?h[0]:null}
 function screenAngle(ev,centre){const r=renderer.domElement.getBoundingClientRect(),c=centre.clone().project(camera);return Math.atan2(-(ev.clientY-r.top)+(1-c.y)/2*r.height*-1+r.height-(1-c.y)/2*r.height,(ev.clientX-r.left)-(c.x+1)/2*r.width)}
 const pick=ev=>{const h=hit(ev);return h&&!h.object.userData.gizmo?h.object:null};
-function drawGizmo(m){ // double arrow along the slice normal, long enough to stick out of the model on both sides
-  gizmo.clear(); if(!m)return; const L=Math.max(...plan.bbox)*0.75, o=m.userData.origin, n=m.userData.normal, mat=new THREE.MeshBasicMaterial({color:0xffd84a,depthTest:false,transparent:true,opacity:.95});
-  for(const s of [1,-1]){const c=new THREE.Mesh(new THREE.CylinderGeometry(L*.008,L*.008,L*.86,10),mat);const k=new THREE.Mesh(new THREE.ConeGeometry(L*.035,L*.12,14),mat);
+const __screen=p=>{const r=renderer.domElement.getBoundingClientRect(),q=p.clone().project(camera);return [r.left+(q.x+1)/2*r.width,r.top+(1-q.y)/2*r.height]};
+// How far to move along two world directions so a point follows the pointer across the screen. Dragging used to work
+// the other way — the mouse ray was intersected with the plane the point lives in — and seen edge-on that plane
+// turned a few pixels into hundreds of millimetres along a direction you could not even see. This reads the pointer
+// instead: how many pixels a millimetre along U and along V is worth right now, then the least-squares answer. The
+// damping is what makes an edge-on view safe: a direction worth almost no pixels gets almost no movement.
+function inPlane(P0,U,V,dx,dy,s){
+  const o=__screen(P0),a=__screen(P0.clone().addScaledVector(U,s)),b=__screen(P0.clone().addScaledVector(V,s));
+  const A=[[(a[0]-o[0])/s,(b[0]-o[0])/s],[(a[1]-o[1])/s,(b[1]-o[1])/s]];
+  const g11=A[0][0]**2+A[1][0]**2, g22=A[0][1]**2+A[1][1]**2, g12=A[0][0]*A[0][1]+A[1][0]*A[1][1];
+  const lam=0.02*(g11+g22), det=(g11+lam)*(g22+lam)-g12*g12;
+  if(!(Math.abs(det)>1e-12))return [0,0];
+  const r1=A[0][0]*dx+A[1][0]*dy, r2=A[0][1]*dx+A[1][1]*dy;
+  return [((g22+lam)*r1-g12*r2)/det,((g11+lam)*r2-g12*r1)/det];
+}
+// The selected plane's own middle, on the plane itself: where its handles sit and what it turns about. Not the
+// middle of its bounding box — for a half-slice or a crescent that lands off the material — but the centroid of the
+// outline the part is cut to, which is where a person points when they say "the middle of this piece".
+let pivot3=null;
+function partCentre(m){
+  const S=slicePlan(m.userData.slice), o=m.userData.origin, n=m.userData.normal;
+  const rings=(S?.pieces||[]).flatMap(pc=>pc.facets.map(fc=>[fc.M,fc.rings[0]])).filter(([,r])=>r&&r.length>2);
+  let A=0,cx=0,cy=0,M0=null;
+  for(const [M,r] of rings){                       // shoelace in the facet's own 2D, so the areas add up honestly
+    M0=M0||M;
+    for(let i=0;i<r.length;i++){const [x0,y0]=r[i],[x1,y1]=r[(i+1)%r.length],w=x0*y1-x1*y0;A+=w;cx+=(x0+x1)*w;cy+=(y0+y1)*w}
+  }
+  if(!M0||Math.abs(A)<1e-9){                       // no outline to speak of: fall back to the box
+    m.geometry.computeBoundingBox();
+    const C=m.geometry.boundingBox.getCenter(new THREE.Vector3());
+    return C.addScaledVector(n,-C.clone().sub(o).dot(n));
+  }
+  const u=cx/(3*A), v=cy/(3*A), F=mat4(M0);
+  const C=new THREE.Vector3(u,v,0).applyMatrix4(F);
+  return C.addScaledVector(n,-C.clone().sub(o).dot(n));   // and onto the plane, where the handles belong
+}
+function partSize(m){m.geometry.computeBoundingBox();return m.geometry.boundingBox.getSize(new THREE.Vector3()).length()}
+// A plane has three handles and no more, because a plane has no more: the arrow slides it along its normal (sideways
+// would not change the part at all), and the two rings tilt and roll it about its own middle.
+function drawGizmo(m){
+  gizmo.clear(); if(!m)return;
+  pivot3=partCentre(m);
+  const c=pivot3.clone().add(m.position);                      // where it is drawn: the part's spot, exploded or not
+  // Sized to the part, not to the model: the arrow stands a little way off each face of this piece, which is the
+  // distance it can be slid, and the rings sit just inside its outline.
+  const n=m.userData.normal, R=Math.max(partSize(m)*0.36,Math.max(...plan.bbox)*0.04), L=R*0.95;
+  const mat=col=>new THREE.MeshBasicMaterial({color:col,depthTest:false,transparent:true,opacity:.95});
+  const arrow=mat(0xffd84a);
+  for(const s of [1,-1]){const cy=new THREE.Mesh(new THREE.CylinderGeometry(L*.022,L*.022,L*.7,10),arrow);const k=new THREE.Mesh(new THREE.ConeGeometry(L*.075,L*.26,14),arrow);
     const q=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),n.clone().multiplyScalar(s));
-    c.position.copy(o).addScaledVector(n,s*L*.43);c.quaternion.copy(q);k.position.copy(o).addScaledVector(n,s*L*.92);k.quaternion.copy(q);c.renderOrder=k.renderOrder=10;c.userData.gizmo=k.userData.gizmo=true;gizmo.add(c,k)}
+    cy.position.copy(c).addScaledVector(n,s*L*.35);cy.quaternion.copy(q);k.position.copy(c).addScaledVector(n,s*L*.83);k.quaternion.copy(q);
+    cy.renderOrder=k.renderOrder=10;cy.userData.gizmo=k.userData.gizmo=true;cy.userData.grab=k.userData.grab='offset';gizmo.add(cy,k)}
+  const dot=new THREE.Mesh(new THREE.SphereGeometry(R*.05,12,10),arrow);     // the point everything turns about
+  dot.position.copy(c);dot.renderOrder=10;dot.userData.gizmo=true;gizmo.add(dot);
+  const S=slicePlan(m.userData.slice); if(!S)return void(dirty=true);
+  // Two rings of the same radius meet at two points, and the ray picks whichever is in front — you reach for roll
+  // and get tilt. Different radii never touch, so each one is always the one you grabbed.
+  for(const [k,ax,col,rr] of [['tilt',0,0x5fcf80,1],['roll',1,0x4f8cff,0.78]]){
+    const axis=new THREE.Vector3(S.M[0][ax],S.M[1][ax],S.M[2][ax]).normalize();
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(R*rr,R*.045,8,72),mat(col));
+    ring.position.copy(c); ring.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),axis);
+    ring.renderOrder=10; ring.userData.gizmo=true; ring.userData.grab=k; gizmo.add(ring);
+  }
   dirty=true;
 }
+const slicePlan=l=>plan.slices.find(x=>x.label===l)||(plan.bounds3d||[]).find(x=>x.label===l);
 function highlight(m){for(const c of parts.children)c.material.emissive.set(c.userData.slice===m.userData.slice?0x664400:0x000000);selected=m.userData.slice;drawGizmo(m);dirty=true;
-  const g=k=>state[k]?.[selected], f=UNIT[unit], synthetic='JP'.includes(m.userData.group), ext=Math.max(...plan.bbox), s=plan.slices.find(x=>x.label===selected);
+  const g=k=>state[k]?.[selected], f=UNIT[unit], synthetic='JPB'.includes(m.userData.group), bound=m.userData.group==='B', ext=Math.max(...plan.bbox), s=plan.slices.find(x=>x.label===selected);
   const row=(k,lab,v,min,max,step,u)=>`<div class="row"><span>${lab}</span><input type="range" id="r_${k}" min="${min}" max="${max}" step="${step}" value="${v}"><input type="number" id="n_${k}" step="${step}" value="${v}"><span class="hint" style="grid-column:2/4">${u}</span></div>`;
   $('#sel').hidden=false;$('#sel').innerHTML=`<b>${selected}</b> <span class="hint">${m.userData.piece!==selected?'('+m.userData.piece+')':''} ${s?.note||''}</span>
    ${row('offset','offset',fmt((g('offset')||0)*f),fmt(-ext/2*f),fmt(ext/2*f),fmt(0.5*f),unit)}${row('tilt','tilt',g('tilt')||0,-60,60,1,'°')}${row('roll','roll',g('roll')||0,-60,60,1,'°')}
-   ${row('thick','thick',fmt((g('thick')||state.thickness)*f),fmt(0.1*f),fmt(20*f),fmt(0.1*f),unit)}
+   ${bound?'':row('thick','thick',fmt((g('thick')||state.thickness)*f),fmt(0.1*f),fmt(20*f),fmt(0.1*f),unit)}
    <div class="row"><span></span><span style="grid-column:2/4"><button class="small" id="s_reset">reset</button> ${synthetic?'':'<button class="small" id="s_del" style="color:var(--err)">delete</button>'} <button class="small" id="s_close">close</button></span></div>
-   <small>slide or type · drag the yellow arrow to move · shift-drag = tilt · ctrl-drag = roll</small>`;
-  for(const k of ['offset','tilt','roll','thick']){const r=$('#r_'+k),n=$('#n_'+k);
+   <small>slide or type · drag the yellow arrow to move it along its normal · drag the <b style="color:#5fcf80">green</b> ring to tilt, the <b style="color:#4f8cff">blue</b> one to roll — it turns where it stands</small>`;
+  for(const k of ['offset','tilt','roll','thick']){const r=$('#r_'+k),n=$('#n_'+k);if(!r)continue;   // a lobe boundary has no thickness row
     r.oninput=()=>{n.value=r.value;preview(k,+r.value)}; r.onchange=()=>commit(k,+r.value); n.onchange=()=>{r.value=n.value;commit(k,+n.value)}}
-  $('#s_reset').onclick=()=>{for(const k of ['offset','tilt','roll','thick'])delete state[k]?.[selected];syncEdits();slice()}; $('#s_close').onclick=deselect;
+  $('#s_reset').onclick=()=>{for(const k of ['offset','tilt','roll','thick','pivot'])delete state[k]?.[selected];syncEdits();slice()}; $('#s_close').onclick=deselect;
   if($('#s_del'))$('#s_del').onclick=()=>{state.skip=[...(state.skip||[]),selected];syncEdits();deselect();slice()};
   hlSheet(selected); status(`${$('#status').textContent.replace(/ · selected.*$/,'')} · selected ${selected}`,$('#dot').className);
 }
 function preview(k,v){ // live feedback while sliding, before the re-slice
-  const ms=parts.children.filter(c=>c.userData.slice===selected), M=plan.slices.find(x=>x.label===selected).M, f=UNIT[unit];
+  const ms=parts.children.filter(c=>c.userData.slice===selected), M=(plan.slices.find(x=>x.label===selected)||plan.bounds3d.find(x=>x.label===selected)).M, f=UNIT[unit];
   for(const m of ms){m.matrixAutoUpdate=true;m.position.set(0,0,0);m.rotation.set(0,0,0);
     if(k==='offset'){m.position.copy(m.userData.normal).multiplyScalar(v/f-(state.offset?.[selected]||0))}
-    else if(k!=='thick'){const ax=k==='tilt'?0:1,axis=new THREE.Vector3(M[0][ax],M[1][ax],M[2][ax]),o=m.userData.origin,T=new THREE.Matrix4().makeTranslation(o.x,o.y,o.z),R=new THREE.Matrix4().makeRotationAxis(axis,(v-(state[k]?.[selected]||0))*Math.PI/180);m.matrixAutoUpdate=false;m.matrix.copy(T).multiply(R).multiply(T.clone().invert())}}
+    else if(k!=='thick'){const ax=k==='tilt'?0:1,axis=new THREE.Vector3(M[0][ax],M[1][ax],M[2][ax]),o=pivot3||m.userData.origin,   // about the part's own middle, like the server
+      T=new THREE.Matrix4().makeTranslation(o.x,o.y,o.z),R=new THREE.Matrix4().makeRotationAxis(axis,(v-(state[k]?.[selected]||0))*Math.PI/180);m.matrixAutoUpdate=false;m.matrix.copy(T).multiply(R).multiply(T.clone().invert())}}
   dirty=true;
 }
 function commit(k,v){const f=k==='offset'||k==='thick'?UNIT[unit]:1;setEdit(k,v/f,k==='thick'?state.thickness:0)}
 function deselect(){selected=null;$('#sel').hidden=true;gizmo.clear();for(const c of parts.children)c.material.emissive.set(0);hlSheet(null);dirty=true}
-function setEdit(k,v,neutral=0){state[k]=state[k]||{};if(Math.abs(v-neutral)>1e-9)state[k][selected]=+v.toFixed(2);else delete state[k][selected];syncEdits();slice()}
+function setEdit(k,v,neutral=0){state[k]=state[k]||{};if(Math.abs(v-neutral)>1e-9)state[k][selected]=+v.toFixed(2);else delete state[k][selected];
+  keepPivot(); syncEdits(); slice()}
+// The server cannot know where a part's middle is — the plane it cuts on passes through the whole model — so the
+// view tells it, and only while the part is actually tilted. Back at 0° it goes, and the plane turns about its frame
+// origin again, exactly as it did before any of this.
+function keepPivot(){state.pivot=state.pivot||{};
+  if(pivot3&&((state.tilt?.[selected]||0)||(state.roll?.[selected]||0)))state.pivot[selected]=rnd(pivot3);
+  else delete state.pivot[selected]}
 function syncEdits(){renderFields()}
-function togglePoint(h){ // alt-click: dowel (stacked) in the clicked slice's plane, or a curve control point in the curve plane
+// the radial axes as the form holds them (mm), falling back to the ones the plan used — so the default axis can be
+// dragged before `axes` has ever been filled in
+const axisList=()=>((state.axes&&state.axes.length?state.axes:(plan&&plan.axes3d)||[]).map(l=>l.map(q=>q.map(v=>+(+v).toFixed(1)))));
+const rnd=Q=>[+Q.x.toFixed(1),+Q.y.toFixed(1),+Q.z.toFixed(1)];
+// The plane the other axes share (all of them but `skipI`), or null when they leave it free: on one line, the plane
+// through that line and P; on one plane, that plane; already skew, or none, nothing. A dragged axis moves in it and
+// a new one is put on it, so the spine — the one sheet through every axis — survives whatever the mouse does.
+function sharedPlane(skipI,P){
+  const pts=[]; (plan?plan.axes3d||[]:[]).forEach((seg,i)=>{if(i!==skipI)pts.push(V3(seg[0]),V3(seg[1]))});
+  if(pts.length<2)return null;
+  const tol=Math.max(...plan.bbox)*0.01, c=pts.reduce((a,p)=>a.add(p),new THREE.Vector3()).multiplyScalar(1/pts.length);
+  let u=null,best=0; for(const p of pts)for(const q of pts){const d=q.clone().sub(p);if(d.length()>best){best=d.length();u=d.normalize()}}
+  if(best<tol)return null;
+  const across=p=>{const d=p.clone().sub(c);return d.addScaledVector(u,-d.dot(u))};
+  let w=null,wbest=0; for(const p of pts){const d=across(p);if(d.length()>wbest){wbest=d.length();w=d}}
+  if(wbest<tol){const d=across(P);return d.length()<tol?null:new THREE.Plane().setFromNormalAndCoplanarPoint(new THREE.Vector3().crossVectors(u,d).normalize(),c)}
+  const n=new THREE.Vector3().crossVectors(u,w).normalize();
+  return pts.some(p=>Math.abs(p.clone().sub(c).dot(n))>tol)?null:new THREE.Plane().setFromNormalAndCoplanarPoint(n,c);
+}
+const seed=list=>list.length?list:[[[0,0,-((plan&&plan.bbox)||[100,100,100])[2]/2],[0,0,((plan&&plan.bbox)||[100,100,100])[2]/2]]];   // + can be clicked before the first slice lands
+// + on the table: the longest axis is cut in two at its middle — a snowman: one fan per ball, drag the joint to
+// the waist. A new fan never sits inside another one: two fans over the same stretch fight over every crossing.
+function splitAxis(list){
+  list=seed(list); let i=0,longest=-1;
+  list.forEach((l,k)=>{const L=new THREE.Vector3(...l[1]).distanceTo(new THREE.Vector3(...l[0]));if(L>longest){longest=L;i=k}});
+  const A=new THREE.Vector3(...list[i][0]),B=new THREE.Vector3(...list[i][1]),M=A.clone().lerp(B,.5);
+  const out=list.map(l=>l.map(q=>[...q])); out.splice(i,1,[rnd(A),rnd(M)],[rnd(M),rnd(B)]); return out;
+}
+// alt-click on the model: a new axis through the point you clicked, parallel to the nearest one and as long — a
+// dumbbell: one per ball, then drag each to its ball's centre. Each axis owns the part of the model nearest to it.
+function parallelAxis(list,P){
+  list=seed(list); let near=null,best=Infinity;
+  for(const l of list){const A=new THREE.Vector3(...l[0]),B=new THREE.Vector3(...l[1]),d=new THREE.Line3(A,B).closestPointToPoint(P,true,new THREE.Vector3()).distanceTo(P);if(d<best){best=d;near=[A,B]}}
+  const u=near[1].clone().sub(near[0]),L=u.length(); u.normalize();
+  const sp=sharedPlane(-1,P); if(sp)P=sp.projectPoint(P,new THREE.Vector3());   // on the plane the others share, so the spine reaches it
+  return [...list.map(l=>l.map(q=>[...q])),[rnd(P.clone().addScaledVector(u,-L/2)),rnd(P.clone().addScaledVector(u,L/2))]];
+}
+function togglePoint(h){ // alt-click: dowel (stacked) in the clicked slice's plane, a curve control point in the curve plane, or a radial axis at the click
   const P=h.point, s=plan.slices.find(x=>x.label===h.object.userData.slice); if(!s)return;
   if(mode.params.some(p=>p.name==='dowels')){
     const L=P.clone().applyMatrix4(mat4(s.M).invert()), pt=[+L.x.toFixed(1),+L.y.toFixed(1)], d=state.dowel_d||6, list=state.dowels||[];
@@ -484,6 +861,8 @@ function togglePoint(h){ // alt-click: dowel (stacked) in the clicked slice's pl
     const list=(state.curve&&state.curve.length?state.curve:plan.curve_pts||[]).map(x=>[x[0],x[1]]), i=list.findIndex(([u,v])=>Math.hypot(u-pt[0],v-pt[1])<Math.max(...plan.bbox)*0.04);   // in-plane only: the plan's points carry a third value
     if(i>=0)list.splice(i,1); else{list.push(pt);list.sort((a,b)=>a[0]-b[0])}   // the curve runs along the plane's first axis: a new point goes where its position says
     state.curve=list;
+  }else if(mode.params.some(p=>p.name==='axes')){
+    state.axes=parallelAxis(axisList(),P);      // a fan of its own through the click: drag it to the lobe's centre from there
   }else return;
   renderFields(); slice();
 }
@@ -492,32 +871,72 @@ renderer.domElement.addEventListener('pointerdown',ev=>{if(ev.button!==0)return;
     const i=h.object.userData.ring,centre=new THREE.Vector3(0,0,0),r=renderer.domElement.getBoundingClientRect(),c=centre.clone().project(camera),cx=r.left+(c.x+1)/2*r.width,cy=r.top+(1-c.y)/2*r.height;
     const axisDir=new THREE.Vector3(i===0?1:0,i===1?1:0,i===2?1:0),sign=axisDir.dot(camera.position.clone().sub(centre))>=0?1:-1;
     drag={mode:'ring',axis:i,cx,cy,sign,a0:Math.atan2(ev.clientY-cy,ev.clientX-cx),delta:0};controls.enabled=false;renderer.domElement.setPointerCapture(ev.pointerId);return}
-  if(h&&h.object.userData.cp!==undefined&&!ev.altKey){ // drag a curve point: the mouse ray meets the curve's plane, so the point follows the pointer from any view
-    const idx=PLANE_IDX[state.plane||'xz'],wi=3-idx[0]-idx[1],plane=new THREE.Plane().setFromNormalAndCoplanarPoint(V3(plan.axes[wi]),h.object.position);
+  if(h&&(h.object.userData.ax!==undefined||h.object.userData.axline!==undefined)&&!ev.altKey){ // drag a radial axis — whole, or one end — on a plane facing the camera, so it follows the pointer in 3D; orbit to reach the third direction
+    const o=h.object, hs=guides.children.filter(g=>g.userData.ax!==undefined), i=o.userData.axline!==undefined?o.userData.axline:o.userData.ax.i;
+    // the rod takes both ends with it; an end moves alone — every axis is its own two dots, even where two touch
+    const ends=o.userData.axline!==undefined?hs.filter(g=>g.userData.ax.i===i):[o];
+    // On the plane the other axes share while that plane faces the camera — you cannot see out-of-plane motion from
+    // there, so none is meant, and the spine survives the drag. Seen edge-on (within 60° of it) the drag is on a plane
+    // facing the camera instead: that is the view you take to move an axis *off* the plane on purpose, and a ray on
+    // a plane seen edge-on would land anywhere along it. Both planes go through the handle's centre, not the point on
+    // its surface the pointer hit: a plane through the surface point is tilted by the handle's radius
+    const C=o.position.clone(), view=camera.getWorldDirection(new THREE.Vector3()), sp=sharedPlane(i,C);
+    const shared=sp&&Math.abs(sp.normal.dot(view))>0.5?sp:null, plane=shared||new THREE.Plane().setFromNormalAndCoplanarPoint(view.negate(),C);
+    const p0=new THREE.Vector3(); ray.setFromCamera(ndc(ev),camera); if(!ray.ray.intersectPlane(plane,p0))p0.copy(C);
+    drag={mode:'axis',ends:ends.map(g=>({i:g.userData.ax.i,e:g.userData.ax.e,sphere:g,start:g.position.clone()})),plane,snap:!!shared,p0,delta:null};
+    controls.enabled=false;renderer.domElement.setPointerCapture(ev.pointerId);return}
+  if(h&&h.object.userData.cp!==undefined&&!ev.altKey){ // drag a curve point: the pointer's movement on screen, read into the curve's own two directions
+    const idx=PLANE_IDX[state.plane||'xz'], i=h.object.userData.cp;
     const list=(state.curve&&state.curve.length?state.curve:plan.curve_pts||[]).map(x=>[x[0],x[1]]);
-    drag={mode:'curve',i:h.object.userData.cp,sphere:h.object,plane,idx,list,pt:null};controls.enabled=false;renderer.domElement.setPointerCapture(ev.pointerId);return}
+    drag={mode:'curve',i,sphere:h.object,idx,list,pt:null,P0:h.object.position.clone(),p0:list[i]||[0,0],
+      U:V3(plan.axes[idx[0]]),V:V3(plan.axes[idx[1]]),step:Math.max(...plan.bbox)/50};
+    controls.enabled=false;renderer.domElement.setPointerCapture(ev.pointerId);return}
+  if(h&&selected&&(h.object.userData.grab==='tilt'||h.object.userData.grab==='roll')){   // a ring: turn the plane where it stands
+    const k=h.object.userData.grab, S=slicePlan(selected), ax=k==='tilt'?0:1;
+    const axis=new THREE.Vector3(S.M[0][ax],S.M[1][ax],S.M[2][ax]).normalize(), c=h.object.position.clone();
+    const [cx,cy]=__screen(c), sign=axis.dot(camera.position.clone().sub(c))>=0?1:-1;
+    drag={mode:'spin',k,cx,cy,sign,a0:Math.atan2(ev.clientY-cy,ev.clientX-cx),base:state[k]?.[selected]||0,delta:0,v:null};
+    controls.enabled=false;renderer.domElement.setPointerCapture(ev.pointerId);return}
   const m=h&&(h.object.userData.gizmo?parts.children.find(c=>c.userData.slice===selected):h.object);
   if(m&&selected&&m.userData.slice===selected){const o=m.userData.origin.clone().project(camera),n=m.userData.origin.clone().add(m.userData.normal).project(camera);
     const r=renderer.domElement.getBoundingClientRect(),dir=new THREE.Vector2((n.x-o.x)*r.width/2,-(n.y-o.y)*r.height/2);if(dir.length()<1e-6)dir.set(1,0);dir.normalize();
     const dist=camera.position.distanceTo(m.userData.origin),mmPerPx=2*dist*Math.tan(camera.fov*Math.PI/360)/r.height;
     drag={mode:ev.shiftKey?'tilt':ev.ctrlKey?'roll':'offset',dir,mmPerPx,delta:0,meshes:parts.children.filter(c=>c.userData.slice===selected)};controls.enabled=false;renderer.domElement.setPointerCapture(ev.pointerId)}});
 renderer.domElement.addEventListener('pointermove',ev=>{if(!drag)return;const dx=ev.clientX-down.x,dy=ev.clientY-down.y,f=UNIT[unit];
-  if(drag.mode==='curve'){ray.setFromCamera(ndc(ev),camera);const P=new THREE.Vector3();if(!ray.ray.intersectPlane(drag.plane,P))return;   // no hit = the plane is edge-on: hold still
-    drag.sphere.position.copy(P);const Q=P.clone().sub(V3(plan.mid));drag.pt=[+Q.dot(V3(plan.axes[drag.idx[0]])).toFixed(1),+Q.dot(V3(plan.axes[drag.idx[1]])).toFixed(1)];
+  if(drag.mode==='axis'){ray.setFromCamera(ndc(ev),camera);const P=new THREE.Vector3();if(!ray.ray.intersectPlane(drag.plane,P))return;
+    drag.delta=P.sub(drag.p0);
+    for(const d of drag.ends){d.sphere.position.copy(d.start).add(drag.delta);if(drag.snap)drag.plane.projectPoint(d.sphere.position,d.sphere.position)}
+    for(const rod of guides.children.filter(g=>g.userData.axline!==undefined)){const end=e=>guides.children.find(g=>g.userData.ax&&g.userData.ax.i===rod.userData.axline&&g.userData.ax.e===e).position;placeRod(rod,end(0),end(1))}   // the rods follow their ends
+    const d0=drag.ends[0],q=d0.sphere.position,whole=drag.ends.length>1&&drag.ends.every(x=>x.i===d0.i);
+    status(`axis ${d0.i+1}${whole?'':d0.e?' end':' start'}: ${[q.x,q.y,q.z].map(v=>fmt(v*f)).join(', ')} ${unit}`,'busy');dirty=true;return}
+  if(drag.mode==='curve'){const [du,dv]=inPlane(drag.P0,drag.U,drag.V,dx,dy,drag.step);
+    drag.pt=[+(drag.p0[0]+du).toFixed(1),+(drag.p0[1]+dv).toFixed(1)];
+    drag.sphere.position.copy(drag.P0).addScaledVector(drag.U,du).addScaledVector(drag.V,dv);
     status(`curve point ${drag.i+1}: ${drag.pt[0]}, ${drag.pt[1]} mm`,'busy');dirty=true;return}
+  if(drag.mode==='spin'){let a=Math.atan2(ev.clientY-drag.cy,ev.clientX-drag.cx)-drag.a0;a=Math.atan2(Math.sin(a),Math.cos(a));
+    drag.v=Math.max(-60,Math.min(60,Math.round(drag.base-drag.sign*a*180/Math.PI)));   // the sliders' own range
+    preview(drag.k,drag.v); status(`${drag.k} ${selected}: ${drag.v}°`,'busy'); return}
   if(drag.mode==='ring'){let a=Math.atan2(ev.clientY-drag.cy,ev.clientX-drag.cx)-drag.a0;a=Math.atan2(Math.sin(a),Math.cos(a));drag.delta=-drag.sign*a*180/Math.PI;
     const axis=new THREE.Vector3(drag.axis===0?1:0,drag.axis===1?1:0,drag.axis===2?1:0);for(const g of [parts,ghost,guides])g.quaternion.setFromAxisAngle(axis,drag.delta*Math.PI/180);
     status(`turn about ${'xyz'[drag.axis]}: ${drag.delta.toFixed(0)}°`,'busy');dirty=true;return}
   if(drag.mode==='offset'){drag.delta=(dx*drag.dir.x+dy*drag.dir.y)*drag.mmPerPx;preview('offset',((state.offset?.[selected]||0)+drag.delta)*f);gizmo.position.copy(drag.meshes[0].userData.normal).multiplyScalar(drag.delta);dirty=true}
   else{drag.delta=dx*0.4;preview(drag.mode,(state[drag.mode]?.[selected]||0)+drag.delta)}
   status(`${drag.mode} ${selected}: ${drag.delta.toFixed(1)}${drag.mode==='offset'?' mm':'°'}`,'busy')});
-renderer.domElement.addEventListener('pointerup',ev=>{if(drag&&drag.mode==='curve'){controls.enabled=true;const d=drag;drag=null;
+renderer.domElement.addEventListener('pointerup',ev=>{
+  if(drag&&drag.mode==='spin'){controls.enabled=true;const d=drag;drag=null;
+    if(d.v!==null&&d.v!==d.base)commit(d.k,d.v); else applyExplode();return}
+  if(drag&&drag.mode==='axis'){controls.enabled=true;const d=drag;drag=null;
+    if(d.delta&&d.delta.length()>0.05){const list=axisList();for(const x of d.ends){const q=x.start.clone().add(d.delta);if(d.snap)d.plane.projectPoint(q,q);list[x.i][x.e]=rnd(q)}state.axes=list;renderFields();slice()}return}
+  if(drag&&drag.mode==='curve'){controls.enabled=true;const d=drag;drag=null;
     if(d.pt){d.list[d.i]=d.pt;d.list.sort((a,b)=>a[0]-b[0]);state.curve=d.list;renderFields();slice()}return}   // a point dragged past its neighbour swaps places with it: the curve never folds back
   if(drag&&drag.mode==='ring'){controls.enabled=true;const d=drag;drag=null;for(const g of [parts,ghost,guides])g.quaternion.identity();dirty=true;
     if(Math.abs(d.delta)>1){const r=[...(state.rotate||[0,0,0])];r[d.axis]=Math.round(((r[d.axis]+d.delta+180)%360+360)%360-180);state.rotate=r;fitted=false;renderFields();slice()}return}
   if(drag){controls.enabled=true;const d=drag;drag=null;gizmo.position.set(0,0,0);for(const m of d.meshes){m.matrixAutoUpdate=true;m.matrix.identity()}
     if(Math.abs(d.delta)>0.05){const k=d.mode,cur=state[k]?.[selected]||0;setEdit(k,cur+(k==='offset'?+d.delta.toFixed(1):Math.round(d.delta)))}else applyExplode();return}
   if(!down||Math.hypot(ev.clientX-down.x,ev.clientY-down.y)>10)return;const h=hit(ev);if(h&&(h.object.userData.gizmo||h.object.userData.ring!==undefined))return;
+  if(h&&(h.object.userData.ax!==undefined||h.object.userData.axline!==undefined)){if(ev.altKey){const list=axisList(),i=h.object.userData.ax?h.object.userData.ax.i:h.object.userData.axline;   // alt-click an axis or its end: drop that fan (the last one stays — a radial job has to turn about something)
+      if(list.length>1){list.splice(i,1);state.axes=list;renderFields();slice()}
+      else status('the last axis stays — alt-click the model to add another first');}return}
   if(h&&h.object.userData.cp!==undefined){if(ev.altKey){const list=(state.curve&&state.curve.length?state.curve:plan.curve_pts||[]).map(x=>[x[0],x[1]]);if(list.length>2){list.splice(h.object.userData.cp,1);state.curve=list;renderFields();slice()}}return}   // alt-click a dot: remove it (a curve keeps two)
   if(h&&ev.altKey)togglePoint(h);else if(h)highlight(h.object);else deselect()});
 
@@ -544,9 +963,12 @@ function protoHint(){if(!plan)return;const size=+$('#pr_size').value||0,s=size>0
   else{h.textContent=`at ×${s.toFixed(3)} the ${thin.toFixed(2)} mm parts would print ${printed.toFixed(2)} mm, under the ${mn} mm minimum — the set is planned again at ${(mn/s).toFixed(2)} mm material so the slots fit the printed parts (a note travels in the zip)`;h.style.color='var(--warn)'}}
 function renderDownloads(){ // the labels checkbox applies to every cut file; the server names files <project or model>_v<rev>_…
   protoHint();
-  const b=`api/job/${CLIENT}/${job}`,L=$('#x_labels').checked?1:0,step=$('#pr_step').value||0.1;
-  $('#dl').innerHTML=[['sheets SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}`],['sheets PDF (one page per sheet)',`${b}/export?fmt=pdf&labels=${L}`],['sheets EPS',`${b}/export?fmt=eps&labels=${L}`],
-    ['one file per piece SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&per_piece=1`],['assembled STL',`${b}/stl`],['plan.json',`jobs/${CLIENT}/${job}/plan.json`],
+  const b=`api/job/${CLIENT}/${job}`,L=$('#x_labels').checked?1:0,K=$('#x_key').checked?1:0,step=$('#pr_step').value||0.1;
+  // what the labels on the parts mean, before the cut rather than after it
+  $('#legend').innerHTML=`<b>how the parts are labelled</b><br>${(mode.legend||'every part carries its own label').replace(/ · /g,'<br>')}`
+    +(state.label_style==='code'?'<br><b>puzzle mode:</b> the parts are engraved with codes instead — assembly-key.txt maps them back':'');
+  $('#dl').innerHTML=[['sheets SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}`],['sheets PDF (one page per sheet)',`${b}/export?fmt=pdf&labels=${L}&key=${K}`],['sheets EPS',`${b}/export?fmt=eps&labels=${L}&key=${K}`],
+    ['one file per piece SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&per_piece=1`],['assembled STL',`${b}/stl`],['plan.json',`jobs/${CLIENT}/${job}/plan.json`],
     ['fit test SVG + DXF (5 slot offsets around yours, cut at 1:1 first)',`${b}/fitcut?fmt=svg,dxf&labels=${L}&step=${step}`],['fit test PDF',`${b}/fitcut?fmt=pdf&labels=${L}&step=${step}`]].map(([t,u])=>`<a href="${u}">${t}</a>`).join('');
 }
 function renderReport(){
@@ -561,7 +983,7 @@ function renderReport(){
    <div><b>${(p.material_area_mm2/1e4).toFixed(1)}</b>dm² material</div><div><b>${p.bbox.map(v=>+(v*UNIT[unit]).toPrecision(3)).join(' × ')}</b>model ${unit}</div>
    <div><b style="color:${c.errors?'var(--err)':'var(--ok)'}">${c.errors}</b>errors</div><div><b style="color:${c.warnings?'var(--warn)':'var(--ok)'}">${c.warnings}</b>warnings</div></div>`;
   const fixBtns=(s,e)=>{const f=(s.fixes||[]).find(x=>x.error===e);return f?'<br>'+f.options.map((o,i)=>`<span class="fix" data-fix='${JSON.stringify(o.set).replace(/'/g,'&#39;')}' title="${o.note||''}">${o.title}</span>`).join(''):''};
-  const msgs=[...p.notes.map(n=>`<div class="msg note">${n}</div>`),...p.errors.map(e=>`<div class="msg err">${e}</div>`),
+  const msgs=[...p.notes.map(n=>`<div class="msg note">${n}</div>`),...p.errors.map(e=>`<div class="msg err">${e}${fixBtns({fixes:p.fixes||[]},e)}</div>`),
     ...p.dropped.flatMap(s=>s.errors.map(e=>`<div class="msg err">${s.label}: ${e}</div>`)),
     ...p.slices.flatMap(s=>[...s.errors.map(e=>`<div class="msg err" data-s="${s.label}" title="click to select this part">${s.label}: ${e}${fixBtns(s,e)}</div>`),
                             ...s.warnings.map(w=>`<div class="msg warn" data-s="${s.label}" title="click to select this part">${s.label}: ${w}${fixBtns(s,w)}</div>`)])];
@@ -577,7 +999,7 @@ function renderReport(){
   $('#pr_go').onclick=e=>{e.currentTarget.href=`api/job/${CLIENT}/${job}/proto?${prq()}`;countUse('export','proto-3mf')};
   $('#fit_go').onclick=e=>{const q=prq();q.set('step',$('#pr_step').value||0.1);e.currentTarget.href=`api/job/${CLIENT}/${job}/fit?${q}`;countUse('export','fit-3mf')};
   for(const id of ['#pr_scale','#pr_size','#pr_min'])$(id).oninput=protoHint;
-  $('#pr_step').oninput=renderDownloads;
+  $('#pr_step').oninput=renderDownloads; $('#x_labels').onchange=$('#x_key').onchange=renderDownloads;
   // Which formats people actually take away — the strongest signal of what machines they run. The link's own
   // query string already names them, so nothing extra has to be tracked to know it.
   $('#dl').onclick=e=>{const a=e.target.closest('a');if(!a)return;
@@ -634,7 +1056,7 @@ async function init(){
   $('#modes').onclick=e=>{if(e.target.dataset.m){deselect();setMode(e.target.dataset.m);countUse('technique',e.target.dataset.m);slice()}};
   $('#material').onchange=e=>{const n=e.target.value,m=MATERIALS[n];state.material=n;
     if(m){const ts=matThicks(n);if(!ts.some(t=>Math.abs(t[0]-state.thickness)<1e-6))state.thickness=ts[Math.floor(ts.length/2)][0];   // a stock thickness of the new material
-      if(!machineOf(state.machine)?.cuts.includes(n))applyMachine(m.machine);                                                              // a machine that cuts it
+      if(!machineOf(state.machine)?.cuts.includes(n))applyMachine(m.machine);                                                             // a machine that cuts it
       if(!shs().some(([,s])=>sameSheet(s,state.sheet)))state.sheet=[...shs()[0][1]];                                                       // a sheet it comes in
       $('#look').value=m.look;applyLook()}
     renderFields();schedule()};
@@ -659,13 +1081,25 @@ async function init(){
   $('#pdel').onclick=()=>{const n=$('#presets').value;if(!n)return;const ps=ls('slicer_presets',{});delete ps[n];lsSet('slicer_presets',ps);renderPresets()};
   $('#origsize').onclick=()=>{state.scale=1;state.size=[0,0,0];state.rotate=[0,0,0];state.up_axis='z';renderFields();fitted=false;slice()};
   $('#undo').onclick=()=>step(undos,redos); $('#redo').onclick=()=>step(redos,undos);
+  $('#helpbtn').onclick=()=>$('#helpdlg').showModal(); $('#help_go').onclick=()=>$('#helpdlg').close();
+  $('#newsbtn').onclick=()=>showNews(true); $('#news_go').onclick=()=>$('#newsdlg').close();
+  whatsNew();
+  $('#oops_go').onclick=()=>oops.close('go'); $('#oops_no').onclick=()=>oops.close('');
   $('#clear').onclick=async()=>{if(!confirm('Delete everything this tab has sliced — uploaded models, cut files and the session? Presets are kept.'))return;await fetch(`api/session?client=${CLIENT}`,{method:'DELETE'});location.reload()};
   $('#psave2').onclick=saveProject; $('#popen').onclick=()=>$('#pfile').click(); $('#pfile').onchange=e=>{if(e.target.files[0])openProject(e.target.files[0]);e.target.value=''};
   $('#pname').oninput=e=>{state.project=e.target.value;schedule()}; $('#pminor').onclick=()=>bump(false); $('#pmajor').onclick=()=>bump(true);
   $('#unit').onchange=e=>{unit=e.target.value;state.units=unit;renderFields();if(plan){renderReport();renderSheets([...$$('#sheets svg')].map(s=>s.outerHTML))}};
   $('#x_labels').onchange=()=>{if(job)renderDownloads()};
   $$('nav button').forEach(b=>b.onclick=()=>showTab(b.dataset.t));
-  const newModel=()=>{job=null;fitted=false;deselect();Object.assign(state,{offset:{},tilt:{},roll:{},thick:{},skip:[],dowels:[],curve:[],extra_x:[],extra_y:[]});renderFields()};
+  // A new model keeps none of the last one's geometry. These parameters are in its millimetres or under its part
+  // labels — axis lines, curve points, dowels, per-slice edits — so they are cleared from the form *and* from the
+  // per-technique memory. Without the second half, opening a model that slices stacked and then switching to radial
+  // restored the fan of axes placed on some earlier model, instead of the single centred axis radial starts from.
+  const newModel=()=>{job=null;fitted=false;deselect();
+    for(const m of Object.values(memo))for(const k of MODEL_BOUND)delete m[k];
+    for(const p of allParams())if(MODEL_BOUND.includes(p.name))state[p.name]=structuredClone(p.default);
+    for(const k of MODEL_BOUND)if(!allParams().some(p=>p.name===k))delete state[k];   // another technique's: gone entirely
+    renderFields()};
   // `model/example` vs `model/upload` says whether people bring real work or only try the samples — the file
   // itself never leaves the browser and its name is never sent, only which of the two it was.
   // a bundled example opens on its preset (examples/presets.json): its technique, standing the right way up, sliced
@@ -673,7 +1107,17 @@ async function init(){
   const applyPreset=()=>{const pr=PRESETS[$('#example').value];if(!pr)return;
     setMode(pr.mode,false);Object.assign(state,{rotate:[0,0,0],size:[0,0,0],scale:1,round:0,thicken:0,shrinkwrap:0,smooth:0,hollow:0,space:0},structuredClone(pr.params));renderFields()};
   $('#example').onchange=()=>{pendingFile=null;newModel();applyPreset();countUse('model','example');slice()};
-  $('#file').onchange=e=>{pendingFile=e.target.files[0]||null;newModel();if(pendingFile){countUse('model','upload');slice()}};
+  // A big mesh in the browser build is slow but not refused — the ceiling is this tab's memory, and it is the
+  // reporter's machine that knows better than a fixed number. So: say what it will cost, then do as they say.
+  const BIG=50e6;   // ~1 M triangles: the point where a slice in Pyodide goes from a wait to a very long wait
+  $('#file').onchange=e=>{const f=e.target.files[0]||null; pendingFile=f; newModel(); if(!f)return;
+    const go=()=>{countUse('model','upload');slice()};
+    if(document.documentElement.dataset.static&&f.size>BIG)
+      popup(`${f.name} is ${(f.size/1e6).toFixed(0)} MB`,'',
+        `<p>This published version slices inside your browser tab, and a model this size can take many minutes there — or run the tab out of memory.</p>
+         <p>Running Lamina on your own computer has no limit and is far faster: <a href="${LOCAL_DOC}" target="_blank" rel="noopener">how to install it</a> (a double-click installer, or one command).</p>`,
+        'Slice it here anyway',ok=>{if(ok)go();else{pendingFile=null;e.target.value=''}});
+    else go()};
   // the session belongs to this tab (mode, every parameter, the model's job, per-technique memory), so a refresh
   // resumes it instead of starting over; another tab is another session and sees nothing of this one
   const sess=await fetch(`api/session?client=${CLIENT}`).then(r=>r.ok?r.json():{}).catch(()=>({}));
@@ -741,6 +1185,9 @@ window.laminaFeedback?.({bug:async withModel=>{
 
 // test and capture hook (working-files/ui_cdp.mjs, working-files/capture.mjs)
 window.__t={parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>plan,job:()=>job,
+  ghost:()=>ghost.children,ghostUrl:()=>ghostUrl,pivot:()=>pivot3&&rnd(pivot3),
+  screen:p=>{const q=new THREE.Vector3(p[0],p[1],p[2]).project(camera),r=renderer.domElement.getBoundingClientRect();
+    return [r.left+(q.x+1)/2*r.width,r.top+(1-q.y)/2*r.height]},   // world point → the pixel to click, for drag testshit,
   select:l=>{const m=parts.children.find(c=>c.userData.slice===l);if(m)highlight(m)},deselect,applyFix,
   pickAt:(x,y)=>pick({clientX:x,clientY:y})?.userData.slice,
   hitAt:(x,y)=>{const h=hit({clientX:x,clientY:y});return h?(h.object.userData.gizmo?'gizmo':h.object.userData.slice):null},

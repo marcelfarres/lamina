@@ -64,6 +64,35 @@ def test_placed_parts_fit_sheet_and_dont_overlap(monkeypatch, many):
                 assert overlap < 1e-6, f"pieces {i} and {j} on sheet {sheet_index} overlap by {overlap}"
 
 
+def test_a_part_too_big_for_the_sheet_keeps_its_sheet_to_itself():
+    """A model far bigger than the sheet, split off: whatever cannot be cut small enough overhangs its sheet, but it
+    may never be nested over — the reported "parts overlap each other and run off the page" was a part placed
+    without its no-fit polygon, so every later part read the sheet as empty."""
+    plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 6, "size": [600, 600, 300],
+                                                    "sheet": [200, 150], "split": False, "autofix": "off"})
+    assert any("bigger than the 200 × 150 mm sheet" in e for e in plan["errors"]), plan["errors"]
+    for sheet_index in range(plan["sheets"]):
+        polys = placed_polygons(plan, sheet_index)
+        for i in range(len(polys)):
+            for j in range(i + 1, len(polys)):
+                assert polys[i].intersection(polys[j]).area < 1e-6, f"sheet {sheet_index}: {i} over {j}"
+
+
+def test_a_part_over_the_sheet_both_ways_is_cut_both_ways():
+    """One pass of the splitter fixes one direction. A part wider and longer than the sheet needs both, or the pieces
+    it produces still do not fit and land on top of each other."""
+    from types import SimpleNamespace
+    from shapely.geometry import box
+    from core.geometry import as_multi
+    from core.split import split_slice, fits_rotated
+    sl = SimpleNamespace(label="Z-1", profile=as_multi(box(0, 0, 600, 400)), lines=[], marks=[], warnings=[], errors=[],
+                         pieces=None, facets=None, thickness=3)
+    split_slice(sl, (300, 300), 5, 8)
+    assert len(sl.pieces) >= 4
+    assert all(fits_rotated(pc.geom, (300, 300), 5) for pc in sl.pieces), [pc.geom.bounds for pc in sl.pieces]
+    assert abs(sum(pc.geom.area for pc in sl.pieces) - 600 * 400) < 1e-6      # the pieces still tile the part
+
+
 def test_a_part_of_another_thickness_gets_its_own_sheet_and_says_so(tmp_path):
     """One slice thickened by hand is cut from other stock: it may not share a sheet with the rest, the plan says
     what each sheet is cut from, and the cut files name it so the wrong sheet is not loaded on the machine."""

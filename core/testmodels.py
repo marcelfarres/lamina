@@ -3,7 +3,8 @@
     python -m core.testmodels examples/
 
 geometric: cube, cylinder, cone, pyramid, sphere, torus, bracket (L + hole), tube (hollow), tall_bar (needs splitting)
-organic:   egg, snowman (asymmetric), blob (metaball, bumpy), pear, twisted (twisted ellipsoid), bowl (thin shell)
+organic:   egg, snowman (asymmetric), blob (metaball, bumpy), pear, twisted (twisted ellipsoid), bowl (thin shell),
+           dumbbell (two spheres on a neck: radial with an axis per lobe)
 """
 import sys, pathlib
 import numpy as np
@@ -49,6 +50,13 @@ def bowl():
     return diff(outer, inner, cut)
 
 
+def dumbbell():
+    """Two spheres on a neck: the case for radial with an axis per lobe — a fan each, the neck is where the bands
+    meet, and a spine through both axes holds one ball to the other."""
+    return union(icosphere(4, 24).apply_translation([0, 0, -36]), icosphere(4, 24).apply_translation([0, 0, 36]),
+                 cylinder(radius=10, height=72, sections=64))
+
+
 MODELS = {
     # geometric
     "cube": lambda: box([60, 60, 60]),
@@ -67,6 +75,7 @@ MODELS = {
     "pear": pear,
     "twisted": twisted,
     "bowl": bowl,
+    "dumbbell": dumbbell,
 }
 
 if __name__ == "__main__":

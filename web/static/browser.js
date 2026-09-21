@@ -11,7 +11,12 @@
     worker = new Worker('static/browser-worker.js', {type: 'module'});
     worker.onmessage = e => {
       const m = e.data;
-      if (m.frac !== undefined) { window.dispatchEvent(new CustomEvent('lamina-progress', {detail: m})); return }   // a slice under way
+      // a slice under way; a mesh riding along is one the build has finished with, shown before the rest of it
+      if (m.frac !== undefined) {
+        if (m.model instanceof Uint8Array) m.model = URL.createObjectURL(new Blob([m.model]));
+        window.dispatchEvent(new CustomEvent('lamina-progress', {detail: m}));
+        return;
+      }
       if (m.progress !== undefined) { m.progress ? box().textContent = m.progress : box().remove(); return }       // Python loading
       const w = waiting.get(m.id); waiting.delete(m.id); w(m);
     };

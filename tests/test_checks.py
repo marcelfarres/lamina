@@ -21,6 +21,21 @@ def test_no_crossing_slice_error_and_autofix_add_resolves_it():
     assert fixed["counts"]["errors"] == 0
 
 
+def test_a_stacked_layer_is_never_offered_for_deletion():
+    """A layer of a stack *is* the model at that height: "delete Z-2" answers the check and ruins the piece, which is
+    what the reporter hit. The fixes offered for a stacked layer keep it — glue the stack, thinner pegs, grow the
+    outline, round the model — while the same errors elsewhere may still offer a deletion."""
+    plan = build(EXAMPLES / "cube.stl", "stacked", {
+        "distribution": "count", "count": 3, "size": [40, 40, 40], "min_feature": 50, "autofix": "off",
+    })
+    stacked = [o["title"] for sl in plan["slices"] if sl["group"] == "S" for f in sl["fixes"] for o in f["options"]]
+    assert stacked, "no fixes offered at all"
+    assert not any(t.startswith("delete") for t in stacked), stacked
+    assert any("grow" in t or "round" in t or "thicken" in t for t in stacked), stacked
+    crossing = build(EXAMPLES / "cube.stl", "curve", {"count": 6, "spines": 0, "autofix": "off"})
+    assert any(t.startswith("delete") for sl in crossing["slices"] for f in sl["fixes"] for o in f["options"] for t in [o["title"]])
+
+
 def test_thin_feature_error_when_min_feature_exceeds_part():
     """The cube scaled to 40 mm with min_feature at the slider's top (50 mm): every stacked slice's own bulk reads
     as "too thin", forcing the check_slice() min_dims() thin-part branch."""

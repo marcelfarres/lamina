@@ -88,6 +88,47 @@ def test_a_project_name_is_text_in_the_svg_not_markup(tmp_path):
     assert '<img' in "".join(tree.xpath('//svg:g[@id="LABEL"]/svg:text/text()', namespaces=SVG_NS))   # but text
 
 
+def test_assembly_key_explains_the_labels_and_lists_every_part(tmp_path):
+    """The map that comes out of the cut: what a label means (the mode's own legend) and every part with where it
+    sits. It is written only when asked for, so the fit-test folders stay clean."""
+    plan = build(EXAMPLES / "cylinder.stl", "radial", {"count": 5, "ring_count": 3, "autofix": "off"})
+    export(plan, tmp_path, fmts=("svg",), labels=True, key=True)
+    key = (tmp_path / "assembly-key.txt").read_text(encoding="utf-8")
+    assert plan["legend"].split(" · ")[0] in key
+    assert all(pc["label"] in key for sl in plan["slices"] for pc in sl["pieces"])
+
+    export(plan, tmp_path / "plain", fmts=("svg",), labels=True)
+    assert not (tmp_path / "plain" / "assembly-key.txt").exists()
+
+
+def test_puzzle_mode_engraves_codes_and_the_key_is_the_way_back(tmp_path):
+    """label_style=code engraves a code that gives nothing away — in the drawing and in the file name — while the
+    plan, the sheet's data-label (what the UI matches a selection on) and the key keep the real labels."""
+    params = {"distribution": "count", "count": 4, "label_style": "code", "autofix": "off"}
+    plan = build(EXAMPLES / "egg.stl", "stacked", params)
+    codes = plan["codes"]
+    assert set(codes) == {pc["label"] for sl in plan["slices"] for pc in sl["pieces"]}
+
+    export(plan, tmp_path, fmts=("svg",), labels=True, key=True)
+    sheets = "".join(f.read_text(encoding="utf-8") for f in sorted(tmp_path.glob("sheet*.svg")))
+    for label, code in codes.items():
+        assert f">{code}<" in sheets                      # engraved: the code
+        assert f">{label}<" not in sheets                 # never where the part goes
+        assert f'data-label="{label}"' in sheets          # the sheet ↔ 3D selection is unchanged
+    key = (tmp_path / "assembly-key.txt").read_text(encoding="utf-8")
+    assert all(code in key and label in key for label, code in codes.items())
+    assert build(EXAMPLES / "egg.stl", "stacked", params)["codes"] == codes   # same job, same codes as yesterday
+
+
+def test_per_piece_files_in_puzzle_mode_are_named_after_the_code(tmp_path):
+    """A folder of Z-1, Z-2, Z-3 would give the order away before a single piece is cut."""
+    plan = build(EXAMPLES / "egg.stl", "stacked",
+                 {"distribution": "count", "count": 4, "label_style": "code", "autofix": "off"})
+    export(plan, tmp_path, fmts=("svg",), labels=True, per_piece=True)
+    stems = {f.stem.split("_")[0] for f in tmp_path.glob("*.svg")} - {"scale-check"}
+    assert stems and stems <= set(plan["codes"].values())
+
+
 def test_pdf_has_one_page_per_sheet(tmp_path):
     plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 3, "autofix": "off"})
     export(plan, tmp_path, fmts=("pdf",), labels=True)

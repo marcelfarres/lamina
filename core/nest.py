@@ -127,6 +127,9 @@ def _minkowski(A, b):
     return shapely.polygons(shapely.linearrings(pts, indices=seg))
 
 
+LONG = 4            # a sheet taller than this many times its width is a `one_sheet` strip, not a sheet (see Sheet)
+
+
 class Sheet:
     """Parts already placed on one sheet: their grown outlines (for the labels) and convex pieces (for the no-fit polygons)."""
     def __init__(self, W, H, margin):
@@ -135,9 +138,14 @@ class Sheet:
         # A raster of the sheet, CELL wide, a cell blocked when a placed part covers it whole, and the radius of the
         # largest disc the free cells hold (a distance transform): a part whose hull holds a bigger disc cannot fit,
         # and is not searched for a spot, which costs a union per rotation. A blocked frame stands for the margin.
-        self.blocked = np.ones((int(H / CELL) + 3, int(W / CELL) + 3), bool)
-        self.blocked[self.cell(margin):self.cell(H - margin) + 1, self.cell(margin):self.cell(W - margin) + 1] = False
-        self.room_r = distance_transform_edt(~self.blocked).max() * CELL
+        # It is only ever a shortcut, so a `one_sheet` strip (100 m long: fifteen million cells, transformed again
+        # for every part placed — 40 minutes for 400 parts) does without it and answers "yes, there is room", which
+        # on a strip that long is also the truth.
+        self.blocked = None
+        if H <= LONG * W:
+            self.blocked = np.ones((int(H / CELL) + 3, int(W / CELL) + 3), bool)
+            self.blocked[self.cell(margin):self.cell(H - margin) + 1, self.cell(margin):self.cell(W - margin) + 1] = False
+            self.room_r = distance_transform_edt(~self.blocked).max() * CELL
 
     def cell(self, v):
         return int(v / CELL) + 1
@@ -145,6 +153,8 @@ class Sheet:
     def add(self, geom, pc, convex=()):
         self.placed.append(geom); self.pieces.append(pc)
         self.convex += [_edges(p) for p in convex]
+        if self.blocked is None:
+            return
         x0, y0, x1, y1 = geom.bounds
         ny, nx = self.blocked.shape                                       # a part too big for the sheet sticks out
         r0, r1, c0, c1 = max(self.cell(y0), 0), min(self.cell(y1) + 1, ny), max(self.cell(x0), 0), min(self.cell(x1) + 1, nx)
@@ -156,7 +166,7 @@ class Sheet:
         self.room_r = distance_transform_edt(~self.blocked).max() * CELL
 
     def room(self, r):
-        return r <= self.room_r + 1.5 * CELL
+        return self.blocked is None or r <= self.room_r + 1.5 * CELL
 
     def spot(self, pieces, bounds):
         """Lowest, then leftmost, position of a part's origin where it fits, touching allowed, or None: the inner-fit
@@ -282,9 +292,12 @@ def _nest(pieces, sheet, gap, margin, kerf=0.0, label_h=0.0, font=4.0):
             if best is not None:
                 break
         if best is None:                                            # genuinely bigger than one sheet (already flagged)
-            geom, lines, marks = _xf(pc, rot0, margin - pc.kerfed.bounds[0], margin - pc.kerfed.bounds[1])
+            dx, dy = margin - pc.kerfed.bounds[0], margin - pc.kerfed.bounds[1]
+            geom, lines, marks = _xf(pc, rot0, dx, dy)
             pc.place = (len(sheets) - 1, margin, margin, rot0); pc.placed, pc.placed_lines, pc.placed_marks = geom, lines, marks
-            sh.add(geom, pc)
+            # with its convex pieces, like any other part: without them the sheet reads as empty and the next parts
+            # are nested on top of it — the oversize part overhangs the sheet, it does not share it
+            sh.add(affinity.translate(affinity.rotate(grown, rot0, origin=(0, 0)), dx, dy), pc, [p + (dx, dy) for p in turned[0]])
             continue
         _, r, x, y = best
         geom, lines, marks = _xf(pc, rot0 + r, x, y)

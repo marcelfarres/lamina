@@ -113,9 +113,17 @@ async function hand(via) {
   try { fd = await build() } catch (e) { $('#fb_note').textContent = 'could not read the model: ' + e.message; return }
   const file = fd.get('project');
   if (file) save(file, file.name);                             // neither route can carry it, so it lands in Downloads
-  if (via === 'email') location.href = mailto(fd, file); else open(issueUrl(fd, file), '_blank', 'noopener');
+  if (via === 'email') sendMail(mailto(fd, file)); else open(issueUrl(fd, file), '_blank', 'noopener');
   $('#fb_note').textContent = (via === 'email' ? 'Your mail program should be opening.' : 'The issue form is open in another tab.')
     + (file ? ` Please attach ${file.name} — it was just saved to your downloads.` : '');
+}
+
+// A mailto: in this tab is not safe: with a web mail handler (Gmail is the common one) the browser navigates the tab
+// to the compose page and the job is gone. A new tab instead; a desktop mail program leaves that tab blank, and the
+// blank is closed again — a tab that went to a web client is cross-origin by then, which the try swallows.
+function sendMail(url) {
+  const w = open(url, '_blank', 'noopener');
+  setTimeout(() => { try { if (w && w.location.href === 'about:blank') w.close() } catch {} }, 2000);
 }
 
 // the same record either way, as plain text
@@ -139,5 +147,5 @@ function issueUrl(fd, file) {
 }
 
 addEventListener('click', e => { const a = e.target.closest('[data-feedback]'); if (a) { e.preventDefault(); show(a.dataset.feedback) } });
-window.__feedback = {show, build, mailto, issueUrl};      // test hook (tests/test_e2e_site.py)
+window.__feedback = {show, build, mailto, issueUrl, sendMail};      // test hook (tests/test_e2e_site.py)
 })();

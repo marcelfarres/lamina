@@ -4,6 +4,9 @@
 Take a closed triangle mesh (a head, an animal, anything) and cut it into flat panels that fold back into the shape.
 Two sub-problems: **unfolding** (which edges become folds, which become seams — a spanning tree of the mesh's dual
 graph, with the constraint that the flattened panel must not overlap itself) and **joining** (what goes on the seams).
+The mesh does not have to be closed: panels are cut from the surface itself, so in folded mode `plan.py` never mends
+it. A clothing pattern, a mask or a shell with a neck hole is panelled around its boundary — those edges are nobody's
+seam and carry no joints — while every other technique, which needs a solid to section, is mended as before.
 Finding an overlap-free single-patch unfolding is NP-complete in general [Haenselmann 2012] and does not always exist
 (Dürer's problem); every practical tool therefore uses heuristics plus search, and cuts into several patches when it
 has to.

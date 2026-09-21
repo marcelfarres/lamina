@@ -81,6 +81,8 @@ class Curve(Mode):
         if len(st) < 2:
             return np.zeros(len(U))
         return np.interp(U, st, wv)
+    legend = ("R-4 = the 4th rib along the curve, counted from its start · "
+              "K-1 = the 1st spine, the long part that threads through every rib and holds the spacing")
     params = [
         Param("plane", "choice", "xz", "Plane that contains the curve (first letter = along, second = up)", choices=["xz", "yz", "xy"]),
         Param("curve", "list", [], "Control points [[u,v],...] in the plane (mm, model centred at 0); empty = straight line through the middle along the plane's first axis", unit="mm"),

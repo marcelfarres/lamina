@@ -1,8 +1,22 @@
 """Data carried through the pipeline."""
 from __future__ import annotations
+import random
+import zlib
 from dataclasses import dataclass, field
 import numpy as np
 from shapely.geometry import MultiPolygon
+
+ABC = "ABCDEFGHJKLMNPQRSTUVWXYZ"        # no I or O: engraved at 4 mm they are a 1 and a 0
+
+
+def label_codes(labels, seed: str) -> dict:
+    """Puzzle mode: a two-letter code per part, in no relation to where the part goes. Seeded by the job (model +
+    technique) and drawn from sorted labels, so re-slicing the same job engraves the same codes and a part cut
+    yesterday still matches today's key."""
+    pool = [a + b for a in ABC for b in ABC]
+    rng = random.Random(zlib.crc32(seed.encode()))   # noqa: S311 — a repeatable shuffle of label codes, not a secret
+    rng.shuffle(pool)
+    return {lab: pool[i % len(pool)] for i, lab in enumerate(sorted(set(labels)))}
 
 
 @dataclass

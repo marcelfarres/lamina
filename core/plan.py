@@ -3,7 +3,7 @@
     uv run python -m core.plan examples/egg.stl --mode interlocked --set nx=5 ny=4 thickness=3 --out working-files/egg
 """
 from __future__ import annotations
-import argparse, json, pathlib, time
+import argparse, json, math, pathlib, time
 import numpy as np
 import trimesh
 from shapely import affinity
@@ -13,31 +13,43 @@ from .geometry import section_polygons, as_multi, poly_coords, line_coords
 from .checks import check_plan, min_dims, autofix, suggest_fixes, crossing_suggestions
 from .split import split_slice, fits_rotated
 from .nest import nest, _min_rect_angle
-from .model import Piece
+from .model import Piece, label_codes
 
 MODES = load_all()
 CAD_SUFFIXES = {".step", ".stp", ".brep", ".iges", ".igs"}
 
 
-def report(text, frac):
-    """Where progress() forwards each stage of build(): what is happening and how far along (0..1). A no-op here; the
-    browser worker points it at the page, where a slice of a big model in Pyodide takes long enough to look stuck."""
+def report(text, frac, artifact=None):
+    """Where progress() forwards each stage of build(): what is happening, how far along (0..1), and — when a stage
+    has just finished something worth looking at before the rest — the file it wrote. A no-op here; the server and
+    the browser worker point it at the page, where a slice of a big model takes long enough to look stuck."""
 
 
 STAGES: list[tuple[str, float]] = []      # (stage text, clock) marks of the build under way — one build at a time per process
+BAND = (0.0, 1.0)                         # the slice of the bar this pass owns (see the autofix loop in build)
+DETAIL = " · "                            # everything after it is detail of the stage, not a stage of its own
 
 
 def progress(text, frac):
     STAGES.append((text, time.perf_counter()))
-    report(text, frac)
+    lo, hi = BAND
+    report(text, lo + frac * (hi - lo))
+
+
+def ready(path, frac):
+    """Something finished that can be shown while the rest is still being worked out — the preview mesh, so the 3D
+    view fills in instead of holding the model back until the last sheet is nested. No stage of its own: it says
+    "this is on disk now", and the stage line stays where it was."""
+    report("", frac, str(path))
 
 
 def timing() -> dict[str, float]:
-    """Seconds per stage of the build, read off the progress marks; a counted stage ("sectioning 3 / 16") folds into
-    one row. This is what an optimisation has to move, so it rides in the plan and in the server's timing log."""
+    """Seconds per stage of the build, read off the progress marks; a stage's detail ("sectioning · 3 / 16",
+    "· pass 2 of 3") folds into one row. This is what an optimisation has to move, so it rides in the plan and in
+    the server's timing log."""
     out = {}
     for (text, t0), (_, t1) in zip(STAGES, STAGES[1:]):
-        k = text.split(" ")[0] if text[-1].isdigit() else text
+        k = text.split(DETAIL)[0]
         out[k] = round(out.get(k, 0.0) + t1 - t0, 3)
     return out
 
@@ -116,9 +128,23 @@ def voxelize_solid(mesh, pitch):
 def modify_form(mesh, p, notes, fine=False):
     """Slicer's Modify Form: shrinkwrap (voxel remesh), round (drop features smaller than r and round corners =
     morphological opening + closing), thicken (dilate), hollow (keep a wall). One voxel pass; `fine` takes the
-    finest grid, for a remesh nobody asked for."""
+    finest grid, for a remesh nobody asked for.
+
+    The grid has to resolve what it is asked to do. Rounding 2 mm off a 200 mm model on 1.7 mm voxels means the ball
+    doing the rounding is one cube wide, and a smooth surface comes back as a staircase — measured on the egg, the
+    angle between neighbouring faces went from 2.5° to 10° (95th percentile 55°). So the pitch follows the smallest
+    feature asked for, not the size of the model, and the steps a grid always leaves are smoothed off at the end."""
     from scipy import ndimage
-    pitch = max(p["shrinkwrap"] or max(mesh.extents) / (300 if fine else 120), max(mesh.extents) / 300)   # 300³ voxels at most: a fine pitch on a big model is a memory request, not a detail
+    ext = max(mesh.extents)
+    feats = [v for v in (p["round"], p["thicken"], p["hollow"]) if v]
+    pitch = p["shrinkwrap"] or (min(feats) / 2 if feats else ext / (300 if fine else 120))
+    pitch = max(pitch, ext / (300 if fine or p["shrinkwrap"] else 120))   # a grid finer than this is a memory request,
+    # not a detail — and on a scan it also thins the neck of every ear and leg until the checks call them separate.
+    # Nor finer than the mesh it would make: marching cubes lays about two triangles on every pitch² of surface, and
+    # half a million of them is slow to section everywhere and more than the browser's heap will take beside a slice.
+    # Coarsening the grid is the honest way to that ceiling — decimating afterwards would cost the watertight surface
+    # every section depends on.
+    pitch = max(pitch, math.sqrt(2 * mesh.area / REMESH_FACES))
     pad = int(np.ceil((p["thicken"] + p["round"]) / pitch)) + 2
     m, origin = voxelize_solid(mesh, pitch)
     m = np.pad(m, pad)
@@ -134,7 +160,14 @@ def modify_form(mesh, p, notes, fine=False):
         m = m & ~ndimage.binary_erosion(m, iterations=n)
     out = trimesh.voxel.ops.matrix_to_marching_cubes(m, pitch=pitch)
     out.apply_translation(origin - pad * pitch)
-    notes.append(f"modify form: remeshed at {pitch:.2f} mm voxels ({len(out.faces)} faces)")
+    # Every grid leaves a staircase one voxel tall on a curved surface. Taubin smoothing is volume-preserving, so it
+    # takes the steps off without shrinking what the morphology just built: part of producing a usable remesh, not a
+    # separate switch to remember. `smooth` is still yours to add on top.
+    trimesh.smoothing.filter_taubin(out, iterations=STAIRS)
+    # What is left is a ripple about a fifth of a voxel deep along every curve, which no grid this side of the memory
+    # ceiling removes. `section_polygons` takes it off each outline instead; this is how it knows the grid it came from.
+    out.metadata["lamina_pitch"] = pitch
+    notes.append(f"modify form: remeshed at {pitch:.2f} mm voxels ({len(out.faces)} faces), steps and grid smoothed off")
     return out
 
 
@@ -146,6 +179,16 @@ def smooth_mesh(mesh, iterations):
 
 
 ONE_SHEET_H = 100000.0     # "one sheet" mode nests against this height and reports the length actually used
+STAIRS = 3                 # Taubin passes that take the voxel staircase off a remesh: measured on the egg, three
+                           # take it from 13 % of edges over 45° to 0 %, and more only thins what is already thin
+REMESH_FACES = 120000      # what a remesh is decimated to: plenty of detail, and every later section stays quick
+
+
+from .modes.folded import simplify as decimate    # noqa: E402 — fewer faces, same shape. Folded panels have needed
+# this since they were written, including the fallback that matters most here: where there is no wheel for quadric
+# decimation (the browser build) it clusters vertices in plain numpy instead of handing back the mesh untouched.
+# That mesh is the one every section is cut from and the one the preview ships, so leaving it at half a million
+# faces is what put the browser's heap under enough pressure to hand GEOS a NaN.
 
 
 def coverage(mesh, slices, r, lat=3.0):
@@ -202,16 +245,20 @@ def load_mesh(path, params, notes=None, mode=""):
             mesh.apply_scale([tgt[i] / ext[i] if tgt[i] > 0 else 1 for i in range(3)])
     if params["scale"] != 1:                          # multiplies the target size when one is set
         mesh.apply_scale(params["scale"])
-    if not mesh.is_watertight:                        # a union that left a seam, a scan with a hole: mend before anything drastic
+    # Folded panels are cut from the surface itself, so an open edge is the input and not a defect: a clothing
+    # pattern, a mask, a shell with a neck hole is panelled around its boundary. Mending first closed exactly those
+    # into solids — the decision has to come before the repair, not after it fails.
+    surface = mode == "folded"
+    if not mesh.is_watertight and not surface:        # a union that left a seam, a scan with a hole: mend before anything drastic
         mesh.merge_vertices(); mesh.update_faces(mesh.nondegenerate_faces()); mesh.update_faces(mesh.unique_faces())
         trimesh.repair.fill_holes(mesh); trimesh.repair.fix_normals(mesh)
         if mesh.is_watertight:
             notes.append("mesh was not watertight: mended (vertices merged, duplicate faces dropped, holes filled) and sliced as modelled")
-    open_surface = not mesh.is_watertight and mode == "folded"      # masks, clothing patterns: keep the surface, no repair
-    if open_surface:
-        notes.append("open surface (not a closed solid): kept as is — its boundary edges stay open, only inner edges get joints")
-    auto = not mesh.is_watertight and not open_surface and not params["shrinkwrap"]
-    if params["shrinkwrap"] or params["hollow"] or params["thicken"] or params["round"] or (not mesh.is_watertight and not open_surface):
+    if surface and not mesh.is_watertight:
+        notes.append("open surface (not a closed solid): panelled as it is — its boundary edges stay open and carry "
+                     "no joints, and a hole in the surface stays a hole")
+    auto = not mesh.is_watertight and not surface and not params["shrinkwrap"]
+    if params["shrinkwrap"] or params["hollow"] or params["thicken"] or params["round"] or auto:
         if auto:                                      # the voxel grid leaves stairs: the finest grid, then smoothed
             notes.append("mesh is not watertight and could not be mended — remeshed on a fine voxel grid and smoothed (set shrinkwrap to choose the resolution)")
         progress("modify form: remeshing", 0.06)
@@ -262,29 +309,30 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     p = coerce_params(mode, raw_params)
     notes = []
     STAGES.clear()
+    global BAND
+    BAND = (0.0, 1.0)
     mesh = load_mesh(model_path, p, notes, mode_name)
     if mesh_out:                                    # processed model for the browser's ghost view (decimated)
         progress("preparing the preview model", 0.18)
-        ghost = mesh
-        if len(mesh.faces) > 30000:
-            try:
-                import fast_simplification
-                v, f = fast_simplification.simplify(np.asarray(mesh.vertices, np.float32), np.asarray(mesh.faces, np.int32), target_count=30000)
-                ghost = trimesh.Trimesh(v, f)
-            except ImportError:                          # no wheel for the browser build: the ghost is the whole mesh
-                pass
+        ghost = decimate(mesh, 30000)
         ghost.export(mesh_out)
+        ready(mesh_out, 0.19)                       # the 3D view can show the model now: it does not wait for the slices
     sheet0 = list(p["sheet"])
     if p["one_sheet"]:                              # one strip as wide as the sheet, as long as it needs: nest against a huge height
         p["sheet"] = [sheet0[0], ONE_SHEET_H]
     # build → section → check; with autofix = add, floating regions get a crossing slice and we build again (2 rounds)
     for attempt in range(3):
-        progress("placing slices and slots", 0.2)
+        # A second pass repeats these stages, which used to send the bar back to 20 % with no word about why. Each
+        # extra pass gets a band of its own near the end instead, so the bar only moves forward, and every stage of
+        # it says which pass it is and how many there can be.
+        BAND = (0.0, 1.0) if not attempt else (0.7 + 0.08 * (attempt - 1), 0.7 + 0.08 * attempt)
+        again = "" if not attempt else f"{DETAIL}pass {attempt + 1} of 3, holding the parts that float"
+        progress("placing slices and slots" + again, 0.2)
         ctx = Ctx(mesh, p)
         slices = mode.build(ctx)
         kept = []
         for i, sl in enumerate(slices):         # sections → profiles (modes may hand over a finished `raw` for synthetic parts)
-            progress(f"sectioning {i + 1} / {len(slices)}", 0.35 + 0.35 * i / len(slices))
+            progress(f"sectioning{DETAIL}{i + 1} of {len(slices)}{again}", 0.35 + 0.35 * i / len(slices))
             if sl.raw is None:
                 raw = section_polygons(mesh, sl.M)
                 if sl.clip is not None:
@@ -304,7 +352,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
             kept.append(sl)
         dropped = [s for s in slices if s not in kept]
         slices = kept
-        progress("checking the parts and the assembly", 0.7)
+        progress("checking the parts and the assembly" + again, 0.7)
         n_err, n_warn = check_plan(slices, p, mesh, ctx.span)
         if p["autofix"] != "add" or not n_err or attempt == 2:
             break
@@ -315,6 +363,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
             for k, v in s.items():
                 p[k] = sorted(set(map(float, p[k])) | set(map(float, v))) if isinstance(v, list) else v
         notes.append(f"auto-fix: added crossing slices ({len(adds)}) so every region is held")
+    BAND = (0.0, 1.0)                               # the passes are over: the last stages own the rest of the bar
     if p["autofix"] != "off" and n_err:
         slices, fixed = autofix(slices, p)
         if fixed:
@@ -330,15 +379,37 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
             split_slice(sl, p["sheet"], p["sheet_margin"], p["tab"])
         else:
             sl.pieces = [Piece(sl.label, sl.profile, sl, sl.lines, sl.marks)]
-            if not fits_rotated(sl.profile, p["sheet"], p["sheet_margin"]):
-                small, large = min_dims(sl.profile)      # rotation is free on the sheet
-                sl.errors.append(f"does not fit the sheet ({large:.0f}×{small:.0f} mm) — "
-                                 + ("split cannot cut a folded panel: use a smaller facet size or a bigger sheet" if sl.facets is not None
-                                    else "enable split or use a bigger sheet"))
+    # every finished piece, however it was made, has to fit the sheet: a part that does not overhangs the drawing and
+    # takes a sheet to itself, so it is an error whether or not `split` was asked to cut it
+    over = [(sl, pc, *min_dims(pc.geom)) for sl in slices for pc in sl.pieces      # rotation is free on the sheet
+            if not fits_rotated(pc.geom, p["sheet"], p["sheet_margin"])]
+    if over:
+        # the size the model would have to be for its parts to fit, so "too big for my sheet" comes with the number
+        long_s, short_s = sorted((p["sheet"][0] - 2 * p["sheet_margin"], p["sheet"][1] - 2 * p["sheet_margin"]), reverse=True)
+        f = min(min(long_s / large, short_s / small) for _, _, small, large in over)
+        fit = [round(float(e) * f, 1) for e in mesh.extents]
+        fit_txt = " × ".join(f"{v:g}" for v in fit)
+        for sl, pc, small, large in over:
+            e = (f"{pc.label} does not fit the sheet ({large:.0f}×{small:.0f} mm on {sheet0[0]:g}×{sheet0[1]:g}) — "
+                 + ("split cannot cut a folded panel: use a smaller facet size or a bigger sheet" if sl.facets is not None
+                    else "enable split or use a bigger sheet" if not p["split"]
+                    else "even split cannot cut it small enough: use a bigger sheet or a smaller model"))
+            sl.errors.append(e)
+            # suggest_fixes has already run (the pieces only exist here), so this error brings its own fixes
+            sl.fixes.append({"error": e, "options": ([] if p["split"] else [{"title": "split oversize parts", "set": {"split": True}}])
+                             + [{"title": f"scale the model to {f:.0%} ({fit_txt} mm)", "set": {"size": fit, "scale": 1}}]
+                             + ([] if p["one_sheet"] else [{"title": "one long sheet (cut the strip apart at the machine)", "set": {"one_sheet": True}}])})
+        ctx.errors.append(f"{len(over)} part(s) are bigger than the {sheet0[0]:g} × {sheet0[1]:g} mm sheet: "
+                          f"set `size` to about {fit_txt} mm ({f:.0%} of this model)"
+                          + (", or use a bigger sheet" if p["one_sheet"] else ", use a bigger sheet, or turn on `one_sheet`"))
+        n_err += len(over) + 1
     pieces = [pc for sl in slices for pc in sl.pieces]
     kerf = p["kerf"] if p["compensate"] else 0.0       # off by default: many machines compensate their own kerf
     n_sheets = nest(pieces, p["sheet"], p["gap"], p["sheet_margin"], kerf, p["font"] * 1.6 if p["labels"] else 0, p["font"])
     mark_identical(pieces, p["mirror_ok"])             # which parts are the same part: one cut file, one row, a quantity
+    # puzzle mode: what gets engraved is a code with no order in it. The plan keeps the real labels — the app, the
+    # checks and the 3D view are the "plans" you consult when you give up — and the export carries the key.
+    codes = label_codes([pc.label for pc in pieces], f"{pathlib.Path(model_path).name}|{mode_name}") if p["label_style"] == "code" else {}
     sheet_thick = [p["thickness"]] * n_sheets           # the stock each sheet is cut from: nest keeps one per sheet
     for pc in pieces:
         sheet_thick[pc.place[0]] = pc.parent.thickness
@@ -356,14 +427,18 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
 
     plan = {
         "model": str(pathlib.Path(model_path).resolve()), "mode": mode_name, "params": p, "notes": notes,
+        "legend": mode.legend,                                               # what the labels mean (Export tab, assembly key)
         "bbox": [float(e) for e in mesh.extents],
         "axes": [a.tolist() for a in ctx.ax], "mid": ctx.mid.tolist(),      # slicing frame (for click-placed points in the UI)
         "curve3d": getattr(ctx, "curve3d", None), "curve_pts": getattr(ctx, "curve_pts", None),
+        "axes3d": getattr(ctx, "axes3d", None),                              # radial: each fan's axis, drawn and dragged in 3D
+        "bounds3d": getattr(ctx, "bounds3d", []),                            # radial: the planes between lobes, moved and tilted like slices
         "rods": getattr(ctx, "rods", []),                                    # dowel rods for the 3D view: [[x0,y0,z0],[x1,y1,z1],d]
         "params_used": {k: p[k] for k in ("extra_x", "extra_y", "ring_count") if k in p},   # what autofix=add changed
         "sheets": n_sheets, "sheet": sheet_out, "sheet_thick": sheet_thick, "kerf": kerf,
         "counts": {"slices": len(slices), "parts": len(pieces), "errors": n_err, "warnings": n_warn, "faces": int(len(mesh.faces))},
-        "errors": ctx.errors,
+        "codes": codes,                                                      # puzzle mode: engraved code → real label
+        "errors": ctx.errors, "fixes": getattr(ctx, "fixes", []),          # mode-level errors and their one-click fixes
         "material_area_mm2": float(sum(pc.geom.area for pc in pieces)),
         "coverage": cov,
         "timing": timing(),

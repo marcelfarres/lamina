@@ -103,7 +103,23 @@ starts from your numbers.
 
 ## Quick start
 
-Needs Python 3.11 or newer and [uv](https://docs.astral.sh/uv/); everything else is installed for you.
+**Never used a terminal? You do not need one.**
+[Download the ZIP](https://github.com/marcelfarres/lamina/archive/refs/heads/main.zip), unzip it, and double-click
+the starter for your computer in the folder that appears:
+
+| your computer | double-click this |
+|---|---|
+| Windows | `Start Lamina (Windows).bat` — SmartScreen may ask: **More info → Run anyway** |
+| macOS | `Start Lamina (Mac).command` — if it refuses: right-click → **Open** → **Open** |
+| Linux | `Start Lamina (Linux).sh` — mark it executable and choose "Run in Terminal" |
+
+It asks once whether it may install [uv](https://docs.astral.sh/uv/) (a small tool that fetches Python and the
+libraries into your own user folder), downloads them — a few minutes, once — and opens
+<http://localhost:8000>. Leave the text window open while you work; closing it stops Lamina. There is no signed
+`.dmg`/`.exe` installer: Apple and Microsoft both charge yearly for the signature a free tool would need, so the
+starters are the same convenience without it.
+
+**From a terminal** — Python 3.11 or newer and [uv](https://docs.astral.sh/uv/); everything else is installed for you:
 
 ```bash
 git clone https://github.com/marcelfarres/lamina.git
@@ -140,9 +156,13 @@ their own computer, which formats they export — is sent only if they tick the 
 ### How long a slice takes
 
 The browser version is the whole program, compiled to WebAssembly and running on your own CPU, so it is a little
-slower than the local version rather than a lot; while it works, the overlay shows the stage and a percentage, and
-after twenty seconds it says so in words. Measured on the bundled examples at their presets (one core of a 2024
-laptop, Chrome; the local column is `uv run`, the Docker image is the same):
+slower than the local version rather than a lot. Neither one makes you wait in the dark: **your model appears in the
+3D view as soon as the build has finished with the mesh** — seconds in, while the slices are still being cut — and
+the overlay lists the stages of the slice with the one it is on, `step 5 of 9 · sectioning · 12 of 34 · 46 %`, so a
+long wait has a shape. A second pass (auto-fix adding crossing slices) says so and keeps the bar moving forward
+instead of dropping back to 20 %. After twenty seconds the browser version also says, in words, that the local one
+is faster. Measured on the bundled examples at their presets (one core of a 2024 laptop, Chrome; the local column
+is `uv run`, the Docker image is the same):
 
 | example | technique | faces | parts | local | browser |
 |---|---|---|---|---|---|
@@ -167,11 +187,13 @@ and `docker compose pull && docker compose up -d` moves it to the newest build. 
 Several people can share one server: each browser tab holds a random id, everything it slices lives under that id,
 and no other tab can name it. A tab nobody has touched for `LAMINA_TTL_HOURS` (24 by default, 0 = never) is deleted,
 models and all, the next time anyone slices; the header's **clear my data** button deletes a tab's own at once.
-Uploads over `LAMINA_MAX_UPLOAD_MB` (30 by default) are refused. `WEB_CONCURRENCY` is how many slices run at the same
+Uploads are not capped by default — your own computer's memory is the only limit, and a cap that refused a 40 MB
+mesh on a laptop with 32 GB was simply wrong. Set `LAMINA_MAX_UPLOAD_MB` when the server faces other people, where a
+stranger's 2 GB scan is not yours to hold. `WEB_CONCURRENCY` is how many slices run at the same
 time (one uvicorn worker each, about 300 MB). Lamina still has no login of its own, so put it behind your reverse
 proxy's authentication if the server is reachable from the internet.
 
-The Model tab opens on a bundled example; [examples/](examples/README.md) holds 21 of them, and each opens on the
+The Model tab opens on a bundled example; [examples/](examples/README.md) holds 22 of them, and each opens on the
 technique and parameters that suit it ([examples/presets.json](examples/presets.json) — the shape standing the right
 way up, sliced without an error; a test keeps that true). The same pipeline runs headless, so it can be scripted:
 
@@ -194,9 +216,9 @@ The original's six techniques as five modes: its *3D Slices* is stacked with `su
 |---|---|---|
 | `stacked` | parallel sections, touching or with an empty `space`; outline `mid` / `outer` (Slicer's 3D Slices: sand down to shape) / `inner`; connected by **dowels** (6 hole shapes), flat **pegs**, or tabbed **spacers** that keep the space; points aligned, random per pair, or along your 3D lines | `Z-n`, connectors `P-n` |
 | `interlocked` | two slotted families, egg-crate; notch ratio / flare / relief; grid rotation; extra slices at chosen positions | `X-n`, `Y-n` |
-| `radial` | half-slices around an axis (move it with `center`, turn the fan with `angle`) locked by horizontal ring slices with radial slots; ring count or spacing | `R-na/b`, rings `Z-n` |
+| `radial` | half-slices around an axis (move it with `center`, turn the fan with `angle`) locked by horizontal ring slices with radial slots; ring count or spacing. **Several axes**: a fan per lobe — an axis through each of a dumbbell's balls, one per ball of a snowman, tilted to follow it. Neighbouring lobes are parted by a flat plane between their axes — a translucent part in the 3D view that you click and move or tilt like any slice — so the fans never run into each other, and a **spine** — one full plane through every axis, cut whole and slotted into every ring — ties the lobes together: automatic, found from how the axes lie (on one line, any number; on one plane, exactly one; on no plane, an error naming the fix). Every axis is drawn in the 3D view where it passes through the model: drag it whole or by either end (it stays on the plane the other axes share, so the spine survives the drag), alt-click the model for a parallel axis through that point, `+` to split one in two, alt-click an axis to remove it | `R-na/b` (`R2-na/b` per axis), rings `Z-n`, spines `SP-n` |
 | `curve` | ribs perpendicular to a curve through the model (its centre line by default, following the body across the plane too; drag the blue dots, alt-click to add or remove one), so they follow a bend instead of staying parallel; locked together by spine slices. The turn between neighbouring ribs is limited so they do not meet inside the model | `R-n`, spines `K-n` |
-| `folded` | surface unfolded into flat panels with score lines (strategies flat / strip / area, or auto); thirteen joints: seam, tab, multitab, diamond, ticked, gear, tongue, puzzle, rivet, laced, loops, strip, rib, each sized to its triangle; **separate** mode cuts every triangle alone | `P-n`, strips `S-n`, ribs `R-n` |
+| `folded` | surface unfolded into flat panels with score lines (strategies flat / strip / area, or auto); thirteen joints: seam, tab, multitab, diamond, ticked, gear, tongue, puzzle, rivet, laced, loops, strip, rib, each sized to its triangle; **separate** mode cuts every triangle alone. The model need not be closed: panels are cut from the surface, so a clothing pattern, a mask or a shell with a neck hole is panelled as it is — its boundary edges stay open and carry no joints | `P-n`, strips `S-n`, ribs `R-n` |
 
 Common to all: model `rotate` (three angles) and slicing `center`, per-slice `offset` / `tilt` / `roll` / `thick` /
 `skip` (delete), `size` (a target size on any axis) with `scale` multiplying it, `up_axis`, Modify Form (`shrinkwrap`,
@@ -229,6 +251,16 @@ does not slip through. It carries the most signal for stacked and folded work; d
   to be cut apart at the machine.
 - **Labels** are engraved beside the part with a leader line wherever there is room; only a fully crowded sheet puts
   one on the part.
+- **An assembly key** comes with the cut files (`assembly-key.txt`): what this technique's labels mean — `R-2a` is the
+  *a* half of the second radial plane, `Z-3` the third ring up — then every part with its centre, what it slots onto,
+  in the order the 3D view builds them. The same legend is shown in the Export tab, so the scheme is clear before the
+  cut rather than guessed after it. A tickbox leaves the file out of the zip.
+- **Puzzle mode** (`label_style=code`) engraves a two-letter code instead of the position, and names the per-piece
+  files after it, so nothing on the parts says where they go. The codes are seeded by the job, so re-slicing engraves
+  the same ones; the app, the Parts table and the 3D view keep the real labels — they are the plans you consult when
+  you give up — and the key is the only way back. Leave it out of the zip and the puzzle stays a puzzle.
+- **An assembly video**: the steps slider played and recorded off the 3D view as a `.webm`, made in the page itself —
+  nothing uploaded, nothing rendered twice.
 - **Cut files**: SVG and DXF in mm / cm / in, multi-page PDF, EPS per sheet, or one file per piece, each with or
   without the red label layer (one switch for every file). Layers follow Slicer's Cut Layout: OUTER blue, INNER green
   (slots, holes), SCORE yellow (folds: solid mountain, dashed valley, dotted perforate), LABEL red (labels, leaders,
@@ -327,13 +359,23 @@ insertion direction. Every message says what to do about it.
 The `test` workflow runs the suite on every push and pull request; `docker` and `pages` publish from `main` only,
 and `pages` deploys nothing until the built site has sliced with every technique in a real browser.
 
+Two of them drive a real browser, because that is where the bugs people report actually live:
+[tests/test_ui.py](tests/test_ui.py) runs the app against a real server and does what a person does — fills every
+box of every technique and checks each value reached the plan, walks the undo history end to end and back, uploads
+a broken model, saves and reopens a project, downloads the cut files — and fails on any uncaught JavaScript error
+or a status line that never settles. [tests/test_e2e_site.py](tests/test_e2e_site.py) does the same for the
+published browser build. Both need `LAMINA_UI=1` / `LAMINA_E2E=1` and Playwright's Chromium, so they stay out of
+the quick run.
+
 ```bash
 uv run ruff check                       # lint (pyflakes, bugbear, bandit, pyupgrade); the test workflow runs it first
 uv run pytest tests                     # pipeline, nesting, checks, export, the web API, the browser build's code path,
                                         # and every slider end / choice / toggle of every technique (tests/test_params.py)
 uv run --with pytest-cov pytest --cov=core --cov=web --cov-report=term-missing   # coverage: 88 % of core + web
 uv run python tests/browser_env.py working-files/jobs   # the whole matrix without the compiled extras Pyodide lacks
-python deploy/build_site.py && uv run --with playwright playwright install chromium
+uv run --with playwright playwright install chromium
+LAMINA_UI=1 uv run --with playwright pytest tests/test_ui.py   # the app itself, driven like a person (11 min)
+python deploy/build_site.py
 LAMINA_E2E=1 uv run --with playwright pytest tests/test_e2e_site.py   # the built site, end to end, in Chromium
 uv run python tests/test_unfold.py      # folded-panel correctness: refold, area, seams, joints (a few minutes)
 uv run python tests/run_matrix.py       # regression matrix of model × mode × feature → working-files/matrix/contact.png
@@ -345,9 +387,9 @@ uv run python -m core.testmodels examples/   # regenerate the synthetic example 
 ```text
 core/        planner, modes, unfold, notch, checks, nest, split, export, solid
 web/         FastAPI app + single-page UI (vendored three.js)
-examples/    21 test models: 16 synthetic + a scanned head, three animals and the bunny (terms in examples/README.md)
+examples/    22 test models: 17 synthetic + a scanned head, three animals and the bunny (terms in examples/README.md)
 docs/        index.html + media/ (the GitHub Pages site), roadmap.md, folded-panels.md, original-slicer-reference.md
-tests/       pytest suite, test_unfold.py, run_matrix.py
+tests/       pytest suite, test_ui.py (the app in a browser), test_unfold.py, run_matrix.py
 ```
 
 ### Serving the docs

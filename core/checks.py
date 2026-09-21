@@ -219,15 +219,19 @@ def check_assembly(slices, p):
 
 def autofix(slices, p):
     """Remove what cannot work: slices nothing crosses, regions nothing holds, held-family parts below the minimum size.
-    Stacked slices keep their small glued islands (ears, horns) — those are warnings, not removals.
+    A whole layer of a stack is never removed — take it out and the model has a gap through it — but one island of
+    that layer is: the tip of an ear that touches nothing would fall off the finished piece anyway.
     Returns notes describing what was removed; check_plan must run again afterwards."""
     notes, keep = [], []
     for sl in slices:
         regions = list(sl.profile.geoms)
         drop = set()
         for e in sl.errors:
-            if "no crossing slice" in e or ("not connected to the main assembly" in e and sl.group != "S"):
-                drop = set(range(len(regions))) if not e.startswith("region") else drop | {int(e.split()[1]) - 1}
+            if "no crossing slice" in e or "not connected to the main assembly" in e:
+                if e.startswith("region"):
+                    drop |= {int(e.split()[1]) - 1}
+                elif sl.group != "S":
+                    drop = set(range(len(regions)))
             if e.startswith("part too small") or e.startswith("part too thin") or e.startswith("part thinner"):
                 drop = set(range(len(regions)))
             for i in range(len(regions)):
@@ -270,6 +274,11 @@ def suggest_fixes(slices, p, ctx, mode):
     for sl in slices:
         sl.fixes = []
         t = sl.thickness
+        # A layer of a stack is the model at that height: take it out and the model has a slot missing through it and
+        # the layers above sit wrong. So a stacked layer is never offered for deletion — the fixes that keep it are.
+        stack = sl.group == "S"
+        def delete(lb, title=None, stack=stack):
+            return [] if stack else [{"title": title or f"delete {lb}", "set": {"skip": [lb] if isinstance(lb, str) else lb}}]
         toward = float(np.sign(np.dot(ctx.mid - sl.M[:3, 3], sl.M[:3, 2])) or 1.0)   # toward the centre along the normal
         off = dict(p["offset"]).get(sl.label, 0.0)
         for e in sl.errors:
@@ -284,38 +293,39 @@ def suggest_fixes(slices, p, ctx, mode):
                 opts.append({"title": f"move {sl.label} {step:.0f} mm toward the centre", "set": {"offset": {sl.label: round(off + toward * step, 1)}}})
                 if "not connected" in e:
                     grp = e.split("separate group: ")[1].split(")")[0].split(", ")
-                    opts.append({"title": f"delete the group ({len(grp)} parts)", "set": {"skip": grp}})
+                    opts += delete(grp, f"delete the group ({len(grp)} parts)")
                     opts.append({"title": "round the model 3 mm (merges thin gaps)", "set": {"round": 3}})
+                    if stack:                          # keep the layer, join it instead: glue the stack or thin the pegs
+                        opts.append({"title": "gap 0 (touching, glued)", "set": {"space": 0}})
+                        opts.append({"title": f"smaller connectors ({p.get('dowel_d', 6) * 0.6:.1f} mm)", "set": {"dowel_d": round(p.get("dowel_d", 6) * 0.6, 1)}})
                 elif "across the gap" in e:            # a stacked island the dowel does not fit in
                     opts.append({"title": f"smaller connectors ({p['dowel_d'] * 0.6:.1f} mm)", "set": {"dowel_d": round(p["dowel_d"] * 0.6, 1)}})
                     opts.append({"title": "gap 0 (touching, glued)", "set": {"space": 0}})
                 else:
-                    opts.append({"title": f"delete {sl.label}", "set": {"skip": [sl.label]}})
+                    opts += delete(sl.label)
             elif "cannot slide into its slot" in e:
                 other = e.split()[0]
                 opts.append({"title": f"move {other} {2 * t:g} mm", "set": {"offset": {other: round(dict(p["offset"]).get(other, 0.0) + 2 * t, 1)}}})
                 opts.append({"title": f"move {other} −{2 * t:g} mm", "set": {"offset": {other: round(dict(p["offset"]).get(other, 0.0) - 2 * t, 1)}}})
                 opts.append({"title": "notch ratio 0.35", "set": {"notch_ratio": 0.35}})
                 opts.append({"title": "notch ratio 0.65", "set": {"notch_ratio": 0.65}})
-                opts.append({"title": f"delete {other}", "set": {"skip": [other]}})
+                opts += delete(other)
             elif "cut the part into" in e:
                 opts.append({"title": f"move {sl.label} {2 * t:g} mm", "set": {"offset": {sl.label: round(off + 2 * t, 1)}}})
                 opts.append({"title": f"move {sl.label} −{2 * t:g} mm", "set": {"offset": {sl.label: round(off - 2 * t, 1)}}})
                 if mode.name in ("interlocked", "curve", "radial"):
                     opts.append({"title": "notch ratio 0.35", "set": {"notch_ratio": 0.35}})
                     opts.append({"title": "notch ratio 0.65", "set": {"notch_ratio": 0.65}})
-                opts.append({"title": f"delete {sl.label}", "set": {"skip": [sl.label]}})
+                opts += delete(sl.label)
             elif "too small" in e or "too thin" in e or "thinner than" in e:
                 opts.append({"title": f"grow {sl.label}'s outline {p['min_feature'] / 2:g} mm (bridges become ≥ {p['min_feature']:g} mm)", "set": {"grow": {sl.label: p["min_feature"] / 2}}})
-                opts.append({"title": f"delete {sl.label}", "set": {"skip": [sl.label]}})
+                opts += delete(sl.label)
                 opts.append({"title": "thicken the model 2 mm", "set": {"thicken": 2}})
                 opts.append({"title": "round the model 2 mm", "set": {"round": 2}})
             elif "crosses" in e and "collide" in e:
                 other = e.split()[1]
                 opts.append({"title": f"reset tilt / roll / offset of {sl.label}", "set": {"tilt": {sl.label: 0}, "roll": {sl.label: 0}, "offset": {sl.label: 0}}})
-                opts.append({"title": f"delete {other}", "set": {"skip": [other]}})
-            elif "does not fit the sheet" in e:
-                opts.append({"title": "split oversize parts", "set": {"split": True}})
+                opts += delete(other)
             if opts:
                 sl.fixes.append({"error": e, "options": opts})
         # warnings worth a one-click fix as well
