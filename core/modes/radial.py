@@ -40,7 +40,7 @@ class Radial(Mode):
               "SP-1 = a spine: the full plane that runs through every axis and ties the fans together")
     params = [
         Param("axis", "choice", "z", "Central axis (when `axes` below is empty)", choices=["x", "y", "z"]),
-        Param("axes", "lines3", [], "One line per fan (start → end, mm from the model's centre): where that axis sits, which way it points, "
+        Param("axes", "lines3", [], "One line per fan (start → end, from the model's centre): where that axis sits, which way it points, "
                                     "and the stretch of the model its rings are spread along. Empty = one axis through the centre. Neighbouring "
                                     "lobes are parted by a flat plane between their axes (B-1-2, a translucent part in the 3D view: click it and "
                                     "drag the arrow to move it, shift-drag to tilt, ctrl-drag to roll, or use the sliders), so the fans never "

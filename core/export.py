@@ -142,7 +142,15 @@ def thick_tag(plan, mm):
     if len({round(sl["thickness"], 6) for sl in plan["slices"]}) < 2:
         return ""
     u = plan["params"].get("units", "mm")
-    return f"_{mm * UNIT[u]:.3g}{u}"
+    return f" {mm * UNIT[u]:.3g}{u}"
+
+
+def mat_tag(plan):
+    """The stock in a file name, when the job says what it is: a file that leaves for a machine should name what it is
+    cut from. Anything but a letter, digit, dash or space becomes a space — the name travels from a project file
+    someone else wrote, and a path separator in it must never reach the file system."""
+    m = "".join(c if c.isalnum() or c in " -" else " " for c in str(plan["params"].get("material") or "")).strip()
+    return f" {m}" if m else ""
 
 
 def sheet_title(plan, si):
@@ -348,17 +356,18 @@ def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, bor
             elif fmt == "eps": f.write_text(eps_doc(items, w, h, labels, border_, font), encoding="latin-1")
             elif fmt == "pdf": pdf_doc(f, [(items, w, h)], labels, border_, font)
             written.append(f)
-    if per_piece:                                   # identical pieces once, with the quantity in the file name and the label
+    if per_piece:                                   # identical pieces once, named "<part> <material> <thickness> x<qty>"
         rows = []
         if plan["params"].get("scale_check", True):
             cpc, cnote, _, _ = scale_check_piece(plan)
-            it, w, h = item_for_piece(cpc, cnote); write("scale-check", [it], w, h, False)
-            rows.append(("scale-check", 1, cnote))
+            stem = "scale-check" + mat_tag(plan) + " x1"
+            it, w, h = item_for_piece(cpc, cnote); write(stem, [it], w, h, False)
+            rows.append((stem, 1, cnote))
         thick = {pc["label"]: sl["thickness"] for sl in plan["slices"] for pc in sl["pieces"]}
         for pc, note, labels, flips in identical_groups(plan):
             n = len(labels); t = thick[pc["label"]]
             # in puzzle mode the file is named after the code too: a folder of Z-1, Z-2 … gives the order away
-            stem = names.get(pc["label"], pc["label"]) + (f"_x{n}" if n > 1 else "") + thick_tag(plan, t)
+            stem = names.get(pc["label"], pc["label"]) + mat_tag(plan) + thick_tag(plan, t) + f" x{n}"
             # the drawing carries the count and how many of them are turned over; the cut list names which ones
             it, w, h = item_for_piece(pc, " ".join(x for x in ([f"×{n}"] if n > 1 else []) + [f"({len(flips)} turned over)" if flips else "", note] if x), names=names)
             write(stem, [it], w, h, False)
@@ -371,7 +380,7 @@ def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, bor
         W, H = plan["sheet"]
         pages = [(items_for_sheet(plan, si), W, H) for si in range(plan["sheets"])]
         for si, (items, _, _) in enumerate(pages):
-            write(f"sheet{si + 1}{thick_tag(plan, sheet_thickness(plan, si))}", items, W, H, border,
+            write(f"sheet{si + 1}{mat_tag(plan)}{thick_tag(plan, sheet_thickness(plan, si))}", items, W, H, border,
                   [x for x in fmts if x != "pdf"], sheet_title(plan, si) if labels else "")
         if "pdf" in fmts:                           # one multi-page PDF for all sheets
             f = out_dir / "sheets.pdf"; pdf_doc(f, pages, labels, border, font); written.append(f)

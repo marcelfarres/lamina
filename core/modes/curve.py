@@ -85,8 +85,8 @@ class Curve(Mode):
               "K-1 = the 1st spine, the long part that threads through every rib and holds the spacing")
     params = [
         Param("plane", "choice", "xz", "Plane that contains the curve (first letter = along, second = up)", choices=["xz", "yz", "xy"]),
-        Param("curve", "list", [], "Control points [[u,v],...] in the plane (mm, model centred at 0); empty = straight line through the middle along the plane's first axis", unit="mm"),
-        Param("distribution", "choice", "count", "count = N ribs; distance = one rib every `spacing` mm of curve length", choices=["count", "distance"]),
+        Param("curve", "list", [], "Control points [[u,v],...] in the plane (model centred at 0); empty = straight line through the middle along the plane's first axis", unit="mm"),
+        Param("distribution", "choice", "count", "count = N ribs; distance = one rib every `spacing` of curve length", choices=["count", "distance"]),
         Param("count", "int", 8, "Rib count", 1, 300, 1),
         Param("spacing", "number", 20, "Rib spacing along the curve (mm)", 1, 500, 0.5, unit="mm"),
         Param("spines", "int", 1, "Spine slices in the curve plane (0 = ribs only, glue/wire them yourself)", 0, 20, 1),

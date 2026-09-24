@@ -108,11 +108,11 @@ def test_a_part_of_another_thickness_gets_its_own_sheet_and_says_so(tmp_path):
     assert all(plan["sheet_thick"][s] == 3 for s in others)
     assert "6 mm stock" in sheet_title(plan, sheet_of["Z-2"]) and "3 mm stock" in sheet_title(plan, min(others))
     files = {f.name for f in export(plan, tmp_path, fmts=("svg",), labels=True)}
-    assert f"sheet{sheet_of['Z-2'] + 1}_6mm.svg" in files
-    assert any(f.endswith("_3mm.svg") for f in files)
+    assert f"sheet{sheet_of['Z-2'] + 1} 6mm.svg" in files
+    assert any(f.endswith(" 3mm.svg") for f in files)
     pieces = {f.name for f in export(plan, tmp_path / "pp", fmts=("svg",), labels=True, per_piece=True)}
-    assert "Z-2_6mm.svg" in pieces                             # the identical squares are not merged across stock
-    assert any(f.startswith("Z-1") and f.endswith("_3mm.svg") for f in pieces)
+    assert "Z-2 6mm x1.svg" in pieces                          # the identical squares are not merged across stock
+    assert any(f.startswith("Z-1") and f.endswith(" 3mm x3.svg") for f in pieces)
 
 
 def test_a_disc_nests_inside_a_ring():

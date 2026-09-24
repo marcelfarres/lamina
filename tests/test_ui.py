@@ -12,6 +12,7 @@ plan the server built.
 import json
 import os
 import pathlib
+import re
 import socket
 import subprocess
 import sys
@@ -104,8 +105,8 @@ def sweep_values(schema):
     close enough that no slice takes a minute. Returns [(input id, value), …] and {name: expected in the plan}."""
     ids, want = [], {}
     for p in schema:
-        if p["type"] not in TYPED or p["group"] == "hidden":
-            continue
+        if p["type"] not in TYPED or p["group"] == "hidden" or p["name"] == "units":
+            continue                                 # units changes how every other box reads: its own test below
         name, d = p["name"], p["default"]
         if p["type"] == "bool":
             v = not d
@@ -358,6 +359,60 @@ def test_a_model_too_big_for_the_sheet_says_what_would_fit(page):
     fixes = [o["title"] for sl in p["slices"] for f in sl["fixes"] for o in f["options"]]
     assert any(t.startswith("scale the model to") for t in fixes), fixes
     assert any(t == "split oversize parts" for t in fixes), fixes
+    page.click("#origsize")
+    settle(page)
+
+
+@pytest.mark.timeout(900)
+def test_units_change_what_is_shown_never_what_is_stored(page):
+    """The unit on the toolbar is how lengths read, never what they are. Typed in inches, a value reaches the server
+    exact (1/16 in is 1.5875 mm, not 1.59); the boxes step in round numbers of the unit, so 0.25 in is a valid entry;
+    switching back and forth leaves every stored value where it was; and the planner's messages, its fix buttons and
+    the help, all written in mm, read in the unit on show."""
+    page.click('nav button[data-t="technique"]')
+    page.click('#modes button[data-m="stacked"]')
+    settle(page)
+    page.select_option("#unit", "in")
+    page.click('nav button[data-t="sheet"]')
+    step, low = page.eval_on_selector("#p_thickness", "el => [el.step, el.min]")
+    assert re.fullmatch(r"0\.0*[125]", step), step                      # a round step of the unit, not 0.0019685
+    assert abs(float(low) / float(step) - round(float(low) / float(step))) < 1e-9, (low, step)   # min on the step grid
+    assert page.eval_on_selector("#p_thickness", "el => { el.value = '0.25'; return el.checkValidity() }")
+
+    set_fields(page, [("p_thickness", 0.0625)])                          # 1/16 in
+    settle(page)
+    assert plan(page)["params"]["thickness"] == 1.5875
+    assert "1/16 in stock" in page.text_content("#sheets")               # the sheet header reads the fraction it is sold by
+    # a slice of its own thickness, from its panel: selected through the parts table's own handler (the table sits in
+    # a panel this viewport keeps closed)
+    label = page.eval_on_selector("#parts tr[data-s]", "tr => { tr.click(); return tr.dataset.s }")
+    page.eval_on_selector("#n_thick", "el => { el.value = '0.09375'; el.dispatchEvent(new Event('change')) }")   # 3/32 in
+    settle(page)
+    assert page.evaluate("() => window.__t.state().thick")[label] == 2.38125   # was rounded to 2.38
+
+    before = page.evaluate("() => JSON.stringify(window.__t.state())")
+    for _ in range(10):
+        for u in ("cm", "mm", "in"):
+            page.select_option("#unit", u)
+    assert page.evaluate("() => JSON.stringify(window.__t.state())") == before
+
+    page.select_option("#unit", "mm")                                    # a job that does not fit, set up in mm …
+    set_fields(page, [("p_sheet_0", 510), ("p_sheet_1", 298), ("p_split", False)])
+    settle(page)
+    page.click('nav button[data-t="model"]')
+    set_fields(page, [("p_size_1", 500)])
+    settle(page)
+    page.select_option("#unit", "in")                                    # … read in inches, without a re-slice
+    msgs = page.text_content("#msgs")
+    assert "20.0787 × 11.7323 in sheet" in msgs, msgs
+    assert not re.search(r"\d\s*mm\b", msgs), msgs
+    assert not any(re.search(r"\d\s*mm\b", t) for t in page.eval_on_selector_all("#msgs .fix", "fs => fs.map(f => f.textContent)"))
+    page.click('nav button[data-t="sheet"]')
+    page.hover('[data-p="thickness"] .k')
+    tip = page.text_content("#tip")
+    assert "(in)" in tip and "0.0118 in" in tip and not re.search(r"\d\s*mm\b|\(mm\)", tip), tip
+    page.select_option("#unit", "mm")
+    page.click('nav button[data-t="model"]')
     page.click("#origsize")
     settle(page)
 

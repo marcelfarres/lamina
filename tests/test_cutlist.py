@@ -16,14 +16,15 @@ EXAMPLES = ROOT / "examples"
 
 
 def test_per_piece_export_merges_identical_pieces_with_a_quantity(tmp_path):
-    """A cube cut into four equal slabs is four identical squares: one file, quantity 4, the twins named in the cut list."""
-    plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 4, "autofix": "off"})
+    """A cube cut into four equal slabs is four identical squares: one file, quantity 4, the twins named in the cut list.
+    Every per-piece file is "<part> <material> x<qty>", quantity last and written even when there is one of it."""
+    plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 4, "autofix": "off", "material": "plywood"})
     files = {f.name for f in export(plan, tmp_path, fmts=("svg", "eps"), labels=True, per_piece=True)}
-    assert "Z-1_x4.svg" in files and "Z-2.svg" not in files
-    assert "scale-check.svg" in files and "scale-check.eps" in files
+    assert "Z-1 plywood x4.svg" in files and not any(f.startswith("Z-2") for f in files)
+    assert "scale-check plywood x1.svg" in files and "scale-check plywood x1.eps" in files
     cut_list = (tmp_path / "cut-list.txt").read_text(encoding="utf-8")
-    assert "Z-1_x4" in cut_list and "also Z-2, Z-3, Z-4" in cut_list
-    assert "×4" in (tmp_path / "Z-1_x4.svg").read_text(encoding="utf-8")
+    assert "Z-1 plywood x4" in cut_list and "also Z-2, Z-3, Z-4" in cut_list
+    assert "×4" in (tmp_path / "Z-1 plywood x4.svg").read_text(encoding="utf-8")
 
 
 def test_mirror_ok_merges_a_part_with_its_mirror_image(tmp_path):
@@ -38,10 +39,10 @@ def test_mirror_ok_merges_a_part_with_its_mirror_image(tmp_path):
     assert len(identical_groups(on)) == len(identical_groups(off)) - len(flips)        # each pair is one file fewer
     files = {f.name for f in export(on, tmp_path, fmts=("svg",), labels=True, per_piece=True)}
     label, twins = flips[0]
-    assert f"{label}_x2.svg" in files and not any(f.startswith(twins[0] + ".") for f in files)
+    assert f"{label} x2.svg" in files and not any(f.startswith(twins[0] + ".") for f in files)
     cut_list = (tmp_path / "cut-list.txt").read_text(encoding="utf-8")
     assert f"turn over {', '.join(twins)}" in cut_list
-    assert "(1 turned over)" in (tmp_path / f"{label}_x2.svg").read_text(encoding="utf-8")
+    assert "(1 turned over)" in (tmp_path / f"{label} x2.svg").read_text(encoding="utf-8")
 
 
 def test_scale_check_bar_on_the_first_sheet_and_in_inches(tmp_path):

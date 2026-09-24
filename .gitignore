@@ -13,3 +13,4 @@ __pycache__/
 Claude outputs/
 _to_delete/
 .playwright-mcp/
+graphify-out/

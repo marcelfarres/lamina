@@ -2,6 +2,34 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.2.1
+
+Units and file names, both reported after 0.2.0.
+
+### Units
+
+- **The units switch now changes every length on the page.** Before, some places stayed in mm: the panel of the part
+  you had selected, the parts table, the Export tab's boxes, the messages and fix buttons, and the help. Now they all
+  follow the switch, straight away, without slicing again.
+- **Nothing is rounded when you change units.** Lengths are kept exactly as you typed them, and the units only
+  change how they are shown. 1/16 in is 1.5875 mm, where editing a single part used to store 1.59 mm. Switching back
+  and forth any number of times leaves every value where it was.
+- **The boxes step in round numbers of your unit.** In inches the thickness box used to step by 0.0019685 and mark
+  0.25 as invalid. It now steps by 0.002. An exact inch fraction reads as one, as in `1/16 in stock`.
+- **Cut files come out in the units on screen**, even if you changed them after the last slice.
+
+### File names
+
+- **Per-piece files say what they are**: part, material, thickness, then quantity, separated by spaces. For example,
+  `R-1a cardboard x2.svg`. Every file ends in its quantity, `x1` included. Sheet files carry the material too:
+  `sheet1 cardboard.svg`.
+
+Verified by 579 tests, plus 16 driving the app in a real browser (one of them for units) and one slicing the
+published build end to end.
+
+Known issue, also in 0.2.0: in the browser version, the bunny example now and then fails to slice with a geometry
+error (`GEOSException … NaN/Inf`). It shows up in about one run in three of the end-to-end test and is being looked at.
+
 ## 0.2.0
 
 Most of this came from people who wrote in after trying 0.1.0. Thank you — keep them coming.

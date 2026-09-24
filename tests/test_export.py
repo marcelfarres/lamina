@@ -125,7 +125,7 @@ def test_per_piece_files_in_puzzle_mode_are_named_after_the_code(tmp_path):
     plan = build(EXAMPLES / "egg.stl", "stacked",
                  {"distribution": "count", "count": 4, "label_style": "code", "autofix": "off"})
     export(plan, tmp_path, fmts=("svg",), labels=True, per_piece=True)
-    stems = {f.stem.split("_")[0] for f in tmp_path.glob("*.svg")} - {"scale-check"}
+    stems = {f.stem.split(" ")[0] for f in tmp_path.glob("*.svg")} - {"scale-check"}
     assert stems and stems <= set(plan["codes"].values())
 
 

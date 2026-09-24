@@ -242,6 +242,14 @@ def clear(client: str):
     return {}
 
 
+def with_units(plan: dict, units: str) -> dict:
+    """The cut files in the unit the page is showing. The unit is a label on the drawing, not a re-plan, so a download
+    carries the unit picked since the last slice instead of the one that plan was made with."""
+    if units in ("mm", "cm", "in"):
+        plan["params"]["units"] = units
+    return plan
+
+
 def project_file(client: str, jd: pathlib.Path, plan: dict) -> tuple[str, str]:
     """The job as the project file the UI's "open project" reads back (technique, every parameter, per-technique
     memory, and an uploaded model itself), for the zips: a cut file or a printed part found later has to lead back
@@ -271,11 +279,12 @@ def project_file(client: str, jd: pathlib.Path, plan: dict) -> tuple[str, str]:
 
 
 @app.get("/api/job/{client}/{job}/export")
-def job_export(client: str, job: str, fmt: str = "svg,dxf", labels: int = 1, per_piece: int = 0, key: int = 1):
+def job_export(client: str, job: str, fmt: str = "svg,dxf", labels: int = 1, per_piece: int = 0, key: int = 1, units: str = ""):
     jd = job_dir(client, job)
     if not (jd / "plan.json").exists():
         raise HTTPException(404)
     plan = json.loads((jd / "plan.json").read_text())
+    plan = with_units(plan, units)
     fmts = [f for f in fmt.split(",") if f in ("svg", "dxf", "pdf", "eps")]
     tmp = pathlib.Path(tempfile.mkdtemp(dir=jd))
     try:
@@ -357,13 +366,13 @@ def job_fit(client: str, job: str, scale: float = 1.0, size: float = 0.0, labels
 
 
 @app.get("/api/job/{client}/{job}/fitcut")
-def job_fitcut(client: str, job: str, fmt: str = "svg,dxf", labels: int = 1, step: float = 0.1):
+def job_fitcut(client: str, job: str, fmt: str = "svg,dxf", labels: int = 1, step: float = 0.1, units: str = ""):
     """Fit test as cut files at 1:1 for the real machine and material: five small assemblies with the job's joints
     at slot offsets around its own, a folder of sheets each (see core.solid.fit_sheets) — zipped with a README."""
     jd = job_dir(client, job)
     if not (jd / "plan.json").exists():
         raise HTTPException(404)
-    plan = json.loads((jd / "plan.json").read_text())
+    plan = with_units(json.loads((jd / "plan.json").read_text()), units)
     fmts = [f for f in fmt.split(",") if f in ("svg", "dxf", "pdf", "eps")]
     from core.solid import fit_sheets
 

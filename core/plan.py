@@ -390,7 +390,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         fit = [round(float(e) * f, 1) for e in mesh.extents]
         fit_txt = " × ".join(f"{v:g}" for v in fit)
         for sl, pc, small, large in over:
-            e = (f"{pc.label} does not fit the sheet ({large:.0f}×{small:.0f} mm on {sheet0[0]:g}×{sheet0[1]:g}) — "
+            e = (f"{pc.label} does not fit the sheet ({large:.0f}×{small:.0f} mm on {sheet0[0]:g}×{sheet0[1]:g} mm) — "
                  + ("split cannot cut a folded panel: use a smaller facet size or a bigger sheet" if sl.facets is not None
                     else "enable split or use a bigger sheet" if not p["split"]
                     else "even split cannot cut it small enough: use a bigger sheet or a smaller model"))

@@ -73,7 +73,7 @@ COMMON: list[Param] = [
     P("smooth", "int", 0, "Modify form: smoothing passes (Taubin, volume-preserving) that soften pointy vertices and noise. 0 = off, 5–20 typical", 0, 100, 1, group="model"),
     # -- sheet / material
     P("units", "choice", "mm", "Units for the DXF export and for the numbers in this form", choices=["mm", "cm", "in"], group="sheet"),
-    P("thickness", "number", 1.5, "Material thickness (mm). Paper 0.3, card 1, cardboard 3, steel 1–2, plywood 3–6", 0.05, 100, 0.05, group="sheet", unit="mm"),
+    P("thickness", "number", 1.5, "Material thickness (mm). Paper 0.3 mm, card 1 mm, cardboard 3 mm, steel 1–2 mm, plywood 3–6 mm", 0.05, 100, 0.05, group="sheet", unit="mm"),
     P("sheet", "vec2", [600, 400], "Sheet size width, height (mm)", 10, 5000, 1, group="sheet", unit="mm"),
     P("sheet_margin", "number", 5, "Keep-out from the sheet edge (mm)", 0, 100, 0.5, group="sheet", unit="mm"),
     P("gap", "number", 3, "Gap between parts on the sheet (mm)", 0, 50, 0.5, group="sheet", unit="mm"),
@@ -105,6 +105,8 @@ COMMON: list[Param] = [
     # only the drawn part knows. Absent, a slice turns about its frame origin, as it always did.
     P("pivot", "map", {}, "Where a tilted slice turns: the part's own middle, set when you drag its rings", group="hidden"),
     P("project", "text", "", "Project name (printed on every sheet)", group="hidden"),
+    # The form's own stock picker fills this; the planner only carries it so the cut files say what they are cut from.
+    P("material", "text", "", "What the sheet is (cardboard, plywood, steel …) — named in every cut file", group="hidden"),
     P("rev", "text", "1.0", "Revision major.minor (printed on every sheet)", group="hidden"),
     # -- sheet fitting + checks
     P("split", "bool", True, "Split parts that do not fit the sheet, joining them with puzzle tabs", group="sheet"),

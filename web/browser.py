@@ -35,7 +35,7 @@ def handle(method: str, path: str, query: str, form) -> tuple[int, dict, bytes]:
             return 200, {"content-type": mimetypes.guess_type(p.name)[0] or "application/octet-stream"}, p.read_bytes()
         elif path.startswith("api/job/"):
             _, _, client, job, what = path.split("/", 4)
-            out = {"export": lambda: A.job_export(client, job, q.get("fmt", "svg,dxf"), int(q.get("labels", 1)), int(q.get("per_piece", 0))),
+            out = {"export": lambda: A.job_export(client, job, q.get("fmt", "svg,dxf"), int(q.get("labels", 1)), int(q.get("per_piece", 0)), units=q.get("units", "")),
                    "stl": lambda: A.job_stl(client, job, q.get("part", "")),
                    "source": lambda: A.job_source(client, job),
                    "proto": lambda: A.job_proto(client, job, float(q.get("scale", 1)), float(q.get("size", 0)), q.get("labels", "groove"), float(q.get("min_thick", 1.2))),

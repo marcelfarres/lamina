@@ -16,7 +16,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Original | Status | Notes |
 |---|---|---|
 | Named presets: create (+), duplicate, delete (−) | ✅ | Sheet & fit tab → saved presets (material + sheet + fit), stored in the browser; pick to apply, + to save as, − to delete |
-| Units | ✅ | mm / cm / in in the UI (all length fields) and for DXF; SVG/PDF/EPS carry physical size |
+| Units | ✅ | mm / cm / in: one switch changes every length on the page at once — the parameter fields, the selection panel of the part being edited, the sheet headers, the stats, the parts table, the Export tab's own boxes, the planner's messages and fix buttons, and the help — and the cut files that follow are written in it without a re-slice. Lengths are stored in mm exactly as typed (1/16 in is 1.5875 mm) and only shown in the unit, with its own round steps; an exact inch fraction reads as one (1/16 in stock). DXF gets the unit; SVG/PDF/EPS carry physical size |
 | Sheet length/width/thickness, standard presets, custom | ✅ | `sheet`, `thickness`; material + sheet presets |
 | Slot Offset (fit) | ✅ | `slot_offset` |
 | Tool Diameter → Dog Bone | ✅ | `tool_d`, `relief` = square / dogbone / tbone_h / tbone_v; applies to interlocked, curve and radial core slots |
@@ -68,7 +68,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | One-sheet strip | ✅ | `one_sheet`: everything on one sheet as wide as the stock and as long as it needs |
 | View cube | ✅ | click a face of the cube in the 3D view for a flat view |
 | Session kept by the server | ✅ | refresh, a new tab or another browser resumes the last slice |
-| Identical pieces counted once | ✅ | the plan decides which pieces are the same part (same outline, any quarter turn, same stock): the Parts table lists each once with a quantity and its twins, the per-piece export writes one file with the quantity (`Z-1_x4`) plus `cut-list.txt` |
+| Identical pieces counted once | ✅ | the plan decides which pieces are the same part (same outline, any quarter turn, same stock): the Parts table lists each once with a quantity and its twins, the per-piece export writes one file named part, material, thickness, quantity (`Z-1 plywood x4`), quantity last and `x1` included, plus `cut-list.txt` |
 | Mirror images counted once | ✅ | `mirror_ok` (off by default): a part and its mirror image share one file, cut twice and one turned over — only for stock that is the same both sides; the cut list and the table (⇄) name the ones to turn over |
 | Undo / redo | ✅ | Ctrl+Z / Ctrl+Y (or the ↶ ↷ buttons): one step per change that reaches the slicer, technique included; the model itself is not on the stack |
 | Scale-check bar | ✅ | 10 cm or 4 in bar on the first sheet with room and as its own piece file, to cut and measure first |

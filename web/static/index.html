@@ -178,15 +178,15 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
       <div class="f"><span class="k" data-tip="Include the red LABEL layer (part names, leader lines, seam numbers, sheet border) in the cut files. Off = cuts and score lines only">labels in files</span><input type="checkbox" id="x_labels" checked></div>
       <div class="f"><span class="k" data-tip="assembly-key.txt in the zip: what the labels mean, every part with where its centre sits and what it slots onto, in the order the 3D view builds them. In puzzle mode it is also the only way from an engraved code back to a part — untick it and the puzzle stays a puzzle (the file can always be downloaded later)">assembly key in the zip</span><input type="checkbox" id="x_key" checked></div>
       <div class="hint" id="legend" style="margin:2px 0 8px"></div>
-      <div class="f"><span class="k" data-tip="Step between the five slot offsets of a fit test: yours −2, −1, 0, +1, +2 steps. A fit test is five small assemblies with this job's joints — same thickness, connectors and the counts that make the assembly tight (every radial half-slice) — each part marked with its offset. The loosest that slides together without forcing and still holds is the offset to set. The cut-file test below is at 1:1 on your real material and machine and is the one that predicts the model's fit; the print test under Prototyping dials in the print only — a clearance is millimetres, not a ratio">fit step (mm)</span><input type="number" id="pr_step" value="0.1" min="0.01" step="0.05"></div>
+      <div class="f"><span class="k" data-tip="Step between the five slot offsets of a fit test: yours −2, −1, 0, +1, +2 steps. A fit test is five small assemblies with this job's joints — same thickness, connectors and the counts that make the assembly tight (every radial half-slice) — each part marked with its offset. The loosest that slides together without forcing and still holds is the offset to set. The cut-file test below is at 1:1 on your real material and machine and is the one that predicts the model's fit; the print test under Prototyping dials in the print only — a clearance is a length, not a ratio">fit step (mm)</span><input type="number" id="pr_step" data-len data-mm="0.1" data-min="0.01" data-step="0.05"></div>
       <div class="dl" id="dl"></div>
       <h2>Prototyping (3D print)</h2>
       <div class="f"><span class="k" data-tip="Scale factor for the printed prototype (parts and thickness scale together; thickness never goes below min thickness)">scale</span><input type="number" id="pr_scale" value="0.5" min="0.05" max="5" step="0.05"></div>
-      <div class="f"><span class="k" data-tip="Or give the prototype's longest side (mm); overrides the scale when set">final size (mm)</span><input type="number" id="pr_size" value="" placeholder="e.g. 100" min="5" step="1"></div>
+      <div class="f"><span class="k" data-tip="Or give the prototype's longest side (mm); overrides the scale when set">final size (mm)</span><input type="number" id="pr_size" data-len data-mm="" data-ph="100" data-min="5" data-step="1"></div>
       <div class="f"><span class="k" data-tip="Part labels embedded in the printed part: groove = engraved 0.6 mm deep, hole = cut through">labels</span><select id="pr_labels"><option>groove</option><option>hole</option><option>none</option></select></div>
-      <div class="f"><span class="k" data-tip="Letter height of the labels in printed mm, whatever the scale: 5 mm reads well and its bold strokes print with a 0.4 mm nozzle. A label sits where its part is widest, away from slots and edges, 1.5× this size where that fits. A part with no room for it gets none, and README.txt in the zip lists them — lower this to label them">label size (mm)</span><input type="number" id="pr_font" value="5" min="1" step="0.5"></div>
-      <div class="f"><span class="k" data-tip="Thinnest part the printer can make (mm). Parts that would print thinner cannot simply be made thicker — their slots were cut for the thin material — so the set is planned again at the material thickness that prints to this">min thickness (mm)</span><input type="number" id="pr_min" value="1.2" min="0.2" step="0.1"></div>
-      <div class="f"><span class="k" data-tip="How much wider than the material the print's slots and holes are, in printed mm, whatever the scale. A fit is a clearance in millimetres, not a ratio: the job's slot offset (Fit) is for the real material at 1:1 and would print 5× too tight at ×0.2, so the print gets its own. 0.2 suits most FDM printers; dial it in with the print fit test below">print slot offset (mm)</span><input type="number" id="pr_offset" value="0.2" min="-1" max="2" step="0.05"></div>
+      <div class="f"><span class="k" data-tip="Letter height of the labels as printed, whatever the scale: 5 mm reads well and its bold strokes print with a 0.4 mm nozzle. A label sits where its part is widest, away from slots and edges, 1.5× this size where that fits. A part with no room for it gets none, and README.txt in the zip lists them — lower this to label them">label size (mm)</span><input type="number" id="pr_font" data-len data-mm="5" data-min="1" data-step="0.5"></div>
+      <div class="f"><span class="k" data-tip="Thinnest part the printer can make (mm). Parts that would print thinner cannot simply be made thicker — their slots were cut for the thin material — so the set is planned again at the material thickness that prints to this">min thickness (mm)</span><input type="number" id="pr_min" data-len data-mm="1.2" data-min="0.2" data-step="0.1"></div>
+      <div class="f"><span class="k" data-tip="How much wider than the material the print's slots and holes are, as printed, whatever the scale. A fit is a clearance, a length, not a ratio: the job's slot offset (Fit) is for the real material at 1:1 and would print 5× too tight at ×0.2, so the print gets its own. 0.2 mm suits most FDM printers; dial it in with the print fit test below">print slot offset (mm)</span><input type="number" id="pr_offset" data-len data-mm="0.2" data-min="-1" data-max="2" data-step="0.05"></div>
       <div class="hint" id="pr_hint" style="margin:2px 0 8px"></div>
       <div class="dl"><a href="#" id="pr_go">download prototype set (plate.3mf for OrcaSlicer + one STL per part)</a></div>
       <div class="dl"><a href="#" id="fit_go">download print fit test (5 print slot offsets around yours, at the scale above)</a></div>
@@ -280,34 +280,73 @@ const ls=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch(e){retu
 
 // ---------------------------------------------------------------- tooltips (one floating box, never clipped)
 const tip=$('#tip');
-document.addEventListener('mouseover',e=>{const k=e.target.closest('[data-tip]');if(!k)return;tip.textContent=k.dataset.tip;tip.hidden=false;const r=k.getBoundingClientRect();tip.style.left=Math.min(r.left,innerWidth-340)+'px';tip.style.top=(r.bottom+6)+'px'});
+// help is written in mm; it reads in the unit on show
+document.addEventListener('mouseover',e=>{const k=e.target.closest('[data-tip]');if(!k)return;tip.textContent=inUnit(k.dataset.tip);tip.hidden=false;const r=k.getBoundingClientRect();tip.style.left=Math.min(r.left,innerWidth-340)+'px';tip.style.top=(r.bottom+6)+'px'});
 document.addEventListener('mouseout',e=>{if(e.target.closest('[data-tip]'))tip.hidden=true});
 
 // ---------------------------------------------------------------- form
 const nice=n=>n.replace(/_/g,' ');
 // a value from a project file is somebody else's text once a bug report is opened: it goes into the form as text, never as markup
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const isLen=p=>p.unit==='mm', F=p=>isLen(p)?UNIT[unit]:1, fmt=v=>+(+v).toPrecision(5);
-const scaleV=(v,f)=>Array.isArray(v)?v.map(x=>scaleV(x,f)):(v&&typeof v==='object')?Object.fromEntries(Object.entries(v).map(([k,x])=>[k,scaleV(x,f)])):(typeof v==='number'?+(v*f).toPrecision(6):v);
-const num=(id,v,p,f,extra='')=>`<input type="number" id="${id}" value="${v==null?'':fmt(v*f)}" ${p.min!=null?`min="${fmt(p.min*f)}"`:''} ${p.max!=null?`max="${fmt(p.max*f)}"`:''} step="${p.step?fmt(p.step*f):'any'}" ${extra}>`;
+const isLen=p=>p.unit==='mm', fmt=v=>+(+v).toPrecision(5);
+// ---------------------------------------------------------------- units
+// Every length is held in mm, exactly as typed, and only shown in the unit on the toolbar. Nothing is ever read back
+// from what is on screen, so switching units any number of times leaves every value exactly where it was.
+const DEC={mm:3,cm:4,in:4};                                     // decimals shown: 0.001 mm, 0.0001 cm, 0.0001 in
+const inU=v=>+(+v*UNIT[unit]).toFixed(DEC[unit]);              // mm → the number shown
+const toMM=v=>+(v/UNIT[unit]).toPrecision(12);                 // typed → mm, float noise off: 0.25 in is 6.35 mm, not 6.3500000000000005
+const show=(p,v)=>isLen(p)?inU(v):fmt(v), fromU=(p,v)=>isLen(p)?toMM(v):v;
+// an inch length that is an exact 64th reads as the fraction it is sold by (1/8 in, 1 1/2 in); whole inches stay plain
+function frac(x){const a=Math.abs(x)*64,n=Math.round(a);if(Math.abs(a-n)>1e-6||n%64===0)return null;
+  let d=64,m=n;while(m%2===0){m/=2;d/=2}const w=Math.floor(m/d);return `${x<0?'−':''}${w?w+' ':''}${m%d}/${d}`}
+const lenTxt=v=>unit==='in'&&frac(v*UNIT.in)||inU(v);          // a length in running text
+const fmtLen=v=>`${lenTxt(v)} ${unit}`;
+// Steps are the unit's own round numbers (1, 2 or 5 of a decade), never a converted 0.003937 in: the arrows then walk
+// 0.12 → 0.125 → 0.13, and min and max are put on that grid so a round value like 0.25 in is never marked invalid.
+const niceStep=x=>{const e=10**Math.floor(Math.log10(x)),m=x/e;return +((m<1.5?1:m<3.5?2:m<7.5?5:10)*e).toPrecision(6)};
+function bounds(p){if(!isLen(p)||unit==='mm')return {min:p.min,max:p.max,step:p.step};
+  const f=UNIT[unit],st=p.step?niceStep(p.step*f):null,
+    g=(v,up)=>v==null?null:st?+(Math[up?'ceil':'floor'](v*f/st+(up?-1e-9:1e-9))*st).toPrecision(6):inU(v);   // inside the range, on the grid
+  return {min:g(p.min,true),max:g(p.max,false),step:st}}
+// Server messages and help texts are written in mm. A run of lengths joined by × or – ("79×149 mm", "3–6 mm") shares
+// the one mm at its end; an area (mm², dm²) is not a length. The raw text stays what fix buttons are matched on.
+const NUM='[-−]?\\d+(?:\\.\\d+)?', MMRUN=new RegExp(`(?<![\\w.])${NUM}(?:\\s*[×–]\\s*${NUM})*\\s*mm(?![²³\\w])`,'g');
+const inUnit=s=>unit==='mm'?String(s??''):String(s??'').replace(MMRUN,run=>run.replace(/\s*mm$/,'')
+  .replace(new RegExp(NUM,'g'),n=>{const v=+n.replace('−','-'),t=String(lenTxt(Math.abs(v)));return (v<0?n[0]:'')+t})+' '+unit).replace(/\(mm\)/g,`(${unit})`);
+function applyUnit(){state.units=unit; $('#unit').value=unit; renderFields(); lenBoxes();
+  if(plan&&job){renderReport(); renderSheets([...$$('#sheets svg')].map(s=>s.outerHTML))}   // a job of its own: the report links to one
+  const m=selected&&parts.children.find(c=>c.userData.slice===selected); if(m)highlight(m);   // the selection panel is written in the unit too
+}
+// The length boxes outside the parameter form (Export tab): the mm value lives on the element — that is what the
+// server is given — and the box shows it in the unit on show, so switching re-renders the box from the mm instead of
+// converting what is on screen, which would drift a little every time.
+const lenMM=(id,d=0)=>{const v=$(id).dataset.mm; return v===''||v==null?d:+v};
+function lenBoxes(){
+  for(const el of $$('input[data-len]')){const d=el.dataset,n=a=>d[a]==null?null:+d[a],b=bounds({unit:'mm',min:n('min'),max:n('max'),step:n('step')});
+    el.value=d.mm===''?'':inU(+d.mm);
+    for(const a of ['min','max','step'])if(b[a]!=null)el.setAttribute(a,b[a]);
+    if(d.ph)el.placeholder=`e.g. ${+inU(+d.ph).toPrecision(1)}`;   // a round example in every unit: 100 mm, 10 cm, 4 in
+    const k=el.previousElementSibling; k.textContent=k.textContent.replace(/\((?:mm|cm|in)\)/,`(${unit})`);
+  }}
+const num=(id,v,p,extra='')=>{const b=bounds(p);return `<input type="number" id="${id}" value="${v==null?'':show(p,v)}" ${b.min!=null?`min="${b.min}"`:''} ${b.max!=null?`max="${b.max}"`:''} step="${b.step||'any'}" ${extra}>`};
 // slider + number box for every bounded number (the slider drives live, the box allows exact / out-of-range values)
-const slider=(id,v,p,f,extra='')=>`<span class="sl"><input type="range" id="${id}_r" value="${fmt(v*f)}" min="${fmt(p.min*f)}" max="${fmt(p.max*f)}" step="${p.step?fmt(p.step*f):'any'}" data-for="${id}" ${extra}>${num(id,v,p,f,extra)}</span>`;
+const slider=(id,v,p,extra='')=>{const b=bounds(p);return `<span class="sl"><input type="range" id="${id}_r" value="${show(p,v)}" min="${b.min}" max="${b.max}" step="${b.step||'any'}" data-for="${id}" ${extra}>${num(id,v,p,extra)}</span>`};
 function field(p){
-  const id='p_'+p.name, v=state[p.name], f=F(p), u=isLen(p)?` (${unit})`:p.unit==='deg'?' (°)':''; let inp;
+  const id='p_'+p.name, v=state[p.name], u=isLen(p)?` (${unit})`:p.unit==='deg'?' (°)':''; let inp;
   if(p.type==='choice')inp=`<select id="${id}">${p.choices.map(c=>`<option ${c==v?'selected':''}>${c}</option>`).join('')}</select>`;
   else if(p.type==='bool')inp=`<input type="checkbox" id="${id}" ${v?'checked':''}>`;
   else if(p.type==='vec2'||p.type==='vec3'){const n=p.type==='vec2'?2:3,lab=p.name==='sheet'?['w','h']:['x','y','z'],sl=p.unit==='deg';
-    inp=sl?`<div class="rows">${[...Array(n)].map((_,i)=>`<div class="r"><small>${lab[i]}</small>${slider(id+'_'+i,(v||[])[i]||0,p,f,`data-vec="${p.name}" data-i="${i}"`)}</div>`).join('')}</div>`
+    inp=sl?`<div class="rows">${[...Array(n)].map((_,i)=>`<div class="r"><small>${lab[i]}</small>${slider(id+'_'+i,(v||[])[i]||0,p,`data-vec="${p.name}" data-i="${i}"`)}</div>`).join('')}</div>`
         // `size` left at 0 is "however big the model is": the box is empty and shows what came out as a placeholder,
         // so typing one dimension tells you the other two instead of leaving three zeros that mean three things
-        :`<span class="vec">${[...Array(n)].map((_,i)=>`<small>${lab[i]}</small>${num(id+'_'+i,(v||[])[i]||(p.name==='size'?null:0),p,f,`data-vec="${p.name}" data-i="${i}" ${p.name==='size'?`placeholder="${plan?fmt(plan.bbox[i]*f):'auto'}"`:''}`)}`).join('')}</span>`}
+        :`<span class="vec">${[...Array(n)].map((_,i)=>`<small>${lab[i]}</small>${num(id+'_'+i,(v||[])[i]||(p.name==='size'?null:0),p,`data-vec="${p.name}" data-i="${i}" ${p.name==='size'?`placeholder="${plan?show(p,plan.bbox[i]):'auto'}"`:''}`)}`).join('')}</span>`}
   else if(p.type==='text')inp=`<input id="${id}" value="${esc(v)}">`;
-  else if(p.type==='points')inp=`<div class="rows" id="${id}">${(v||[]).map((q,i)=>`<div class="r"><small>${i+1}</small><input type="number" step="any" value="${fmt(q[0]*f)}" data-pt="${p.name}" data-i="${i}" data-j="0"><input type="number" step="any" value="${fmt(q[1]*f)}" data-pt="${p.name}" data-i="${i}" data-j="1"><button class="small x" data-del="${p.name}" data-i="${i}">×</button></div>`).join('')}<div class="r"><button class="small" data-add="${p.name}">+ point</button><span class="hint">or alt-click in the 3D view</span></div></div>`;
-  else if(p.type==='lines3')inp=`<div class="rows" id="${id}">${(v||[]).map((l,i)=>`<div class="r"><small>${i+1}</small>${[0,1].map(e=>[0,1,2].map(j=>`<input type="number" step="any" value="${fmt(l[e][j]*f)}" data-ln="${p.name}" data-i="${i}" data-e="${e}" data-j="${j}" title="${e?'end':'start'} ${'xyz'[j]}">`).join('')).join('<small>→</small>')}<button class="small x" data-del="${p.name}" data-i="${i}">×</button></div>`).join('')}<div class="r"><button class="small" data-add="${p.name}">${p.name==='axes'?'+ split an axis':'+ line'}</button><span class="hint">${p.name==='axes'?'or alt-click the model for a parallel axis · drag them in the 3D view':'start x y z → end x y z'}</span></div></div>`;
+  else if(p.type==='points')inp=`<div class="rows" id="${id}">${(v||[]).map((q,i)=>`<div class="r"><small>${i+1}</small><input type="number" step="any" value="${show(p,q[0])}" data-pt="${p.name}" data-i="${i}" data-j="0"><input type="number" step="any" value="${show(p,q[1])}" data-pt="${p.name}" data-i="${i}" data-j="1"><button class="small x" data-del="${p.name}" data-i="${i}">×</button></div>`).join('')}<div class="r"><button class="small" data-add="${p.name}">+ point</button><span class="hint">or alt-click in the 3D view</span></div></div>`;
+  else if(p.type==='lines3')inp=`<div class="rows" id="${id}">${(v||[]).map((l,i)=>`<div class="r"><small>${i+1}</small>${[0,1].map(e=>[0,1,2].map(j=>`<input type="number" step="any" value="${show(p,l[e][j])}" data-ln="${p.name}" data-i="${i}" data-e="${e}" data-j="${j}" title="${e?'end':'start'} ${'xyz'[j]}">`).join('')).join('<small>→</small>')}<button class="small x" data-del="${p.name}" data-i="${i}">×</button></div>`).join('')}<div class="r"><button class="small" data-add="${p.name}">${p.name==='axes'?'+ split an axis':'+ line'}</button><span class="hint">${p.name==='axes'?'or alt-click the model for a parallel axis · drag them in the 3D view':'start x y z → end x y z'}</span></div></div>`;
   else if(p.type==='map'){const rows=Object.entries(v||{});if(selected&&!(selected in (v||{})))rows.push([selected,p.name==='thick'?state.thickness:0]);
-    inp=`<div class="rows" id="${id}">${rows.map(([k,x])=>`<div class="r"><small>${esc(k)}</small><input type="number" step="any" value="${fmt(x*f)}" data-map="${p.name}" data-k="${esc(k)}">${k in (v||{})?`<button class="small x" data-del="${p.name}" data-i="${esc(k)}">×</button>`:'<span class="hint">default</span>'}</div>`).join('')||'<span class="hint">no overrides — select a part in the 3D view and use the sliders</span>'}</div>`}
-  else if(p.type==='labels'||p.type==='chips')inp=`<div class="chips" id="${id}">${(v||[]).map((x,i)=>`<span class="chip">${p.type==='chips'?fmt(x*f):esc(x)}<b data-del="${p.name}" data-i="${i}">×</b></span>`).join('')}<input placeholder="${p.type==='chips'?'value ⏎':'label ⏎'}" data-chip="${p.name}"></div>`;
-  else inp=(p.min!=null&&p.max!=null)?slider(id,v,p,f):num(id,v,p,f);
+    inp=`<div class="rows" id="${id}">${rows.map(([k,x])=>`<div class="r"><small>${esc(k)}</small><input type="number" step="any" value="${show(p,x)}" data-map="${p.name}" data-k="${esc(k)}">${k in (v||{})?`<button class="small x" data-del="${p.name}" data-i="${esc(k)}">×</button>`:'<span class="hint">default</span>'}</div>`).join('')||'<span class="hint">no overrides — select a part in the 3D view and use the sliders</span>'}</div>`}
+  else if(p.type==='labels'||p.type==='chips')inp=`<div class="chips" id="${id}">${(v||[]).map((x,i)=>`<span class="chip">${p.type==='chips'?show(p,x):esc(x)}<b data-del="${p.name}" data-i="${i}">×</b></span>`).join('')}<input placeholder="${p.type==='chips'?'value ⏎':'label ⏎'}" data-chip="${p.name}"></div>`;
+  else inp=(p.min!=null&&p.max!=null)?slider(id,v,p):num(id,v,p);
   return `<div class="f" data-p="${p.name}" ${p.show_if?`data-show="${p.show_if[0]}:${[].concat(p.show_if[1]).join('|')}"`:''}><span class="k" data-tip="${p.help.replace(/"/g,'&quot;')}">${nice(p.name)}${u}</span>${inp}</div>`;
 }
 function renderFields(){
@@ -324,22 +363,23 @@ $('#tabs').addEventListener('input',e=>{
   const t=e.target; if(t.id==='file')return; const P=name=>allParams().find(p=>p.name===name);
   if(t.dataset.for){const box=document.getElementById(t.dataset.for);box.value=t.value;box.dispatchEvent(new Event('input',{bubbles:true}));return}   // slider → its number box
   if(t.type==='number'){const r=document.getElementById(t.id+'_r');if(r)r.value=t.value}
-  if(t.dataset.vec){const p=P(t.dataset.vec),v=[...(state[p.name]||[0,0,0])];v[+t.dataset.i]=(+t.value||0)/F(p);
+  if(t.dataset.vec){const p=P(t.dataset.vec),v=[...(state[p.name]||[0,0,0])];v[+t.dataset.i]=fromU(p,+t.value||0);
     if(p.name==='size'){fitted=false;if(state.scale!==1){state.scale=1;for(const el of [$('#p_scale'),$('#p_scale_r')])if(el)el.value=1}}   // a new size is the new 100 %
     return setVal(p.name,v)}
-  if(t.dataset.pt){const p=P(t.dataset.pt),v=(state[p.name]||[]).map(q=>[...q]);v[+t.dataset.i][+t.dataset.j]=(+t.value||0)/F(p);return setVal(p.name,v)}
-  if(t.dataset.ln){const p=P(t.dataset.ln),v=(state[p.name]||[]).map(l=>l.map(q=>[...q]));v[+t.dataset.i][+t.dataset.e][+t.dataset.j]=(+t.value||0)/F(p);return setVal(p.name,v)}
-  if(t.dataset.map){const p=P(t.dataset.map),v={...(state[p.name]||{})};v[t.dataset.k]=(+t.value||0)/F(p);return setVal(p.name,v)}
+  if(t.dataset.pt){const p=P(t.dataset.pt),v=(state[p.name]||[]).map(q=>[...q]);v[+t.dataset.i][+t.dataset.j]=fromU(p,+t.value||0);return setVal(p.name,v)}
+  if(t.dataset.ln){const p=P(t.dataset.ln),v=(state[p.name]||[]).map(l=>l.map(q=>[...q]));v[+t.dataset.i][+t.dataset.e][+t.dataset.j]=fromU(p,+t.value||0);return setVal(p.name,v)}
+  if(t.dataset.map){const p=P(t.dataset.map),v={...(state[p.name]||{})};v[t.dataset.k]=fromU(p,+t.value||0);return setVal(p.name,v)}
   if(t.dataset.chip)return;
   const p=allParams().find(p=>'p_'+p.name===t.id); if(!p)return;
-  if(p.type==='bool')setVal(p.name,t.checked); else if(p.type==='choice'||p.type==='text')setVal(p.name,t.value); else setVal(p.name,t.value===''?p.default:+t.value/F(p));
+  if(p.name==='units'){unit=t.value;return applyUnit()}   // the Sheet tab's units box is the toolbar's, not a second one
+  if(p.type==='bool')setVal(p.name,t.checked); else if(p.type==='choice'||p.type==='text')setVal(p.name,t.value); else setVal(p.name,t.value===''?p.default:fromU(p,+t.value));
   if(t.closest('#g-model'))fitted=false;
 });
 // reset the parameters of one tab to their defaults
 const TABGROUPS={model:['model'],technique:['technique','slices'],sheet:['sheet','fit'],checks:['checks']};
 function resetTab(tab){for(const p of mode.common)if(TABGROUPS[tab].includes(p.group))state[p.name]=structuredClone(p.default);
   if(tab==='technique')for(const p of mode.params)state[p.name]=structuredClone(p.default);
-  if(tab==='model')fitted=false; if(tab==='sheet')applyMachine(state.machine); renderFields(); slice()}
+  if(tab==='model')fitted=false; if(tab==='sheet')applyMachine(state.machine); unit=state.units||unit; applyUnit(); slice()}   // the Sheet tab holds `units`: the page follows it back to mm
 $('#tabs').addEventListener('click',e=>{
   const t=e.target, P=name=>allParams().find(p=>p.name===name);
   if(t.dataset.rot!==undefined){const r=[...(state.rotate||[0,0,0])],i=+t.dataset.rot;r[i]=((r[i]+(e.shiftKey?-90:90)+180)%360+360)%360-180;state.rotate=r;fitted=false;renderFields();schedule();return}
@@ -352,7 +392,7 @@ $('#tabs').addEventListener('click',e=>{
   else if(t.dataset.del){const p=P(t.dataset.del);if(p.type==='map'){const v={...state[p.name]};delete v[t.dataset.i];setVal(p.name,v)}else setVal(p.name,(state[p.name]||[]).filter((_,i)=>i!==+t.dataset.i));renderFields()}
 });
 $('#tabs').addEventListener('keydown',e=>{const t=e.target;if(!t.dataset.chip||e.key!=='Enter')return;const p=allParams().find(p=>p.name===t.dataset.chip);const raw=t.value.trim();if(!raw)return;
-  const v=p.type==='chips'?+raw/F(p):raw; if(p.type==='chips'&&isNaN(v))return; setVal(p.name,[...(state[p.name]||[]),v]);renderFields()});
+  const v=p.type==='chips'?fromU(p,+raw):raw; if(p.type==='chips'&&isNaN(v))return; setVal(p.name,[...(state[p.name]||[]),v]);renderFields()});
 const memo={};   // per-technique parameter memory: switching away and back restores what you had
 // …but only what still means anything. These are placed on a particular model — in its millimetres, or under its
 // part labels — so a new model clears them from the memory as well as from the form (see newModel).
@@ -387,7 +427,7 @@ function record(){
 function step(from,to){if(!from.length)return;to.push(cur);const j=from.pop();cur=j;restoring=true;
   const d=JSON.parse(j); if(d.m!==mode.name)setMode(d.m,false);
   for(const k of Object.keys(state))delete state[k]; Object.assign(state,d.s);
-  unit=d.u; $('#unit').value=unit; deselect(); renderFields(); syncUndo(); schedule()}
+  unit=d.u; deselect(); applyUnit(); syncUndo(); schedule()}
 function syncUndo(){$('#undo').disabled=!undos.length;$('#redo').disabled=!redos.length}
 addEventListener('keydown',e=>{
   const typing=e.target.type==='text'||e.target.tagName==='TEXTAREA';   // a text box keeps its own undo, and its own ?
@@ -481,7 +521,7 @@ async function slice(){
     status(`ready · ${j.took} s · ${plan.counts.parts} parts · ${plan.sheets} sheet(s) · ${plan.counts.errors} errors`,plan.counts.errors?'err':'');
     // where the time went, for anyone tuning it: the build's stages (seconds), the round trip around them, and the page's own drawing
     console.info('lamina timing', mode.name, {...plan.timing, 'round trip beyond the build': +((t1-t0)/1000-j.took).toFixed(2), 'page drawing': (Date.now()-t1)/1000});
-  }catch(e){if(my===seq){status('error: '+e.message,'err'); if(loading)modelFailed(loading,e.message)}}
+  }catch(e){if(my===seq){status('error: '+inUnit(e.message),'err'); if(loading)modelFailed(loading,e.message)}}
   if(my===seq){$('#busy').hidden=true;busy=false}
 }
 // The model never arrived, so the 3D view still shows the one before it and the file box still names this one —
@@ -517,7 +557,7 @@ async function pollProgress(my){
   }
 }
 function syncSizeHints(){const p=allParams().find(q=>q.name==='size'); if(!p||!plan)return;
-  for(let i=0;i<3;i++){const el=$('#p_size_'+i); if(el)el.placeholder=fmt(plan.bbox[i]*F(p))}}
+  for(let i=0;i<3;i++){const el=$('#p_size_'+i); if(el)el.placeholder=show(p,plan.bbox[i])}}
 // What a slice is made of, in the order it happens, so a long wait has a shape: a bare percentage said nothing about
 // how many of these there are, and the per-stage counters ("12 of 34") looked like the whole job restarting. The
 // three marked 0 only run when the model asks for them, so they appear in the list only once they have.
@@ -781,11 +821,13 @@ function drawGizmo(m){
 }
 const slicePlan=l=>plan.slices.find(x=>x.label===l)||(plan.bounds3d||[]).find(x=>x.label===l);
 function highlight(m){for(const c of parts.children)c.material.emissive.set(c.userData.slice===m.userData.slice?0x664400:0x000000);selected=m.userData.slice;drawGizmo(m);dirty=true;
-  const g=k=>state[k]?.[selected], f=UNIT[unit], synthetic='JPB'.includes(m.userData.group), bound=m.userData.group==='B', ext=Math.max(...plan.bbox), s=plan.slices.find(x=>x.label===selected);
-  const row=(k,lab,v,min,max,step,u)=>`<div class="row"><span>${lab}</span><input type="range" id="r_${k}" min="${min}" max="${max}" step="${step}" value="${v}"><input type="number" id="n_${k}" step="${step}" value="${v}"><span class="hint" style="grid-column:2/4">${u}</span></div>`;
+  const g=k=>state[k]?.[selected], synthetic='JPB'.includes(m.userData.group), bound=m.userData.group==='B', ext=Math.max(...plan.bbox), s=plan.slices.find(x=>x.label===selected);
+  // the same show / bounds as the form, so a slice's thickness reads and steps exactly like the thickness field
+  const row=(k,lab,v,p,u)=>{const b=bounds(p);return `<div class="row"><span>${lab}</span><input type="range" id="r_${k}" min="${b.min}" max="${b.max}" step="${b.step}" value="${show(p,v)}"><input type="number" id="n_${k}" step="${b.step}" value="${show(p,v)}"><span class="hint" style="grid-column:2/4">${u}</span></div>`};
+  const LEN=(min,max,step)=>({unit:'mm',min,max,step}), DEG={min:-60,max:60,step:1};
   $('#sel').hidden=false;$('#sel').innerHTML=`<b>${selected}</b> <span class="hint">${m.userData.piece!==selected?'('+m.userData.piece+')':''} ${s?.note||''}</span>
-   ${row('offset','offset',fmt((g('offset')||0)*f),fmt(-ext/2*f),fmt(ext/2*f),fmt(0.5*f),unit)}${row('tilt','tilt',g('tilt')||0,-60,60,1,'°')}${row('roll','roll',g('roll')||0,-60,60,1,'°')}
-   ${bound?'':row('thick','thick',fmt((g('thick')||state.thickness)*f),fmt(0.1*f),fmt(20*f),fmt(0.1*f),unit)}
+   ${row('offset','offset',g('offset')||0,LEN(-ext/2,ext/2,0.5),unit)}${row('tilt','tilt',g('tilt')||0,DEG,'°')}${row('roll','roll',g('roll')||0,DEG,'°')}
+   ${bound?'':row('thick','thick',g('thick')||state.thickness,LEN(0.1,20,0.1),unit)}
    <div class="row"><span></span><span style="grid-column:2/4"><button class="small" id="s_reset">reset</button> ${synthetic?'':'<button class="small" id="s_del" style="color:var(--err)">delete</button>'} <button class="small" id="s_close">close</button></span></div>
    <small>slide or type · drag the yellow arrow to move it along its normal · drag the <b style="color:#5fcf80">green</b> ring to tilt, the <b style="color:#4f8cff">blue</b> one to roll — it turns where it stands</small>`;
   for(const k of ['offset','tilt','roll','thick']){const r=$('#r_'+k),n=$('#n_'+k);if(!r)continue;   // a lobe boundary has no thickness row
@@ -802,9 +844,10 @@ function preview(k,v){ // live feedback while sliding, before the re-slice
       T=new THREE.Matrix4().makeTranslation(o.x,o.y,o.z),R=new THREE.Matrix4().makeRotationAxis(axis,(v-(state[k]?.[selected]||0))*Math.PI/180);m.matrixAutoUpdate=false;m.matrix.copy(T).multiply(R).multiply(T.clone().invert())}}
   dirty=true;
 }
-function commit(k,v){const f=k==='offset'||k==='thick'?UNIT[unit]:1;setEdit(k,v/f,k==='thick'?state.thickness:0)}
+function commit(k,v){setEdit(k,k==='offset'||k==='thick'?toMM(v):v,k==='thick'?state.thickness:0)}
 function deselect(){selected=null;$('#sel').hidden=true;gizmo.clear();for(const c of parts.children)c.material.emissive.set(0);hlSheet(null);dirty=true}
-function setEdit(k,v,neutral=0){state[k]=state[k]||{};if(Math.abs(v-neutral)>1e-9)state[k][selected]=+v.toFixed(2);else delete state[k][selected];
+// stored as given: rounding here to 0.01 mm turned 1/16 in (1.5875 mm) into 1.59 mm; toPrecision(12) only drops float noise
+function setEdit(k,v,neutral=0){state[k]=state[k]||{};if(Math.abs(v-neutral)>1e-9)state[k][selected]=+v.toPrecision(12);else delete state[k][selected];
   keepPivot(); syncEdits(); slice()}
 // The server cannot know where a part's middle is — the plane it cuts on passes through the whole model — so the
 // view tells it, and only while the part is actually tilted. Back at 0° it goes, and the plane turns about its frame
@@ -908,11 +951,11 @@ renderer.domElement.addEventListener('pointermove',ev=>{if(!drag)return;const dx
     for(const d of drag.ends){d.sphere.position.copy(d.start).add(drag.delta);if(drag.snap)drag.plane.projectPoint(d.sphere.position,d.sphere.position)}
     for(const rod of guides.children.filter(g=>g.userData.axline!==undefined)){const end=e=>guides.children.find(g=>g.userData.ax&&g.userData.ax.i===rod.userData.axline&&g.userData.ax.e===e).position;placeRod(rod,end(0),end(1))}   // the rods follow their ends
     const d0=drag.ends[0],q=d0.sphere.position,whole=drag.ends.length>1&&drag.ends.every(x=>x.i===d0.i);
-    status(`axis ${d0.i+1}${whole?'':d0.e?' end':' start'}: ${[q.x,q.y,q.z].map(v=>fmt(v*f)).join(', ')} ${unit}`,'busy');dirty=true;return}
+    status(`axis ${d0.i+1}${whole?'':d0.e?' end':' start'}: ${[q.x,q.y,q.z].map(inU).join(', ')} ${unit}`,'busy');dirty=true;return}
   if(drag.mode==='curve'){const [du,dv]=inPlane(drag.P0,drag.U,drag.V,dx,dy,drag.step);
     drag.pt=[+(drag.p0[0]+du).toFixed(1),+(drag.p0[1]+dv).toFixed(1)];
     drag.sphere.position.copy(drag.P0).addScaledVector(drag.U,du).addScaledVector(drag.V,dv);
-    status(`curve point ${drag.i+1}: ${drag.pt[0]}, ${drag.pt[1]} mm`,'busy');dirty=true;return}
+    status(`curve point ${drag.i+1}: ${inU(drag.pt[0])}, ${inU(drag.pt[1])} ${unit}`,'busy');dirty=true;return}
   if(drag.mode==='spin'){let a=Math.atan2(ev.clientY-drag.cy,ev.clientX-drag.cx)-drag.a0;a=Math.atan2(Math.sin(a),Math.cos(a));
     drag.v=Math.max(-60,Math.min(60,Math.round(drag.base-drag.sign*a*180/Math.PI)));   // the sliders' own range
     preview(drag.k,drag.v); status(`${drag.k} ${selected}: ${drag.v}°`,'busy'); return}
@@ -921,7 +964,7 @@ renderer.domElement.addEventListener('pointermove',ev=>{if(!drag)return;const dx
     status(`turn about ${'xyz'[drag.axis]}: ${drag.delta.toFixed(0)}°`,'busy');dirty=true;return}
   if(drag.mode==='offset'){drag.delta=(dx*drag.dir.x+dy*drag.dir.y)*drag.mmPerPx;preview('offset',((state.offset?.[selected]||0)+drag.delta)*f);gizmo.position.copy(drag.meshes[0].userData.normal).multiplyScalar(drag.delta);dirty=true}
   else{drag.delta=dx*0.4;preview(drag.mode,(state[drag.mode]?.[selected]||0)+drag.delta)}
-  status(`${drag.mode} ${selected}: ${drag.delta.toFixed(1)}${drag.mode==='offset'?' mm':'°'}`,'busy')});
+  status(`${drag.mode} ${selected}: ${drag.mode==='offset'?fmtLen(drag.delta):drag.delta.toFixed(1)+'°'}`,'busy')});
 renderer.domElement.addEventListener('pointerup',ev=>{
   if(drag&&drag.mode==='spin'){controls.enabled=true;const d=drag;drag=null;
     if(d.v!==null&&d.v!==d.base)commit(d.k,d.v); else applyExplode();return}
@@ -932,7 +975,8 @@ renderer.domElement.addEventListener('pointerup',ev=>{
   if(drag&&drag.mode==='ring'){controls.enabled=true;const d=drag;drag=null;for(const g of [parts,ghost,guides])g.quaternion.identity();dirty=true;
     if(Math.abs(d.delta)>1){const r=[...(state.rotate||[0,0,0])];r[d.axis]=Math.round(((r[d.axis]+d.delta+180)%360+360)%360-180);state.rotate=r;fitted=false;renderFields();slice()}return}
   if(drag){controls.enabled=true;const d=drag;drag=null;gizmo.position.set(0,0,0);for(const m of d.meshes){m.matrixAutoUpdate=true;m.matrix.identity()}
-    if(Math.abs(d.delta)>0.05){const k=d.mode,cur=state[k]?.[selected]||0;setEdit(k,cur+(k==='offset'?+d.delta.toFixed(1):Math.round(d.delta)))}else applyExplode();return}
+    // a dragged offset lands on a round step of the unit on show (0.1 mm, 0.01 cm, 0.005 in), never on 0.4843 in
+    if(Math.abs(d.delta)>0.05){const k=d.mode,cur=state[k]?.[selected]||0,st=niceStep(0.1*UNIT[unit]);setEdit(k,cur+(k==='offset'?toMM(Math.round(d.delta*UNIT[unit]/st)*st):Math.round(d.delta)))}else applyExplode();return}
   if(!down||Math.hypot(ev.clientX-down.x,ev.clientY-down.y)>10)return;const h=hit(ev);if(h&&(h.object.userData.gizmo||h.object.userData.ring!==undefined))return;
   if(h&&(h.object.userData.ax!==undefined||h.object.userData.axline!==undefined)){if(ev.altKey){const list=axisList(),i=h.object.userData.ax?h.object.userData.ax.i:h.object.userData.axline;   // alt-click an axis or its end: drop that fan (the last one stays — a radial job has to turn about something)
       if(list.length>1){list.splice(i,1);state.axes=list;renderFields();slice()}
@@ -941,7 +985,6 @@ renderer.domElement.addEventListener('pointerup',ev=>{
   if(h&&ev.altKey)togglePoint(h);else if(h)highlight(h.object);else deselect()});
 
 // ---------------------------------------------------------------- sheets + report
-const fmtLen=v=>`${+(v*UNIT[unit]).toPrecision(4)} ${unit}`;
 const pieceToSlice=()=>{const m={};for(const s of plan.slices)for(const pc of s.pieces)m[pc.label]=s.label;return m};
 function hlSheet(label){const map=pieceToSlice();let first=null;for(const p of $$('#sheets path[data-label]')){const on=label&&map[p.dataset.label]===label;p.classList.toggle('hl',on);if(on&&!first)first=p}
   if(first)first.scrollIntoView({block:'nearest',behavior:'smooth'})}
@@ -957,19 +1000,19 @@ function renderSheets(svgs){
 }
 function applyFix(set){for(const [k,v] of Object.entries(set)){if(v&&typeof v==='object'&&!Array.isArray(v))state[k]={...(state[k]||{}),...v};else if(Array.isArray(v)&&['skip','extra_x','extra_y'].includes(k))state[k]=[...new Set([...(state[k]||[]),...v])];else state[k]=v}renderFields();slice()}
 // what the printed prototype parts come out at — and the re-plan the server does when that is under the printer's minimum
-function protoHint(){if(!plan)return;const size=+$('#pr_size').value||0,s=size>0?size/Math.max(...plan.bbox):(+$('#pr_scale').value||1),mn=+$('#pr_min').value||1.2;
+function protoHint(){if(!plan)return;const size=lenMM('#pr_size'),s=size>0?size/Math.max(...plan.bbox):(+$('#pr_scale').value||1),mn=lenMM('#pr_min',1.2);
   const thin=Math.min(...plan.slices.map(x=>x.thickness)),printed=thin*s,h=$('#pr_hint');
-  if(printed>=mn-1e-9){h.textContent=`parts print ${printed.toFixed(2)} mm thick (${thin.toFixed(2)} mm × ${s.toFixed(3)})`;h.style.color=''}
-  else{h.textContent=`at ×${s.toFixed(3)} the ${thin.toFixed(2)} mm parts would print ${printed.toFixed(2)} mm, under the ${mn} mm minimum — the set is planned again at ${(mn/s).toFixed(2)} mm material so the slots fit the printed parts (a note travels in the zip)`;h.style.color='var(--warn)'}}
+  if(printed>=mn-1e-9){h.textContent=`parts print ${fmtLen(printed)} thick (${fmtLen(thin)} × ${s.toFixed(3)})`;h.style.color=''}
+  else{h.textContent=`at ×${s.toFixed(3)} the ${fmtLen(thin)} parts would print ${fmtLen(printed)}, under the ${fmtLen(mn)} minimum — the set is planned again at ${fmtLen(mn/s)} material so the slots fit the printed parts (a note travels in the zip)`;h.style.color='var(--warn)'}}
 function renderDownloads(){ // the labels checkbox applies to every cut file; the server names files <project or model>_v<rev>_…
   protoHint();
-  const b=`api/job/${CLIENT}/${job}`,L=$('#x_labels').checked?1:0,K=$('#x_key').checked?1:0,step=$('#pr_step').value||0.1;
+  const b=`api/job/${CLIENT}/${job}`,L=$('#x_labels').checked?1:0,K=$('#x_key').checked?1:0,step=lenMM('#pr_step',0.1),U=`&units=${unit}`;   // the cut files come out in the unit on show, without a re-slice
   // what the labels on the parts mean, before the cut rather than after it
   $('#legend').innerHTML=`<b>how the parts are labelled</b><br>${(mode.legend||'every part carries its own label').replace(/ · /g,'<br>')}`
     +(state.label_style==='code'?'<br><b>puzzle mode:</b> the parts are engraved with codes instead — assembly-key.txt maps them back':'');
-  $('#dl').innerHTML=[['sheets SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}`],['sheets PDF (one page per sheet)',`${b}/export?fmt=pdf&labels=${L}&key=${K}`],['sheets EPS',`${b}/export?fmt=eps&labels=${L}&key=${K}`],
-    ['one file per piece SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&per_piece=1`],['assembled STL',`${b}/stl`],['plan.json',`jobs/${CLIENT}/${job}/plan.json`],
-    ['fit test SVG + DXF (5 slot offsets around yours, cut at 1:1 first)',`${b}/fitcut?fmt=svg,dxf&labels=${L}&step=${step}`],['fit test PDF',`${b}/fitcut?fmt=pdf&labels=${L}&step=${step}`]].map(([t,u])=>`<a href="${u}">${t}</a>`).join('');
+  $('#dl').innerHTML=[['sheets SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}${U}`],['sheets PDF (one page per sheet)',`${b}/export?fmt=pdf&labels=${L}&key=${K}${U}`],['sheets EPS',`${b}/export?fmt=eps&labels=${L}&key=${K}${U}`],
+    ['one file per piece SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&per_piece=1${U}`],['assembled STL',`${b}/stl`],['plan.json',`jobs/${CLIENT}/${job}/plan.json`],
+    ['fit test SVG + DXF (5 slot offsets around yours, cut at 1:1 first)',`${b}/fitcut?fmt=svg,dxf&labels=${L}&step=${step}${U}`],['fit test PDF',`${b}/fitcut?fmt=pdf&labels=${L}&step=${step}${U}`]].map(([t,u])=>`<a href="${u}">${t}</a>`).join('');
 }
 function renderReport(){
   const c=plan.counts,p=plan;
@@ -980,13 +1023,14 @@ function renderReport(){
   const kinds=p.slices.flatMap(s=>s.pieces.filter(pc=>!copies.has(pc.label)).map(pc=>[s,pc,[pc.label,...twins(pc)],pc.flipped||[]]));
   $('#stats').innerHTML=`<div class="stats"><div><b>${c.parts}</b>parts</div><div class="k" data-tip="How many different parts to cut: identical ones (same outline, any quarter turn, same stock — and with mirror ok also mirror images) count once — the Parts table and the per-piece export list them once, with the quantity"><b>${kinds.length}</b>different</div><div><b>${p.sheets}</b>sheet(s)</div><div><b>${(p.sheet_usage*100).toFixed(0)}%</b>sheet used</div>
    <div class="k" data-tip="How much of the model the parts represent: sample points inside the model that lie within a slice spacing of some part. Below 90 % parts of the model (legs, ears) have no geometry — add slices or change the axis"><b style="color:${p.coverage<0.9?'var(--warn)':'var(--ok)'}">${(p.coverage*100).toFixed(0)}%</b>model covered</div>
-   <div><b>${(p.material_area_mm2/1e4).toFixed(1)}</b>dm² material</div><div><b>${p.bbox.map(v=>+(v*UNIT[unit]).toPrecision(3)).join(' × ')}</b>model ${unit}</div>
+   <div><b>${(p.material_area_mm2/1e4).toFixed(1)}</b>dm² material</div><div><b>${p.bbox.map(inU).join(' × ')}</b>model ${unit}</div>
    <div><b style="color:${c.errors?'var(--err)':'var(--ok)'}">${c.errors}</b>errors</div><div><b style="color:${c.warnings?'var(--warn)':'var(--ok)'}">${c.warnings}</b>warnings</div></div>`;
-  const fixBtns=(s,e)=>{const f=(s.fixes||[]).find(x=>x.error===e);return f?'<br>'+f.options.map((o,i)=>`<span class="fix" data-fix='${JSON.stringify(o.set).replace(/'/g,'&#39;')}' title="${o.note||''}">${o.title}</span>`).join(''):''};
-  const msgs=[...p.notes.map(n=>`<div class="msg note">${n}</div>`),...p.errors.map(e=>`<div class="msg err">${e}${fixBtns({fixes:p.fixes||[]},e)}</div>`),
-    ...p.dropped.flatMap(s=>s.errors.map(e=>`<div class="msg err">${s.label}: ${e}</div>`)),
-    ...p.slices.flatMap(s=>[...s.errors.map(e=>`<div class="msg err" data-s="${s.label}" title="click to select this part">${s.label}: ${e}${fixBtns(s,e)}</div>`),
-                            ...s.warnings.map(w=>`<div class="msg warn" data-s="${s.label}" title="click to select this part">${s.label}: ${w}${fixBtns(s,w)}</div>`)])];
+  // the planner writes in mm; each message and fix is shown in the unit on show, and matched to its fixes on the raw text
+  const fixBtns=(s,e)=>{const f=(s.fixes||[]).find(x=>x.error===e);return f?'<br>'+f.options.map((o,i)=>`<span class="fix" data-fix='${JSON.stringify(o.set).replace(/'/g,'&#39;')}' title="${inUnit(o.note||'')}">${inUnit(o.title)}</span>`).join(''):''};
+  const msgs=[...p.notes.map(n=>`<div class="msg note">${inUnit(n)}</div>`),...p.errors.map(e=>`<div class="msg err">${inUnit(e)}${fixBtns({fixes:p.fixes||[]},e)}</div>`),
+    ...p.dropped.flatMap(s=>s.errors.map(e=>`<div class="msg err">${s.label}: ${inUnit(e)}</div>`)),
+    ...p.slices.flatMap(s=>[...s.errors.map(e=>`<div class="msg err" data-s="${s.label}" title="click to select this part">${s.label}: ${inUnit(e)}${fixBtns(s,e)}</div>`),
+                            ...s.warnings.map(w=>`<div class="msg warn" data-s="${s.label}" title="click to select this part">${s.label}: ${inUnit(w)}${fixBtns(s,w)}</div>`)])];
   const html=msgs.length?msgs.slice(0,40).join('')+(msgs.length>40?`<div class="msg note">… ${msgs.length-40} more</div>`:''):'<div class="msg ok">All physical checks passed.</div>';
   $('#msgs').innerHTML=html; $('#report').innerHTML=html;
   for(const el of $$('.fix'))el.onclick=e=>{e.stopPropagation();applyFix(JSON.parse(el.dataset.fix))};
@@ -995,11 +1039,12 @@ function renderReport(){
     const m=parts.children.find(c=>c.userData.slice===d.dataset.s); if(m){highlight(m);fitted=true}};
   renderDownloads();
   // the link itself does the download (a navigation on the server, a blob from the worker in the browser build)
-  const prq=()=>new URLSearchParams({scale:$('#pr_scale').value||1,size:$('#pr_size').value||0,labels:$('#pr_labels').value,font:$('#pr_font').value||5,min_thick:$('#pr_min').value||1.2,offset:$('#pr_offset').value||0.2});
+  const prq=()=>new URLSearchParams({scale:$('#pr_scale').value||1,size:lenMM('#pr_size'),labels:$('#pr_labels').value,font:lenMM('#pr_font',5),min_thick:lenMM('#pr_min',1.2),offset:lenMM('#pr_offset',0.2)});
   $('#pr_go').onclick=e=>{e.currentTarget.href=`api/job/${CLIENT}/${job}/proto?${prq()}`;countUse('export','proto-3mf')};
-  $('#fit_go').onclick=e=>{const q=prq();q.set('step',$('#pr_step').value||0.1);e.currentTarget.href=`api/job/${CLIENT}/${job}/fit?${q}`;countUse('export','fit-3mf')};
-  for(const id of ['#pr_scale','#pr_size','#pr_min'])$(id).oninput=protoHint;
-  $('#pr_step').oninput=renderDownloads; $('#x_labels').onchange=$('#x_key').onchange=renderDownloads;
+  $('#fit_go').onclick=e=>{const q=prq();q.set('step',lenMM('#pr_step',0.1));e.currentTarget.href=`api/job/${CLIENT}/${job}/fit?${q}`;countUse('export','fit-3mf')};
+  // typing in a length box writes its mm back, so what the server is given never depends on the unit on show
+  for(const el of $$('input[data-len]'))el.oninput=()=>{el.dataset.mm=el.value===''?'':toMM(+el.value);(el.id==='pr_step'?renderDownloads:protoHint)()};
+  $('#pr_scale').oninput=protoHint; $('#x_labels').onchange=$('#x_key').onchange=renderDownloads;
   // Which formats people actually take away — the strongest signal of what machines they run. The link's own
   // query string already names them, so nothing extra has to be tracked to know it.
   $('#dl').onclick=e=>{const a=e.target.closest('a');if(!a)return;
@@ -1007,10 +1052,10 @@ function renderReport(){
     const fmts=(q.get('fmt')?q.get('fmt').split(','):/\/stl$/.test(href)?['stl']:/plan\.json/.test(href)?['plan-json']:[]).map(f=>/fitcut/.test(href)?'fit-'+f:f);
     fmts.forEach(f=>countUse('export',f+(q.get('per_piece')?'-per-piece':'')))};
   // one row per different part: its own size, how many to cut, and which pieces come off it
-  const size=pc=>[pc.bbox[2]-pc.bbox[0],pc.bbox[3]-pc.bbox[1]].map(v=>+(v*UNIT[unit]).toPrecision(3)).join('×');
-  $('#parts').innerHTML=`<table><tr><th>part</th><th>qty</th><th>group</th><th>t</th><th>size (${unit})</th><th>engages</th><th class="k" data-tip="The other pieces cut from this part's file. ⇄ = its mirror image: cut it from the same file and turn it over (only when mirror ok is on)">same part</th><th>status</th></tr>${kinds.map(([s,pc,ls,fl])=>{
+  const size=pc=>[pc.bbox[2]-pc.bbox[0],pc.bbox[3]-pc.bbox[1]].map(inU).join('×');
+  $('#parts').innerHTML=`<table><tr><th>part</th><th>qty</th><th>group</th><th>t (${unit})</th><th>size (${unit})</th><th>engages</th><th class="k" data-tip="The other pieces cut from this part's file. ⇄ = its mirror image: cut it from the same file and turn it over (only when mirror ok is on)">same part</th><th>status</th></tr>${kinds.map(([s,pc,ls,fl])=>{
     const ss=ls.map(l=>sliceOf[l]||s), e=ss.reduce((n,x)=>n+x.errors.length,0), w=ss.reduce((n,x)=>n+x.warnings.length,0), also=ls.slice(1).map(l=>fl.includes(l)?l+'⇄':l);
-    return `<tr class="${e?'bad':''}" data-s="${s.label}"><td>${pc.label}${s.note?' '+s.note:''}</td><td>${ls.length}</td><td>${s.group}</td><td>${s.thickness}</td><td>${size(pc)}</td><td>${[...new Set(s.engages)].join(', ')}</td><td title="${also.join(', ')}">${also.slice(0,3).join(', ')}${also.length>3?` +${also.length-3}`:''}</td><td>${e?'✗ '+e:w?'⚠ '+w:'✓'}</td></tr>`}).join('')}</table>`;
+    return `<tr class="${e?'bad':''}" data-s="${s.label}"><td>${pc.label}${s.note?' '+s.note:''}</td><td>${ls.length}</td><td>${s.group}</td><td>${inU(s.thickness)}</td><td>${size(pc)}</td><td>${[...new Set(s.engages)].join(', ')}</td><td title="${also.join(', ')}">${also.slice(0,3).join(', ')}${also.length>3?` +${also.length-3}`:''}</td><td>${e?'✗ '+e:w?'⚠ '+w:'✓'}</td></tr>`}).join('')}</table>`;
   $('#parts').onclick=e=>{const tr=e.target.closest('tr[data-s]');if(!tr)return;const m=parts.children.find(c=>c.userData.slice===tr.dataset.s);if(m)highlight(m)};
 }
 
@@ -1036,13 +1081,13 @@ async function saveProject(){
 }
 const projName=proj=>`${proj.name||proj.model?.name||proj.example||'model'}_v${proj.rev}.lamina.json`;
 async function openProject(f){
-  const s=JSON.parse(await f.text()); Object.assign(memo,s.memo||{}); setMode(s.mode||'interlocked',false); Object.assign(state,s.state||{}); unit=s.unit||state.units||'mm'; $('#unit').value=unit; state.units=unit;
+  const s=JSON.parse(await f.text()); Object.assign(memo,s.memo||{}); setMode(s.mode||'interlocked',false); Object.assign(state,s.state||{}); unit=s.unit||state.units||'mm';
   state.project=s.name||state.project||''; state.rev=s.rev||state.rev||'1.0'; syncProject();
   job=null; pendingFile=null; fitted=false; deselect();
   if(s.model?.b64){const bin=atob(s.model.b64),u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);pendingFile=new File([u8],s.model.name)}
   else if(s.example)$('#example').value=s.example;
   else if(s.missing_model)status(`this project was saved without its model — the settings are here, upload ${s.missing_model} again`,'err');
-  renderFields(); slice();
+  applyUnit(); slice();
 }
 function syncProject(){$('#pname').value=state.project||'';$('#prev').textContent=state.rev||'1.0'}
 function bump(major){const [a,b]=(state.rev||'1.0').split('.').map(Number);state.rev=major?`${a+1}.0`:`${a}.${(b||0)+1}`;syncProject();schedule()}
@@ -1076,7 +1121,7 @@ async function init(){
   $('#sdel').onclick=()=>{const idx=+$('#sheetpreset').value,u=ls('slicer_sheets',[]),mine=u.filter(s=>!s[2]||s[2]===fam()),s=mine[idx-(shs().length-mine.length)];   // user sizes come after the built-ins
     if(s){u.splice(u.indexOf(s),1);lsSet('slicer_sheets',u);syncPresetSelects()}else status('built-in sizes cannot be deleted')};
   renderPresets();
-  $('#presets').onchange=e=>{const ps=ls('slicer_presets',{})[e.target.value];if(ps){Object.assign(state,structuredClone(ps));unit=state.units||unit;$('#unit').value=unit;renderFields();renderPresets(e.target.value);schedule()}};
+  $('#presets').onchange=e=>{const ps=ls('slicer_presets',{})[e.target.value];if(ps){Object.assign(state,structuredClone(ps));unit=state.units||unit;applyUnit();renderPresets(e.target.value);schedule()}};
   $('#psave').onclick=()=>{const n=prompt('preset name',$('#presets').value||'');if(!n)return;const ps=ls('slicer_presets',{});ps[n]=Object.fromEntries(PKEYS().map(k=>[k,state[k]]));lsSet('slicer_presets',ps);renderPresets(n)};
   $('#pdel').onclick=()=>{const n=$('#presets').value;if(!n)return;const ps=ls('slicer_presets',{});delete ps[n];lsSet('slicer_presets',ps);renderPresets()};
   $('#origsize').onclick=()=>{state.scale=1;state.size=[0,0,0];state.rotate=[0,0,0];state.up_axis='z';renderFields();fitted=false;slice()};
@@ -1088,7 +1133,7 @@ async function init(){
   $('#clear').onclick=async()=>{if(!confirm('Delete everything this tab has sliced — uploaded models, cut files and the session? Presets are kept.'))return;await fetch(`api/session?client=${CLIENT}`,{method:'DELETE'});location.reload()};
   $('#psave2').onclick=saveProject; $('#popen').onclick=()=>$('#pfile').click(); $('#pfile').onchange=e=>{if(e.target.files[0])openProject(e.target.files[0]);e.target.value=''};
   $('#pname').oninput=e=>{state.project=e.target.value;schedule()}; $('#pminor').onclick=()=>bump(false); $('#pmajor').onclick=()=>bump(true);
-  $('#unit').onchange=e=>{unit=e.target.value;state.units=unit;renderFields();if(plan){renderReport();renderSheets([...$$('#sheets svg')].map(s=>s.outerHTML))}};
+  $('#unit').onchange=e=>{unit=e.target.value;applyUnit()};
   $('#x_labels').onchange=()=>{if(job)renderDownloads()};
   $$('nav button').forEach(b=>b.onclick=()=>showTab(b.dataset.t));
   // A new model keeps none of the last one's geometry. These parameters are in its millimetres or under its part
@@ -1121,12 +1166,11 @@ async function init(){
   // the session belongs to this tab (mode, every parameter, the model's job, per-technique memory), so a refresh
   // resumes it instead of starting over; another tab is another session and sees nothing of this one
   const sess=await fetch(`api/session?client=${CLIENT}`).then(r=>r.ok?r.json():{}).catch(()=>({}));
-  if(sess.mode){Object.assign(memo,sess.memo||{});setMode(sess.mode,false);Object.assign(state,sess.params||{});unit=state.units||unit;$('#unit').value=unit;
+  if(sess.mode){Object.assign(memo,sess.memo||{});setMode(sess.mode,false);Object.assign(state,sess.params||{});unit=state.units||unit;
     if(sess.example)$('#example').value=sess.example; job=sess.alive?sess.job:null;
-    if(!sess.alive&&sess.job)status('the uploaded model of the last session is gone — upload it again or pick an example','err');
-    renderFields()}
-  else{setMode(location.hash.slice(1)||'interlocked',false);applyMachine(MATERIALS[state.material].machine);applyPreset();renderFields()}   // a fresh start gets the machine's compensation and the example's preset (the #technique in the URL is the app's own mirror of its state, not a request)
-  slice();
+    if(!sess.alive&&sess.job)status('the uploaded model of the last session is gone — upload it again or pick an example','err')}
+  else{setMode(location.hash.slice(1)||'interlocked',false);applyMachine(MATERIALS[state.material].machine);applyPreset()}   // a fresh start gets the machine's compensation and the example's preset (the #technique in the URL is the app's own mirror of its state, not a request)
+  applyUnit(); slice();
 }
 init();
 

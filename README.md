@@ -245,8 +245,8 @@ does not slip through. It carries the most signal for stacked and folded work; d
   same and runs far faster. Usage per sheet is shown.
 - **One thickness per sheet**: a part whose thickness you changed is cut from another piece of material, so it is
   nested on sheets of its own. Every sheet title says the stock it is cut from, the sheet header in the UI repeats
-  it, and as soon as a job mixes thicknesses the file names carry it (`sheet2_6mm.svg`, `Z-2_6mm.svg`) — a sheet cut
-  from the wrong stock fits nothing.
+  it, and as soon as a job mixes thicknesses the file names carry it (`sheet2 6mm.svg`, `Z-2 6mm x1.svg`) — a sheet cut
+  from the wrong stock fits nothing. Every file name also carries the material it is cut from (`sheet1 plywood.svg`).
 - **One sheet** ignores the sheet height: every part goes on one strip as wide as the sheet and as long as it needs,
   to be cut apart at the machine.
 - **Labels** are engraved beside the part with a leader line wherever there is room; only a fully crowded sheet puts
@@ -267,7 +267,9 @@ does not slip through. It carries the most signal for stacked and folded work; d
   seam numbers, sheet border). Files are named `<project or model>_v<revision>_<technique>_…`, so exports of
   different models never collide.
 - **Identical pieces once**: in per-piece mode a shape that occurs several times is exported one time, with the
-  quantity in the file name (`Z-1_x4.svg`) and the label, and a `cut-list.txt` says which parts each file covers.
+  quantity last in the file name and on the label. A per-piece file is named part, material, thickness, quantity, in
+  that order and separated by spaces, and it always ends in its quantity, `x1` included (`Z-1 plywood x4.svg`,
+  `Z-2 plywood x1.svg`); a `cut-list.txt` says which parts each file covers.
 - **Scale check**: every export carries a calibration bar, 10 cm or 4 in following the units, to cut first and
   measure before committing to the whole set.
 - **Kerf compensation is off by default**: many machines compensate their own kerf, and compensating twice ruins

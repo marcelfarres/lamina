@@ -34,8 +34,8 @@ class Stacked(Mode):
         Param("dowel_shape", "choice", "round", "Dowel hole shape (round, square, pencil = hexagon, cross, horizontal / vertical slot)", choices=["round", "square", "pencil", "cross", "hslot", "vslot"], show_if=("connect", "dowel")),
         Param("placement", "choice", "aligned", "aligned = the same points through the whole stack (every island that persists gets its own); random = new points for every pair of slices; lines = where your 3D lines cross the gap between two slices", choices=["aligned", "random", "lines"], show_if=("connect", ["dowel", "tab"])),
         Param("n_points", "int", 2, "Connection points per pair of slices (per island)", 1, 20, 1, show_if=("placement", ["aligned", "random"])),
-        Param("dowels", "points", [], "Aligned points (x, y in the slice plane, mm); empty = automatic. Alt-click a slice in the 3D view to add / remove one", unit="mm", show_if=("placement", "aligned")),
-        Param("lines", "lines3", [], "3D lines (start → end, mm) along which the connections are placed", unit="mm", show_if=("placement", "lines")),
+        Param("dowels", "points", [], "Aligned points (x, y in the slice plane); empty = automatic. Alt-click a slice in the 3D view to add / remove one", unit="mm", show_if=("placement", "aligned")),
+        Param("lines", "lines3", [], "3D lines (start → end) along which the connections are placed", unit="mm", show_if=("placement", "lines")),
         Param("spacer_dir", "choice", "alternate", "Orientation of pegs / spacers in the slice plane", choices=["x", "y", "alternate"], show_if=("connect", "tab")),
     ]
     hidden_common = ("notch_ratio", "notch_factor", "notch_angle")
