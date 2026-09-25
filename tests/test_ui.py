@@ -188,6 +188,52 @@ def test_each_model_preparation_setting_still_leaves_parts_to_cut(page, name, va
     settle(page)
 
 
+CUT_OFF = """() => {
+  // every visible box, select and readout: does what it holds fit what it shows? (the text measured in the box's own font)
+  const cv = document.createElement('canvas').getContext('2d'), px = v => parseFloat(v) || 0, out = [];
+  const where = el => (el.closest('section[data-tab]') || {}).dataset?.tab || (el.closest('#sel') ? 'selection panel' : 'view');
+  for (const el of document.querySelectorAll('input, select')) {
+    if (!(el.offsetWidth || el.offsetHeight) || ['checkbox', 'range', 'file', 'radio', 'hidden', 'color'].includes(el.type)) continue;
+    const cs = getComputedStyle(el); cv.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const text = el.tagName === 'SELECT' ? (el.selectedOptions[0]?.textContent || '') : (el.value || el.placeholder || '');
+    if (!text) continue;
+    let have = el.clientWidth - px(cs.paddingLeft) - px(cs.paddingRight);
+    if (el.type === 'number' && cs.appearance !== 'textfield') have -= 15;     // the spinner arrows
+    if (el.tagName === 'SELECT') have -= 18;                                    // the drop arrow
+    const need = cv.measureText(text).width;
+    if (need > have + 0.5) out.push(`${where(el)}: ${el.id || el.title || el.dataset.ln || el.tagName} shows "${text}" in ${Math.round(have)} px, needs ${Math.round(need)}`);
+  }
+  for (const el of document.querySelectorAll('#stats b, #sel b, .k')) {
+    if ((el.offsetWidth || el.offsetHeight) && el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflow !== 'visible')
+      out.push(`${where(el)}: "${el.textContent.trim().slice(0, 40)}" cut off`);
+  }
+  return out;
+}"""
+
+
+@pytest.mark.timeout(1200)
+def test_no_number_on_screen_is_cut_off(page):
+    """A value the box is too narrow for reads as a different number (-168 as -16) or as nothing at all — the radial
+    axes table showed six empty-looking boxes a row. Every technique, every tab, a part selected, in mm, cm and in:
+    whatever a field, select or readout holds has to fit in what it shows."""
+    found = {}
+    scenes = [("dumbbell", "radial"), ("snowman", "radial"), ("egg", "interlocked"), ("cube", "stacked"), ("pyramid", "curve"), ("wedge", "folded")]
+    for example, mode in scenes:
+        page.click('nav button[data-t="model"]')
+        page.select_option("#example", example); settle(page)
+        page.click('nav button[data-t="technique"]')
+        page.click(f'#modes button[data-m="{mode}"]'); settle(page)
+        page.evaluate("() => { const m = window.__t.parts().find(x => x.userData.group !== 'B'); if (m) window.__t.select(m.userData.slice) }")
+        for unit in ("mm", "cm", "in"):
+            page.select_option("#unit", unit); page.wait_for_timeout(300)
+            for tab in ("model", "technique", "sheet", "checks", "export"):
+                page.click(f'nav button[data-t="{tab}"]'); page.wait_for_timeout(150)
+                for line in page.evaluate(CUT_OFF):
+                    found.setdefault(line.split(" shows")[0].split(':')[0] + line.split(':')[1].split(' shows')[0], f"{example}/{mode}/{unit}: {line}")
+        page.select_option("#unit", "mm"); page.evaluate("() => window.__t.deselect()")
+    assert not found, "\n".join(found.values())
+
+
 @pytest.mark.timeout(600)
 def test_the_tables_take_a_row(page):
     """The list-shaped parameters: + on a points / axes table and a chip typed into a chips box. These add geometry
@@ -260,10 +306,12 @@ def test_the_whole_job_from_upload_to_cut_files(page):
     assert plan(page)["mode"] == "interlocked"
     assert page.evaluate("() => window.__t.state().project") == "ui test"
     path.unlink(missing_ok=True)
-    page.on("dialog", lambda d: d.accept())
+    ok = lambda d: d.accept()
+    page.on("dialog", ok)
     page.click("#clear")
     page.wait_for_load_state("load")
     settle(page)
+    page.remove_listener("dialog", ok)                   # left in place it would answer the next test's dialogs
 
 
 @pytest.mark.timeout(600)
@@ -453,3 +501,140 @@ def test_what_is_new_shows_itself_once_when_the_version_changes(page, server):
     heads = page.eval_on_selector_all("#news_body h5", "els => els.map(e => e.textContent)")
     assert heads[0].endswith(latest) and len(heads) > 1, heads
     page.click("#news_go")
+
+def zip_of(body):
+    import io, zipfile
+    return zipfile.ZipFile(io.BytesIO(body))
+
+
+@pytest.mark.timeout(1800)
+def test_every_control_does_what_it_says_and_every_download_holds_the_plan(page, server):
+    """Every button, slider and download of the app, pressed once, and what it produced read back: the 3D view bar,
+    the selected-part panel, revisions, help, saved presets, the thickness and sheet lists, the one-click fixes, and
+    every file behind the Export tab — opened and held against the plan it came from (the sheets name every part, the
+    key lists every part, the STL is whole, the prototype carries a plate). A control that stops working, or a file
+    that stops matching what the screen shows, fails here."""
+    import xml.etree.ElementTree as ET
+    names = iter(["ui preset", "ui sheet"])
+    answer = lambda d: d.accept(next(names, "ui")) if d.type == "prompt" else d.accept()
+    page.on("dialog", answer)
+    page.click('nav button[data-t="model"]'); page.select_option("#example", "egg"); settle(page)
+    page.click('nav button[data-t="technique"]'); page.click('#modes button[data-m="interlocked"]'); settle(page)
+    p = plan(page)
+    labels = {pc["label"] for s in p["slices"] for pc in s["pieces"]}
+    ev = page.evaluate
+
+    # -- the 3D view bar
+    page.fill("#explode", "2"); page.dispatch_event("#explode", "input")
+    assert ev("() => window.__t.parts().some(m => m.position.length() > 1)"), "explode moved nothing"
+    page.fill("#explode", "1"); page.dispatch_event("#explode", "input")
+    page.fill("#steps", "1"); page.dispatch_event("#steps", "input")
+    assert ev("() => window.__t.parts().filter(m => m.visible && m.userData.group !== 'B').length") == 1, "steps did not step"
+    ev("() => { const s = document.querySelector('#steps'); s.value = s.max; s.dispatchEvent(new Event('input')) }")
+    page.uncheck("#ghost"); assert ev("() => !window.__t.ghost()[0].parent.visible"), "the model did not hide"
+    page.check("#ghost")
+    before = ev("() => window.__t.parts()[0].material.color.getHex()")
+    page.select_option("#look", "steel")
+    assert ev("() => window.__t.parts()[0].material.color.getHex()") != before, "the look did not change the parts"
+    page.select_option("#look", "group")
+    page.select_option("#viewmode", "only3d"); assert "only3d" in page.get_attribute("#view", "class")
+    page.select_option("#viewmode", "both")
+    ev("() => window.__t.cam(10, 80, 50000)"); page.click("#fit")
+    assert ev("() => window.__t.camera.position.length()") < 50000, "fit view did not bring the model back"
+
+    # -- the selected-part panel: move, reset, close, delete
+    lab = p["slices"][0]["label"]
+    ev(f"() => window.__t.select('{lab}')"); page.wait_for_timeout(200)
+    assert page.is_visible("#sel") and page.text_content("#sel b") == lab
+    page.fill("#n_offset", "3"); page.dispatch_event("#n_offset", "change"); settle(page)
+    assert abs(ev(f"() => window.__t.state().offset['{lab}']") - 3) < 1e-6, "the offset box did not reach the slice"
+    page.click("#s_reset"); settle(page)
+    assert ev(f"() => !(window.__t.state().offset || {{}})['{lab}']"), "reset left the offset"
+    ev(f"() => window.__t.select('{lab}')"); page.click("#s_close"); assert not page.is_visible("#sel")
+    ev(f"() => window.__t.select('{lab}')"); page.click("#s_del")
+    page.wait_for_function(f"() => !window.__t.plan().slices.some(s => s.label === '{lab}')", timeout=180_000)   # the re-slice that drops it
+    settle(page)
+    assert lab in ev("() => window.__t.state().skip")
+    ev("() => document.querySelector('#undo').click()"); settle(page)
+    assert lab in {s["label"] for s in plan(page)["slices"]}, "undo did not bring the deleted slice back"
+
+    # -- header: revisions and help
+    rev = page.text_content("#prev")
+    page.click("#pminor"); assert page.text_content("#prev") != rev
+    page.click("#pmajor"); assert page.text_content("#prev").endswith(".0")
+    page.click("#helpbtn"); assert page.locator("#helpdlg[open]").count(); page.click("#help_go")
+    assert not page.locator("#helpdlg[open]").count()
+
+    # -- the Sheet & fit lists: a saved preset, a thickness, a sheet size — added, then removed
+    page.click('nav button[data-t="sheet"]')
+    page.click("#psave"); assert "ui preset" in page.eval_on_selector_all("#presets option", "o => o.map(x => x.value)")
+    page.select_option("#presets", "ui preset"); page.click("#pdel")
+    assert "ui preset" not in page.eval_on_selector_all("#presets option", "o => o.map(x => x.value)")
+    page.fill("#p_thickness", "2.37"); page.dispatch_event("#p_thickness", "input"); settle(page)
+    page.click("#madd")
+    assert 2.37 in ev("() => Object.values(JSON.parse(localStorage.getItem('slicer_thick') || '{}')).flat()")
+    page.select_option("#thicklist", index=page.eval_on_selector_all("#thicklist option", "o => o.findIndex(x => +x.value === 2.37)"))
+    page.click("#mdel")
+    assert 2.37 not in ev("() => Object.values(JSON.parse(localStorage.getItem('slicer_thick') || '{}')).flat()")
+    page.click("#sadd")
+    assert any(s[0] == "ui sheet" for s in ev("() => JSON.parse(localStorage.getItem('slicer_sheets') || '[]')"))
+    page.select_option("#sheetpreset", index=page.eval_on_selector_all("#sheetpreset option", "o => o.length - 1")); page.click("#sdel")
+    assert not any(s[0] == "ui sheet" for s in ev("() => JSON.parse(localStorage.getItem('slicer_sheets') || '[]')"))
+    page.click("#usage_optin") if page.is_visible("#usage_optin") else None
+    page.fill("#p_thickness", "1.5"); page.dispatch_event("#p_thickness", "input"); settle(page)
+
+    # -- every download: fetched as the link has it, opened, and held against the plan
+    page.click('nav button[data-t="export"]')
+    p = plan(page); labels = {pc["label"] for s in p["slices"] for pc in s["pieces"]}
+    links = {a["t"]: a["h"] for a in page.eval_on_selector_all("#dl a", "as => as.map(a => ({t: a.textContent, h: a.getAttribute('href')}))")}
+    get = lambda href: page.request.get(f"{server}/{href}")
+    z = zip_of(get(links["sheets SVG + DXF"]).body())
+    svgs = [n for n in z.namelist() if n.endswith(".svg")]
+    assert svgs and any(n.endswith(".dxf") for n in z.namelist()) and "assembly-key.txt" in z.namelist()
+    drawn = {el.get("data-label") for n in svgs for el in ET.fromstring(z.read(n)).iter() if el.get("data-label")}   # noqa: S314 — our own server's SVG
+    assert labels <= drawn, f"parts in the plan but on no sheet: {sorted(labels - drawn)[:5]}"
+    key = z.read("assembly-key.txt").decode()
+    assert all(lb in key for lb in labels), "the assembly key misses parts"
+    pdf = zip_of(get(links["sheets PDF (one page per sheet)"]).body())       # zipped, with the key and the project file
+    assert [pdf.read(n)[:4] for n in pdf.namelist() if n.endswith(".pdf")] == [b"%PDF"]
+    eps = zip_of(get(links["sheets EPS"]).body())
+    assert all(eps.read(n)[:4] == b"%!PS" for n in eps.namelist() if n.endswith(".eps"))
+    pieces = zip_of(get(links["one file per piece SVG + DXF"]).body())
+    assert "cut-list.txt" in pieces.namelist() and len([n for n in pieces.namelist() if n.endswith(".svg")]) >= 2
+    stl = get(links["assembled STL"]).body()
+    assert len(stl) == 84 + 50 * int.from_bytes(stl[80:84], "little") and int.from_bytes(stl[80:84], "little") > 100, "the STL is not whole"
+    one = get(links["assembled STL"] + "?part=" + sorted(labels)[0]).body()     # one part alone, as the parts table offers it
+    assert len(one) == 84 + 50 * int.from_bytes(one[80:84], "little") and 0 < len(one) < len(stl)
+    assert json.loads(get(links["plan.json"]).body())["counts"]["parts"] == p["counts"]["parts"]
+    fit = zip_of(get(links[next(t for t in links if t.startswith("fit test SVG"))]).body())
+    assert "README.txt" in fit.namelist() and len({n.split("/")[0] for n in fit.namelist() if "/" in n}) == 5
+    page.uncheck("#x_key"); page.uncheck("#x_labels")
+    href = page.eval_on_selector("#dl a", "a => a.getAttribute('href')")
+    assert "key=0" in href and "labels=0" in href
+    assert "assembly-key.txt" not in zip_of(get(href).body()).namelist()
+    page.check("#x_key"); page.check("#x_labels")
+
+    # -- prototyping: the fields reach the request, and the zips hold a plate
+    page.fill("#pr_size", "120"); page.select_option("#pr_labels", "hole"); page.fill("#pr_font", "4")
+    page.fill("#pr_min", "1"); page.fill("#pr_offset", "0.3"); page.fill("#pr_step", "0.05")
+    for btn, want in (("#pr_go", "plate.3mf"), ("#fit_go", "plate.3mf")):
+        with page.expect_download(timeout=300_000) as dl:
+            page.click(btn)
+        url = dl.value.url
+        assert all(q in url for q in ("size=120", "labels=hole", "font=4", "min_thick=1", "offset=0.3")), url
+        assert want in zip_of(pathlib.Path(dl.value.path()).read_bytes()).namelist()
+
+    # -- the assembly video: a real webm, and the view put back as it was
+    with page.expect_download(timeout=120_000) as vid:
+        page.click("#vid_go")
+    assert vid.value.suggested_filename.endswith(".webm") and pathlib.Path(vid.value.path()).stat().st_size > 10_000
+    assert ev("() => window.__t.parts().every(m => m.userData.group === 'B' || m.visible)"), "the video left parts hidden"
+
+    # -- a one-click fix: axes on no plane, one click puts them back on one and the error goes
+    page.click('nav button[data-t="model"]'); page.select_option("#example", "dumbbell"); settle(page)
+    ev("() => window.__t.applyFix({axes: [[[-72, 0, -108], [72, 0, -108]], [[0, -72, 108], [0, 72, 108]]]})"); settle(page)
+    assert plan(page)["counts"]["errors"] > 0
+    page.click("#msgs .fix"); settle(page)
+    assert plan(page)["counts"]["errors"] == 0, plan(page)["errors"]
+    page.remove_listener("dialog", answer)
+    assert not page.errors, page.errors

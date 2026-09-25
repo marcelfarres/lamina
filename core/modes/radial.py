@@ -33,7 +33,7 @@ class Radial(Mode):
     title = "Radial Slices"
     description = ("Half-slices radiating from an axis (move it with `center`, turn the fan with `angle`), held by horizontal ring "
                    "slices with radial slots. Give `axes` a line per lobe for a fan each — a snowman's balls, a dumbbell's — "
-                   "each owning the part of the model nearest to it, tied together by a spine through every axis.")
+                   "parted by a flat plane between neighbouring axes that you can move and tilt, tied together by a spine through every axis.")
     legend = ("R-2a / R-2b = the two halves of the 2nd radial plane of the fan, counted round from `angle` · "
               "R2-1a = the same on the 2nd axis, when the job has several · "
               "Z-3 = the 3rd ring slice along the axis, counted from the low end · "
@@ -107,7 +107,25 @@ class Radial(Mode):
         if np.linalg.norm(Q - np.outer(Q @ Vt[0], Vt[0]), axis=1).max() < tol:
             return "line", None, 0.0, None
         off = float(np.abs(Q @ Vt[2]).max())
-        flat = np.round(P - np.outer(Q @ Vt[2], Vt[2]), 1).reshape(-1, 2, 3).tolist()
+        # The fix keeps every axis's centre (the lobe it serves stays put) and its length, and turns it into the plane
+        # through the first axis and the centres. Projecting the ends instead collapsed an axis the plane sees edge-on,
+        # and sliding axes along the normal moved them off their lobes. An axis that cannot turn into the plane (it
+        # stands square to it) is laid across the first one — still at right angles, still through its own lobe.
+        O1, u1 = axes[0][0], axes[0][1]
+        N = None
+        for O, u, _, _ in axes[1:]:
+            for c in (np.cross(u1, O - O1), np.cross(u1, u)):
+                if np.linalg.norm(c) > 1e-3 * max(1.0, float(np.linalg.norm(O - O1))):
+                    N = c / np.linalg.norm(c); break
+            if N is not None:
+                break
+        if N is None:
+            N = Vt[2]
+        flat = []
+        for O, u, h, _ in axes:
+            o = O - ((O - O1) @ N) * N; d = u - (u @ N) * N
+            d = d / np.linalg.norm(d) if np.linalg.norm(d) > 0.1 else np.cross(N, u1) / np.linalg.norm(np.cross(N, u1))
+            flat.append(np.round([o - d * h, o + d * h], 1).tolist())
         return ("plane" if off < tol else "skew"), Vt[2], off, flat
 
     def _bounds(self, ctx, axes):
@@ -263,16 +281,43 @@ class Radial(Mode):
         # and its upper rings down from above, so neither has to pass through the other ball's part of the spine.
         # Both are one sheet along their crossing line (`through`): one slot each for the whole line, to their own
         # edges — the spine's material goes on past the ring's lobe, and a ring's chord may graze the neck
+        #
+        # A lobe between two others (three balls side by side) has no side of its own: its rings reach the spine
+        # through a neighbour. Near its axis the path runs down the neck and costs nothing; out at the edge it runs
+        # through the neighbour ball beyond the neck and cuts that ball's cap off the spine. Such a ring tries the
+        # other side, and where both sever the spine it is not slotted onto the spine at all — its own half-slices
+        # hold it, and the rings nearer the axis tie the lobe to the spine. Nearest the axis first, so those are the
+        # ones kept.
+        from shapely.ops import unary_union
+        from ..geometry import section_polygons
         centre = np.mean([a[0] for a in axes], axis=0)
         for sp in spine_sl:
-            for ring in rings:
+            raw = section_polygons(ctx.mesh, sp.M)
+            def pieces(raw=raw, sp=sp):
+                return len(as_multi(raw.difference(unary_union(sp.cuts))).geoms) if sp.cuts else len(raw.geoms)
+            base = len(raw.geoms)
+            held = set()
+            order = sorted(rings, key=lambda g: float(np.linalg.norm(np.cross(g.M[:3, 3] - axes[g.lobe][0], axes[g.lobe][1]))))
+            for ring in order:
                 d = np.cross(sp.M[:3, 2], ring.M[:3, 2])
                 if np.linalg.norm(d) < 1e-9:
                     continue
                 d = d / np.linalg.norm(d); side = float(np.dot(ring.M[:3, 3] - centre, d))
                 s = np.sign(side) if abs(side) > t else 1.0
-                cut_slots(sp, ring, ctx, tuple(s * d), r, through=True)
-                cut_slots(ring, sp, ctx, tuple(-s * d), 1 - r, through=True)
+                for sgn in (s, -s):
+                    mark = (len(sp.cuts), len(sp.links), len(sp.engages))
+                    cut_slots(sp, ring, ctx, tuple(sgn * d), r, through=True)
+                    if len(sp.cuts) == mark[0] or pieces() <= base:
+                        break
+                    del sp.cuts[mark[0]:], sp.links[mark[1]:], sp.engages[mark[2]:]; sp.slot_dirs.pop(ring.label, None)
+                else:
+                    continue                              # both ways sever the spine: this ring stays off it
+                if len(sp.cuts) > mark[0]:
+                    cut_slots(ring, sp, ctx, tuple(-sgn * d), 1 - r, through=True)
+                    held.add(ring.lobe)
+            for i in sorted({g.lobe for g in rings} - held):
+                ctx.errors.append(f"spine: no ring of lobe {i + 1} can reach the spine without cutting it apart — "
+                                  f"move that axis so one of its rings sits nearer the neck, or add a ring")
         if not rings:
             ctx.errors.append("no ring slices — nothing holds the half-slices")
         ctx.cover_r = max(max(a[2] for a in axes) / max(1, nr), math.pi * max(ctx.ext) / (4 * n)) + t

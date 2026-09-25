@@ -123,6 +123,49 @@ def test_radial_axes_meeting_at_an_angle_share_the_plane_they_lie_in():
     assert all("SP-1" in s["engages"] for s in plan["slices"] if s["label"].startswith("Z-"))
 
 
+def test_radial_axes_at_right_angles_work_and_the_fix_keeps_them_on_their_lobes():
+    """The dumbbell with its axes at right angles: across the lower ball along x, up the upper ball along z. They
+    share the plane y = 0, so it slices clean with one spine through both. Turn the upper one to y and no plane
+    holds both; the one-click fix keeps each axis on its own ball (centre and length unchanged) and turns it back
+    into a common plane — exactly the layout above, clean again. The fix used to project the ends onto the best-fit
+    plane, which collapsed the x axis to a point."""
+    base = {"count": 8, "ring_count": 4, "thickness": 3, "autofix": "off"}
+    good = [[[-72, 0, -108], [72, 0, -108]], [[0, 0, 36], [0, 0, 180]]]
+    plan = build(EXAMPLES / "dumbbell.stl", "radial", {**base, "axes": good})
+    assert plan["counts"]["errors"] == 0 and plan["counts"]["warnings"] == 0
+    assert [s["label"] for s in plan["slices"] if s["label"].startswith("SP-")] == ["SP-1"]
+    skew = build(EXAMPLES / "dumbbell.stl", "radial", {**base, "axes": [good[0], [[0, -72, 108], [0, 72, 108]]]})
+    fixed = skew["fixes"][0]["options"][0]["set"]["axes"]
+    for (a, b), (c, d) in zip(fixed, good):                               # exactly the working layout, end for end
+        assert np.allclose(a, c, atol=0.5) and np.allclose(b, d, atol=0.5), (fixed, good)
+        assert abs(float(np.linalg.norm(np.subtract(b, a))) - 144) < 0.5  # every axis keeps its length
+    assert np.allclose(np.mean(fixed[1], axis=0), [0, 0, 108], atol=0.5)  # …and stays on its ball
+    again = build(EXAMPLES / "dumbbell.stl", "radial", {**base, "axes": fixed})
+    assert again["counts"]["errors"] == 0 and again["counts"]["warnings"] == 0
+
+
+def test_radial_a_lobe_between_two_others_reaches_the_spine_through_the_neck(tmp_path):
+    """Three balls on a neck, a parallel axis through each: the middle ball's rings have no side of their own and
+    reach the spine through a neighbour. Its rings near the axis go down the neck at no cost; its edge rings would
+    have to cut the neighbour's cap off the spine, so they stay off it and are held by their own half-slices. The
+    spine stays one piece, every lobe is on it, and the plan has no error — this used to report the spine cut into
+    three loose regions."""
+    from trimesh.creation import icosphere, cylinder
+    m = trimesh.boolean.union([icosphere(4, 70).apply_translation([0, 0, z]) for z in (-160, 0, 160)]
+                              + [cylinder(radius=28, height=320, sections=64)])
+    path = tmp_path / "triple.stl"; m.export(path)
+    axes = [[[-70, 0, z], [70, 0, z]] for z in (-160, 0, 160)]
+    plan = build(path, "radial", {"axes": axes, "count": 8, "ring_count": 4, "thickness": 3, "autofix": "off"})
+    assert plan["counts"]["errors"] == 0
+    spine = next(s for s in plan["slices"] if s["label"] == "SP-1")
+    assert len(spine["pieces"]) == 1
+    rings = {s["label"]: s for s in plan["slices"] if s["label"].startswith("Z-")}
+    on = {l for l, s in rings.items() if "SP-1" in s["engages"]}
+    lobe = lambda l: (int(l[2:]) - 1) // 4                        # four rings per axis, numbered straight through
+    assert {lobe(l) for l in on} == {0, 1, 2}                    # every ball tied to the spine
+    assert on >= {"Z-6", "Z-7"} and not on & {"Z-5", "Z-8"}       # the middle ball: inner rings on, edge rings off
+
+
 def test_radial_axes_on_no_single_plane_are_refused_with_a_fix():
     """No flat sheet passes through skew axes, so nothing could join one fan to the next: an error, and a one-click
     fix that puts every axis end on the plane nearest to all of them — applying it gives a plan with a spine."""

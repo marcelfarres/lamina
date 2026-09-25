@@ -19,3 +19,16 @@ jobs:
       - run: uv sync --frozen
       - run: uv run ruff check
       - run: uv run pytest tests -q
+
+  # The app in a real browser: every parameter driving the slicer, the tables, undo, and nothing on screen cut off
+  # (tests/test_ui.py, skipped by the job above because it needs Chromium)
+  ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --frozen
+      - run: uv run --with playwright playwright install --with-deps chromium
+      - run: uv run --with playwright pytest tests/test_ui.py -q
+        env:
+          LAMINA_UI: "1"

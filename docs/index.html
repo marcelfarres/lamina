@@ -243,7 +243,7 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
       <video src="media/radial.mp4" poster="media/radial_poster.jpg" width="1100" height="825" muted loop playsinline controls preload="none"
              aria-label="A scanned head in radial half-slices about one axis, orbiting; then 6, 14 and 10 slices, and 3, 9 and 6 ring slices"></video>
       <video src="media/axes.mp4" poster="media/axes_poster.jpg" width="1100" height="825" muted loop playsinline controls preload="none" style="margin-top:14px"
-             aria-label="A dumbbell with an axis through each ball and the plane between them at the neck; then one axis through both, back to two, and the neck plane raised and tilted"></video>
+             aria-label="A dumbbell with an axis through each ball, at right angles to each other, and the plane between them at the neck; then one axis through both, back to two, and the neck plane raised and tilted"></video>
     </div>
     <div>
       <h3>Radial slices</h3>
@@ -265,8 +265,8 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
       <p class="clip"><b>In the first clip:</b> the scanned head about one axis, 10 half-slices and 6 rings in 3 mm
       cardboard; then 6, 14 and 10 slices, and 3, 9 and 6 rings. More rings lock it stiffer, more slices smooth the
       silhouette.</p>
-      <p class="clip"><b>In the second:</b> the dumbbell, an axis through each ball and the plane between them at the
-      neck; then one axis through both — the fan cuts across both balls, which is what an axis each is for — back to
+      <p class="clip"><b>In the second:</b> the dumbbell, an axis through each ball at right angles to the other —
+      across the lower ball, up the upper one — and the plane between them at the neck; then one axis through both — the fan cuts across both balls, which is what an axis each is for — back to
       two, and the neck plane raised 30 mm and tilted 15°, like any other slice.</p>
       <p class="clip"><b>Parameters:</b> axis and centre · slice count · fan angle · core diameter · ring count or
       spacing · centre hole for a rod.</p>
@@ -376,9 +376,8 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
     </figure>
     <div>
       <ul class="clean">
-        <li><b>Alt-click</b> a slice to place a dowel or peg exactly where you want it, or to add a control point to
-            the curve — then drag the point where you want it; or to add a control point to
-            a curve.</li>
+        <li><b>Alt-click</b> a slice to place a dowel or peg exactly where you want it, to add a control point to
+            the curve, or to add a radial axis through that point — then drag the point or the axis where you want it.</li>
         <li><b>Per-slice edits</b> — position, tilt, roll and thickness, so you can mix materials in one model.</li>
         <li><b>Material look</b> — cardboard, paper, plywood, steel or plastic, to judge the result before cutting.</li>
         <li><b>Panel transparency</b> to see the connectors inside a folded shell.</li>
@@ -389,6 +388,13 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
 
 <section id="checks"><div class="wrap">
   <h2>It tells you what will not work — and offers the fix</h2>
+  <figure style="margin-top:24px">
+    <video src="media/lobes.mp4" poster="media/lobes_poster.jpg" width="1200" height="690"
+           muted loop playsinline controls preload="none"
+           aria-label="The snowman with an axis per ball; the plane between the two lower balls selected, slid up the waist and tilted"></video>
+    <figcaption>The plane between two lobes of a radial job is a part like any other: select it, slide it up the waist,
+    tilt it — the fans on either side follow, and every step still slices clean.</figcaption>
+  </figure>
   <p class="sub">Lamina checks the plan as a physical object, not just as geometry. Every message says what is wrong
   and what to do about it, and most carry buttons that apply the change.</p>
   <figure>

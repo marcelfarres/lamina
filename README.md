@@ -39,6 +39,7 @@ the stills below are the same scenes.
 | [![Stacked: parallel slices with dowels](docs/media/stacked_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Stacked** — parallel sections, touching or spaced, held by dowels, pegs or spacers | [![Interlocked: two slotted families forming an egg-crate](docs/media/interlocked_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Interlocked** — two slotted families, egg-crate |
 | [![Radial: half-slices fanned around an axis with locking rings](docs/media/radial_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Radial** — half-slices around an axis, locked by rings | [![Curve: ribs following a curve through the model](docs/media/curve_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Curve** — ribs that follow a bend, not the grid |
 | [![Folded: a surface unfolded into flat panels with score lines](docs/media/folded_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#folded)<br>**Folded** — the surface unfolded flat, with 13 joint types | [![A cube net cut with the tongue joint](docs/media/joint_tongue.png)](https://marcelfarres.github.io/lamina/?ref=github-readme#folded)<br>**Thirteen joints** — seam, tab, gear, tongue, puzzle, laced… |
+| [![Radial with an axis through each ball of a dumbbell, at right angles to each other, and the plane between them at the neck](docs/media/axes_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Radial, an axis per lobe** — a fan per ball, one spine through all of them | [![The plane between two lobes of the snowman selected and tilted](docs/media/lobes_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#editing)<br>**Where lobes meet** — a plane you select, move and tilt like any slice |
 
 ## What it checks, and what you get
 
@@ -399,8 +400,13 @@ tests/       pytest suite, test_ui.py (the app in a browser), test_unfold.py, ru
 [The landing page](https://marcelfarres.github.io/lamina/) is `docs/`, served by GitHub Pages from `main` — plain
 HTML with no build step, so any static server shows exactly what Pages will:
 
+LAMINA_UI=1 uv run --with playwright pytest tests/test_ui.py    # the app in a browser: every parameter, undo, no number cut off
+uv run --with playwright python scripts/media/record.py [scene …]   # re-record the landing-page stills and clips (needs node + ffmpeg)
 ```bash
 uv run python -m http.server 8080 --directory docs   # then open http://localhost:8080
+The landing-page media are re-recorded on every release tag by `.github/workflows/media.yml` (or by hand from the
+Actions tab), and committed back to main, so they always show the version people download.
+
 ```
 
 The `.md` files next to it (`roadmap.md`, `folded-panels.md`) are read on GitHub rather than through the page.

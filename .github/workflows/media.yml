@@ -1,0 +1,46 @@
+name: media
+
+# The landing page's stills and clips, recorded from the app itself on every release, so they always show the
+# version people download. A pre-commit hook would be the wrong place: a full recording takes a quarter of an hour.
+# Run it by hand from the Actions tab too, with a few scene names to redo only those (e.g. "axes lobes").
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      scenes:
+        description: "scene names, space separated (empty = every scene)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write            # commits the refreshed docs/media back to main
+
+concurrency:
+  group: media
+  cancel-in-progress: false
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main          # a tag push checks out the tag; the media belong on main, where the site deploys from
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"   # capture.mjs uses the built-in WebSocket
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: uv sync --frozen
+      - run: uv run --with playwright playwright install --with-deps chromium
+      - run: uv run --with playwright python scripts/media/record.py ${{ github.event.inputs.scenes }}
+      - name: commit the media if they changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/media
+          if git diff --cached --quiet; then echo "media unchanged"; exit 0; fi
+          git commit -m "Landing-page media recorded from ${GITHUB_REF_NAME}"
+          git push origin HEAD:main

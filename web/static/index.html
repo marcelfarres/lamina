@@ -19,6 +19,11 @@ nav{display:flex;border-bottom:1px solid var(--line);background:var(--panel)}nav
 #tabs{overflow:auto;padding:12px 14px 30px;flex:1}section[data-tab]{display:none}section[data-tab].on{display:block}
 h2{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:16px 0 6px}h2:first-child{margin-top:0}
 label.f,div.f{display:grid;grid-template-columns:128px 1fr;gap:8px;align-items:start;margin:5px 0}.f>.k{padding-top:5px}.f[hidden]{display:none}
+/* a table of 3D lines is six numbers a row: under its label, the full width of the panel, or the values are cut off */
+.f.wide{grid-template-columns:1fr}.f.wide .rows .r small{min-width:38px}
+/* the spinner arrows take a third of a narrow box and say nothing about which way is which: the table's values are
+   typed or dragged in the 3D view */
+.f.wide input[type=number]{-moz-appearance:textfield;appearance:textfield}.f.wide input[type=number]::-webkit-inner-spin-button,.f.wide input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 .k{cursor:help;border-bottom:1px dotted #55575f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #tip{position:fixed;z-index:50;max-width:320px;background:#2b2d34;color:#f0f0ee;padding:7px 9px;border-radius:5px;font-size:11.5px;line-height:1.4;box-shadow:0 6px 18px #000c;border:1px solid #3a3c45;pointer-events:none}#tip[hidden]{display:none}
 input,select,button{font:inherit}input,select{width:100%;padding:4px 6px;border:1px solid var(--line);border-radius:4px;background:var(--panel2);color:var(--ink)}input[type=checkbox]{width:auto;justify-self:start;margin-top:6px;accent-color:var(--acc)}input[type=file]{padding:2px;font-size:12px}input[type=range]{padding:0;accent-color:var(--acc)}
@@ -115,7 +120,7 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
     <li>A big model in this browser version takes minutes where the local version takes seconds — and never a layer of your model goes anywhere: <a href="https://marcelfarres.github.io/lamina/#start" target="_blank" rel="noopener">how to run it on your own computer</a>.</li>
     <li>Something came out wrong? <a data-feedback href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml" target="_blank" rel="noopener">Report it</a> — a sentence, and the report fills in the rest.</li></ul>
   <div class="row"><button id="help_go" class="go">Close</button></div></dialog>
-<header><h1><img src="static/logo.svg" alt="">Lamina</h1><span class="k" style="color:var(--muted);font-size:12px;border:0" data-tip="Lamina turns a 3D model into flat parts you can cut from paper, cardboard, plywood or sheet metal — stacked, interlocked, radial, ribbed or folded — checks that the result holds together, nests the parts on your sheets and exports the cut files. Not the 3D-printing kind of slicing — it works out the pieces you cut from a sheet and put back together.">what is it?</span>
+<header><h1><img src="static/logo.svg" alt="">Lamina</h1><span class="k" style="color:var(--muted);font-size:12px;border:0;flex-shrink:0" data-tip="Lamina turns a 3D model into flat parts you can cut from paper, cardboard, plywood or sheet metal — stacked, interlocked, radial, ribbed or folded — checks that the result holds together, nests the parts on your sheets and exports the cut files. Not the 3D-printing kind of slicing — it works out the pieces you cut from a sheet and put back together.">what is it?</span>
 <input id="pname" placeholder="project name" style="width:150px;padding:3px 6px" title="project name (printed on every sheet and used for the file name)"><span class="hint" title="revision: bump minor for small changes, major for a new design">v<span id="prev">1.0</span></span><button class="small" id="pminor" title="new minor revision (1.0 → 1.1)">+0.1</button><button class="small" id="pmajor" title="new major revision (1.x → 2.0)">+1</button>
 <button class="small" id="popen">open project</button><button class="small" id="psave2">save project</button><input type="file" id="pfile" accept=".json" hidden>
 <button class="small" id="undo" title="undo the last change (Ctrl+Z)" disabled>↶ undo</button><button class="small" id="redo" title="redo (Ctrl+Y or Ctrl+Shift+Z)" disabled>↷</button>
@@ -176,7 +181,7 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
     <section data-tab="checks"><h2>Physical checks <button class="small reset" data-reset="checks">reset tab</button></h2><div id="g-checks"></div><h2>Report</h2><div id="report"></div></section>
     <section data-tab="export"><h2>Downloads</h2>
       <div class="f"><span class="k" data-tip="Include the red LABEL layer (part names, leader lines, seam numbers, sheet border) in the cut files. Off = cuts and score lines only">labels in files</span><input type="checkbox" id="x_labels" checked></div>
-      <div class="f"><span class="k" data-tip="assembly-key.txt in the zip: what the labels mean, every part with where its centre sits and what it slots onto, in the order the 3D view builds them. In puzzle mode it is also the only way from an engraved code back to a part — untick it and the puzzle stays a puzzle (the file can always be downloaded later)">assembly key in the zip</span><input type="checkbox" id="x_key" checked></div>
+      <div class="f"><span class="k" data-tip="assembly-key.txt in the zip: what the labels mean, every part with where its centre sits and what it slots onto, in the order the 3D view builds them. In puzzle mode it is also the only way from an engraved code back to a part — untick it and the puzzle stays a puzzle (the file can always be downloaded later)">assembly key</span><input type="checkbox" id="x_key" checked></div>
       <div class="hint" id="legend" style="margin:2px 0 8px"></div>
       <div class="f"><span class="k" data-tip="Step between the five slot offsets of a fit test: yours −2, −1, 0, +1, +2 steps. A fit test is five small assemblies with this job's joints — same thickness, connectors and the counts that make the assembly tight (every radial half-slice) — each part marked with its offset. The loosest that slides together without forcing and still holds is the offset to set. The cut-file test below is at 1:1 on your real material and machine and is the one that predicts the model's fit; the print test under Prototyping dials in the print only — a clearance is a length, not a ratio">fit step (mm)</span><input type="number" id="pr_step" data-len data-mm="0.1" data-min="0.01" data-step="0.05"></div>
       <div class="dl" id="dl"></div>
@@ -339,15 +344,15 @@ function field(p){
     inp=sl?`<div class="rows">${[...Array(n)].map((_,i)=>`<div class="r"><small>${lab[i]}</small>${slider(id+'_'+i,(v||[])[i]||0,p,`data-vec="${p.name}" data-i="${i}"`)}</div>`).join('')}</div>`
         // `size` left at 0 is "however big the model is": the box is empty and shows what came out as a placeholder,
         // so typing one dimension tells you the other two instead of leaving three zeros that mean three things
-        :`<span class="vec">${[...Array(n)].map((_,i)=>`<small>${lab[i]}</small>${num(id+'_'+i,(v||[])[i]||(p.name==='size'?null:0),p,`data-vec="${p.name}" data-i="${i}" ${p.name==='size'?`placeholder="${plan?show(p,plan.bbox[i]):'auto'}"`:''}`)}`).join('')}</span>`}
+        :`<span class="vec">${[...Array(n)].map((_,i)=>`<small>${lab[i]}</small>${num(id+'_'+i,(v||[])[i]||(p.name==='size'?null:0),p,`data-vec="${p.name}" data-i="${i}" ${p.name==='size'?`placeholder="${plan?+(+show(p,plan.bbox[i])).toPrecision(3):'auto'}"`:''}`)}`).join('')}</span>`}
   else if(p.type==='text')inp=`<input id="${id}" value="${esc(v)}">`;
   else if(p.type==='points')inp=`<div class="rows" id="${id}">${(v||[]).map((q,i)=>`<div class="r"><small>${i+1}</small><input type="number" step="any" value="${show(p,q[0])}" data-pt="${p.name}" data-i="${i}" data-j="0"><input type="number" step="any" value="${show(p,q[1])}" data-pt="${p.name}" data-i="${i}" data-j="1"><button class="small x" data-del="${p.name}" data-i="${i}">×</button></div>`).join('')}<div class="r"><button class="small" data-add="${p.name}">+ point</button><span class="hint">or alt-click in the 3D view</span></div></div>`;
-  else if(p.type==='lines3')inp=`<div class="rows" id="${id}">${(v||[]).map((l,i)=>`<div class="r"><small>${i+1}</small>${[0,1].map(e=>[0,1,2].map(j=>`<input type="number" step="any" value="${show(p,l[e][j])}" data-ln="${p.name}" data-i="${i}" data-e="${e}" data-j="${j}" title="${e?'end':'start'} ${'xyz'[j]}">`).join('')).join('<small>→</small>')}<button class="small x" data-del="${p.name}" data-i="${i}">×</button></div>`).join('')}<div class="r"><button class="small" data-add="${p.name}">${p.name==='axes'?'+ split an axis':'+ line'}</button><span class="hint">${p.name==='axes'?'or alt-click the model for a parallel axis · drag them in the 3D view':'start x y z → end x y z'}</span></div></div>`;
+  else if(p.type==='lines3')inp=`<div class="rows" id="${id}">${(v||[]).length?`<div class="r hint"><small></small>${['x','y','z'].map(a=>`<span style="flex:1;text-align:center">${a} (${unit})</span>`).join('')}<span style="flex:0 0 24px"></span></div>`:''}${(v||[]).map((l,i)=>[0,1].map(e=>`<div class="r"><small>${e?'end':`${i+1} start`}</small>${[0,1,2].map(j=>`<input type="number" step="any" value="${show(p,l[e][j])}" data-ln="${p.name}" data-i="${i}" data-e="${e}" data-j="${j}" title="${e?'end':'start'} ${'xyz'[j]}">`).join('')}<span style="flex:0 0 24px">${e?'':`<button class="small x" data-del="${p.name}" data-i="${i}">×</button>`}</span></div>`).join('')).join('')}<div class="r"><button class="small" data-add="${p.name}">${p.name==='axes'?'+ split an axis':'+ line'}</button><span class="hint">${p.name==='axes'?'or alt-click the model for a parallel axis · drag them in the 3D view':'one straight dowel per line · or alt-click the model: a line up through that point'}</span></div></div>`;
   else if(p.type==='map'){const rows=Object.entries(v||{});if(selected&&!(selected in (v||{})))rows.push([selected,p.name==='thick'?state.thickness:0]);
     inp=`<div class="rows" id="${id}">${rows.map(([k,x])=>`<div class="r"><small>${esc(k)}</small><input type="number" step="any" value="${show(p,x)}" data-map="${p.name}" data-k="${esc(k)}">${k in (v||{})?`<button class="small x" data-del="${p.name}" data-i="${esc(k)}">×</button>`:'<span class="hint">default</span>'}</div>`).join('')||'<span class="hint">no overrides — select a part in the 3D view and use the sliders</span>'}</div>`}
   else if(p.type==='labels'||p.type==='chips')inp=`<div class="chips" id="${id}">${(v||[]).map((x,i)=>`<span class="chip">${p.type==='chips'?show(p,x):esc(x)}<b data-del="${p.name}" data-i="${i}">×</b></span>`).join('')}<input placeholder="${p.type==='chips'?'value ⏎':'label ⏎'}" data-chip="${p.name}"></div>`;
   else inp=(p.min!=null&&p.max!=null)?slider(id,v,p):num(id,v,p);
-  return `<div class="f" data-p="${p.name}" ${p.show_if?`data-show="${p.show_if[0]}:${[].concat(p.show_if[1]).join('|')}"`:''}><span class="k" data-tip="${p.help.replace(/"/g,'&quot;')}">${nice(p.name)}${u}</span>${inp}</div>`;
+  return `<div class="f${p.type==='lines3'?' wide':''}" data-p="${p.name}" ${p.show_if?`data-show="${p.show_if[0]}:${[].concat(p.show_if[1]).join('|')}"`:''}><span class="k" data-tip="${p.help.replace(/"/g,'&quot;')}">${nice(p.name)}${u}</span>${inp}</div>`;
 }
 function renderFields(){
   const com=mode.common, byG=g=>com.filter(p=>p.group===g).map(field).join(''); syncProject();
@@ -557,7 +562,7 @@ async function pollProgress(my){
   }
 }
 function syncSizeHints(){const p=allParams().find(q=>q.name==='size'); if(!p||!plan)return;
-  for(let i=0;i<3;i++){const el=$('#p_size_'+i); if(el)el.placeholder=show(p,plan.bbox[i])}}
+  for(let i=0;i<3;i++){const el=$('#p_size_'+i); if(el)el.placeholder=+(+show(p,plan.bbox[i])).toPrecision(3)}}   // a hint, not a value: three figures fit the box in every unit
 // What a slice is made of, in the order it happens, so a long wait has a shape: a bare percentage said nothing about
 // how many of these there are, and the per-stage counters ("12 of 34") looked like the whole job restarting. The
 // three marked 0 only run when the model asks for them, so they appear in the list only once they have.
@@ -1227,11 +1232,12 @@ window.laminaFeedback?.({bug:async withModel=>{
  material:async()=>({summary:JSON.stringify({material:state.material,thickness:state.thickness,thicknesses:ls('slicer_thick',{})[state.material]||[],sheet:state.sheet,
   sheets:ls('slicer_sheets',[]).filter(s=>!s[2]||s[2]===fam()).map(([n,s])=>[n,s]),units:state.units},null,1)})});
 
-// test and capture hook (working-files/ui_cdp.mjs, working-files/capture.mjs)
+// test and capture hook (tests/test_ui.py, scripts/media/capture.mjs)
 window.__t={parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>plan,job:()=>job,
   ghost:()=>ghost.children,ghostUrl:()=>ghostUrl,pivot:()=>pivot3&&rnd(pivot3),
   screen:p=>{const q=new THREE.Vector3(p[0],p[1],p[2]).project(camera),r=renderer.domElement.getBoundingClientRect();
-    return [r.left+(q.x+1)/2*r.width,r.top+(1-q.y)/2*r.height]},   // world point → the pixel to click, for drag testshit,
+    return [r.left+(q.x+1)/2*r.width,r.top+(1-q.y)/2*r.height]},   // world point → the pixel to click, for drag tests
+  hit,
   select:l=>{const m=parts.children.find(c=>c.userData.slice===l);if(m)highlight(m)},deselect,applyFix,
   pickAt:(x,y)=>pick({clientX:x,clientY:y})?.userData.slice,
   hitAt:(x,y)=>{const h=hit({clientX:x,clientY:y});return h?(h.object.userData.gizmo?'gizmo':h.object.userData.slice):null},

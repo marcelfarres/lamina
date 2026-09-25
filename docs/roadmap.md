@@ -137,9 +137,12 @@ Left out of the four features above, deliberately: the instructions are a text f
 build order as a column, not a numbered page per step; the 3D-printed prototype still engraves real labels in puzzle
 mode (that path is `core/solid.py`, not the cut files); every fan of a multi-axis radial job shares one `count`,
 which is what makes neighbouring fans meet plane for plane; and axes on no single plane get no spine, because no
-flat sheet passes through all of them (the job says so and names the fix). A known limit of parallel axes side by
-side: a lobe *between* two others cannot be assembled, because its rings would have to slide along the spine through
-the neighbours' part of it — the insertion check reports it. Lobes one after the other on a line have no such limit.
+flat sheet passes through all of them (the job says so and names the fix). A lobe *between* two side-by-side
+lobes (three balls on a neck) has no side of its own, so its rings reach the spine through a neighbour: the rings
+near its axis go down the neck at no cost, and a ring out at the edge, whose path would cut the neighbour ball's cap
+off the spine, stays off it and is held by its own half-slices; only when no ring of a lobe can reach the spine does
+the job say so. Its rings share the neighbours' lines, so they go on the spine first (a warning says the slots
+overlap).
 
 Tests to add next (what the coverage report shows untested, 88 % of core + web at the time of writing): the
 `lines` connector placement of stacked, the fix options of the assembly checks (`core/checks.py` 300–320), the
