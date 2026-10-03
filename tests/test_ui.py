@@ -67,7 +67,12 @@ def page(server):
 @pytest.fixture(autouse=True)
 def fresh(page):
     """Every test starts from the defaults of every tab. One page for the whole module is what makes this suite fast,
-    and this is the price: a technique or a remeshed model left behind would slow down or break the next test."""
+    and this is the price: a technique or a remeshed model left behind would slow down or break the next test.
+    The model too: the egg, unless the test before left another one (an upload of the cube made the next test's
+    shift-drag miss), and not the page's default, which can change and be slower to re-slice."""
+    if page.evaluate("() => window.__t.job()") != "ex_egg":
+        page.click('nav button[data-t="model"]')
+        page.select_option("#example", "egg")
     for tab in ("model", "technique", "sheet", "checks"):
         page.click(f'nav button[data-t="{tab}"]')
         page.click(f'button.reset[data-reset="{tab}"]')
@@ -702,6 +707,7 @@ def test_what_is_new_shows_itself_once_when_the_version_changes(page, server):
     heads = page.eval_on_selector_all("#news_body h5", "els => els.map(e => e.textContent)")
     assert heads[0].endswith(latest) and len(heads) > 1, heads
     page.click("#news_go")
+
 
 def zip_of(body):
     import io, zipfile

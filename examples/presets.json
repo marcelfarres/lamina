@@ -21,5 +21,6 @@
   "torus":     {"mode": "interlocked", "params": {"thickness": 3, "nx": 9, "ny": 7}},
   "tube":      {"mode": "stacked",     "params": {"thickness": 3, "axis": "z", "distribution": "count", "count": 8, "margin": 1, "connect": "dowel", "dowel_d": 4, "thick": {"Z-8": 15}, "offset": {"Z-8": -6.5}}},
   "twisted":   {"mode": "interlocked", "params": {"thickness": 3, "nx": 9, "ny": 6}},
+  "wavy_torus": {"mode": "stacked",    "params": {"thickness": 3, "axis": "z", "space": 5, "connect": "dowel", "material": "PETG", "machine": "bambu_h2c", "sheet_margin": 2}},
   "wedge":     {"mode": "folded",      "params": {"thickness": 1, "joint": "tab", "facet": 0}}
 }
