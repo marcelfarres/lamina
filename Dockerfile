@@ -1,6 +1,6 @@
 # Lamina as a service:  docker run -p 8000:8000 -v lamina-jobs:/app/working-files ghcr.io/marcelfarres/lamina
 # Every dependency ships a manylinux wheel, so there is nothing to compile and no apt package to install.
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+FROM ghcr.io/astral-sh/uv:0.12.22-python3.12-trixie-slim
 
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy PATH=/app/.venv/bin:$PATH
 WORKDIR /app

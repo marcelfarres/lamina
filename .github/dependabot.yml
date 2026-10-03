@@ -1,0 +1,32 @@
+# Weekly, one grouped PR per ecosystem, and nothing younger than a week:
+# the cooldown lets a compromised or yanked release surface before it reaches uv.lock.
+# Security updates ignore the cooldown and the schedule and open as soon as an advisory lands.
+version: 2
+updates:
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      python:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
