@@ -198,6 +198,11 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
       <div class="hint" id="legend" style="margin:2px 0 8px"></div>
       <div class="f"><span class="k" data-tip="Step between the five slot offsets of a fit test: yours −2, −1, 0, +1, +2 steps. A fit test is five small assemblies with this job's joints — same thickness, connectors and the counts that make the assembly tight (every radial half-slice) — each part marked with its offset. The loosest that slides together without forcing and still holds is the offset to set. The cut-file test below is at 1:1 on your real material and machine and is the one that predicts the model's fit; the print test under Prototyping dials in the print only — a clearance is a length, not a ratio">fit step (mm)</span><input type="number" id="pr_step" data-len data-mm="0.1" data-min="0.01" data-step="0.05"></div>
       <div class="dl" id="dl"></div>
+      <!-- Here, not on the Model tab: the people who just downloaded the cut files are the ones about to make it. -->
+      <p class="hint" style="margin:10px 0 4px">Once it is cut and built, please
+        <a data-feedback="made" href="https://github.com/marcelfarres/lamina/issues/new?template=made.yml" target="_blank" rel="noopener">send me a photo</a>
+        — with your OK it goes in the <a href="https://marcelfarres.github.io/lamina/?ref=app#made" target="_blank" rel="noopener">gallery</a>,
+        credited as you like — or post it with <b>#applamina</b> on Instagram or X.</p>
       <h2>Prototyping (3D print)</h2>
       <div class="f"><span class="k" data-tip="Scale factor for the printed prototype (parts and thickness scale together; thickness never goes below min thickness)">scale</span><input type="number" id="pr_scale" value="0.5" min="0.05" max="5" step="0.05"></div>
       <div class="f"><span class="k" data-tip="Or give the prototype's longest side (mm); overrides the scale when set">final size (mm)</span><input type="number" id="pr_size" data-len data-mm="" data-ph="100" data-min="5" data-step="1"></div>

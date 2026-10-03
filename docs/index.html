@@ -89,6 +89,9 @@ figcaption{color:var(--muted);font-size:13px;margin-top:8px}
 .tech{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:26px;align-items:center;padding:28px 0;border-top:1px solid var(--line)}
 .tech:first-of-type{border-top:0}.tech h3{margin-top:0}.tech p{color:var(--muted);margin:8px 0 0;font-size:15px}.tech p.clip{font-size:13.5px}.tech p b{color:var(--ink)}
 .card .t{padding:14px 16px 16px}
+/* gallery photos come in every shape; one crop keeps the rows even, and a click opens the whole photo */
+#gallery img{width:100%;aspect-ratio:4/5;object-fit:cover}
+#gallery{grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr))}   /* fill, not fit: one photo stays a third wide */
 .card p{margin:6px 0 0;color:var(--muted);font-size:14px}
 .stats{display:flex;flex-wrap:wrap;gap:26px;margin:26px 0 0}
 .stats div b{display:block;font-size:22px}
@@ -126,6 +129,7 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
     <a href="#folded">Folded panels</a>
     <a href="#checks">Checks</a>
     <a href="#export">Export</a>
+    <a href="#made">Gallery</a>
     <a href="#status">Status</a>
     <a href="#start">Get started</a>
     <a href="#support">Support</a>
@@ -455,6 +459,15 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
   </figure>
 </div></section>
 
+<section id="made"><div class="wrap">
+  <h2>Made with Lamina</h2>
+  <p class="sub">What people have cut with it. Made something yourself?
+  <a data-feedback="made" href="https://github.com/marcelfarres/lamina/issues/new?template=made.yml">Send a photo</a>
+  — by email, no account needed — and it goes up here, credited the way you ask. Or post it on Instagram or X with
+  <b>#applamina</b>; I look there too, and ask before adding anything.</p>
+  <div class="grid g3" id="gallery"></div>
+</div></section>
+
 <section id="status"><div class="wrap">
   <h2>Where it stands</h2>
   <p class="sub"><b>Early days.</b> Lamina is very new — an alpha, free under the AGPL-3.0 and written in the open by
@@ -604,7 +617,8 @@ addEventListener("click", e => {
   if (!a || !window.goatcounter || !goatcounter.count) return;
   const hit = name => goatcounter.count({ path: name, title: name.replace("/", ": "), event: true });
   const to = /\/app\//.test(a.href) ? "app" : /ko-fi\.com/.test(a.href) ? "ko-fi"
-           : /issues\/new/.test(a.href) ? "bug-report" : /github\.com/.test(a.href) ? "github" : null;
+           : /template=made/.test(a.href) ? "share-made" : /issues\/new/.test(a.href) ? "bug-report"
+           : /github\.com/.test(a.href) ? "github" : null;
   if (to) hit("click/" + to);
   // a same-page anchor is in-page navigation, not an exit: record the section, so it is visible which parts
   // people actually go looking for
@@ -645,6 +659,19 @@ for (const v of document.querySelectorAll("video")) {
     cap.textContent = `${b.dataset.j} — ${b.dataset.t}`;
   });
 }
+// The gallery is gallery.json, newest first: {photo, title, technique, material, by, link}, the photo under
+// media/gallery/. Adding a piece is adding an entry. Built with the DOM, not innerHTML: the titles and credits are
+// other people's words, and a link is only followed if it is https.
+fetch("gallery.json").then(r => r.json()).then(items => {
+  const el = (tag, props, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
+  for (const g of items) {
+    const by = /^https:\/\//.test(g.link || "") ? el("a", { href: g.link, rel: "noopener", textContent: g.by }) : g.by || "anonymous";
+    document.getElementById("gallery").append(el("figure", { className: "card" },
+      el("a", { href: g.photo }, el("img", { src: g.photo, alt: g.title, loading: "lazy", decoding: "async" })),
+      el("div", { className: "t" }, el("h3", { textContent: g.title }),
+        el("p", { textContent: [g.technique, g.material].filter(Boolean).join(" · ") }), el("p", {}, "by ", by))));
+  }
+}).catch(() => {});   // a checkout opened as a file has no fetch: the section keeps its invitation and nothing else
 </script>
 <!-- The "report a problem" dialog, the same file the app loads. deploy/build_site.py copies it here at build time;
      a checkout served straight from docs/ has none, and every data-feedback link stays the plain GitHub link it is

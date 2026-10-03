@@ -11,6 +11,13 @@ What changed in each release. The GitHub release for a version is this section, 
   is, "sits 5° off square", with a **square it up** button right under the rotate controls. Nothing turns by
   itself: leave it if the tilt is on purpose.
 
+### Gallery
+
+- **Show what you made.** The landing page has a gallery of things cut with Lamina, and a **send me a photo** link
+  under the downloads on the Export tab opens the same dialog as a bug report: a prefilled email (no account
+  needed) or a GitHub issue form you drag the photos into. With your OK it goes up, credited the way you ask. Or
+  post it on Instagram or X with **#applamina**.
+
 ### Fixed
 
 - **Stacked slices run the full height of the model.** A layer's thickness was always left off each end, and the

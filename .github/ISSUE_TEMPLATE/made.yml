@@ -1,0 +1,31 @@
+name: Made with Lamina
+description: Something you cut with Lamina, for the gallery on the landing page
+labels: [gallery]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks — I would love to see it. With your OK it goes in the gallery on the [landing page](https://marcelfarres.github.io/lamina/#made), credited the way you ask below. Opening this issue is that OK; say so here if you would rather it was not shown.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What you made
+      description: The model, technique, material and machine, and the name or handle to credit (or "anonymous").
+      placeholder: A Roman statue relief, stacked slices in 3 mm brown cardboard on a K40. Credit: @handle on Instagram.
+    validations:
+      required: true
+
+  - type: textarea
+    id: photos
+    attributes:
+      label: Photos
+      description: Drag one or more photos in here. The first one is the one the gallery shows.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Browser / version
+      description: Filled in by the button in Lamina; leave it empty otherwise.

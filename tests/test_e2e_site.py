@@ -140,6 +140,20 @@ def test_the_site_slices_in_the_browser(site):
         assert mat["material"] == page.evaluate("window.__t.state().material") and {"thickness", "sheet", "thicknesses", "sheets"} <= set(mat), mat
         assert "kerf" not in mat
 
+        # A photo for the gallery: no model, no settings, and the photo asked for in words — neither way out carries one.
+        page.click('nav button[data-t="export"]')
+        page.click('[data-feedback="made"]')
+        assert page.is_hidden("#fb_att") and "gallery" in page.text_content("#fb_warn")
+        page.fill("#fb_what", "a horse in 3 mm cardboard")
+        routes = page.evaluate("""async () => {
+            const fd = await window.__feedback.build();
+            return [window.__feedback.mailto(fd, null), window.__feedback.issueUrl(fd, null)];
+        }""")
+        mq, iq = (urllib.parse.parse_qs(urllib.parse.urlsplit(u).query) for u in routes)
+        assert iq["template"] == ["made.yml"] and "a horse in 3 mm cardboard" in iq["what"][0]
+        assert mq["subject"][0].startswith("Made with Lamina") and "Attach a photo" in mq["body"][0]
+        page.click("#fb_no")
+
         # A project file is somebody else's text once a bug report is opened: markup in it must land as text, not run.
         bad = '<img src=x onerror="window.__pwned=1">'
         proj = json.dumps({"version": 3, "mode": "interlocked", "state": {"skip": [bad], "project": '"' + bad, "thick": {bad: 3}}, "example": "egg"})
@@ -149,4 +163,9 @@ def test_the_site_slices_in_the_browser(site):
         assert page.evaluate("document.querySelectorAll('aside img').length") == 0
         assert page.text_content("#g-slices .chip").startswith(bad)                   # shown as it was written
         assert page.input_value("#pname") == '"' + bad
+
+        # the landing page's gallery is gallery.json, one card per entry
+        page.goto(site + "/")
+        n = len(json.loads((ROOT / "docs" / "gallery.json").read_text(encoding="utf-8")))
+        page.wait_for_function(f"() => document.querySelectorAll('#gallery figure').length === {n}")
         assert not errors, errors

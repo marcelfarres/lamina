@@ -60,8 +60,11 @@ So I started from the use cases I had, every project I had actually made or want
 those. So far it has been a pleasure to use: projects that sat in my backlog for years are getting made because
 the part between the model and the cut files no longer fights back.
 
-I hope it is useful to you too. If you make something with it, share it — an issue, a pull request with your
-model in `examples/`, or wherever you like with the hashtag **#lamina**.
+I hope it is useful to you too. If you make something with it, share it — **show what you made** on the Export
+tab or the landing page sends a photo by email (or the
+[gallery issue form](https://github.com/marcelfarres/lamina/issues/new?template=made.yml)), and with your OK it
+goes in the [gallery](https://marcelfarres.github.io/lamina/#made), credited as you like. Or post it on Instagram
+or X with **#applamina**.
 
 **About how it was made.** A large part of this code was written with AI assistance, directed and reviewed by
 me. I am conscious of what that costs, in energy and in its wider effects on people and nature, and I try to use

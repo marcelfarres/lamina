@@ -1,7 +1,8 @@
-// "Report a problem", "share your machine", "share your material" — one dialog on the landing page and in the
-// app, opened by any element carrying data-feedback (empty = a bug report, "machine" or "material" = one to ship
-// with Lamina). The links point at the GitHub issue form underneath, so they still work with this script missing
-// or JavaScript off; the dialog only takes over when it is there.
+// "Report a problem", "share your machine", "share your material", "show what you made" — one dialog on the
+// landing page and in the app, opened by any element carrying data-feedback (empty = a bug report, "machine" or
+// "material" = one to ship with Lamina, "made" = photos for the gallery on the landing page). The links point at the
+// GitHub issue form underneath, so they still work with this script missing or JavaScript off; the dialog only
+// takes over when it is there.
 //
 // It hosts nothing and posts nowhere. The report is gathered here and handed to whichever of the two ways out the
 // reporter prefers — an email, or the GitHub issue form — both opened prefilled, both sent by them. A server that
@@ -33,6 +34,12 @@ const KIND = {
         ask: 'Which material', hint: '— what it is, where it is from, and what you cut it on',
         eg: '3 mm baltic birch from Home Depot, cut on a K40.',
         template: 'preset.yml', field: 'settings', kind: 'Material', subject: 'Lamina material: '},
+  // neither way out can carry a photo, so the dialog asks for one in words, and the warning is the permission
+  made: {title: 'Show what you made', lead: 'Cut something with Lamina? I would love to see it, and so would the next person wondering what it can do: with your OK it goes in the gallery on the landing page.',
+        ask: 'What you made', hint: '— the model, technique, material and machine, and the name or handle to credit (or "anonymous")',
+        eg: 'A Roman statue relief, stacked slices in 3 mm brown cardboard on a K40. Credit: @handle on Instagram.',
+        template: 'made.yml', subject: 'Made with Lamina: ', attach: 'Attach a photo or two before you send it.',
+        warn: `What goes with it: your description, the address of this page and your browser version, and the photos you attach yourself. Sending it is your OK to show the photos and the description in the gallery on the Lamina landing page, credited as you wrote above; say so if you would rather it stayed between us. Nothing is sent by this page: your mail program or the GitHub form opens with it filled in, you attach the photos and press send. An issue on GitHub is public; an email is not.`},
 };
 
 const CSS = `
@@ -84,7 +91,7 @@ function show(k = 'bug') {
   kind = Object.hasOwn(KIND, k) ? k : 'bug';
   dlg.innerHTML = FORM(KIND[kind]);                            // a fresh form every time, from this file's own strings only
   $('#fb_att').hidden = !(kind === 'bug' && collect.bug);
-  $('#fb_warn').textContent = WARN[collect[kind] ? kind : 'page'];
+  $('#fb_warn').textContent = KIND[kind].warn ?? WARN[collect[kind] ? kind : 'page'];
   $('#fb_no').onclick = () => dlg.close();
   $('#fb_gh').onclick = () => hand('github');
   $('#fb_form').onsubmit = e => { e.preventDefault(); hand('email') };   // submit = the default button, so Enter sends
@@ -115,7 +122,7 @@ async function hand(via) {
   if (file) save(file, file.name);                             // neither route can carry it, so it lands in Downloads
   if (via === 'email') sendMail(mailto(fd, file)); else open(issueUrl(fd, file), '_blank', 'noopener');
   $('#fb_note').textContent = (via === 'email' ? 'Your mail program should be opening.' : 'The issue form is open in another tab.')
-    + (file ? ` Please attach ${file.name} — it was just saved to your downloads.` : '');
+    + (file ? ` Please attach ${file.name} — it was just saved to your downloads.` : KIND[kind].attach ? ' ' + KIND[kind].attach : '');
 }
 
 // A mailto: in this tab is not safe: with a web mail handler (Gmail is the common one) the browser navigates the tab
@@ -133,7 +140,7 @@ const asText = fd => [fd.get('what'), '', `technique: ${fd.get('technique') || '
 // long mailto bodies are cut by some clients, so the settings are trimmed; the attached project file has them all
 const mailto = (fd, file) =>
   `mailto:${MAIL}?subject=${encodeURIComponent(KIND[kind].subject + cut(fd.get('what').split(/\r?\n/)[0], 80))}`
-  + `&body=${encodeURIComponent(cut(asText(fd), 1500) + (file ? `\n\n(please attach ${file.name})` : ''))}`;
+  + `&body=${encodeURIComponent(cut(asText(fd), 1500) + (file ? `\n\n(please attach ${file.name})` : KIND[kind].attach ? `\n\n(${KIND[kind].attach})` : ''))}`;
 
 // GitHub prefills an issue form by field id and refuses a URL over roughly 8 kB, so this is trimmed
 function issueUrl(fd, file) {
