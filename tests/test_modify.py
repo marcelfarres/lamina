@@ -230,6 +230,26 @@ def test_a_stack_with_nothing_joining_its_layers_keeps_every_layer():
     assert "line" in note and "set dowel_d" not in note, note
 
 
+@pytest.mark.parametrize("model", ["egg", "dumbbell", "torus"])
+def test_aligned_tab_spacers_hold_every_layer_without_overlapping(model):
+    """Reported on the wavy torus (aligned, tab spacers, 5 mm gap): "removed 1 region(s) of Z-1 (nothing holds it)"
+    and "Z-2: two slots / holes overlap each other". The fit was tested on a round hole at the point before the tab
+    stepped sideways, and against the other holes' centres, not their slots: every second pair of the egg's 19
+    layers lost all its spacers (17 layers "not connected"), and spacers that did fit cut into each other. Every pair
+    of layers is now joined, by its own spacer, and every slot keeps a full wall from every other."""
+    job = {"axis": "z", "space": 5, "connect": "tab", "placement": "aligned", "n_points": 2, "thickness": 3,
+           "slot_offset": 0.2, "min_feature": 2.0}
+    on = build(EXAMPLES / f"{model}.stl", "stacked", job)
+    off = build(EXAMPLES / f"{model}.stl", "stacked", {**job, "autofix": "off"})
+    assert not [n for n in on["notes"] if "auto-fix" in n]
+    said = [f"{s['label']}: {e}" for s in off["slices"] for e in s["errors"] + s["warnings"]]
+    assert not said, said[:3]
+    # where each spacer stands: the middle of the gap it bridges, from its placed frame (z up the stack)
+    zs = sorted(s["M"][2][3] for s in off["slices"] if s["group"] == "S")
+    held = collections.Counter(int(np.searchsorted(zs, s["M"][2][3])) for s in off["slices"] if s["group"] == "P")
+    assert sorted(held) == list(range(1, len(zs))), f"gaps with no spacer: {sorted(set(range(1, len(zs))) - set(held))}"
+
+
 def test_random_dowels_spread_across_the_layer():
     """Reported: with random placement "the dowels are not evenly spaced and some areas are not supported". The first
     candidates that kept clear of each other were taken, often both at one end of a layer: the far end of the horse's
@@ -239,15 +259,19 @@ def test_random_dowels_spread_across_the_layer():
            "distribution": "count", "count": 20, "autofix": "off"}
     plan = build(EXAMPLES / "horse.stl", "stacked", job)
     mesh = load_mesh(EXAMPLES / "horse.stl", coerce_params(MODES["stacked"], job), [], "stacked")
-    reach = []
-    for z, pts in dowels_by_level(plan).items():
+    reach, levels = [], dowels_by_level(plan)
+    for z, pts in levels.items():
         M = np.eye(4); M[2, 3] = z + job["thickness"] / 2     # a rod starts half a thickness below its slice's plane
         body = max(section_polygons(mesh, M).geoms, key=lambda g: g.area)
+        pts = [q for q in pts if body.contains(Point(q))]
+        if len(pts) < 2:        # a leg with room for one dowel only: nothing there to spread
+            continue
         edge = np.asarray(body.exterior.coords)
         far = np.linalg.norm(edge[:, None] - np.asarray(pts)[None], axis=2).min(1).max()
         x0, y0, x1, y1 = body.bounds
         reach.append(far / max(x1 - x0, y1 - y0))
-    assert len(reach) >= 10, f"only {len(reach)} pairs got dowels"      # 11: the leg layers take no 6 mm dowel
+    assert len(levels) >= 14, f"only {len(levels)} pairs got dowels"   # 14: three pairs of legs take one each
+    assert len(reach) >= 10, f"only {len(reach)} pairs have dowels to spread"
     assert max(reach) < 0.7, f"a layer's far end is {max(reach):.2f} of its width from any dowel (was 0.91)"
 
 

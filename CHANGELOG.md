@@ -38,6 +38,11 @@ What changed in each release. The GitHub release for a version is this section, 
   minimum wall from the edge, so the checks warned "a hole sits closer than 2 mm to the outline", and the one-click
   fix changed the dowel size, which folded panels do not use. The holes keep the full wall now, strip ends are
   long enough for their end holes, and the fix, when it is needed, changes the hole size.
+- **Aligned tab spacers hold every layer.** With tab connectors and aligned placement, every second pair of layers
+  could end up with no spacer at all: the automatic fixes then removed the pieces nothing held, and spacers that did
+  fit could cut into each other ("two slots / holes overlap"). Each spacer is now placed where its slot really fits
+  both layers, with a full wall from every other cut, and a piece the regular points miss gets spacers of its own.
+  On ten example shapes the errors went from 319 to 6, all at the tip of a cone too small for a 6 mm connector.
 
 ## 0.2.1
 
