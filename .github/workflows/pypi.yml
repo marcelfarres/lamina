@@ -21,6 +21,11 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - name: the tag is the version in pyproject.toml
         run: grep -q "^version = \"${GITHUB_REF_NAME#v}\"" pyproject.toml
+      # PyPI shows the README on its own page, where docs/media/… and examples/… resolve to nothing: pin them to this tag
+      - name: the README's own links, absolute
+        run: |
+          sed -i -E "s#\]\((docs/media/[^)]+)\)#](https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_REF_NAME}/\1)#g" README.md
+          sed -i -E "s#\]\(([A-Za-z_.][^):]*)\)#](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/\1)#g" README.md
       - run: uv build
       # the wheel as the starters run it, from an empty folder: page, examples and changelog have to be inside it
       - name: the installed package slices
