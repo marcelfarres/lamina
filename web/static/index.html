@@ -457,7 +457,9 @@ $('#tabs').addEventListener('input',e=>{
 const TABGROUPS={model:['model'],technique:['technique','slices'],sheet:['sheet','fit'],checks:['checks']};
 function resetTab(tab){for(const p of mode.common)if(TABGROUPS[tab].includes(p.group))state[p.name]=structuredClone(p.default);
   if(tab==='technique')for(const p of mode.params)state[p.name]=structuredClone(p.default);
-  if(tab==='model')fitted=false; if(tab==='sheet')applyMachine(state.machine); unit=state.units||unit; applyUnit(); slice()}   // the Sheet tab holds `units`: the page follows it back to mm
+  // the material sets the 3D look when it is picked, so the reset material takes the look back to the page's own
+  if(tab==='model')fitted=false; if(tab==='sheet'){applyMachine(state.machine);$('#look').value='group';applyLook()}
+  unit=state.units||unit; applyUnit(); slice()}   // the Sheet tab holds `units`: the page follows it back to mm
 $('#tabs').addEventListener('click',e=>{
   const t=e.target, P=name=>allParams().find(p=>p.name===name);
   if(t.dataset.rot!==undefined){const r=[...(state.rotate||[0,0,0])],i=+t.dataset.rot;r[i]=((r[i]+(e.shiftKey?-90:90)+180)%360+360)%360-180;state.rotate=r;fitted=false;renderFields();schedule();return}
