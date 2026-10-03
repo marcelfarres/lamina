@@ -420,7 +420,9 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
       slots opening away from the insertion direction, parts larger than the sheet.</p></div>
   </div>
   <p class="sub" style="margin-top:18px">A coverage figure tells you how much of the model the parts actually
-  represent, so a leg or an ear that no slice reaches does not slip through unnoticed.</p>
+  represent, so a leg or an ear that no slice reaches does not slip through unnoticed. A boxy model sitting a few
+  degrees off square, a rotation left at 85 or a CAD export that came out tilted, would cut every straight edge as a
+  staircase: Lamina says how far off it is, and <b>square it up</b> turns it true in one click.</p>
 </div></section>
 
 <section id="export"><div class="wrap">
@@ -429,7 +431,8 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
     <figure>
       <img src="media/sheets.jpg" width="2000" height="863" loading="lazy" decoding="async" alt="Two cut sheets with nested parts, labels beside each part">
       <figcaption>Parts are rotated and packed against each other's outlines, not their bounding boxes — above 150
-      parts a rectangle packer takes over to keep the preview live. Labels are engraved beside the part with a
+      parts a rectangle packer takes over to keep the preview live. A layer that falls apart into separate pieces
+      is cut as separate parts, each nested on its own. Labels are engraved beside the part with a
       leader line wherever there is room; only a fully crowded sheet puts one on the part.</figcaption>
     </figure>
     <div>
@@ -444,7 +447,9 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
             two models cut on the same day never get mixed up.</li>
         <li><b>What it weighs</b> — the parts as cut, holes and slots taken out, each at its own thickness; the
             sheets you buy and lift onto the machine; and the dowels, for what the finished model weighs. Grams and
-            kilograms, or ounces and pounds when you work in inches.</li>
+            kilograms, or ounces and pounds when you work in inches. It matters most for big pieces and for metal,
+            where it adds up fast: a few sheets of steel are more than one person carries, and a model for a wall
+            or a ceiling has to be hung by something that holds it.</li>
         <li><b>An assembly key</b> — what this technique's labels mean, then every part with its centre, what it
             slots onto, and the order the 3D view builds them in. The same legend sits in the export tab, so the
             scheme is clear before the cut rather than guessed after it; a tickbox leaves the file out of the zip.</li>
@@ -465,8 +470,9 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
     </div>
   </div>
   <figure style="margin-top:24px">
-    <img src="media/export.jpg" width="2000" height="963" loading="lazy" decoding="async" alt="The export tab with download links and prototyping options">
-    <figcaption>The export tab, including the prototyping set for test-printing a design before cutting it.</figcaption>
+    <img src="media/export.jpg" width="2000" height="963" loading="lazy" decoding="async" alt="The export tab with what the job weighs, download links and prototyping options">
+    <figcaption>The export tab: what the job weighs, the downloads, and the prototyping set for test-printing a design
+    before cutting it.</figcaption>
   </figure>
 </div></section>
 
@@ -596,7 +602,9 @@ uv run python -m core.plan examples/egg.stl --list-params</code></pre>
   </div>
   <p class="sub" style="margin-top:20px">There are other ways to help that are worth just as much: tell someone
   who cuts sheet material that this exists, show me what you made with it, or open an issue when something goes
-  wrong. Honestly, a good bug report is worth more to me than a coffee.</p>
+  wrong. Honestly, a good bug report is worth more to me than a coffee, and writing one takes a sentence: the
+  report adds the settings, what the checks said and every step since you loaded the model, and shows you all of it
+  before anything is sent.</p>
 </div></section>
 </main>
 
