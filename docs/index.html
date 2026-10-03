@@ -557,6 +557,8 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
       <code>y</code>. It then downloads them, which takes a few minutes and happens only once.</li>
     <li style="margin:6px 0">Your browser opens at <code>http://localhost:8000</code> and Lamina is running on your
       machine. Leave the text window open while you work; closing it stops Lamina. Next time it starts in seconds.</li>
+    <li style="margin:6px 0"><b>Updates come by themselves:</b> each start checks for a new version of Lamina and
+      fetches it when there is one. Offline, it starts the one you have.</li>
   </ol>
   <p class="sub" style="margin-top:12px"><b>If macOS refuses to open the file</b> ("cannot be opened because it is
   from an unidentified developer"): right-click it → <b>Open</b> → <b>Open</b>. That is macOS asking whether you
@@ -574,22 +576,22 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
   proxy's authentication before it faces the internet.</p>
   <pre tabindex="0"><code>docker run -d -p 8000:8000 -v lamina-jobs:/app/working-files ghcr.io/marcelfarres/lamina:latest</code></pre>
   <p class="sub"><a href="https://github.com/marcelfarres/lamina/blob/main/docker-compose.yml">docker-compose.yml</a>
-  is the same thing as a stack for Portainer, Dockge or Komodo.</p>
+  is the same thing as a stack for Portainer, Dockge or Komodo. To update: <code>docker pull
+  ghcr.io/marcelfarres/lamina:latest</code> and start it again (<code>docker compose pull &amp;&amp; docker compose up
+  -d</code>).</p>
 
   <h3 style="margin-top:26px">From a terminal</h3>
-  <p class="sub">If you have Python and <a href="https://docs.astral.sh/uv/">uv</a> already, the starters are only
-  wrapping these:</p>
-  <pre tabindex="0"><code># add --extra cad to uv sync for STEP and BREP import
-git clone https://github.com/marcelfarres/lamina.git
-cd lamina
-uv sync
-uv run uvicorn web.app:app --reload --port 8000
-# then open http://localhost:8000</code></pre>
+  <p class="sub">If you have <a href="https://docs.astral.sh/uv/">uv</a> already, the starters are only wrapping
+  these:</p>
+  <pre tabindex="0"><code>uv tool install lamina3d     # "lamina3d[cad]" adds STEP and BREP import
+lamina3d                     # opens http://localhost:8000
+uv tool upgrade lamina3d     # when a new version is out</code></pre>
   <p class="sub">The Model tab opens on a bundled example, and the
   <a href="https://github.com/marcelfarres/lamina/tree/main/examples">examples folder</a> holds 23 in all — geometric
   shapes, a scanned head and animals; the dumbbell and the snowman open with a radial axis per ball and a spine
   through them all.
-  The same pipeline runs headless, so it can be scripted or put in a build:</p>
+  From a clone of the repository (<code>git clone https://github.com/marcelfarres/lamina.git</code>, then
+  <code>uv sync</code>) the same pipeline runs headless, so it can be scripted or put in a build:</p>
   <pre tabindex="0"><code>uv run python -m core.plan examples/egg.stl --mode interlocked --set nx=5 ny=4 --out out/egg
 uv run python -m core.export out/egg.json --out out/egg_cut --fmt svg dxf pdf --labels
 uv run python -m core.solid out/egg.json --proto out/egg_proto --scale 0.4 --labels groove

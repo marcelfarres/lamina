@@ -6,9 +6,9 @@ ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy PATH=/app/.venv/bin:$PATH
 WORKDIR /app
 
 COPY pyproject.toml uv.lock ./
-RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev --no-install-project   # the libraries only; the app runs from /app
 
-COPY LICENSE README.md ./
+COPY LICENSE README.md CHANGELOG.md ./
 COPY core core
 COPY web web
 COPY examples examples
