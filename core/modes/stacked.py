@@ -223,6 +223,7 @@ class Stacked(Mode):
         # keep the hole's real reach from the outline, not d/2: a square's corner sits at 0.71 d, a slot's end at 0.75 d
         hole = dowel((0, 0), d + p["slot_offset"], p["dowel_shape"])
         margin = max(np.hypot(x, y) for x, y in hole.exterior.coords) + p["min_feature"]
+        rod = [[round(x, 3), round(y, 3)] for x, y in dowel((0, 0), d, p["dowel_shape"]).exterior.coords[:-1]]   # the rod's section, for the 3D view
         ctx._stack = slices
         extra, k, skipped = [], 0, 0
 
@@ -258,7 +259,8 @@ class Stacked(Mode):
                 if p["connect"] == "dowel":
                     add_cut(a, dowel((x, y), d + p["slot_offset"], p["dowel_shape"]), x, y, 0, "dowel", b.label, pt)
                     add_cut(b, dowel((bx, by), d + p["slot_offset"], p["dowel_shape"]), bx, by, 0, "dowel", a.label, pt)
-                    ctx.rods.append([list((a.M @ np.array([x, y, -t / 2, 1]))[:3]), list((a.M @ np.array([x, y, spacing + t / 2, 1]))[:3]), d])
+                    ctx.rods.append([list((a.M @ np.array([x, y, -t / 2, 1]))[:3]), list((a.M @ np.array([x, y, spacing + t / 2, 1]))[:3]), d,
+                                     rod, list(a.M[:3, 0])])
                     continue
                 # tab connector: slots in both slices + one flat piece (peg when space = 0, spacer otherwise)
                 tab_w = d if gap == 0 else d * 0.6

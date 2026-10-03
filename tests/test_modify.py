@@ -5,6 +5,7 @@ import pathlib
 import re
 
 import numpy as np
+import shapely
 import pytest
 import trimesh
 from shapely.geometry import Point
@@ -184,11 +185,20 @@ def test_a_model_sliced_as_modelled_is_not_smoothed_at_all():
     assert got.equals(unripple(list(got.geoms)[0], 0)), "an outline with no grid behind it was altered"
 
 
+@pytest.mark.parametrize("shape,corners,area", [("square", 4, 36.0), ("pencil", 6, 23.38)])
+def test_a_dowel_rod_has_the_section_of_its_hole(shape, corners, area):
+    """The 3D view draws each rod from the section the plan gives it: a round rod in a square hole was all it ever
+    showed, so changing the dowel shape changed nothing on screen."""
+    plan = build(EXAMPLES / "egg.stl", "stacked", {"connect": "dowel", "dowel_d": 6, "dowel_shape": shape, "autofix": "off"})
+    secs = [shapely.Polygon(r[3]) for r in plan["rods"]]
+    assert secs and all(len(s.exterior.coords) - 1 == corners and s.area == pytest.approx(area, abs=0.01) for s in secs)
+
+
 def dowels_by_level(plan):
     """Every dowel the plan places, grouped by the layer it starts at — `rods` is the placer's own output, where the
     inner rings of a cut outline would also count the model's own voids (a hollowed layer is a ring)."""
     level = collections.defaultdict(list)
-    for a, _b, _d in plan["rods"]:
+    for a, *_ in plan["rods"]:
         level[round(float(a[2]), 1)].append(np.asarray(a[:2], float))
     return level
 

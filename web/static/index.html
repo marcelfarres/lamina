@@ -754,8 +754,10 @@ function renderAxes(){ // world axes at the model's corner with X/Y/Z labels + d
   axes.clear(); const L=Math.max(...plan.bbox)*0.6, o=new THREE.Vector3(-plan.bbox[0]/2,-plan.bbox[1]/2,-plan.bbox[2]/2).multiplyScalar(1.15);
   for(const [i,col,name] of [[0,0xff5c5c,'X'],[1,0x5cff7a,'Y'],[2,0x5c9cff,'Z']]){const dir=new THREE.Vector3(i===0?1:0,i===1?1:0,i===2?1:0);
     axes.add(new THREE.ArrowHelper(dir,o,L,col,L*.12,L*.06));const s=label3d(name,'#'+col.toString(16).padStart(6,'0'));s.position.copy(o).addScaledVector(dir,L*1.12);s.scale.set(L*.16,L*.08,1);axes.add(s)}
-  for(const [a,b,d] of plan.rods||[]){const A=V3(a),B=V3(b),len=A.distanceTo(B),m=new THREE.Mesh(new THREE.CylinderGeometry(d/2,d/2,len,16),new THREE.MeshStandardMaterial({color:0xc8b48a,roughness:.6}));
-    m.position.copy(A).lerp(B,.5);m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),B.clone().sub(A).normalize());axes.add(m)}
+  // a rod is its hole's own section (round, square, hexagon, cross, slot) swept from end to end, turned as its slice is
+  for(const [a,b,,sec,xa] of plan.rods||[]){const A=V3(a),z=V3(b).sub(A),len=z.length(),x=V3(xa);z.normalize();
+    const m=new THREE.Mesh(new THREE.ExtrudeGeometry(new THREE.Shape(sec.map(([u,v])=>new THREE.Vector2(u,v))),{depth:len,bevelEnabled:false}),new THREE.MeshStandardMaterial({color:0xc8b48a,roughness:.6}));
+    m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x,z.clone().cross(x),z));m.position.copy(A);axes.add(m)}
   renderRings();
 }
 function placeRod(rod,A,B){rod.position.copy(A).lerp(B,.5);rod.scale.set(1,Math.max(A.distanceTo(B),1e-3),1);rod.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),B.clone().sub(A).normalize())}
@@ -1144,14 +1146,14 @@ const fmtMass=g=>unit==='in'?(g<453.59237?`${+(g/28.349523125).toPrecision(3)} o
 const fmtVol=mm3=>unit==='in'?`${+(mm3/16387.064).toPrecision(3)} in³`:`${+(mm3/1000).toPrecision(3)} cm³`;
 // Dowel rods are bought, not cut, and are taken to be of the job's material. The plan stores them a pair of slices at
 // a time, overlapping by a slice, so collinear pieces are merged: an aligned dowel through the stack counts once.
-// ponytail: round section for every shape but square; a hexagonal pencil is 10 % more, add its own when it matters
 function rodStats(){const lines=new Map(),q=x=>Math.round(x*100);
-  for(const [a,b,dd] of plan.rods||[]){const v=b.map((x,i)=>x-a[i]),n=Math.hypot(...v),u=v.map(x=>x/n),s=a.reduce((t,x,i)=>t+x*u[i],0);
-    const k=[...u,...a.map((x,i)=>x-s*u[i]),dd].map(q).join();(lines.get(k)||lines.set(k,[]).get(k)).push([s,s+n,dd])}
+  for(const [a,b,dd,sec] of plan.rods||[]){const v=b.map((x,i)=>x-a[i]),n=Math.hypot(...v),u=v.map(x=>x/n),s=a.reduce((t,x,i)=>t+x*u[i],0);
+    const k=[...u,...a.map((x,i)=>x-s*u[i]),dd].map(q).join(),area=Math.abs(THREE.ShapeUtils.area(sec.map(([x,y])=>new THREE.Vector2(x,y))));
+    (lines.get(k)||lines.set(k,[]).get(k)).push([s,s+n,area])}
   let len=0,vol=0;
-  for(const iv of lines.values()){iv.sort((p,r)=>p[0]-r[0]);let [lo,hi,dd]=iv[0],l=0;
+  for(const iv of lines.values()){iv.sort((p,r)=>p[0]-r[0]);let [lo,hi,area]=iv[0],l=0;
     for(const [a,b] of iv.slice(1)){if(a>hi){l+=hi-lo;lo=a}hi=Math.max(hi,b)}l+=hi-lo;
-    len+=l;vol+=l*(state.dowel_shape==='square'?dd*dd:Math.PI*dd*dd/4)}
+    len+=l;vol+=l*area}
   return {n:lines.size,len,vol}}
 function renderWeight(){if(!plan)return;const d=dens(),g=d/1000,by=new Map();   // g/cm³ → g per mm³
   for(const s of plan.slices)for(const pc of s.pieces){const b=by.get(s.thickness)||{n:0,v:0};b.n++;b.v+=pc.area*s.thickness;by.set(s.thickness,b)}
