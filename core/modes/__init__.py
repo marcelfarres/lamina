@@ -121,7 +121,7 @@ COMMON: list[Param] = [
     P("one_sheet", "bool", False, "Ignore the sheet height: every part goes on one sheet as wide as the sheet and as long as it needs to be, to be cut apart at the machine", group="sheet"),
     P("mirror_ok", "bool", False, "Count a part and its mirror image as the same part: it is cut once and the copies are turned over, which merges left/right pairs into one file. Only for stock that is the same both sides and either way up — no print, laminate, brushed grain or one-sided film — and the engraved label reads backwards on a turned-over part. The cut list and the Parts table name the ones to turn over", group="sheet"),
     P("tab", "number", 8, "Puzzle-tab width for splits (mm)", 2, 50, 0.5, group="sheet", unit="mm", advanced=True),
-    P("autofix", "choice", "add", "add = first add crossing slices through regions nothing holds (up to 2 rounds), then remove what still cannot work; remove = only remove; off = report only. Everything done is listed in the report", choices=["add", "remove", "off"], group="checks"),
+    P("autofix", "choice", "add", "add = hold what nothing holds the way this technique holds things (crossing slices, rings, spines; up to 2 rounds); off = report only. Nothing of the model is ever taken away: what still cannot work stays, with its error and the fixes to click, deleting among them. Everything done is listed in the report", choices=["add", "off"], group="checks"),
     P("min_feature", "number", 2.0, "Check: minimum wall / feature width (mm)", 0.1, 50, 0.1, group="checks", unit="mm"),
     P("min_part", "number", 6.0, "Check: parts smaller than this (mm) in both directions are flagged", 0.5, 100, 0.5, group="checks", unit="mm"),
 ]
@@ -140,6 +140,11 @@ class Mode:
 
     def crossing_fix(self, ctx, sl, point):
         """Optional: how to add a slice that would hold `point` (world) in slice `sl` → fix dict or None."""
+        return None
+
+    def hold(self, slices, ctx):
+        """Optional: auto-fix's parameter changes that hold every loose group at once, seeing the whole plan → list of
+        sets, or None to add crossing_fix's slice through each loose region instead."""
         return None
 
     @classmethod

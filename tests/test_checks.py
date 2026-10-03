@@ -21,6 +21,32 @@ def test_no_crossing_slice_error_and_autofix_add_resolves_it():
     assert fixed["counts"]["errors"] == 0
 
 
+def test_auto_fix_holds_a_tube_by_joining_its_rings_and_takes_nothing_away():
+    """Interlocked through a tube: the wall falls apart into strips nothing joins. Auto-fix added a slice through each
+    loose strip's middle, just as loose there, then deleted what still floated: 71 % of the tube at 6 × 5. It now
+    gives each loose group the position whose own section reaches the rest, and deletes nothing: the tube is held
+    whole, and the parts cover the model as well as with auto-fix off."""
+    job = {"nx": 6, "ny": 5, "thickness": 3}
+    on = build(EXAMPLES / "tube.stl", "interlocked", job)
+    off = build(EXAMPLES / "tube.stl", "interlocked", {**job, "autofix": "off"})
+    assert off["counts"]["errors"] > 0 and on["counts"]["errors"] == 0, (off["counts"], on["counts"])
+    assert on["params"]["extra_x"] or on["params"]["extra_y"]
+    assert not [n for n in on["notes"] if "removed" in n], on["notes"]
+    assert on["coverage"] >= off["coverage"] - 0.01, (on["coverage"], off["coverage"])
+
+
+def test_a_piece_nothing_can_hold_stays_on_the_plan_with_its_fixes():
+    """The horse's ear tips on a top layer of their own, in a gapped stack: no connector fits them and nothing
+    touches them. Auto-fix used to delete the layer. It stays, says it floats, and offers what would hold it."""
+    plan = build(EXAMPLES / "horse.stl", "stacked", {
+        "thickness": 3, "axis": "z", "size": [0, 300, 0], "connect": "dowel", "dowel_shape": "square", "placement": "random",
+        "space": 6, "dowel_d": 3, "n_points": 2, "round": 3, "thicken": 1, "margin": 3})
+    top = next(s for s in plan["slices"] if s["label"] == "Z-29")
+    assert top["pieces"] and any("floats" in e for e in top["errors"]), top["errors"]
+    titles = [o["title"] for f in top["fixes"] for o in f["options"]]
+    assert any("gap 0" in t for t in titles), titles
+
+
 def test_a_stacked_layer_is_never_offered_for_deletion():
     """A layer of a stack *is* the model at that height: "delete Z-2" answers the check and ruins the piece, which is
     what the reporter hit. The fixes offered for a stacked layer keep it — glue the stack, thinner pegs, grow the

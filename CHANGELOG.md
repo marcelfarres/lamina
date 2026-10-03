@@ -6,7 +6,7 @@ What changed in each release. The GitHub release for a version is this section, 
 
 What your model weighs, eleven more materials (PLA and PETG among them, to 3D-print the parts at full size), the
 model's name on every part, a button that squares up a tilted model, a desktop version that keeps itself up to date,
-and fixes for stacks that came out short, layers whose pieces were nested as one, folded holes too near the edge,
+an auto-fix that never deletes a piece of your model, and fixes for stacks that came out short, layers whose pieces were nested as one, folded holes too near the edge,
 and the browser version's one intermittent failure.
 
 ### Weight
@@ -76,6 +76,20 @@ and the browser version's one intermittent failure.
   under the downloads on the Export tab opens the same dialog as a bug report: a prefilled email (no account
   needed) or a GitHub issue form you drag the photos into. With your OK it goes up, credited the way you ask. Or
   post it on Instagram or X with **#applamina**.
+
+### Auto-fix
+
+- **Auto-fix never deletes a piece of your model.** It used to add crossing slices and then remove whatever still
+  floated: on a tube sliced 6 × 5 that was 71 % of the model, and on the horse the whole top layer with its ear tips.
+  Now what nothing can hold stays on the plan with its error and the fixes to click, deleting among them if that is
+  what you want. The only things left out, and the report says so, are slivers thinner than the minimum wall
+  everywhere: shavings a slot cuts off its own part, and specks where a slice only grazes the surface.
+- **Interlocked slices are held where it counts.** A crossing slice through the middle of a loose piece used to be just
+  as loose there. Auto-fix now places it where its own cut reaches the rest of the model: the tube and the torus are
+  held whole, and on thirteen hard cases the errors left went from 281 to 92 (all of them now kept and shown, where
+  before they were deleted).
+- The **remove** choice of auto-fix is gone: **add** holds what it can, **off** only reports. A project saved with
+  remove opens with off.
 
 ### Usage counting
 
