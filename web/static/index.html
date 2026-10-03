@@ -472,8 +472,11 @@ $('#tabs').addEventListener('keydown',e=>{const t=e.target;if(!t.dataset.chip||e
   const v=p.type==='chips'?fromU(p,+raw):raw; if(p.type==='chips'&&isNaN(v))return; setVal(p.name,[...(state[p.name]||[]),v]);renderFields()});
 const memo={};   // per-technique parameter memory: switching away and back restores what you had
 // …but only what still means anything. These are placed on a particular model — in its millimetres, or under its
-// part labels — so a new model clears them from the memory as well as from the form (see newModel).
-const MODEL_BOUND=['axes','curve','dowels','skip','offset','tilt','roll','thick','grow','pivot','center','extra_x','extra_y'];
+// part labels — or shape it (size, turn, modify form), so a new model clears them from the memory as well as from the
+// form (see newModel). An upload after the horse example used to keep its size 300, round 3 and thicken 1: a square
+// cube came back with 14 mm corners and its 15 mm hole closed to 3.5 mm.
+const MODEL_BOUND=['axes','curve','dowels','skip','offset','tilt','roll','thick','grow','pivot','center','extra_x','extra_y',
+  'rotate','size','scale','shrinkwrap','hollow','thicken','round','smooth'];
 function setMode(name,keep=true){
   const prev=mode; mode=MODES.find(m=>m.name===name)||MODES[0]; location.hash=mode.name;
   if(prev&&prev!==mode)memo[prev.name]=Object.fromEntries(prev.params.map(p=>[p.name,structuredClone(state[p.name])]));
