@@ -1,0 +1,38 @@
+name: pypi
+
+# Publishes lamina3d to PyPI on every release tag — what the starters install and update to (`uv tool install
+# --upgrade lamina3d`), so a local copy only ever moves to a version that was tagged and passed here. Trusted
+# publishing: no token, PyPI trusts this workflow (pypi.org → lamina3d → Publishing: repo marcelfarres/lamina,
+# workflow pypi.yml, environment pypi).
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: the tag is the version in pyproject.toml
+        run: grep -q "^version = \"${GITHUB_REF_NAME#v}\"" pyproject.toml
+      - run: uv sync --frozen
+      - run: uv run ruff check
+      - run: uv run pytest tests -q
+      - run: uv build
+      # the wheel as the starters run it, from an empty folder: page, examples and changelog have to be inside it
+      - name: the installed package slices
+        run: |
+          uv tool install dist/*.whl
+          mkdir run && cd run
+          BROWSER=true uv tool run lamina3d --port 8000 &
+          for i in $(seq 60); do curl -sf localhost:8000/api/modes >/dev/null && break; sleep 1; done
+          curl -sf localhost:8000/changelog.md | grep -q "^## ${GITHUB_REF_NAME#v}$"
+          curl -sf localhost:8000/ | grep -q "<title>"
+          curl -sf -F client=ci_smoke_0123456789 -F mode=stacked -F example=egg localhost:8000/api/slice | grep -q '"parts"'
+          test -d working-files/jobs/ci_smoke_0123456789
+      - run: uv publish

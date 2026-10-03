@@ -1,6 +1,7 @@
 working-files/
 out/
 _site/
+dist/
 .venv/
 __pycache__/
 *.pyc

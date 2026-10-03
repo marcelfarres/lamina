@@ -119,11 +119,20 @@ the starter for your computer in the folder that appears:
 
 It asks once whether it may install [uv](https://docs.astral.sh/uv/) (a small tool that fetches Python and the
 libraries into your own user folder), downloads them — a few minutes, once — and opens
-<http://localhost:8000>. Leave the text window open while you work; closing it stops Lamina. There is no signed
+<http://localhost:8000>. Leave the text window open while you work; closing it stops Lamina. Every start checks for
+a new release and installs it ([Updating](#updating)). There is no signed
 `.dmg`/`.exe` installer: Apple and Microsoft both charge yearly for the signature a free tool would need, so the
 starters are the same convenience without it.
 
-**From a terminal** — Python 3.11 or newer and [uv](https://docs.astral.sh/uv/); everything else is installed for you:
+**From a terminal** — [uv](https://docs.astral.sh/uv/) fetches Python and everything else; the starters run exactly
+this:
+
+```bash
+uv tool install lamina3d     # "lamina3d[cad]" adds STEP / BREP import
+lamina3d                     # opens http://localhost:8000 (--port to change it)
+```
+
+**To work on Lamina itself**, from a clone:
 
 ```bash
 git clone https://github.com/marcelfarres/lamina.git
@@ -139,6 +148,23 @@ The image on GitHub Container Registry carries everything; the machine that runs
 ```bash
 docker run -d -p 8000:8000 -v lamina-jobs:/app/working-files ghcr.io/marcelfarres/lamina:latest
 ```
+
+### Updating
+
+The browser version is always the newest. A local copy moves only to a tagged release — each one passes the test
+suite, and its package is installed and made to slice before it is published:
+
+| how you run it | how it updates |
+|---|---|
+| the double-click starter | by itself: every start runs `uv tool install --upgrade lamina3d`; offline it starts the version you have |
+| `uv tool install` | `uv tool upgrade lamina3d` |
+| Docker | `docker pull ghcr.io/marcelfarres/lamina:latest`, then start it again (`docker compose pull && docker compose up -d`) |
+| a clone | `git pull && uv sync` |
+
+When a newer release is out, the local and Docker page shows **Lamina x.y.z is out** in the header, linking here; it
+asks GitHub's public API which release is newest once per page load, and sends nothing else. The what's-new dialog
+opens by itself on the first start after an update. An older starter (one that says `uv sync` inside) never updates
+— download the ZIP once more and use the new one; your jobs are in the old folder's `working-files/`.
 
 **No server at all:** the same page runs its Python in a web worker (Pyodide) when nothing answers `api/`. That is
 the public demo, at [marcelfarres.github.io/lamina/app](https://marcelfarres.github.io/lamina/app/?ref=github-readme) and on

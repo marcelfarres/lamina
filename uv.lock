@@ -994,9 +994,9 @@ wheels = [
 ]
 
 [[package]]
-name = "lamina"
+name = "lamina3d"
 version = "0.2.1"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "ezdxf" },
     { name = "fast-simplification" },
