@@ -44,7 +44,7 @@ if count := os.environ.get("COUNT_URL"):
     tag = f'<script data-goatcounter="{count}" async src="//gc.zgo.at/count.js"></script>'
     (site / "index.html").write_text(
         (site / "index.html").read_text(encoding="utf-8").replace("</head>", tag + "</head>", 1), encoding="utf-8")
-    # The app gets the endpoint but not the script: browser.js loads it only after an explicit opt-in.
+    # The app gets the endpoint but not the script: it loads the script itself, beside a box that switches usage off.
     (app / "index.html").write_text(
         (app / "index.html").read_text(encoding="utf-8")
         .replace("</head>", f'<meta name="count-url" content="{count}"></head>', 1), encoding="utf-8")

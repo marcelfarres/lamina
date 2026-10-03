@@ -60,16 +60,19 @@ def P(name, type, default, help="", min=None, max=None, step=None, **kw):
 
 
 # parameters shared by every mode
+VOXELS = (". Works on a voxel grid no finer than the model's size allows (the note after slicing gives it), so any of "
+          "these rounds every square edge and narrows every hole by a few voxels, and a value under one voxel acts as "
+          "one. All four at 0 keeps the model exactly as drawn")
 COMMON: list[Param] = [
     # -- model
     P("up_axis", "choice", "z", "Which axis of the imported file points up (Y-up files from Blender/Maya: pick y)", choices=["z", "y", "x"], group="model"),
     P("rotate", "vec3", [0, 0, 0], "Rotate the whole model about x, y, z (deg) before slicing — re-align it or slice at an angle", -180, 180, 5, group="model", unit="deg"),
     P("scale", "number", 1.0, "Uniform scale factor, applied on top of `size` when one is set (size 30 in at scale 0.8 = 24 in)", 0.001, 1000, 0.01, group="model"),
     P("size", "vec3", [0, 0, 0], "Target size x, y, z (mm); 0 = keep the original; one value = uniform fit to that size. `scale` multiplies it", 0, 10000, 1, group="model", unit="mm"),
-    P("shrinkwrap", "number", 0.0, "Modify form: voxel-remesh the model at this resolution (mm); rounds off small details and closes holes. The steps a grid leaves are smoothed off for you, so a smooth model stays smooth. 0 = off (auto-on for broken meshes)", 0, 50, 0.1, group="model", unit="mm"),
-    P("hollow", "number", 0.0, "Modify form: keep only a wall of this thickness (mm) — saves material. 0 = solid", 0, 100, 0.5, group="model", unit="mm"),
-    P("thicken", "number", 0.0, "Modify form: grow the model outward by this much (mm) so thin features survive cutting. 0 = off", 0, 50, 0.5, group="model", unit="mm"),
-    P("round", "number", 0.0, "Modify form: remove features thinner than this (mm) and round every corner to that radius (morphological opening + closing). Works on a voxel grid fine enough for the radius you ask for, and the steps it leaves are smoothed off, so a curve stays a curve. 0 = off", 0, 50, 0.5, group="model", unit="mm"),
+    P("shrinkwrap", "number", 0.0, "Modify form: voxel-remesh the model at this resolution (mm); rounds off small details and closes holes. The steps a grid leaves are smoothed off for you, so a smooth model stays smooth. 0 = off (auto-on for broken meshes)" + VOXELS, 0, 50, 0.1, group="model", unit="mm"),
+    P("hollow", "number", 0.0, "Modify form: keep only a wall of this thickness (mm) — saves material. 0 = solid" + VOXELS, 0, 100, 0.5, group="model", unit="mm"),
+    P("thicken", "number", 0.0, "Modify form: grow the model outward by this much (mm) so thin features survive cutting. 0 = off" + VOXELS, 0, 50, 0.5, group="model", unit="mm"),
+    P("round", "number", 0.0, "Modify form: remove features thinner than this (mm) and round corners off (morphological opening + closing); the steps it leaves are smoothed off, so a curve stays a curve. 0 = off" + VOXELS, 0, 50, 0.5, group="model", unit="mm"),
     P("smooth", "int", 0, "Modify form: smoothing passes (Taubin, volume-preserving) that soften pointy vertices and noise. 0 = off, 5–20 typical", 0, 100, 1, group="model"),
     # -- sheet / material
     P("units", "choice", "mm", "Units for the DXF export and for the numbers in this form", choices=["mm", "cm", "in"], group="sheet"),

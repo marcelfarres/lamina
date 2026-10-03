@@ -36,6 +36,22 @@ def test_a_stacked_layer_is_never_offered_for_deletion():
     assert any(t.startswith("delete") for sl in crossing["slices"] for f in sl["fixes"] for o in f["options"] for t in [o["title"]])
 
 
+def test_a_part_with_points_along_a_straight_side_measures_its_real_size():
+    """A 120 × 660 mm part turned 30°, with points along its long sides where slots meet them. GEOS's
+    minimum_rotated_rectangle returns a flat line for it (area 0), and min_dims read that as 0.0 mm wide: the tall_bar
+    preset's Y slices then failed as "too thin" and were never split to fit the sheet. Every size check and the
+    sheet split go through min_dims."""
+    from shapely import affinity
+    from shapely.geometry import Polygon
+    from core.checks import min_dims
+    side = [-100, 50, 200]
+    part = affinity.rotate(Polygon([(-60, -330), *[(-60, y) for y in side], (-60, 330), (60, 330),
+                                    *[(60, y) for y in side[::-1]], (60, -330)]), 30, origin=(0, 0))
+    assert part.minimum_rotated_rectangle.area < 1, "GEOS measures this one right now: the test no longer bites"
+    w, h = min_dims(part)
+    assert abs(w - 120) < 1e-6 and abs(h - 660) < 1e-6, (w, h)
+
+
 def test_thin_feature_error_when_min_feature_exceeds_part():
     """The cube scaled to 40 mm with min_feature at the slider's top (50 mm): every stacked slice's own bulk reads
     as "too thin", forcing the check_slice() min_dims() thin-part branch."""

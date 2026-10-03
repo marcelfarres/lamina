@@ -67,7 +67,12 @@ def page(server):
 @pytest.fixture(autouse=True)
 def fresh(page):
     """Every test starts from the defaults of every tab. One page for the whole module is what makes this suite fast,
-    and this is the price: a technique or a remeshed model left behind would slow down or break the next test."""
+    and this is the price: a technique or a remeshed model left behind would slow down or break the next test.
+    The model too: the egg, unless the test before left another one (an upload of the cube made the next test's
+    shift-drag miss), and not the page's default, which can change and be slower to re-slice."""
+    if page.evaluate("() => window.__t.job()") != "ex_egg":
+        page.click('nav button[data-t="model"]')
+        page.select_option("#example", "egg")
     for tab in ("model", "technique", "sheet", "checks"):
         page.click(f'nav button[data-t="{tab}"]')
         page.click(f'button.reset[data-reset="{tab}"]')
@@ -79,7 +84,7 @@ def fresh(page):
 def settle(page, timeout=180_000):
     """Wait for the status line to stand still: a change debounces, so it has to be ready twice over."""
     for _ in range(2):
-        page.wait_for_function("() => /^(ready|error)/.test(document.getElementById('status').textContent)", timeout=timeout)
+        page.wait_for_function("() => /^(ready|error)/.test(document.getElementById('status')?.textContent)", timeout=timeout)
         page.wait_for_timeout(600)
     assert not page.errors, page.errors
     return page.text_content("#status")
@@ -386,6 +391,44 @@ def test_a_new_model_does_not_inherit_the_last_one_s_geometry(page):
     used = page.evaluate("() => window.__t.plan().axes3d")
     assert len(used) == 1, used                              # one axis…
     assert abs(used[0][0][0]) < 1e-6 and abs(used[0][0][1]) < 1e-6, used   # …through the middle of the model
+
+    # Bug 004: an upload kept the last example's model settings — the horse's size 300, round 3, thicken 1 — and a
+    # plain cube came back with rounded corners and a hole closed up. An upload starts from the model as drawn.
+    page.click('nav button[data-t="model"]')
+    page.select_option("#example", "horse")
+    settle(page)
+    assert page.evaluate("() => window.__t.state().round") == 3   # the preset this is about, really applied
+    page.set_input_files("#file", str(ROOT / "examples" / "cube.stl"))
+    settle(page)
+    got = page.evaluate("() => { const s = window.__t.state(); return [s.size, s.round, s.thicken] }")
+    assert got == [[0, 0, 0], 0, 0], got
+    assert [round(e) for e in plan(page)["bbox"]] == [180, 180, 180]   # the cube at its own size, not 300
+
+    # an example, then the same file again: the box still held it, so choosing it fired nothing and the example stayed
+    page.select_option("#example", "egg")
+    settle(page)
+    page.set_input_files("#file", str(ROOT / "examples" / "cube.stl"))
+    settle(page)
+    assert [round(e) for e in plan(page)["bbox"]] == [180, 180, 180], "the same file picked again did not load"
+    assert not page.errors, page.errors
+
+
+@pytest.mark.timeout(600)
+def test_a_model_a_few_degrees_off_square_is_squared_by_its_button(page):
+    """Bug 001: a cube turned 85° instead of 90° stacked into a staircase and nothing said so. The Model tab now says
+    how far off it sits, and its button turns it the rest of the way."""
+    page.click('nav button[data-t="model"]')
+    page.select_option("#example", "cube")
+    settle(page)
+    assert page.is_hidden("#square")                         # square already: nothing to offer
+    set_fields(page, [("p_rotate_0", 85)])
+    settle(page)
+    assert page.is_visible("#square"), "a cube 5° off square was not noticed"
+    page.click("#square button")
+    settle(page)
+    assert page.evaluate("() => window.__t.state().rotate") == [90, 0, 0]
+    assert page.is_hidden("#square")
+    assert [round(e) for e in plan(page)["bbox"]] == [180, 180, 180]   # square again: no tilted, taller box
     assert not page.errors, page.errors
 
 
@@ -398,6 +441,52 @@ ON_PART = """label => {
     if (Math.hypot(x - mx, y - my) < d && window.__t.hitAt(x, y) === label) { best = [x, y]; d = Math.hypot(x - mx, y - my) }
   return best;
 }"""
+
+
+@pytest.mark.timeout(600)
+def test_a_report_is_gathered_while_the_slicer_is_stuck(page):
+    """Reported: "compiling report froze, unless I reloaded the page", during a slice that never finished. In the
+    browser version one worker runs all the Python, so the report's request for the uploaded model waited behind the
+    stuck slice. Here that request never answers at all, and the report still comes back with the model in it."""
+    page.click('nav button[data-t="model"]')
+    page.set_input_files("#file", str(ROOT / "examples" / "cube.stl"))
+    settle(page)
+    page.evaluate("""() => { const real = window.fetch;   // the slicer is busy: whatever asks it for the model waits forever
+        window.fetch = (u, o) => /\\/source/.test(String(u)) ? new Promise(() => {}) : real(u, o) }""")
+    page.click("header [data-feedback]")                  # the report dialog, as the reporter opens it
+    got = page.evaluate("""() => Promise.race([
+        window.__feedback.build().then(async fd => JSON.parse(await fd.get('project').text()).model?.name ?? 'no model'),
+        new Promise(r => setTimeout(() => r('still gathering after 10 s'), 10000))])""")
+    page.reload()                                          # put fetch back for the next test (and wait for the page: a bare
+                                                           # location.reload() let the next test click a page still loading)
+    settle(page)
+    assert got == "cube.stl", got
+
+
+@pytest.mark.timeout(600)
+def test_stacked_with_aligned_dowels_finishes_on_a_box_with_a_hole(page, tmp_path):
+    """Bug 003: "as soon as I click Stacked Slices it never gets past Step 2 of 7". Their model: a 300 mm cube with a
+    30 mm round hole, 144 triangles, uploaded on radial, then stacked at 3 mm with dowels aligned through every layer.
+    The flat walls' triangle diagonals put a stray point on every layer's outline, and the intersection of 100 of them
+    never finished (a plain box has too few walls to show it: 2 s either way). The reporter's path, in their settings."""
+    import shapely
+    import trimesh
+    model = tmp_path / "cube with hole.stl"
+    trimesh.creation.extrude_polygon(shapely.box(-150, -150, 150, 150).difference(shapely.Point(0, 0).buffer(15, 8)), 300).export(model)
+    page.click('nav button[data-t="model"]')
+    page.set_input_files("#file", str(model))                # opening on radial, like theirs
+    settle(page)
+    assert [round(e) for e in plan(page)["bbox"]] == [300, 300, 300] and plan(page)["counts"]["faces"] == 144
+    page.click('nav button[data-t="technique"]')
+    page.click('#modes button[data-m="stacked"]')
+    set_fields(page, [("p_thickness", 3), ("p_distribution", "distance"), ("p_space", 0), ("p_connect", "dowel"),
+                      ("p_placement", "aligned"), ("p_n_points", 2)])
+    settle(page, timeout=90_000)                             # it used to sit at "placing slices and slots" for good
+    p = plan(page)
+    layers = [s for s in p["slices"] if s["group"] == "S"]
+    assert len(layers) == 100, (len(layers), p["bbox"])      # 300 mm of 3 mm layers, the whole height
+    assert p["counts"]["errors"] == 0, p["counts"]
+    assert not page.errors, page.errors
 
 
 @pytest.mark.timeout(600)
@@ -702,6 +791,7 @@ def test_what_is_new_shows_itself_once_when_the_version_changes(page, server):
     heads = page.eval_on_selector_all("#news_body h5", "els => els.map(e => e.textContent)")
     assert heads[0].endswith(latest) and len(heads) > 1, heads
     page.click("#news_go")
+
 
 def zip_of(body):
     import io, zipfile

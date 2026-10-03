@@ -395,10 +395,6 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
       </ul>
     </div>
   </div>
-</div></section>
-
-<section id="checks"><div class="wrap">
-  <h2>It tells you what will not work — and offers the fix</h2>
   <figure style="margin-top:24px">
     <video src="media/lobes.mp4" poster="media/lobes_poster.jpg" width="1200" height="690"
            muted loop playsinline controls preload="none"
@@ -406,6 +402,10 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
     <figcaption>The plane between two lobes of a radial job is a part like any other: select it, slide it up the waist,
     tilt it — the fans on either side follow, and every step still slices clean.</figcaption>
   </figure>
+</div></section>
+
+<section id="checks"><div class="wrap">
+  <h2>It tells you what will not work — and offers the fix</h2>
   <p class="sub">Lamina checks the plan as a physical object, not just as geometry. Every message says what is wrong
   and what to do about it, and most carry buttons that apply the change.</p>
   <figure>
@@ -588,7 +588,7 @@ uv sync
 uv run uvicorn web.app:app --reload --port 8000
 # then open http://localhost:8000</code></pre>
   <p class="sub">The Model tab opens on a bundled example, and the
-  <a href="https://github.com/marcelfarres/lamina/tree/main/examples">examples folder</a> holds 22 in all — geometric
+  <a href="https://github.com/marcelfarres/lamina/tree/main/examples">examples folder</a> holds 23 in all — geometric
   shapes, a scanned head and animals; the dumbbell and the snowman open with a radial axis per ball and a spine
   through them all.
   The same pipeline runs headless, so it can be scripted or put in a build:</p>
@@ -630,7 +630,7 @@ uv run python -m core.plan examples/egg.stl --list-params</code></pre>
   <a href="https://www.goatcounter.com/">GoatCounter</a>: the page you landed on, where you came from, which link
   you clicked and which clips played. No cookies, no IP addresses kept, no account, nothing shared with anyone,
   and no profile of you anywhere. The browser demo counts that it was opened, in the same way and nothing more —
-  what you actually <em>do</em> in it is only counted if you tick the box on its Model tab. The copy you run on
+  what you actually <em>do</em> in it is counted too, unless you untick the box on its Model tab. The copy you run on
   your own machine or server counts nothing at all, ever.</div>
 </div></footer>
 

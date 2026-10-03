@@ -63,7 +63,14 @@ def section_polygons(mesh: trimesh.Trimesh, M: np.ndarray) -> MultiPolygon:
     polys = [p for p in polys if p.is_valid and p.area > 1e-6]
     if not polys:
         return MultiPolygon()
-    return as_multi(unary_union([unripple(p, mesh.metadata.get("lamina_pitch", 0)) for p in polys]))
+    out = unary_union([unripple(p, mesh.metadata.get("lamina_pitch", 0)) for p in polys])
+    # A flat wall is two triangles, and the plane crossing their diagonal leaves a point on the straight edge — at a
+    # different place on every layer. The same cube with a hole came out as 100 outlines alike in shape and unlike in
+    # points, and intersecting them for the stack's aligned dowels kept every point of every layer: 393,370 vertices,
+    # and the job never got past "placing slices" (reported). Off they come, 0.1 µm of tolerance. Douglas-Peucker,
+    # not the topology-preserving simplify, which reads uninitialised memory in the browser's GEOS 3.12.
+    lean = out.simplify(1e-4, preserve_topology=False)
+    return as_multi(lean if lean.is_valid and not lean.is_empty else out)
 
 
 def unripple(geom, pitch: float):

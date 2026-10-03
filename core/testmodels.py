@@ -4,7 +4,7 @@
 
 geometric: cube, cylinder, cone, pyramid, sphere, torus, bracket (L + hole), tube (hollow), tall_bar (needs splitting)
 organic:   egg, snowman (asymmetric), blob (metaball, bumpy), pear, twisted (twisted ellipsoid), bowl (thin shell),
-           dumbbell (two spheres on a neck: radial with an axis per lobe)
+           dumbbell (two spheres on a neck: radial with an axis per lobe), wavy_torus (ring with a 3-period sine wave and an LED channel through it)
 """
 import sys, pathlib
 import numpy as np
@@ -57,6 +57,22 @@ def dumbbell():
                  cylinder(radius=10, height=72, sections=64))
 
 
+def wavy_torus(size=316, led_d=7):
+    """A torus whose ring rises and falls: three peaks and three valleys of a sine wave around it, `size` mm across
+    (a Bambu H2C's 325 × 320 bed less its preset's 2 mm sheet margins, so the widest stacked slice prints flat in one piece),
+    with a closed channel of `led_d` mm along the tube's centre for an LED light tube. The wave shears the channel, so
+    at its steepest it is 12 % narrower across than tall: 7 mm still passes a 5 mm tube everywhere. Built in mm, then
+    ÷ 3 for the ×3 every model gets below."""
+    R = size * 3 / 8
+    def wave(m):
+        v = m.vertices.copy(); v[:, 2] += size / 15 * np.sin(3 * np.arctan2(v[:, 1], v[:, 0]))
+        m.vertices = v; return m
+    outer = wave(torus(major_radius=R, minor_radius=R / 3, major_sections=144, minor_sections=48))
+    channel = wave(torus(major_radius=R, minor_radius=led_d / 2, major_sections=144, minor_sections=24))
+    channel.invert()                          # inward-facing: a void inside the solid, no boolean needed
+    return trimesh.util.concatenate([outer, channel]).apply_scale(1 / 3)
+
+
 MODELS = {
     # geometric
     "cube": lambda: box([60, 60, 60]),
@@ -76,6 +92,7 @@ MODELS = {
     "twisted": twisted,
     "bowl": bowl,
     "dumbbell": dumbbell,
+    "wavy_torus": wavy_torus,
 }
 
 if __name__ == "__main__":

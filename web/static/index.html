@@ -1268,7 +1268,7 @@ function bump(major){const [a,b]=(state.rev||'1.0').split('.').map(Number);state
 async function init(){
   MODES=await (await fetch('api/modes')).json(); const ex=await (await fetch('api/examples')).json();
   const PRESETS=await fetch('api/presets').then(r=>r.ok?r.json():{}).catch(()=>({}));
-  $('#example').innerHTML=ex.map(e=>`<option>${e}</option>`).join(''); $('#example').value=ex.includes('egg')?'egg':ex[0];
+  $('#example').innerHTML=ex.map(e=>`<option>${e}</option>`).join(''); $('#example').value=ex.includes('blob')?'blob':ex[0];
   $('#modes').innerHTML=MODES.map(m=>`<button data-m="${m.name}">${m.title}</button>`).join('');
   $('#modes').onclick=e=>{if(e.target.dataset.m){deselect();setMode(e.target.dataset.m);countUse('technique',e.target.dataset.m);slice()}};
   $('#material').onchange=e=>{const n=e.target.value,m=matOf(n);state.material=n;
@@ -1334,9 +1334,14 @@ async function init(){
   // `model/example` vs `model/upload` says whether people bring real work or only try the samples — the file
   // itself never leaves the browser and its name is never sent, only which of the two it was.
   // a bundled example opens on its preset (examples/presets.json): its technique, standing the right way up, sliced
-  // clean — the model preparation is reset first so nothing carries over from the previous shape
+  // clean — the model preparation is reset first so nothing carries over from the previous shape. A preset that names a
+  // material or a machine picks it as the selects would (its look, its compensation, its bed as the sheet); the caller
+  // slices straight after, so the select's own delayed slice is dropped
   const applyPreset=()=>{const pr=PRESETS[$('#example').value];if(!pr)return;
-    setMode(pr.mode,false);Object.assign(state,{rotate:[0,0,0],size:[0,0,0],scale:1,round:0,thicken:0,shrinkwrap:0,smooth:0,hollow:0,space:0},structuredClone(pr.params));renderFields()};
+    setMode(pr.mode,false);Object.assign(state,{rotate:[0,0,0],size:[0,0,0],scale:1,round:0,thicken:0,shrinkwrap:0,smooth:0,hollow:0,space:0},structuredClone(pr.params));
+    if(pr.params.material)$('#material').onchange({target:{value:pr.params.material}});
+    if(pr.params.machine)applyMachine(pr.params.machine);
+    clearTimeout(timer);renderFields()};
   // the file box lets go of the upload too: left holding it, choosing that same file again fires no change and loads nothing
   $('#example').onchange=()=>{pendingFile=null;$('#file').value='';newModel();applyPreset();countUse('model','example');fresh='loaded example '+$('#example').value;slice()};
   // A big mesh in the browser build is slow but not refused — the ceiling is this tab's memory, and it is the

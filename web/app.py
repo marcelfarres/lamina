@@ -14,7 +14,7 @@ GET  /api/job/{client}/{job}/stl?part=<label>                                  �
 """
 
 from __future__ import annotations
-import base64, contextlib, hashlib, io, json, os, pathlib, re, shutil, tempfile, threading, time, zipfile
+import base64, contextlib, hashlib, io, itertools, json, os, pathlib, re, shutil, tempfile, threading, time, zipfile
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
@@ -84,9 +84,20 @@ app = FastAPI(title="Lamina")
 # Where the build is up to, so the page can say "sectioning 12 / 29 · 48 %" instead of "slicing…" for a minute. A
 # slice runs in the threadpool, one build per thread, so the file to write to rides on the thread that is building.
 _building = threading.local()
+# Each change on the page sends a slice, and the page throws away all but the newest answer. The server used to
+# compute every one to the end anyway, so a slider dragged across five values ran five builds side by side, each five
+# times slower under the GIL. Now a client's newer slice stops its older one at the older one's next stage.
+_latest: dict[str, int] = {}                       # client → the number of the slice it sent last
+_numbers = itertools.count()
+
+
+class Superseded(Exception):
+    """A newer slice of the same client started: nobody is waiting for this one's answer."""
 
 
 def _report(text, frac, artifact=None):
+    if getattr(_building, "client", None) and _latest.get(_building.client) != _building.n:
+        raise Superseded
     f = getattr(_building, "file", None)
     if f:
         if artifact:              # a file the build has already written, under the jobs tree: the page can fetch it
@@ -164,6 +175,7 @@ def slice_model(client: str = Form(...), mode: str = Form(...), params: str = Fo
     Plain `def`: slicing is CPU-bound and can take 15 s, so it runs in the threadpool and nobody else waits on it."""
     if mode not in MODES:
         raise HTTPException(400, f"unknown mode {mode}")
+    n = _latest[client] = next(_numbers)           # from here on, this client's older slices stop
     cd = client_dir(client)
     sweep()  # sweep first: it may drop this client's own stale
     cd.mkdir(parents=True, exist_ok=True)
@@ -198,14 +210,17 @@ def slice_model(client: str = Form(...), mode: str = Form(...), params: str = Fo
     t0 = time.time()
     _building.file = cd / "progress.json"          # this thread's build reports its stages here, for /api/progress
     _building.model = None                         # …and the preview mesh, once this build has written it
+    _building.client, _building.n = client, n      # …and which slice it is, so a newer one can stop it
     try:
         prm = json.loads(params or "{}")
         # the name as it was uploaded (the copy on disk is renamed), engraved before every label; not kept in the session
         plan = build(mpath, mode, {**prm, "model_name": pathlib.Path(model_name(jd)).stem}, jd / "plan", mesh_out=jd / "model.stl")
+    except Superseded:
+        raise HTTPException(409, "a newer slice of this page replaced this one") from None
     except Exception as e:
         raise HTTPException(500, f"{type(e).__name__}: {e}") from e
     finally:
-        _building.file = None
+        _building.file = _building.client = None   # the thread goes back to the pool: the next request on it is not this one
         with contextlib.suppress(OSError):        # another slice of this client's may still hold it open
             (cd / "progress.json").unlink(missing_ok=True)
     W, H = plan["sheet"]

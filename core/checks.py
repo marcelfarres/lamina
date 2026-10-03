@@ -10,14 +10,18 @@ STRUCTURAL = ("X", "Y", "R", "C", "S")  # take part in the assembly-connectivity
 
 
 def min_dims(poly):
-    """Side lengths of the minimum rotated bounding rectangle (w, h), sorted."""
-    r = poly.minimum_rotated_rectangle
-    if r.geom_type != "Polygon":
-        return 0.0, 0.0
-    c = list(r.exterior.coords)
-    a = ((c[0][0] - c[1][0]) ** 2 + (c[0][1] - c[1][1]) ** 2) ** 0.5
-    b = ((c[1][0] - c[2][0]) ** 2 + (c[1][1] - c[2][1]) ** 2) ** 0.5
-    return tuple(sorted((a, b)))
+    """Side lengths of the minimum rotated bounding rectangle (w, h), sorted: the hull measured across each of its own
+    edge directions, keeping the smallest box. Not GEOS's minimum_rotated_rectangle, which comes back as a flat line
+    when the hull has several points on one straight edge (slot corners on a slanted side do that) — a 120 × 660 mm
+    part measured 0.0 × 125, failed as "too thin" and was never split to fit the sheet."""
+    hull = poly.convex_hull
+    if hull.geom_type != "Polygon":                        # a point or a line: no width
+        return 0.0, float(hull.length)
+    h = np.asarray(hull.exterior.coords)
+    e = np.diff(h, axis=0); e = e[np.hypot(*e.T) > 1e-12]; e /= np.hypot(*e.T)[:, None]
+    w, t = np.ptp(h @ e.T, axis=0), np.ptp(h @ np.c_[-e[:, 1], e[:, 0]].T, axis=0)
+    k = int(np.argmin(w * t))
+    return tuple(sorted((float(w[k]), float(t[k]))))
 
 
 def check_slice(sl, p):

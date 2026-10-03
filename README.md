@@ -155,7 +155,8 @@ the copy you self-host or run from Docker** — there is no script and no endpoi
 visits with GoatCounter (no cookies, no IP stored, so no consent banner) when the `COUNT_URL` repository variable is
 set: the landing page records the visit, the referrer, which link was clicked and which clips played, and the demo
 records that it was opened. What someone *does* in the demo — technique, whether the model came from the examples or
-their own computer, which formats they export — is sent only if they tick the box at the foot of its Model tab.
+their own computer, which formats they export — is sent while the box at the foot of its Model tab is ticked. It is
+ticked by default and unticking it switches this off for good on that browser.
 
 ### How long a slice takes
 
@@ -179,8 +180,8 @@ is `uv run`, the Docker image is the same):
 
 What costs time: the face count of the model after Modify Form (a fine `shrinkwrap` pitch on a big model makes a
 large mesh), the number of slices that cross each other (every crossing pair is a ray cast and an insertion check),
-and `smooth` passes. `uv run python working-files/time_head.py --browser head_igea` prints the seconds per stage
-for any example, with or without the compiled extras the browser build lacks. If a slice takes minutes in the
+and `smooth` passes. Every slice logs its seconds per stage to the browser console (`lamina timing`), and the
+local server also appends them to `working-files/timing.log`. If a slice takes minutes in the
 browser, it is a model well beyond these: run the local version, or reduce the model first (a coarser
 `shrinkwrap`, a decimated mesh).
 
@@ -197,7 +198,7 @@ stranger's 2 GB scan is not yours to hold. `WEB_CONCURRENCY` is how many slices 
 time (one uvicorn worker each, about 300 MB). Lamina still has no login of its own, so put it behind your reverse
 proxy's authentication if the server is reachable from the internet.
 
-The Model tab opens on a bundled example; [examples/](examples/README.md) holds 22 of them, and each opens on the
+The Model tab opens on a bundled example; [examples/](examples/README.md) holds 23 of them, and each opens on the
 technique and parameters that suit it ([examples/presets.json](examples/presets.json) — the shape standing the right
 way up, sliced without an error; a test keeps that true). The same pipeline runs headless, so it can be scripted:
 
@@ -408,14 +409,19 @@ LAMINA_E2E=1 uv run --with playwright pytest tests/test_e2e_site.py   # the buil
 uv run python tests/test_unfold.py      # folded-panel correctness: refold, area, seams, joints (a few minutes)
 uv run python tests/run_matrix.py       # regression matrix of model × mode × feature → working-files/matrix/contact.png
 uv run python -m core.testmodels examples/   # regenerate the synthetic example shapes
+LAMINA_UI=1 uv run --with playwright pytest tests/test_ui.py    # the app in a browser: every parameter, undo, no number cut off
+uv run --with playwright python scripts/media/record.py [scene …]   # re-record the landing-page stills and clips (needs node + ffmpeg)
 ```
+
+The landing-page media are re-recorded on every release tag by `.github/workflows/media.yml` (or by hand from the
+Actions tab), and committed back to main, so they always show the version people download.
 
 ## Folder layout
 
 ```text
 core/        planner, modes, unfold, notch, checks, nest, split, export, solid
 web/         FastAPI app + single-page UI (vendored three.js)
-examples/    22 test models: 17 synthetic + a scanned head, three animals and the bunny (terms in examples/README.md)
+examples/    23 test models: 18 synthetic + a scanned head, three animals and the bunny (terms in examples/README.md)
 docs/        index.html + media/ (the GitHub Pages site), roadmap.md, folded-panels.md, original-slicer-reference.md
 tests/       pytest suite, test_ui.py (the app in a browser), test_unfold.py, run_matrix.py
 ```
@@ -425,13 +431,8 @@ tests/       pytest suite, test_ui.py (the app in a browser), test_unfold.py, ru
 [The landing page](https://marcelfarres.github.io/lamina/) is `docs/`, served by GitHub Pages from `main` — plain
 HTML with no build step, so any static server shows exactly what Pages will:
 
-LAMINA_UI=1 uv run --with playwright pytest tests/test_ui.py    # the app in a browser: every parameter, undo, no number cut off
-uv run --with playwright python scripts/media/record.py [scene …]   # re-record the landing-page stills and clips (needs node + ffmpeg)
 ```bash
 uv run python -m http.server 8080 --directory docs   # then open http://localhost:8080
-The landing-page media are re-recorded on every release tag by `.github/workflows/media.yml` (or by hand from the
-Actions tab), and committed back to main, so they always show the version people download.
-
 ```
 
 The `.md` files next to it (`roadmap.md`, `folded-panels.md`) are read on GitHub rather than through the page.

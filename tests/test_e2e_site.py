@@ -53,7 +53,9 @@ def test_the_site_slices_in_the_browser(site):
         assert page.locator("#example option").count() > 10
         # every example opens on its preset — the browser build must ship and load examples/presets.json too
         active = lambda: page.eval_on_selector("#modes button.on", "b => b.dataset.m")
-        assert active() == "radial", ("the default example (egg) opens radial", active())
+        presets = json.loads((ROOT / "examples" / "presets.json").read_text(encoding="utf-8"))
+        first = page.eval_on_selector("#example", "s => s.value")       # whichever the page opens on (blob today)
+        assert active() == presets[first]["mode"], (first, active())
         page.select_option("#example", "bunny"); sliced("bunny")
         assert active() == "stacked", ("bunny opens stacked, standing up", active())
         page.click('nav button[data-t="technique"]')         # the buttons live in tabs: open each before clicking
@@ -67,6 +69,14 @@ def test_the_site_slices_in_the_browser(site):
         with page.expect_download() as dl:
             page.click("#dl a")
         assert dl.value.suggested_filename.endswith(".zip")
+
+        # One change after the upload, so the report has a step of the reporter's own to carry.
+        page.click('nav button[data-t="sheet"]')
+        page.fill("#p_slot_offset", "0.2")
+        sliced("slot offset")
+        with page.expect_download() as saved:                    # a saved project is the design alone: no steps
+            page.click("#psave2")
+        assert "trail" not in json.loads(pathlib.Path(saved.value.path()).read_text(encoding="utf-8"))
 
         # A bug report carries the data model, and its tick box is the only promise the dialog makes about the
         # model itself: ticked, the project file holds the uploaded mesh; unticked, not a byte of it travels.
@@ -83,6 +93,18 @@ def test_the_site_slices_in_the_browser(site):
         assert ticked[1] == "pear.stl", ticked                     # the mesh that was uploaded, by name
         assert plain[1] == "", plain
         assert ticked[0] > 2 * plain[0], (ticked, plain)           # and it is the mesh that makes up the size
+
+        # ...and how the reporter got there: every step since the upload, in the report's file and the last of them in
+        # its text. Before the upload is another model's story, so none of it; a saved project carries no steps at all.
+        trail = page.evaluate("async () => JSON.parse(await (await window.__feedback.build()).get('project').text()).trail")
+        steps = [s for _, s in trail]
+        assert steps[0].startswith("uploaded pear.stl ("), steps
+        assert any(s.startswith("slot_offset ") and s.endswith("→ 0.2") for s in steps), steps
+        assert any(s.startswith("sliced in ") for s in steps), steps
+        assert not any("bunny" in s or s.startswith("technique ") for s in steps), steps
+        assert "slot_offset" in page.evaluate("async () => (await window.__feedback.build()).get('summary')")
+        page.click("#fb_see summary")                             # what the reporter sees before sending
+        page.wait_for_function("() => /steps since the model loaded/.test(document.getElementById('fb_pre').textContent)")
 
         # both ways out, built from that same report: a prefilled email and a prefilled issue form
         page.check("#fb_tick")
