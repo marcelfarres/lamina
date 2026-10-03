@@ -220,9 +220,20 @@ def check_assembly(slices, p):
 def autofix(slices, p):
     """Remove what cannot work: slices nothing crosses, regions nothing holds, held-family parts below the minimum size.
     A whole layer of a stack is never removed — take it out and the model has a gap through it — but one island of
-    that layer is: the tip of an ear that touches nothing would fall off the finished piece anyway.
+    that layer is: the tip of an ear that touches nothing would fall off the finished piece anyway. So is a layer
+    at either end of the stack whose neighbour is held: that shortens the model, it does not cut it in two.
     Returns notes describing what was removed; check_plan must run again afterwards."""
     notes, keep = [], []
+    stack = [s for s in slices if s.group == "S"]
+
+    def tip(sl):
+        """An end layer whose neighbour is held (the horse's ear tips): taking it off makes the model one layer
+        shorter, not two pieces."""
+        if len(stack) < 2 or sl not in (stack[0], stack[-1]):
+            return False
+        nb = stack[1] if sl is stack[0] else stack[-2]
+        return not any("floats" in e or "not connected" in e for e in nb.errors)
+
     for sl in slices:
         regions = list(sl.profile.geoms)
         drop = set()
@@ -241,7 +252,12 @@ def autofix(slices, p):
             keep.append(sl); continue
         left = [r for i, r in enumerate(regions) if i not in drop]
         why = "nothing holds it" if any("float" in e or "no crossing" in e or "not connected" in e for e in sl.errors) else "below the minimum size"
-        if left:
+        if not left and sl.group == "S" and why == "nothing holds it" and not tip(sl):
+            # Every island of the layer is unheld, so it is the layer that floats, not an ear of it. Island by island
+            # that used to add up to the whole layer: a gapped stack with no connector through it (placement = lines
+            # before any line is drawn) lost 11 of the horse's 20 layers. It stays, and its error says what to join.
+            keep.append(sl)
+        elif left:
             sl.profile = MultiPolygon(left); sl.raw = MultiPolygon([r for r in sl.raw.geoms if any(r.intersects(x) for x in left)]) or sl.raw
             notes.append(f"auto-fix: removed {len(drop)} region(s) of {sl.label} ({why})")
             keep.append(sl)

@@ -32,10 +32,14 @@ class Stacked(Mode):
         Param("connect", "choice", "dowel", CONNECT_HELP, choices=["none", "dowel", "tab"]),
         Param("dowel_d", "number", 6.0, "Dowel diameter / peg & spacer width (mm)", 0.5, 100, 0.5, unit="mm", show_if=("connect", ["dowel", "tab"])),
         Param("dowel_shape", "choice", "round", "Dowel hole shape (round, square, pencil = hexagon, cross, horizontal / vertical slot)", choices=["round", "square", "pencil", "cross", "hslot", "vslot"], show_if=("connect", "dowel")),
-        Param("placement", "choice", "aligned", "aligned = the same points through the whole stack (every island that persists gets its own); random = new points for every pair of slices; lines = where your 3D lines cross the gap between two slices", choices=["aligned", "random", "lines"], show_if=("connect", ["dowel", "tab"])),
+        Param("placement", "choice", "aligned", "aligned = the same points through the whole stack, so each dowel is one straight rod (every island that persists gets its own); to move one or add your own, alt-click a slice in the 3D view or type it under dowels · random = new points for every pair of slices, spread as far apart as that pair allows, so no two layers share a hole · lines = straight dowels you draw yourself, start → end, holes wherever they cross between two slices", choices=["aligned", "random", "lines"], show_if=("connect", ["dowel", "tab"])),
         Param("n_points", "int", 2, "Connection points per pair of slices (per island)", 1, 20, 1, show_if=("placement", ["aligned", "random"])),
-        Param("dowels", "points", [], "Aligned points (x, y in the slice plane); empty = automatic. Alt-click a slice in the 3D view to add / remove one", unit="mm", show_if=("placement", "aligned")),
-        Param("lines", "lines3", [], "3D lines (start → end) along which the connections are placed", unit="mm", show_if=("placement", "lines")),
+        Param("dowels", "points", [], "Your own dowels, each straight through every layer it fits (x, y in the slice plane, 0, 0 = the middle of the model); empty = automatic. Alt-click a slice in the 3D view to add one there or remove the one you click; type its x, y here to move it", unit="mm", show_if=("placement", "aligned")),
+        Param("lines", "lines3", [], "Each line is one straight dowel through the stack: a start and an end point in "
+              "the model's own x, y, z (0, 0, 0 is the middle of the model). Every pair of slices the line passes through "
+              "gets a hole where it crosses between them, so a slanted line steps across the layers. + line draws one up "
+              "the middle to start from, alt-click the model for one up through that point (again on it to remove it); "
+              "two lines hold every layer, one lets it turn", unit="mm", show_if=("placement", "lines")),
         Param("spacer_dir", "choice", "alternate", "Orientation of pegs / spacers in the slice plane", choices=["x", "y", "alternate"], show_if=("connect", "tab")),
     ]
     hidden_common = ("notch_ratio", "notch_factor", "notch_angle")
@@ -173,18 +177,25 @@ class Stacked(Mode):
         elif p["placement"] == "random":
             rng = np.random.default_rng(1000 + i)
             for isl in islands:
-                x0, y0, x1, y1 = isl.bounds; got = []
-                # 800 candidates at once: inside the island and clear of the holes already cut, then the first ones
-                # that also keep clear of each other (one shapely call per island instead of one per candidate)
+                x0, y0, x1, y1 = isl.bounds
+                # 800 candidates at once: inside the island and clear of the holes already cut (one shapely call per
+                # island instead of one per candidate)
                 q = np.round(rng.uniform((x0, y0), (x1, y1), (800, 2)), 1)
                 q = q[shapely.contains_xy(isl, q[:, 0], q[:, 1])]
                 if len(q) and taken:
                     q = q[(np.linalg.norm(q[:, None] - np.asarray(taken, float), axis=2) >= clearance).all(1)]
-                for pt in q:
-                    if all(np.hypot(pt[0] - r[0], pt[1] - r[1]) > clearance for r in got):
-                        got.append((float(pt[0]), float(pt[1])))
-                        if len(got) == p["n_points"]:
-                            break
+                if not len(q):
+                    continue
+                # Then each point as far as it can get from the ones already chosen, starting from the candidate
+                # farthest from a random one. Taking the first candidates that merely kept clear of each other left
+                # both dowels of a pair at one end of the layer and the other end free to lift (reported; the
+                # farthest point of a layer sat 0.9 of its width from any dowel) — this keeps the randomness in
+                # where the spread starts, not in whether it covers the layer.
+                far, got = np.linalg.norm(q - q[0], axis=1), []
+                while len(got) < p["n_points"] and (not got or far.max() > clearance):
+                    k = int(far.argmax()); got.append((float(q[k, 0]), float(q[k, 1])))
+                    to_k = np.linalg.norm(q - q[k], axis=1)
+                    far = to_k if len(got) == 1 else np.minimum(far, to_k)     # the random seed is not a dowel
                 out += got
         else:                                                # lines: where each 3D line crosses the mid-gap plane
             zmid = float(np.dot(b.M[:3, 3] - a.M[:3, 3], a.M[:3, 2])) / 2
@@ -272,7 +283,13 @@ class Stacked(Mode):
         said = []
         if skipped:
             said.append(f"{skipped} connection point(s) skipped — the slot would cross the outline: move the points inward (alt-click) or reduce dowel_d")
-        if bare:
+        if bare and p["placement"] == "lines":
+            # Here nothing was short of room: the lines put no point there. Offering a smaller dowel sent people
+            # looking for a size problem that did not exist.
+            said.append(f"{bare} pair(s) of slices got no connector — none of the {len(p['lines'])} line(s) passes "
+                        "through the material of both: add a line that does (+ line on the Technique tab draws one up "
+                        "the middle of the model to start from), or set placement to aligned")
+        elif bare:
             # Connectors are on and some layers got none: at this diameter nothing fits in them, and a stack that is
             # only glued slides while it dries. Say what would fit rather than leave it quietly unaligned.
             # The widest hole those layers hold is the inscribed circle less the wall on *both* sides — and the hole

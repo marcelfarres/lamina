@@ -219,6 +219,42 @@ def test_a_stack_is_dowelled_through_without_holes_running_together(name, over, 
             f"dowels {min(gaps):.1f} mm apart at z={z} leave no wall between them (d={d}, min_feature={min_feature})"
 
 
+def test_a_stack_with_nothing_joining_its_layers_keeps_every_layer():
+    """Reported as "the model loses some layers when lines is selected". With a gap between layers and no line
+    through them nothing joins the layers; autofix took each unheld island away, and a layer that is all islands (the
+    horse's four legs) went whole — 11 of 20. A layer stays and says what joins it; the note names the lines, not a
+    dowel size, because nothing here was short of room."""
+    job = {"connect": "dowel", "placement": "lines", "lines": [], "space": 5, "thickness": 3,
+           "distribution": "count", "count": 20}
+    on = build(EXAMPLES / "horse.stl", "stacked", job)
+    off = build(EXAMPLES / "horse.stl", "stacked", {**job, "autofix": "off"})
+    layers = lambda plan: {s["label"] for s in plan["slices"] if s["group"] == "S"}      # noqa: E731
+    assert layers(on) == layers(off) and len(layers(on)) == 20, sorted(layers(off) - layers(on))
+    note = next(n for n in on["notes"] if "got no connector" in n)
+    assert "line" in note and "set dowel_d" not in note, note
+
+
+def test_random_dowels_spread_across_the_layer():
+    """Reported: with random placement "the dowels are not evenly spaced and some areas are not supported". The first
+    candidates that kept clear of each other were taken, often both at one end of a layer: the far end of the horse's
+    worst layer sat 0.91 of its width from any dowel. Now each point goes as far as it can from the ones chosen, and
+    that reach is measured on the section itself, per pair."""
+    job = {"connect": "dowel", "placement": "random", "n_points": 2, "thickness": 3, "space": 5,
+           "distribution": "count", "count": 20, "autofix": "off"}
+    plan = build(EXAMPLES / "horse.stl", "stacked", job)
+    mesh = load_mesh(EXAMPLES / "horse.stl", coerce_params(MODES["stacked"], job), [], "stacked")
+    reach = []
+    for z, pts in dowels_by_level(plan).items():
+        M = np.eye(4); M[2, 3] = z + job["thickness"] / 2     # a rod starts half a thickness below its slice's plane
+        body = max(section_polygons(mesh, M).geoms, key=lambda g: g.area)
+        edge = np.asarray(body.exterior.coords)
+        far = np.linalg.norm(edge[:, None] - np.asarray(pts)[None], axis=2).min(1).max()
+        x0, y0, x1, y1 = body.bounds
+        reach.append(far / max(x1 - x0, y1 - y0))
+    assert len(reach) >= 10, f"only {len(reach)} pairs got dowels"      # 11: the leg layers take no 6 mm dowel
+    assert max(reach) < 0.7, f"a layer's far end is {max(reach):.2f} of its width from any dowel (was 0.91)"
+
+
 def test_a_wall_too_thin_for_the_dowel_says_so():
     """Where a 6 mm dowel genuinely does not fit, placing none is right — but it has to be said, and any size it
     names has to work when followed. A 6 mm wall holds no dowel at all, so no size is offered there; the hollowed

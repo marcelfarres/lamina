@@ -388,6 +388,82 @@ def test_a_new_model_does_not_inherit_the_last_one_s_geometry(page):
     assert not page.errors, page.errors
 
 
+ON_PART = """label => {
+  // the pixel on the selected part nearest the middle of the view (not a handle, and clear of the corner cube,
+  // which takes a press before the part does)
+  const c = window.__t.canvas().getBoundingClientRect(), mx = (c.left + c.right) / 2, my = (c.top + c.bottom) / 2;
+  let best = null, d = Infinity;
+  for (let y = c.top + 20; y < c.bottom - 20; y += 6) for (let x = c.left + 20; x < c.right - 20; x += 6)
+    if (Math.hypot(x - mx, y - my) < d && window.__t.hitAt(x, y) === label) { best = [x, y]; d = Math.hypot(x - mx, y - my) }
+  return best;
+}"""
+
+
+@pytest.mark.timeout(600)
+def test_only_a_handle_moves_a_part(page):
+    """Reported as "needs a step undo, it is easy to move a layer unintentionally": once a layer was selected, a drag
+    anywhere on it slid it — which is also how you turn the view. A plain drag on the part now turns the view and
+    leaves it where it was; shift-drag on it still tilts it, as the help says."""
+    page.click('nav button[data-t="technique"]')
+    page.click('#modes button[data-m="stacked"]')
+    settle(page)
+    set_fields(page, [("p_distribution", "count"), ("p_count", 8)])   # layers tall enough on screen to press one
+    settle(page)
+    label = page.evaluate("() => { const s = window.__t.plan().slices.filter(s => s.group === 'S'); return s[s.length >> 1].label }")
+    page.evaluate("l => window.__t.select(l)", label)
+    page.wait_for_timeout(300)
+
+    def drag(mod=None):
+        x, y = page.evaluate(ON_PART, label)           # found again each time: the plain drag turns the view
+        if mod:
+            page.keyboard.down(mod)
+        page.mouse.move(x, y); page.mouse.down(); page.mouse.move(x + 60, y + 40, steps=8); page.mouse.up()
+        if mod:
+            page.keyboard.up(mod)
+        page.wait_for_timeout(600)
+        settle(page)
+        return page.evaluate("l => [(window.__t.state().offset || {})[l] || 0, (window.__t.state().tilt || {})[l] || 0]", label)
+
+    assert drag() == [0, 0], "a plain drag on the part moved it"
+    assert drag("Shift")[1] != 0, "shift-drag on the part no longer tilts it"
+
+
+@pytest.mark.timeout(600)
+def test_a_line_added_with_the_button_places_dowels(page):
+    """+ line used to add 0,0,0 → 0,0,0: a line nothing crosses, so no dowel, and a stack with a gap then lost its
+    layers to autofix (reported). Two presses now give two lines up the model, a dowel through every layer they meet,
+    and every layer stays. On the torus, where a line a fixed distance out from the middle fell in its hole."""
+    page.click('nav button[data-t="model"]')
+    page.select_option("#example", "torus")
+    settle(page)
+    page.click('nav button[data-t="technique"]')
+    page.click('#modes button[data-m="stacked"]')
+    set_fields(page, [("p_placement", "lines"), ("p_space", 5)])
+    settle(page)
+    layers = len([s for s in plan(page)["slices"] if s["group"] == "S"])
+    for _ in range(2):
+        page.click('#tabs [data-add="lines"]')
+        settle(page)
+    p = plan(page)
+    assert len(p["params"]["lines"]) == 2, p["params"]["lines"]
+    # the torus's top and bottom pairs overlap in a sliver no 6 mm dowel fits; the old default placed none at all
+    assert len(p["rods"]) >= layers - 1, (layers, len(p["rods"]))
+    assert len([s for s in p["slices"] if s["group"] == "S"]) == layers
+
+    # alt-click the model: a line straight up through that point; alt-click it again and it is gone
+    mid = next(s["label"] for s in p["slices"] if s["group"] == "S" and s["label"].endswith(f"-{layers // 2}"))
+    x, y = page.evaluate(ON_PART, mid)
+
+    def alt_click():
+        page.keyboard.down("Alt"); page.mouse.click(x, y); page.keyboard.up("Alt")
+        settle(page)
+        return plan(page)["params"]["lines"]
+
+    added = alt_click()
+    assert len(added) == 3 and added[2][0][:2] == added[2][1][:2], added          # straight up the stack
+    assert len(alt_click()) == 2
+
+
 @pytest.mark.timeout(600)
 def test_a_model_too_big_for_the_sheet_says_what_would_fit(page):
     """510 × 298 mm of cardboard and a model half a metre tall: the parts cannot fit, so the report has to say so and

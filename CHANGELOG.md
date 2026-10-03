@@ -2,6 +2,22 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.2.2
+
+### Fixed
+
+- **A stack never loses layers to the automatic fixes.** With a space between layers and dowels placed along lines,
+  a layer that no line crossed yet was removed as "held by nothing" — 11 of the horse's 20 layers. It stays now,
+  and the Checks tab says what would hold it.
+- **Only the handles move a selected part.** Dragging anywhere on a selected layer used to slide it, which is also
+  how you turn the view, so layers moved by accident. A plain drag now always turns the view; the arrow and rings
+  (or shift- and ctrl-drag) still move, tilt and roll it.
+- **Random dowels spread across each layer** instead of sometimes bunching at one end: on the horse, the farthest
+  point of a layer from any dowel went from 0.91 of its width to 0.57.
+- **Dowel lines work from the first click.** `+ line` added a line from 0,0,0 to 0,0,0, which placed nothing; it now
+  draws one up through as many layers as it can, alt-click draws one through the point you click, and the help
+  explains aligned, random and lines.
+
 ## 0.2.1
 
 Units and file names, both reported after 0.2.0.

@@ -110,10 +110,22 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
     <li>drag a coloured ring on the model = turn the whole model · click a part = select it</li>
     <li>a selected part gets its own handles, on the part itself: the <b>yellow arrow</b> slides it along its normal,
       the <b>green ring</b> tilts it and the <b>blue ring</b> rolls it, both about the part's own middle, so it turns
-      where it stands (shift-drag and ctrl-drag still do the same two)</li>
+      where it stands (shift-drag and ctrl-drag still do the same two). Only the handles move it: a drag anywhere
+      else, on the part too, turns the view</li>
     <li>alt-click = add or remove a connection point, a curve point or a radial axis</li></ul>
+  <h4>Dowels in a stack</h4>
+  <ul><li><b>aligned</b> — the same points straight through every layer, so each dowel is one rod. Alt-click a slice to
+      add a dowel there, alt-click one to remove it; each is listed under <b>dowels</b> with its x, y, to type exactly —
+      that is how you move one.</li>
+    <li><b>random</b> — new points for every pair of layers, as far apart as each pair allows. They cannot be moved one
+      by one: alt-click switches to aligned, with a dowel where you clicked.</li>
+    <li><b>lines</b> — straight dowels you draw: a start and an end in the model's x, y, z (0, 0, 0 is its middle).
+      <b>+ line</b> draws one up the middle, alt-click one up through the point you click (again on it to remove it);
+      change its numbers to move it. Every pair of layers it passes through gets a hole. Two lines hold each layer,
+      one lets it turn.</li>
+    <li>A layer that nothing joins is never deleted: the Checks tab says so and what would hold it.</li></ul>
   <h4>Keyboard</h4>
-  <ul><li><kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Ctrl</kbd>+<kbd>Y</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redo — the last 60 changes, including a part you moved by accident (⌘ on a Mac)</li>
+  <ul><li><kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Ctrl</kbd>+<kbd>Y</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redo — the last 60 changes, including a part you moved by accident (⌘ on a Mac); the <b>↶ undo</b> button in the header does the same</li>
     <li><kbd>?</kbd> this help · <kbd>Esc</kbd> close a dialog or deselect</li></ul>
   <h4>When something does not fit</h4>
   <ul><li>Parts bigger than your sheet: the Checks tab says so and offers the size that fits, <b>split</b> (cut into pieces joined by puzzle tabs), or <b>one sheet</b> (one long strip).</li>
@@ -392,7 +404,7 @@ $('#tabs').addEventListener('click',e=>{
     // + on the axes table splits the axis you can already see: the list starts from the one the plan used, so it is
     // kept rather than replaced (a zero-length line would draw nothing and slice nothing)
     if(p.name==='axes')setVal('axes',splitAxis(axisList()));
-    else setVal(p.name,[...(state[p.name]||[]),p.type==='lines3'?[[0,0,0],[0,0,0]]:[0,0]]);
+    else setVal(p.name,[...(state[p.name]||[]),p.type==='lines3'?newLine():[0,0]]);
     renderFields()}
   else if(t.dataset.del){const p=P(t.dataset.del);if(p.type==='map'){const v={...state[p.name]};delete v[t.dataset.i];setVal(p.name,v)}else setVal(p.name,(state[p.name]||[]).filter((_,i)=>i!==+t.dataset.i));renderFields()}
 });
@@ -898,9 +910,27 @@ function parallelAxis(list,P){
   const sp=sharedPlane(-1,P); if(sp)P=sp.projectPoint(P,new THREE.Vector3());   // on the plane the others share, so the spine reaches it
   return [...list.map(l=>l.map(q=>[...q])),[rnd(P.clone().addScaledVector(u,-L/2)),rnd(P.clone().addScaledVector(u,L/2))]];
 }
+// A line straight up the stack through p (model mm, 0,0,0 its middle), end face to end face: one dowel through every
+// layer it meets. + line goes to one side of the middle and then the other, so two presses give the two dowels that
+// hold a layer — the old 0,0,0 → 0,0,0 crossed nothing and placed nothing. How far out is whichever of a few
+// distances passes through the most layers: a fixed sixth of the width fell in a torus's hole and crossed none
+const upLine=p=>{const a='xyz'.indexOf(state.axis||'z'),h=(plan?.bbox?.[a]||100)/2;return [-h,h].map(z=>p.map((v,j)=>j===a?+z.toFixed(1):v))};
+function newLine(){const a='xyz'.indexOf(state.axis||'z'),[b,c]=[(a+1)%3,(a+2)%3],bb=plan?.bbox||[0,0,0],u=bb[b]>=bb[c]?b:c;
+  const side=(state.lines||[]).length%2?1:-1, up=new THREE.Vector3().setComponent(a,1);
+  const at=f=>{const p=[0,0,0];p[u]=+(side*f*bb[u]).toFixed(1);return p};
+  const layers=p=>new THREE.Raycaster(V3(p).setComponent(a,-bb[a]),up).intersectObjects(parts.children).length;
+  return upLine([1/6,1/4,1/8,1/3,0.4].map(at).reduce((x,y)=>layers(y)>layers(x)?y:x))}
 function togglePoint(h){ // alt-click: dowel (stacked) in the clicked slice's plane, a curve control point in the curve plane, or a radial axis at the click
   const P=h.point, s=plan.slices.find(x=>x.label===h.object.userData.slice); if(!s)return;
-  if(mode.params.some(p=>p.name==='dowels')){
+  if(mode.params.some(p=>p.name==='lines')&&state.placement==='lines'){
+    // a straight line through the click, the stack's whole height: a dowel exactly there. Alt-click on one removes
+    // it: a click whose ray passes within a dowel of a line means that line — the surface point is no guide, since
+    // the ray goes down the dowel's own hole and lands on a layer further on. Only the ray in front of what it hit
+    // counts (and a dowel's depth past it): a line behind the part you clicked is not the one you meant
+    const p=[P.x,P.y,P.z].map(v=>+v.toFixed(1)), d=state.dowel_d||6, list=state.lines||[], q=new THREE.Vector3();
+    const i=list.findIndex(([s0,e0])=>ray.ray.distanceSqToSegment(V3(s0),V3(e0),q)<d*d&&q.distanceTo(ray.ray.origin)<h.distance+d);
+    state.lines=i>=0?list.filter((_,k)=>k!==i):[...list,upLine(p)];
+  }else if(mode.params.some(p=>p.name==='dowels')){
     const L=P.clone().applyMatrix4(mat4(s.M).invert()), pt=[+L.x.toFixed(1),+L.y.toFixed(1)], d=state.dowel_d||6, list=state.dowels||[];
     const i=list.findIndex(([x,y])=>Math.hypot(x-pt[0],y-pt[1])<d); state.dowels=i>=0?list.filter((_,k)=>k!==i):[...list,pt];
     if(state.connect==='none')state.connect='tab'; state.placement='aligned';
@@ -945,7 +975,9 @@ renderer.domElement.addEventListener('pointerdown',ev=>{if(ev.button!==0)return;
     const [cx,cy]=__screen(c), sign=axis.dot(camera.position.clone().sub(c))>=0?1:-1;
     drag={mode:'spin',k,cx,cy,sign,a0:Math.atan2(ev.clientY-cy,ev.clientX-cx),base:state[k]?.[selected]||0,delta:0,v:null};
     controls.enabled=false;renderer.domElement.setPointerCapture(ev.pointerId);return}
-  const m=h&&(h.object.userData.gizmo?parts.children.find(c=>c.userData.slice===selected):h.object);
+  // Only a handle moves a part — or shift / ctrl on the part itself, which say so. A plain drag on a selected part
+  // used to slide it too, so turning the view after a click moved a layer by accident (reported)
+  const m=h&&(h.object.userData.gizmo?parts.children.find(c=>c.userData.slice===selected):(ev.shiftKey||ev.ctrlKey)&&h.object);
   if(m&&selected&&m.userData.slice===selected){const o=m.userData.origin.clone().project(camera),n=m.userData.origin.clone().add(m.userData.normal).project(camera);
     const r=renderer.domElement.getBoundingClientRect(),dir=new THREE.Vector2((n.x-o.x)*r.width/2,-(n.y-o.y)*r.height/2);if(dir.length()<1e-6)dir.set(1,0);dir.normalize();
     const dist=camera.position.distanceTo(m.userData.origin),mmPerPx=2*dist*Math.tan(camera.fov*Math.PI/360)/r.height;
