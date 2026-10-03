@@ -28,6 +28,23 @@ def test_a_client_cannot_reach_another_ones_job(api):
     assert api.get(f"/api/job/{YOURS}/{job}/source").status_code == 404
 
 
+def test_a_newer_slice_stops_the_older_one_of_the_same_client(api):
+    """The page keeps only its newest answer, so the server must not keep computing the others: they ran side by side
+    under the GIL and made every slice of a busy page several times slower."""
+    import threading
+    got = {}
+    slow = threading.Thread(target=lambda: got.update(old=api.post("/api/slice", data={"client": MINE, "mode": "stacked", "example": "wavy_torus"})))
+    slow.start()
+    for _ in range(600):                                                   # until the old one is really building
+        if api.get("/api/progress", params={"client": MINE}).json():
+            break
+        time.sleep(0.05)
+    assert api.post("/api/slice", data={"client": MINE, **CUBE}).status_code == 200
+    slow.join()
+    assert got["old"].status_code == 409, got["old"].text                 # stopped, not finished
+    assert api.get("/api/session", params={"client": MINE}).json()["example"] == "cube"   # the newest is what resumes
+
+
 def test_the_session_belongs_to_the_client(api):
     job = api.post("/api/slice", data={"client": MINE, **CUBE}).json()["job"]
     assert api.get("/api/session", params={"client": MINE}).json()["job"] == job

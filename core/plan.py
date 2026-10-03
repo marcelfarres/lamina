@@ -3,7 +3,7 @@
     uv run python -m core.plan examples/egg.stl --mode interlocked --set nx=5 ny=4 thickness=3 --out working-files/egg
 """
 from __future__ import annotations
-import argparse, json, math, pathlib, time
+import argparse, json, math, pathlib, threading, time
 import numpy as np
 import trimesh
 from shapely import affinity
@@ -25,14 +25,21 @@ def report(text, frac, artifact=None):
     the browser worker point it at the page, where a slice of a big model takes long enough to look stuck."""
 
 
-STAGES: list[tuple[str, float]] = []      # (stage text, clock) marks of the build under way — one build at a time per process
-BAND = (0.0, 1.0)                         # the slice of the bar this pass owns (see the autofix loop in build)
+class _Run(threading.local):
+    """The build under way on this thread: a server runs several at once (one per request thread), and with these
+    shared, one build's start wiped another's stage marks — the timing log then put 72 s slices down as 10."""
+    def __init__(self):
+        self.stages: list[tuple[str, float]] = []   # (stage text, clock) marks
+        self.band = (0.0, 1.0)                      # the slice of the bar this pass owns (see the autofix loop in build)
+
+
+_run = _Run()
 DETAIL = " · "                            # everything after it is detail of the stage, not a stage of its own
 
 
 def progress(text, frac):
-    STAGES.append((text, time.perf_counter()))
-    lo, hi = BAND
+    _run.stages.append((text, time.perf_counter()))
+    lo, hi = _run.band
     report(text, lo + frac * (hi - lo))
 
 
@@ -48,7 +55,7 @@ def timing() -> dict[str, float]:
     "· pass 2 of 3") folds into one row. This is what an optimisation has to move, so it rides in the plan and in
     the server's timing log."""
     out = {}
-    for (text, t0), (_, t1) in zip(STAGES, STAGES[1:]):
+    for (text, t0), (_, t1) in zip(_run.stages, _run.stages[1:]):
         k = text.split(DETAIL)[0]
         out[k] = round(out.get(k, 0.0) + t1 - t0, 3)
     return out
@@ -339,9 +346,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     mode = MODES[mode_name]
     p = coerce_params(mode, raw_params)
     notes = []
-    STAGES.clear()
-    global BAND
-    BAND = (0.0, 1.0)
+    _run.__init__()
     mesh = load_mesh(model_path, p, notes, mode_name)
     square = square_up(mesh, p["rotate"])          # offered on the Model tab, beside rotate
     if mesh_out:                                    # processed model for the browser's ghost view (decimated)
@@ -357,7 +362,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         # A second pass repeats these stages, which used to send the bar back to 20 % with no word about why. Each
         # extra pass gets a band of its own near the end instead, so the bar only moves forward, and every stage of
         # it says which pass it is and how many there can be.
-        BAND = (0.0, 1.0) if not attempt else (0.7 + 0.08 * (attempt - 1), 0.7 + 0.08 * attempt)
+        _run.band = (0.0, 1.0) if not attempt else (0.7 + 0.08 * (attempt - 1), 0.7 + 0.08 * attempt)
         again = "" if not attempt else f"{DETAIL}pass {attempt + 1} of 3, holding the parts that float"
         progress("placing slices and slots" + again, 0.2)
         ctx = Ctx(mesh, p)
@@ -395,7 +400,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
             for k, v in s.items():
                 p[k] = sorted(set(map(float, p[k])) | set(map(float, v))) if isinstance(v, list) else v
         notes.append(f"auto-fix: added crossing slices ({len(adds)}) so every region is held")
-    BAND = (0.0, 1.0)                               # the passes are over: the last stages own the rest of the bar
+    _run.band = (0.0, 1.0)                          # the passes are over: the last stages own the rest of the bar
     if p["autofix"] != "off" and n_err:
         slices, fixed = autofix(slices, p)
         if fixed:
