@@ -232,6 +232,20 @@ S.checks = async () => {      // the one still that is meant to show errors: the
     await tab("checks"); await sleep(400); await shot("checks");
     await set("autofix", "add"); await settle(); await tab("technique");
 };
+S.square = async () => {      // a cube left 8° off square cuts every straight edge as a staircase; one click squares it
+    await example("cube"); await mode("stacked"); await tab("model");     // the note and its button sit under the rotate controls
+    await params({ axis: "z", connect: "dowel", placement: "aligned", rotate: [8, 0, 0] });
+    console.log("  square: tilted", await verdict(), await js("JSON.stringify(window.__t.plan().square)"));
+    await view(-55, 16, 1.0);
+    const d = await js("window.__t.camera.position.length()"); let az = -55;
+    await clip("square", 56, async i => {
+        await cam(az += 0.8, 16, d);
+        if (i === 24) { await js("document.querySelector('#square button').click()"); await settle(); }
+        else await sleep(60);
+    });
+    await project("square");
+    await tab("technique");
+};
 S.orbit = async () => {       // orbit around the interlocked head, then build it up part by part and explode it
     await example("torus"); await mode("interlocked"); await tab("technique"); await params({ nx: 9, ny: 7 }); await heal();
     await set("viewmode", "only3d"); await sleep(600); await fit();
