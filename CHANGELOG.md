@@ -4,8 +4,18 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ## 0.2.2
 
+### Model
+
+- **Square it up.** A boxy model that sits a few degrees off its axes (a rotate slider left at 85 instead of 90, a
+  CAD export that came out tilted) cuts every straight edge as a staircase. The Model tab now says how far off it
+  is, "sits 5° off square", with a **square it up** button right under the rotate controls. Nothing turns by
+  itself: leave it if the tilt is on purpose.
+
 ### Fixed
 
+- **Stacked slices run the full height of the model.** A layer's thickness was always left off each end, and the
+  stack was built up from the bottom, so a 100 mm cube in 4 mm card came out 23 layers tall with the missing 8 mm
+  all at the top. It is 25 layers now, centred.
 - **A stack never loses layers to the automatic fixes.** With a space between layers and dowels placed along lines,
   a layer that no line crossed yet was removed as "held by nothing" — 11 of the horse's 20 layers. It stays now,
   and the Checks tab says what would hold it.

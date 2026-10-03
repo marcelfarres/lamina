@@ -92,7 +92,7 @@ COMMON: list[Param] = [
     P("notch_angle", "number", 45, "Flare angle (deg)", 10, 80, 5, group="fit", unit="deg", advanced=True),
     P("relief", "choice", "square", "Inner-corner relief for routed/plasma cuts (a round tool cannot cut a sharp inside corner)", choices=["square", "dogbone", "tbone_h", "tbone_v"], group="fit"),
     P("tool_d", "number", 0.0, "Tool diameter for the relief (mm); 0 = none", 0, 20, 0.1, group="fit", unit="mm"),
-    P("margin", "number", 0, "Stacked / by-distance: keep slices this far from the model's extreme faces (mm); 0 = auto (one thickness)", 0, 50, 0.1, group="fit", unit="mm", advanced=True),
+    P("margin", "number", 0, "Stacked / by-distance: keep the stack this far inside the model's end faces (mm), 0 = the stack is as tall as the model · Curve: keep the rib's ends this far in, 0 = one thickness", 0, 50, 0.1, group="fit", unit="mm", advanced=True),
     # -- slicing frame + per-slice edits (also driven by the 3D view)
     P("center", "vec3", [0, 0, 0], "Move the slicing centre / axis (mm) away from the model's bounding-box centre", -5000, 5000, 1, group="technique", unit="mm"),
     P("skip", "labels", [], "Deleted slices (3D view: select → delete). Crossing slices get no slot for them", group="slices"),
@@ -168,8 +168,6 @@ class Ctx:
         self.span = float(np.linalg.norm(self.ext)) * 2
         self.p = params
         self.errors = []          # mode-level errors (bad parameter combinations)
-        if not params.get("margin"):
-            params["margin"] = params["thickness"]
 
     def override(self, key, label, default=0.0):
         return float(dict(self.p[key]).get(label, default))
@@ -205,13 +203,15 @@ class Ctx:
         return [-length / 2 + length * (i + 0.5) / n for i in range(n)]
 
     def stacked_positions(self, length, thicknesses, gap=0.0):
-        """Stack from the bottom: centre of each slice = cumulative thickness (+ gap between slices)."""
-        z = -length / 2 + self.p["margin"]; out = []
+        """Centre of each slice = cumulative thickness (+ gap between slices), the stack centred on the model so the
+        part of a layer that does not fit is shared by both ends instead of all missing from the top."""
+        room = length - 2 * self.p["margin"]; z = 0.0; out = []
         for t in thicknesses:
-            if z + t > length / 2 - self.p["margin"] + 1e-6:
+            if z + t > room + 1e-6:
                 break
             out.append(z + t / 2); z += t + gap
-        return out
+        lo = -room / 2 + (room - max(0.0, z - gap)) / 2
+        return [lo + c for c in out]
 
     def count_by_thickness(self, length, t, gap=0.0):
         """Slices that fit along `length` one thickness (+ gap) apart — never more than the count slider allows: a

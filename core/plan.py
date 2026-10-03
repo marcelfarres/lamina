@@ -182,6 +182,7 @@ ONE_SHEET_H = 100000.0     # "one sheet" mode nests against this height and repo
 STAIRS = 3                 # Taubin passes that take the voxel staircase off a remesh: measured on the egg, three
                            # take it from 13 % of edges over 45° to 0 %, and more only thins what is already thin
 REMESH_FACES = 120000      # what a remesh is decimated to: plenty of detail, and every later section stays quick
+SQUARE_MIN, SQUARE_MAX = 0.5, 15.0   # degrees off square that square_up offers to take back
 
 
 from .modes.folded import simplify as decimate    # noqa: E402 — fewer faces, same shape. Folded panels have needed
@@ -270,6 +271,28 @@ def load_mesh(path, params, notes=None, mode=""):
     return mesh
 
 
+def square_up(mesh, rot):
+    """The `rotate` that puts a boxy model's flat faces back on the axes, and how many degrees off it sits — or None.
+    A box a few degrees off square (a slider at 85 instead of 90, a CAD export that came out tilted) stacks as a
+    staircase and reads as "not my cube". Only for models that are mostly flat faces on their own box: an organic
+    shape has no square to return to, and a model turned further than SQUARE_MAX was turned on purpose."""
+    to_box, _ = trimesh.bounds.oriented_bounds(mesh)
+    R = to_box[:3, :3]
+    P = np.zeros((3, 3))                                 # the quarter turns that bring the box closest to how it sits now
+    for i, row in enumerate(R.T):
+        j = int(np.argmax(np.abs(row))); P[i, j] = np.sign(row[j])
+    Q = P @ R
+    off = float(np.degrees(np.arccos(np.clip((np.trace(Q) - 1) / 2, -1, 1))))
+    if not SQUARE_MIN < off <= SQUARE_MAX or np.linalg.det(P) < 0:
+        return None
+    flat = (np.abs(mesh.face_normals @ Q.T).max(1) > np.cos(np.radians(1))) @ mesh.area_faces / mesh.area
+    if flat < 0.5:
+        return None
+    M = Q @ trimesh.transformations.euler_matrix(*np.radians((list(rot or []) + [0, 0, 0])[:3]), "sxyz")[:3, :3]
+    R4 = np.eye(4); R4[:3, :3] = M
+    return [round(float(np.degrees(a)), 1) + 0.0 for a in trimesh.transformations.euler_from_matrix(R4, "sxyz")], off
+
+
 def _match(c, g, tol, mirror):
     """How outline `g` fits outline `c` (both at the origin, long side along x): "same" under some quarter turn,
     "flipped" when it only fits as its mirror image, None when it does not fit at all."""
@@ -312,6 +335,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     global BAND
     BAND = (0.0, 1.0)
     mesh = load_mesh(model_path, p, notes, mode_name)
+    square = square_up(mesh, p["rotate"])          # offered on the Model tab, beside rotate
     if mesh_out:                                    # processed model for the browser's ghost view (decimated)
         progress("preparing the preview model", 0.18)
         ghost = decimate(mesh, 30000)
@@ -439,6 +463,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         "counts": {"slices": len(slices), "parts": len(pieces), "errors": n_err, "warnings": n_warn, "faces": int(len(mesh.faces))},
         "codes": codes,                                                      # puzzle mode: engraved code → real label
         "errors": ctx.errors, "fixes": getattr(ctx, "fixes", []),          # mode-level errors and their one-click fixes
+        "square": square and {"rotate": square[0], "off": round(square[1], 1)},   # a boxy model a few degrees off its axes
         "material_area_mm2": float(sum(pc.geom.area for pc in pieces)),
         "coverage": cov,
         "timing": timing(),

@@ -155,6 +155,7 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
       <label class="f"><span class="k" data-tip="Bundled test shapes: geometric, organic, heads and animals">example</span><select id="example"></select></label>
       <div id="g-model"></div>
       <div class="f"><span class="k" data-tip="Quarter turns of the whole model (the ghost and the axes in the 3D view follow)">turn</span><span class="vec"><button class="small" data-rot="0">x ±90°</button><button class="small" data-rot="1">y ±90°</button><button class="small" data-rot="2">z ±90°</button></span></div>
+      <div class="f" id="square" hidden><span></span><span><span class="hint" data-tip="Its flat faces are a few degrees off the axes, so every slice steps and straight edges come out as a staircase. The button turns it square; leave it if the tilt is on purpose"></span> <button class="small"></button></span></div>
       <div class="f"><span></span><button id="origsize" class="small">original size &amp; orientation</button></div>
       <!-- Both notes live at the foot of Model, the tab everyone opens on: at the end of Export they were only
            found by people who had already exported, which is the wrong half of the audience for either message. -->
@@ -574,6 +575,9 @@ async function pollProgress(my){
   }
 }
 function syncSizeHints(){const p=allParams().find(q=>q.name==='size'); if(!p||!plan)return;
+  const sq=plan.square, row=$('#square'); row.hidden=!sq;
+  if(sq){row.querySelector('.hint').textContent=`sits ${sq.off}° off square`;const b=row.querySelector('button');
+    b.textContent=`square it up (rotate ${sq.rotate.join(', ')})`;b.onclick=()=>applyFix({rotate:sq.rotate})}
   for(let i=0;i<3;i++){const el=$('#p_size_'+i); if(el)el.placeholder=+(+show(p,plan.bbox[i])).toPrecision(3)}}   // a hint, not a value: three figures fit the box in every unit
 // What a slice is made of, in the order it happens, so a long wait has a shape: a bare percentage said nothing about
 // how many of these there are, and the per-stage counters ("12 of 34") looked like the whole job restarting. The

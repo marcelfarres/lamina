@@ -229,6 +229,22 @@ def test_size_then_scale_multiply():
     assert abs(plan["bbox"][0] - 15) < 1e-6
 
 
+def test_stacked_cube_is_a_whole_cube_and_a_tilted_one_is_offered_square(tmp_path):
+    """Reported: a 100 mm cube stacked from 4 mm stock came out as 23 layers, 92 mm, all of the missing height at the
+    top — and the reporter's rotate x = 85 turned it into a staircase with nothing saying so. A cube now stacks as
+    tall as it is, centred, and one sitting a few degrees off square carries a note with the rotate that squares it."""
+    stl = tmp_path / "cube100.stl"
+    trimesh.creation.box([100, 100, 100]).export(stl)
+    params = {"axis": "y", "thickness": 4, "connect": "none", "autofix": "off"}
+    plan = build(stl, "stacked", params)
+    ys = [sl["M"][1][3] for sl in plan["slices"]]
+    assert plan["counts"]["slices"] == 25 and abs(min(ys) + max(ys)) < 1e-6 and plan["coverage"] > 0.99
+    assert not plan["square"]
+    tilted = build(stl, "stacked", {**params, "rotate": [85, 0, 0]})
+    assert tilted["square"] == {"rotate": [90.0, 0.0, 0.0], "off": 5.0}
+    assert build(stl, "stacked", {**params, "rotate": tilted["square"]["rotate"]})["coverage"] > 0.99
+
+
 def test_one_sheet_nests_everything_on_one_strip():
     """one_sheet ignores the sheet height: one sheet as wide as asked and as long as it needs, nothing split."""
     params = {"nx": 6, "ny": 5, "sheet": [200, 120], "autofix": "off"}

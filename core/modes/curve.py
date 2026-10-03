@@ -62,7 +62,8 @@ class Curve(Mode):
             if not sec.is_empty:
                 c = sec.centroid; P = frame(ctx.mid + eu * s, eu, up_hint=ctx.ax[(u + 2) % 3])[:3, :3] @ np.array([c.x, c.y, 0]) + ctx.mid + eu * s
                 pts.append([float(np.dot(P - ctx.mid, eu)), float(np.dot(P - ctx.mid, ev))])
-        return pts if len(pts) >= 2 else [[-L / 2 + ctx.p["margin"], 0], [L / 2 - ctx.p["margin"], 0]]
+        m = ctx.p["margin"] or ctx.p["thickness"]
+        return pts if len(pts) >= 2 else [[-L / 2 + m, 0], [L / 2 - m, 0]]
 
     def across(self, ctx, U, u, eu, ew):
         """Where the body's centre lies across the curve plane, at each `U` along it: the section centroids' component
