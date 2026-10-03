@@ -169,12 +169,13 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
         there is <a href="https://ko-fi.com/marcelfarres" target="_blank" rel="noopener">Ko-fi</a>. No pressure
         either way.</p>
       <!-- Hidden unless the build carries a counter endpoint, so the self-hosted and Docker versions can never
-           turn this on. Off until someone ticks it, and it says exactly what it sends. -->
+           turn this on. On until someone unticks it, and it says exactly what it sends and how to stop it. -->
       <p id="optin" style="display:none;color:var(--muted);font-size:12px;line-height:1.6;margin:10px 0 4px">
         <label><input type="checkbox" id="usage_optin"> Help me see how Lamina gets used</label><br>
-        Off by default. Ticking it sends the technique you pick, whether the model came from the examples or from
-        your own computer, and which file formats you export — nothing else. Never the model, never a filename,
-        never your measurements, and never an account or a cookie. Untick it any time and it stops.</p>
+        On by default — untick it to switch it off, and it stays off next time you come back. While it is ticked it
+        sends the technique you pick, whether the model came from the examples or from your own computer, and which
+        file formats you export — nothing else. Never the model, never a filename, never your measurements, and
+        never an account or a cookie.</p>
     </section>
     <section data-tab="technique">
       <h2>Construction technique <button class="small reset" data-reset="technique">reset tab</button></h2><div class="modes" id="modes"></div><p class="desc" id="mdesc"></p>
@@ -1363,8 +1364,9 @@ init();
 //
 //  1. A plain pageview, no opt-in. /app/ is a published web page like any other and this says only that it was
 //     opened — the same fact the landing page records about itself. Treating the two differently was inconsistent.
-//  2. What someone *does* in it — technique, where the model came from, which formats they export — only after
-//     they tick the box. Unticking stops it at once (the loaded script stays, but nothing calls it again).
+//  2. What someone *does* in it — technique, where the model came from, which formats they export — while the box
+//     is ticked, which it is until they untick it. Unticking stops it at once and is remembered (the loaded script
+//     stays, but nothing calls it again).
 const COUNT_URL=document.querySelector('meta[name="count-url"]')?.content;
 let countUse=()=>{};
 if(COUNT_URL){
@@ -1372,7 +1374,7 @@ if(COUNT_URL){
   s.async=true;s.src='//gc.zgo.at/count.js';s.dataset.goatcounter=COUNT_URL;
   document.head.appendChild(s);                                    // pageview on load, nothing else
   const box=$('#usage_optin'); $('#optin').style.display='';
-  box.checked=ls('usage_optin',false);
+  box.checked=ls('usage_optin',true);
   box.onchange=()=>lsSet('usage_optin',box.checked);
   countUse=(kind,name)=>{if(box.checked&&window.goatcounter?.count)
     goatcounter.count({path:kind+'/'+name,title:kind+': '+name,event:true})};
