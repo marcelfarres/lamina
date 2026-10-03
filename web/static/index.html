@@ -48,7 +48,9 @@ button.small{padding:3px 8px;border:1px solid var(--line);background:var(--panel
 #busy_steps li.now{color:var(--warn);font-weight:500}#busy_steps li.now::before{content:'▸ '}
 .bar{position:absolute;left:10px;top:8px;display:flex;gap:10px;align-items:center;font-size:12px;color:var(--muted);background:#0f1012cc;padding:5px 8px;border-radius:5px;flex-wrap:wrap}.bar label{display:flex;gap:5px;align-items:center}.bar input[type=range]{width:90px}.bar button{padding:2px 8px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:4px;cursor:pointer;font-size:11px}
 #sel{position:absolute;right:10px;top:8px;background:#0f1012ee;padding:8px 10px;border-radius:6px;border:1px solid var(--line);font-size:12px;width:250px}#sel[hidden]{display:none}#sel b{color:var(--sel)}#sel .row{display:grid;grid-template-columns:44px 1fr 66px;gap:6px;align-items:center;margin:4px 0}#sel .row input[type=number]{padding:2px 5px}#sel small{color:var(--muted);display:block;margin-top:4px}
-#hint{position:absolute;left:10px;bottom:8px;max-width:calc(100% - 130px);font-size:11px;color:var(--muted);background:#0f1012aa;padding:3px 7px;border-radius:4px}
+#hint{position:absolute;left:10px;bottom:8px;max-width:calc(100% - 130px);font-size:11px;color:var(--muted);background:#0f1012dd;padding:3px 7px;border-radius:4px}
+#hint summary{cursor:pointer}#hint summary span{color:var(--acc)}
+#hint dl{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin:6px 0 2px}#hint dt{color:var(--ink)}#hint dd{margin:0}
 #lower{flex:1;overflow:auto;padding:12px 14px;min-height:0}
 .stats{display:flex;gap:18px;flex-wrap:wrap;margin:0 0 10px}.stats b{font-size:17px;display:block}.stats div{font-size:11px;color:var(--muted)}
 .msg{padding:5px 8px;border-radius:4px;margin:3px 0;font-size:12px}.msg[data-s]{cursor:pointer}.msg[data-s]:hover{outline:1px solid var(--sel)}.err{background:#3a1e1e;color:var(--err)}.warn{background:#3a2f18;color:var(--warn)}.ok{background:#1c3325;color:var(--ok)}.note{background:#22262e;color:var(--muted)}
@@ -225,7 +227,13 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
     <div class="bar"><label><input type="checkbox" id="ghost" checked> model</label><label>explode <input type="range" id="explode" min="1" max="3" step="0.05" value="1"></label><label>steps <input type="range" id="steps" min="0" max="1" step="1" value="1"></label><label>look <select id="look"><option value="group">by family</option><option>cardboard</option><option>paper</option><option>plywood</option><option>steel</option><option>brass</option><option>copper</option><option>plastic</option><option>foam</option></select></label><label title="transparency of folded panels, to see the connectors inside">panels <input type="range" id="opacity" min="0.1" max="1" step="0.05" value="1"></label><button id="fit">fit view</button></div>
     <div id="sel" hidden></div>
     <div id="busy" hidden><span id="busy_txt">slicing…</span><div class="bar"><i></i></div><ol id="busy_steps"></ol><span id="busy_note"></span></div>
-    <div id="hint">drag = orbit · wheel = zoom · right-drag = pan · drag a coloured ring = turn the model · click a part = select · on a selected part: yellow arrow = move it along its normal, green ring = tilt, blue ring = roll (about its own middle) · alt-click = add / remove a dowel, a curve point or a radial axis · drag a blue dot = move a curve point · drag a radial axis or its end = move it · click the plane between two lobes = move / tilt it like a slice · click the cube = flat view</div>
+    <details id="hint"><summary>drag = orbit · wheel = zoom · right-drag = pan · <span>all controls</span></summary><dl>
+      <dt>view</dt><dd>click the corner cube = flat view · fit view = frame the model again</dd>
+      <dt>model</dt><dd>drag a coloured ring = turn it · click a part = select it, its handles are explained in the panel that opens</dd>
+      <dt>alt-click</dt><dd>add or remove a dowel, a curve point or a radial axis</dd>
+      <dt>curve</dt><dd>drag a blue dot = move that point</dd>
+      <dt>radial</dt><dd>drag the axis or its end = move it · click the plane between two lobes = move or tilt it like a slice</dd>
+    </dl></details>
   </div>
   <div id="lower"><div id="stats"></div><div id="msgs"></div><div class="sheets" id="sheets"></div></div>
 </section>
