@@ -89,9 +89,11 @@ figcaption{color:var(--muted);font-size:13px;margin-top:8px}
 .tech{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:26px;align-items:center;padding:28px 0;border-top:1px solid var(--line)}
 .tech:first-of-type{border-top:0}.tech h3{margin-top:0}.tech p{color:var(--muted);margin:8px 0 0;font-size:15px}.tech p.clip{font-size:13.5px}.tech p b{color:var(--ink)}
 .card .t{padding:14px 16px 16px}
-/* gallery photos come in every shape; one crop keeps the rows even, and a click opens the whole photo */
-#gallery img{width:100%;aspect-ratio:4/5;object-fit:cover}
-#gallery{grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr))}   /* fill, not fit: one photo stays a third wide */
+/* gallery photos and clips come in every shape; one crop keeps the rows even, and a click opens the whole one */
+#gallery img,#gallery video{display:block;width:100%;aspect-ratio:4/5;object-fit:cover}
+/* one row, newest on the left, scrolled sideways: the section stays one card tall however many pieces come in */
+#gallery{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:min(300px,80%);overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:8px;scrollbar-color:var(--muted) transparent}
+#gallery>*{scroll-snap-align:start}
 .card p{margin:6px 0 0;color:var(--muted);font-size:14px}
 .stats{display:flex;flex-wrap:wrap;gap:26px;margin:26px 0 0}
 .stats div b{display:block;font-size:22px}
@@ -684,15 +686,18 @@ for (const v of document.querySelectorAll("video")) {
     cap.textContent = `${b.dataset.j} — ${b.dataset.t}`;
   });
 }
-// The gallery is gallery.json, newest first: {photo, title, technique, material, by, link}, the photo under
-// media/gallery/. Adding a piece is adding an entry. Built with the DOM, not innerHTML: the titles and credits are
-// other people's words, and a link is only followed if it is https.
+// The gallery is gallery.json, newest first: {photo or video, title, technique, material, by, link}, the file under
+// media/gallery/; a video plays muted on a loop, like the clips above. Adding a piece is adding an entry. Built with
+// the DOM, not innerHTML: the titles and credits are other people's words, and a link is only followed if it is https.
 fetch("gallery.json").then(r => r.json()).then(items => {
   const el = (tag, props, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
   for (const g of items) {
     const by = /^https:\/\//.test(g.link || "") ? el("a", { href: g.link, rel: "noopener", textContent: g.by }) : g.by || "anonymous";
+    const media = g.video
+      ? el("video", { src: g.video, title: g.title, muted: true, defaultMuted: true, autoplay: true, loop: true, playsInline: true, preload: "metadata" })
+      : el("img", { src: g.photo, alt: g.title, loading: "lazy", decoding: "async" });
     document.getElementById("gallery").append(el("figure", { className: "card" },
-      el("a", { href: g.photo }, el("img", { src: g.photo, alt: g.title, loading: "lazy", decoding: "async" })),
+      el("a", { href: g.video || g.photo }, media),
       el("div", { className: "t" }, el("h3", { textContent: g.title }),
         el("p", { textContent: [g.technique, g.material].filter(Boolean).join(" · ") }), el("p", {}, "by ", by))));
   }
