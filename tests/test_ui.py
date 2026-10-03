@@ -578,25 +578,6 @@ def test_what_is_new_shows_itself_once_when_the_version_changes(page, server):
     assert heads[0].endswith(latest) and len(heads) > 1, heads
     page.click("#news_go")
 
-
-def test_a_newer_release_shows_in_the_header(page, server):
-    """A local copy says when GitHub has a newer release than its own CHANGELOG, and nothing when it is current or
-    GitHub does not answer. Only GitHub's reply is faked; the page's comparison is the real one."""
-    api = "https://api.github.com/repos/marcelfarres/lamina/releases/latest"
-
-    def shown(**reply):
-        page.route(api, lambda r: r.fulfill(**reply))
-        page.goto(server + "/")
-        settle(page)
-        page.wait_for_timeout(600)
-        page.unroute(api)
-        page.evaluate("() => document.getElementById('newsdlg').open && document.getElementById('newsdlg').close()")
-        return page.locator("#update").is_visible() and page.text_content("#update")
-
-    assert shown(content_type="application/json", body='{"tag_name": "v99.0.0"}') == "Lamina 99.0.0 is out"
-    assert not shown(content_type="application/json", body='{"tag_name": "v0.0.1"}')
-    assert not shown(status=503, body="")
-
 def zip_of(body):
     import io, zipfile
     return zipfile.ZipFile(io.BytesIO(body))

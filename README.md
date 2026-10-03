@@ -151,8 +151,8 @@ docker run -d -p 8000:8000 -v lamina-jobs:/app/working-files ghcr.io/marcelfarre
 
 ### Updating
 
-The browser version is always the newest. A local copy moves only to a tagged release — each one passes the test
-suite, and its package is installed and made to slice before it is published:
+The browser version is always the newest. A local copy moves only to a tagged release, whose package is installed
+and made to slice before it is published:
 
 | how you run it | how it updates |
 |---|---|
@@ -161,9 +161,7 @@ suite, and its package is installed and made to slice before it is published:
 | Docker | `docker pull ghcr.io/marcelfarres/lamina:latest`, then start it again (`docker compose pull && docker compose up -d`) |
 | a clone | `git pull && uv sync` |
 
-When a newer release is out, the local and Docker page shows **Lamina x.y.z is out** in the header, linking here; it
-asks GitHub's public API which release is newest once per page load, and sends nothing else. The what's-new dialog
-opens by itself on the first start after an update. An older starter (one that says `uv sync` inside) never updates
+The what's-new dialog opens by itself on the first start after an update. An older starter (one that says `uv sync` inside) never updates
 — download the ZIP once more and use the new one; your jobs are in the old folder's `working-files/`.
 
 **No server at all:** the same page runs its Python in a web worker (Pyodide) when nothing answers `api/`. That is

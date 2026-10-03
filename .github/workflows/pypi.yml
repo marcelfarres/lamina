@@ -1,9 +1,10 @@
 name: pypi
 
 # Publishes lamina3d to PyPI on every release tag — what the starters install and update to (`uv tool install
-# --upgrade lamina3d`), so a local copy only ever moves to a version that was tagged and passed here. Trusted
-# publishing: no token, PyPI trusts this workflow (pypi.org → lamina3d → Publishing: repo marcelfarres/lamina,
-# workflow pypi.yml, environment pypi).
+# --upgrade lamina3d`), so a local copy only ever moves to a version that was tagged. The test suite is test.yml's
+# job (it runs on the same tag, and on main before the tag); this one checks only what is new here: that the
+# package, installed, works. Trusted publishing: no token, PyPI trusts this workflow (pypi.org → lamina3d →
+# Publishing: repo marcelfarres/lamina, workflow pypi.yml, environment pypi).
 on:
   push:
     tags: ["v*"]
@@ -20,9 +21,6 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - name: the tag is the version in pyproject.toml
         run: grep -q "^version = \"${GITHUB_REF_NAME#v}\"" pyproject.toml
-      - run: uv sync --frozen
-      - run: uv run ruff check
-      - run: uv run pytest tests -q
       - run: uv build
       # the wheel as the starters run it, from an empty folder: page, examples and changelog have to be inside it
       - name: the installed package slices

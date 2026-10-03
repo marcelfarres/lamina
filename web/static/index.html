@@ -10,7 +10,7 @@
 *{box-sizing:border-box}html,body{height:100%}body{margin:0;font:13px/1.45 Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink);color-scheme:dark;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
 header{height:44px;padding:0 14px;background:#0f1012;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center}
 header h1{font-size:15px;font-weight:600;letter-spacing:.01em;margin:0 6px 0 0;display:flex;align-items:center;gap:7px}header h1 img{width:20px;height:20px;display:block}
-header a.kofi{color:var(--muted);font-size:12px;text-decoration:none;border:1px solid var(--line);border-radius:12px;padding:2px 9px;white-space:nowrap}header a.kofi:hover{color:#ff5e5b;border-color:#ff5e5b}#update{color:var(--acc);font-size:12px;text-decoration:none;border:1px solid var(--acc);border-radius:12px;padding:2px 9px;white-space:nowrap}header .sp{flex:1}header select{width:auto}#status{color:var(--muted);font-size:12px;max-width:34vw;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+header a.kofi{color:var(--muted);font-size:12px;text-decoration:none;border:1px solid var(--line);border-radius:12px;padding:2px 9px;white-space:nowrap}header a.kofi:hover{color:#ff5e5b;border-color:#ff5e5b}header .sp{flex:1}header select{width:auto}#status{color:var(--muted);font-size:12px;max-width:34vw;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 #dot{width:11px;height:11px;border-radius:50%;background:var(--ok);flex:none;box-shadow:0 0 6px var(--ok)}#dot.busy{background:var(--warn);box-shadow:0 0 8px var(--warn);animation:pulse .8s infinite alternate}#dot.err{background:var(--err);box-shadow:0 0 6px var(--err)}
 @keyframes pulse{from{opacity:.4}to{opacity:1}}
 main{display:grid;grid-template-columns:400px 1fr;height:calc(100% - 44px)}
@@ -138,7 +138,6 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
 <button class="small" id="undo" title="undo the last change (Ctrl+Z)" disabled>↶ undo</button><button class="small" id="redo" title="redo (Ctrl+Y or Ctrl+Shift+Z)" disabled>↷</button>
 <button class="small" id="helpbtn" title="how it works, every shortcut, and what to do when something does not fit (?)">? help</button>
 <button class="small" id="newsbtn" title="what changed in this version, and every version before it">what's new</button>
-<a id="update" hidden href="https://github.com/marcelfarres/lamina#updating" target="_blank" rel="noopener" title="a newer Lamina is out: how to get it">update available</a>
 <button class="small" id="clear" title="delete everything this tab sliced — uploaded models, cut files, session (presets stay)">clear my data</button>
 <span class="sp"></span><span id="dot" title="green = ready · orange = slicing · red = error"></span><span id="status"></span>
 <label style="font-size:12px;color:var(--muted)">view <select id="viewmode"><option value="both">3D + sheets</option><option value="only3d">3D only</option><option value="only2d">sheets only</option></select></label>
@@ -497,12 +496,7 @@ async function whatsNew(){
     const vs=await news(); if(!vs.length)return;
     const seen=ls('slicer_seen_version',null); lsSet('slicer_seen_version',vs[0].v);
     if(seen&&seen!==vs[0].v)showNews(false);
-    // a local or Docker copy says when a newer release is out (the published page is always the newest already)
-    if(!document.documentElement.dataset.static){
-      const v=((await (await fetch('https://api.github.com/repos/marcelfarres/lamina/releases/latest')).json()).tag_name||'').replace(/^v/,'');
-      if(v.localeCompare(vs[0].v,undefined,{numeric:true})>0){$('#update').textContent=`Lamina ${v} is out`;$('#update').hidden=false}
-    }
-  }catch(e){}                                            // no changelog beside the page, or offline: the buttons still work
+  }catch(e){}                                            // no changelog beside the page: the button still works
 }
 
 // presets: manufacturing (sheet+fit params), materials, sheets — builtin + user (this browser)
