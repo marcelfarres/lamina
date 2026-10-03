@@ -25,6 +25,19 @@ def test_thicken_smaller_than_a_voxel_does_not_fill_the_box():
     widths = [sl["extents"][0] for sl in plan["slices"]]
     assert min(widths) < 0.6 * max(widths)          # still a cone: the top slice is far narrower than the base
     assert plan["bbox"][2] < 415                    # one voxel of growth, not the padding
+    # …which is more than the 1 mm asked: the note says how much it really grew, and it matches the box
+    acted = float(re.search(r"thicken 1 mm acted as ([\d.]+) mm", " ".join(plan["notes"])).group(1))
+    assert acted > 3 and abs((plan["bbox"][2] - 400) / 2 - acted) < 1.5
+
+
+def test_a_model_saved_in_metres_says_so(tmp_path):
+    """Blender's STL is in metres: a 100 mm cube arrives 0.1 mm across and slices to nothing. Say why, and the size
+    that fixes it does."""
+    trimesh.creation.box([0.1, 0.1, 0.1]).export(tmp_path / "cube.stl")
+    plan = build(tmp_path / "cube.stl", "stacked", {"connect": "none", "thickness": 3})
+    assert plan["counts"]["slices"] == 0 and any("only 0.1 mm across" in n for n in plan["notes"])
+    plan = build(tmp_path / "cube.stl", "stacked", {"connect": "none", "thickness": 3, "size": [100, 0, 0]})
+    assert plan["counts"]["slices"] == 33 and not any("mm across" in n for n in plan["notes"])
 
 
 def test_a_union_that_left_a_seam_is_mended_not_remeshed():

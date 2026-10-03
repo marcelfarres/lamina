@@ -391,6 +391,44 @@ def test_a_new_model_does_not_inherit_the_last_one_s_geometry(page):
     used = page.evaluate("() => window.__t.plan().axes3d")
     assert len(used) == 1, used                              # one axis…
     assert abs(used[0][0][0]) < 1e-6 and abs(used[0][0][1]) < 1e-6, used   # …through the middle of the model
+
+    # Bug 004: an upload kept the last example's model settings — the horse's size 300, round 3, thicken 1 — and a
+    # plain cube came back with rounded corners and a hole closed up. An upload starts from the model as drawn.
+    page.click('nav button[data-t="model"]')
+    page.select_option("#example", "horse")
+    settle(page)
+    assert page.evaluate("() => window.__t.state().round") == 3   # the preset this is about, really applied
+    page.set_input_files("#file", str(ROOT / "examples" / "cube.stl"))
+    settle(page)
+    got = page.evaluate("() => { const s = window.__t.state(); return [s.size, s.round, s.thicken] }")
+    assert got == [[0, 0, 0], 0, 0], got
+    assert [round(e) for e in plan(page)["bbox"]] == [180, 180, 180]   # the cube at its own size, not 300
+
+    # an example, then the same file again: the box still held it, so choosing it fired nothing and the example stayed
+    page.select_option("#example", "egg")
+    settle(page)
+    page.set_input_files("#file", str(ROOT / "examples" / "cube.stl"))
+    settle(page)
+    assert [round(e) for e in plan(page)["bbox"]] == [180, 180, 180], "the same file picked again did not load"
+    assert not page.errors, page.errors
+
+
+@pytest.mark.timeout(600)
+def test_a_model_a_few_degrees_off_square_is_squared_by_its_button(page):
+    """Bug 001: a cube turned 85° instead of 90° stacked into a staircase and nothing said so. The Model tab now says
+    how far off it sits, and its button turns it the rest of the way."""
+    page.click('nav button[data-t="model"]')
+    page.select_option("#example", "cube")
+    settle(page)
+    assert page.is_hidden("#square")                         # square already: nothing to offer
+    set_fields(page, [("p_rotate_0", 85)])
+    settle(page)
+    assert page.is_visible("#square"), "a cube 5° off square was not noticed"
+    page.click("#square button")
+    settle(page)
+    assert page.evaluate("() => window.__t.state().rotate") == [90, 0, 0]
+    assert page.is_hidden("#square")
+    assert [round(e) for e in plan(page)["bbox"]] == [180, 180, 180]   # square again: no tilted, taller box
     assert not page.errors, page.errors
 
 
@@ -403,35 +441,6 @@ ON_PART = """label => {
     if (Math.hypot(x - mx, y - my) < d && window.__t.hitAt(x, y) === label) { best = [x, y]; d = Math.hypot(x - mx, y - my) }
   return best;
 }"""
-
-
-@pytest.mark.timeout(600)
-def test_only_a_handle_moves_a_part(page):
-    """Reported as "needs a step undo, it is easy to move a layer unintentionally": once a layer was selected, a drag
-    anywhere on it slid it — which is also how you turn the view. A plain drag on the part now turns the view and
-    leaves it where it was; shift-drag on it still tilts it, as the help says."""
-    page.click('nav button[data-t="technique"]')
-    page.click('#modes button[data-m="stacked"]')
-    settle(page)
-    set_fields(page, [("p_distribution", "count"), ("p_count", 8)])   # layers tall enough on screen to press one
-    settle(page)
-    label = page.evaluate("() => { const s = window.__t.plan().slices.filter(s => s.group === 'S'); return s[s.length >> 1].label }")
-    page.evaluate("l => window.__t.select(l)", label)
-    page.wait_for_timeout(300)
-
-    def drag(mod=None):
-        x, y = page.evaluate(ON_PART, label)           # found again each time: the plain drag turns the view
-        if mod:
-            page.keyboard.down(mod)
-        page.mouse.move(x, y); page.mouse.down(); page.mouse.move(x + 60, y + 40, steps=8); page.mouse.up()
-        if mod:
-            page.keyboard.up(mod)
-        page.wait_for_timeout(600)
-        settle(page)
-        return page.evaluate("l => [(window.__t.state().offset || {})[l] || 0, (window.__t.state().tilt || {})[l] || 0]", label)
-
-    assert drag() == [0, 0], "a plain drag on the part moved it"
-    assert drag("Shift")[1] != 0, "shift-drag on the part no longer tilts it"
 
 
 @pytest.mark.timeout(600)
@@ -478,6 +487,35 @@ def test_stacked_with_aligned_dowels_finishes_on_a_box_with_a_hole(page, tmp_pat
     assert len(layers) == 100, (len(layers), p["bbox"])      # 300 mm of 3 mm layers, the whole height
     assert p["counts"]["errors"] == 0, p["counts"]
     assert not page.errors, page.errors
+
+
+@pytest.mark.timeout(600)
+def test_only_a_handle_moves_a_part(page):
+    """Reported as "needs a step undo, it is easy to move a layer unintentionally": once a layer was selected, a drag
+    anywhere on it slid it — which is also how you turn the view. A plain drag on the part now turns the view and
+    leaves it where it was; shift-drag on it still tilts it, as the help says."""
+    page.click('nav button[data-t="technique"]')
+    page.click('#modes button[data-m="stacked"]')
+    settle(page)
+    set_fields(page, [("p_distribution", "count"), ("p_count", 8)])   # layers tall enough on screen to press one
+    settle(page)
+    label = page.evaluate("() => { const s = window.__t.plan().slices.filter(s => s.group === 'S'); return s[s.length >> 1].label }")
+    page.evaluate("l => window.__t.select(l)", label)
+    page.wait_for_timeout(300)
+
+    def drag(mod=None):
+        x, y = page.evaluate(ON_PART, label)           # found again each time: the plain drag turns the view
+        if mod:
+            page.keyboard.down(mod)
+        page.mouse.move(x, y); page.mouse.down(); page.mouse.move(x + 60, y + 40, steps=8); page.mouse.up()
+        if mod:
+            page.keyboard.up(mod)
+        page.wait_for_timeout(600)
+        settle(page)
+        return page.evaluate("l => [(window.__t.state().offset || {})[l] || 0, (window.__t.state().tilt || {})[l] || 0]", label)
+
+    assert drag() == [0, 0], "a plain drag on the part moved it"
+    assert drag("Shift")[1] != 0, "shift-drag on the part no longer tilts it"
 
 
 @pytest.mark.timeout(600)

@@ -145,19 +145,19 @@ def modify_form(mesh, p, notes, fine=False):
     # Coarsening the grid is the honest way to that ceiling — decimating afterwards would cost the watertight surface
     # every section depends on.
     pitch = max(pitch, math.sqrt(2 * mesh.area / REMESH_FACES))
-    pad = int(np.ceil((p["thicken"] + p["round"]) / pitch)) + 2
+    # whole voxels, at least one: scipy reads iterations < 1 as "until nothing changes", which fills the whole box
+    n = {k: max(1, int(round(p[k] / pitch))) for k in ("round", "thicken", "hollow") if p[k]}
+    pad = n.get("thicken", 0) + n.get("round", 0) + 2
     m, origin = voxelize_solid(mesh, pitch)
     m = np.pad(m, pad)
-    if p["round"]:
-        n = max(1, int(round(p["round"] / pitch)))
+    if "round" in n:
         ball = ndimage.generate_binary_structure(3, 1)
-        m = ndimage.binary_opening(m, ball, iterations=n)        # removes thin / pointy features
-        m = ndimage.binary_closing(m, ball, iterations=n)        # fills narrow gaps, rounds concave corners
-    if p["thicken"]:   # at least one voxel: scipy reads iterations < 1 as "until nothing changes", which fills the whole box
-        m = ndimage.binary_dilation(m, iterations=max(1, int(round(p["thicken"] / pitch))))
-    if p["hollow"]:
-        n = max(1, int(round(p["hollow"] / pitch)))
-        m = m & ~ndimage.binary_erosion(m, iterations=n)
+        m = ndimage.binary_opening(m, ball, iterations=n["round"])   # removes thin / pointy features
+        m = ndimage.binary_closing(m, ball, iterations=n["round"])   # fills narrow gaps, rounds concave corners
+    if "thicken" in n:
+        m = ndimage.binary_dilation(m, iterations=n["thicken"])
+    if "hollow" in n:
+        m = m & ~ndimage.binary_erosion(m, iterations=n["hollow"])
     out = trimesh.voxel.ops.matrix_to_marching_cubes(m, pitch=pitch)
     out.apply_translation(origin - pad * pitch)
     # Every grid leaves a staircase one voxel tall on a curved surface. Taubin smoothing is volume-preserving, so it
@@ -167,7 +167,12 @@ def modify_form(mesh, p, notes, fine=False):
     # What is left is a ripple about a fifth of a voxel deep along every curve, which no grid this side of the memory
     # ceiling removes. `section_polygons` takes it off each outline instead; this is how it knows the grid it came from.
     out.metadata["lamina_pitch"] = pitch
-    notes.append(f"modify form: remeshed at {pitch:.2f} mm voxels ({len(out.faces)} faces), steps and grid smoothed off")
+    # A grid cannot draw a sharp edge or a hole a few voxels wide: Julia's 300 mm cube on 3.11 mm voxels came back with
+    # 9 mm corners and its 15 mm hole at 10.5 mm from the remesh alone, and thicken 1 grew it 4 mm. Say so, in mm.
+    acted = "".join(f", {k} {p[k]:g} mm acted as {v * pitch:.1f} mm" for k, v in n.items() if abs(v * pitch - p[k]) > 0.25 * p[k])
+    notes.append(f"modify form: remeshed at {pitch:.2f} mm voxels ({len(out.faces)} faces), steps and grid smoothed off{acted}"
+                 f" — square edges come back rounded to about {3 * pitch:.0f} mm and holes about {1.5 * pitch:.0f} mm "
+                 "narrower" + ("" if fine else "; every modify form value at 0 keeps the model as drawn"))
     return out
 
 
@@ -246,6 +251,9 @@ def load_mesh(path, params, notes=None, mode=""):
             mesh.apply_scale([tgt[i] / ext[i] if tgt[i] > 0 else 1 for i in range(3)])
     if params["scale"] != 1:                          # multiplies the target size when one is set
         mesh.apply_scale(params["scale"])
+    if max(mesh.extents) < 5:                         # Blender writes metres: a 100 mm cube arrives 0.1 mm across
+        notes.append(f"the model is only {max(mesh.extents):.3g} mm across — saved in metres or centimetres? Set size "
+                     "to its real size in mm (100 mm cube: size 100)")
     # Folded panels are cut from the surface itself, so an open edge is the input and not a defect: a clothing
     # pattern, a mask, a shell with a neck hole is panelled around its boundary. Mending first closed exactly those
     # into solids — the decision has to come before the repair, not after it fails.
