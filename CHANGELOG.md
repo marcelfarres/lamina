@@ -38,6 +38,10 @@ What changed in each release. The GitHub release for a version is this section, 
   minimum wall from the edge, so the checks warned "a hole sits closer than 2 mm to the outline", and the one-click
   fix changed the dowel size, which folded panels do not use. The holes keep the full wall now, strip ends are
   long enough for their end holes, and the fix, when it is needed, changes the hole size.
+- **Every piece of a layer is its own part.** A layer that falls apart into separate shapes, like the three lobes at
+  the ends of the wavy torus, was one part: its pieces were nested as one group with the empty space between them,
+  and only one carried a label. Each piece is now a part of its own, labelled `Z-1-1`, `Z-1-2` …, and nested on its
+  own: the wavy torus goes from 14 sheets to 8.
 
 ## 0.2.1
 

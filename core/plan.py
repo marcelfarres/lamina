@@ -11,7 +11,7 @@ from shapely.ops import unary_union
 from .modes import load_all, Ctx
 from .geometry import section_polygons, as_multi, poly_coords, line_coords
 from .checks import check_plan, min_dims, autofix, suggest_fixes, crossing_suggestions
-from .split import split_slice, fits_rotated
+from .split import split_slice, fits_rotated, islands
 from .nest import nest, _min_rect_angle
 from .model import Piece, label_codes, label_tag
 
@@ -402,7 +402,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         if p["split"] and sl.facets is None:
             split_slice(sl, p["sheet"], p["sheet_margin"], p["tab"])
         else:
-            sl.pieces = [Piece(sl.label, sl.profile, sl, sl.lines, sl.marks)]
+            sl.pieces = islands(sl) if sl.facets is None else [Piece(sl.label, sl.profile, sl, sl.lines, sl.marks)]   # a folded net stays whole
     # every finished piece, however it was made, has to fit the sheet: a part that does not overhangs the drawing and
     # takes a sheet to itself, so it is an error whether or not `split` was asked to cut it
     over = [(sl, pc, *min_dims(pc.geom)) for sl in slices for pc in sl.pieces      # rotation is free on the sheet

@@ -138,3 +138,20 @@ def test_all_parts_are_placed_somewhere(monkeypatch):
     plan = build(model, mode, params)
     placed = [pc for sl in plan["slices"] for pc in sl["pieces"] if pc["place"] is not None]
     assert len(placed) == plan["counts"]["parts"]
+
+
+def test_a_layer_in_separate_islands_is_cut_as_separate_parts(tmp_path):
+    """Two blocks 300 mm apart: every layer falls apart into two islands. Each island is its own part, labelled and
+    nested on its own, so both fit a 200 mm sheet. As one part per layer they spanned 350 mm, fitted no sheet, and
+    the lobes of a real model's layer kept the empty space between them on the sheet with one label for all."""
+    import trimesh
+    far = trimesh.creation.box((50, 50, 30)); far.apply_translation((300, 0, 0))
+    trimesh.util.concatenate([trimesh.creation.box((50, 50, 30)), far]).export(tmp_path / "two.stl")
+    plan = build(tmp_path / "two.stl", "stacked", {"distribution": "count", "count": 3, "sheet": [200, 200], "split": False, "autofix": "off"})
+    for sl in plan["slices"]:                       # (two loose blocks are rightly "not connected"; what matters: they fit)
+        assert not [e for e in sl["errors"] if "does not fit" in e], sl["errors"]
+        assert sorted(pc["label"] for pc in sl["pieces"]) == [f"{sl['label']}-1", f"{sl['label']}-2"]
+        for pc in sl["pieces"]:
+            assert pc["label_pos"], pc["label"]                                  # every island carries its own label
+            x0, y0, x1, y1 = Polygon(pc["placed"][0][0]).bounds
+            assert x1 - x0 < 60 and y1 - y0 < 60, (pc["label"], x1 - x0, y1 - y0)   # one 50 mm block, not both

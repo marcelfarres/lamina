@@ -1,8 +1,9 @@
-"""Split a slice that does not fit the sheet into pieces joined by puzzle tabs."""
+"""Split a slice that does not fit the sheet into pieces joined by puzzle tabs, and a slice that falls apart into
+separate islands into one piece per island."""
 from __future__ import annotations
 import math
 import numpy as np
-from shapely.geometry import Polygon, LineString, box
+from shapely.geometry import MultiPolygon, Point, Polygon, LineString, box
 from shapely.ops import unary_union
 from .geometry import as_multi, circle
 from .checks import min_dims
@@ -104,12 +105,24 @@ def _strips(profile, axis, sheet, margin, tab_w, sl):
     return [as_multi(g) for g in pieces_geom if not g.is_empty]
 
 
+def islands(sl):
+    """The slice as cut: one piece per island, named like a split (Z-1-1, Z-1-2 …). A layer that falls apart into
+    separate shapes — the three lobes of the wavy torus's end layers — used to be one part, nested as one rigid group
+    with the empty space between its lobes and labelled once. Each line and mark goes with the island nearest it."""
+    geoms = list(as_multi(sl.profile).geoms)
+    if len(geoms) == 1:
+        return [Piece(sl.label, sl.profile, sl, sl.lines, sl.marks)]
+    near = lambda g: min(range(len(geoms)), key=lambda i: geoms[i].distance(g))
+    return [Piece(f"{sl.label}-{i + 1}", MultiPolygon([g]), sl, [ln for ln in sl.lines if near(ln[1]) == i],
+                  [m for m in sl.marks if near(Point(m[:2])) == i]) for i, g in enumerate(geoms)]
+
+
 def split_slice(sl, sheet, margin, tab_w):
     """Cut the slice into pieces that each fit the sheet. One pass fixes one direction, so a part over the sheet both
     ways — a big model on a small sheet — is cut the long way and then across, until every piece fits or nothing can
     be cut further."""
     if fits_rotated(sl.profile, sheet, margin):          # the packer may rotate the part freely
-        sl.pieces = [Piece(sl.label, sl.profile, sl, sl.lines, sl.marks)]
+        sl.pieces = islands(sl)
         return
     x0, y0, x1, y1 = sl.profile.bounds
     w, h = x1 - x0, y1 - y0
