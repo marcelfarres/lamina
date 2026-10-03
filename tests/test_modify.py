@@ -5,8 +5,8 @@ import pathlib
 import re
 
 import numpy as np
-import shapely
 import pytest
+import shapely
 import trimesh
 from shapely.geometry import Point
 
@@ -183,6 +183,26 @@ def test_a_model_sliced_as_modelled_is_not_smoothed_at_all():
     assert not mesh.metadata.get("lamina_pitch"), "nothing was asked for, so nothing should have been remeshed"
     got = mid_outline(mesh)
     assert got.equals(unripple(list(got.geoms)[0], 0)), "an outline with no grid behind it was altered"
+
+
+@pytest.mark.parametrize("shape", ["box", "tube"])
+def test_a_straight_wall_cuts_the_same_outline_on_every_layer(shape):
+    """Reported: stacked never got past "placing slices" on a 300 mm cube with a hole. A flat wall is two triangles,
+    and the plane crossing their diagonal left a point on the straight edge, somewhere else on every layer. The
+    aligned dowels intersect every layer's outline; that kept all of those points, 393,370 vertices by the 15th of
+    100 layers, and one intersection took longer than the user would wait. A box and a tube (the hole) here, cut 100
+    times: each layer is its corners and nothing else, and so is the intersection of all of them."""
+    mesh = trimesh.creation.box((300, 300, 300)) if shape == "box" else \
+        trimesh.creation.annulus(r_min=15, r_max=150, height=300, sections=32)
+    corners = 4 + 1 if shape == "box" else 2 * (32 + 1)          # each ring closes on its first point
+    inter = None
+    for z in np.linspace(-148.5, 148.5, 100):
+        M = np.eye(4); M[2, 3] = z
+        sec = section_polygons(mesh, M)
+        assert shapely.get_num_coordinates(sec) == corners, (z, shapely.get_num_coordinates(sec))
+        inter = sec if inter is None else inter.intersection(sec)
+    assert shapely.get_num_coordinates(inter) <= corners + 2, shapely.get_num_coordinates(inter)
+    assert abs(inter.area - sec.area) < 1e-6 * sec.area
 
 
 @pytest.mark.parametrize("shape,corners,area", [("square", 4, 36.0), ("pencil", 6, 23.38)])

@@ -84,7 +84,7 @@ def fresh(page):
 def settle(page, timeout=180_000):
     """Wait for the status line to stand still: a change debounces, so it has to be ready twice over."""
     for _ in range(2):
-        page.wait_for_function("() => /^(ready|error)/.test(document.getElementById('status').textContent)", timeout=timeout)
+        page.wait_for_function("() => /^(ready|error)/.test(document.getElementById('status')?.textContent)", timeout=timeout)
         page.wait_for_timeout(600)
     assert not page.errors, page.errors
     return page.text_content("#status")
@@ -432,6 +432,52 @@ def test_only_a_handle_moves_a_part(page):
 
     assert drag() == [0, 0], "a plain drag on the part moved it"
     assert drag("Shift")[1] != 0, "shift-drag on the part no longer tilts it"
+
+
+@pytest.mark.timeout(600)
+def test_a_report_is_gathered_while_the_slicer_is_stuck(page):
+    """Reported: "compiling report froze, unless I reloaded the page", during a slice that never finished. In the
+    browser version one worker runs all the Python, so the report's request for the uploaded model waited behind the
+    stuck slice. Here that request never answers at all, and the report still comes back with the model in it."""
+    page.click('nav button[data-t="model"]')
+    page.set_input_files("#file", str(ROOT / "examples" / "cube.stl"))
+    settle(page)
+    page.evaluate("""() => { const real = window.fetch;   // the slicer is busy: whatever asks it for the model waits forever
+        window.fetch = (u, o) => /\\/source/.test(String(u)) ? new Promise(() => {}) : real(u, o) }""")
+    page.click("header [data-feedback]")                  # the report dialog, as the reporter opens it
+    got = page.evaluate("""() => Promise.race([
+        window.__feedback.build().then(async fd => JSON.parse(await fd.get('project').text()).model?.name ?? 'no model'),
+        new Promise(r => setTimeout(() => r('still gathering after 10 s'), 10000))])""")
+    page.reload()                                          # put fetch back for the next test (and wait for the page: a bare
+                                                           # location.reload() let the next test click a page still loading)
+    settle(page)
+    assert got == "cube.stl", got
+
+
+@pytest.mark.timeout(600)
+def test_stacked_with_aligned_dowels_finishes_on_a_box_with_a_hole(page, tmp_path):
+    """Bug 003: "as soon as I click Stacked Slices it never gets past Step 2 of 7". Their model: a 300 mm cube with a
+    30 mm round hole, 144 triangles, uploaded on radial, then stacked at 3 mm with dowels aligned through every layer.
+    The flat walls' triangle diagonals put a stray point on every layer's outline, and the intersection of 100 of them
+    never finished (a plain box has too few walls to show it: 2 s either way). The reporter's path, in their settings."""
+    import shapely
+    import trimesh
+    model = tmp_path / "cube with hole.stl"
+    trimesh.creation.extrude_polygon(shapely.box(-150, -150, 150, 150).difference(shapely.Point(0, 0).buffer(15, 8)), 300).export(model)
+    page.click('nav button[data-t="model"]')
+    page.set_input_files("#file", str(model))                # opening on radial, like theirs
+    settle(page)
+    assert [round(e) for e in plan(page)["bbox"]] == [300, 300, 300] and plan(page)["counts"]["faces"] == 144
+    page.click('nav button[data-t="technique"]')
+    page.click('#modes button[data-m="stacked"]')
+    set_fields(page, [("p_thickness", 3), ("p_distribution", "distance"), ("p_space", 0), ("p_connect", "dowel"),
+                      ("p_placement", "aligned"), ("p_n_points", 2)])
+    settle(page, timeout=90_000)                             # it used to sit at "placing slices and slots" for good
+    p = plan(page)
+    layers = [s for s in p["slices"] if s["group"] == "S"]
+    assert len(layers) == 100, (len(layers), p["bbox"])      # 300 mm of 3 mm layers, the whole height
+    assert p["counts"]["errors"] == 0, p["counts"]
+    assert not page.errors, page.errors
 
 
 @pytest.mark.timeout(600)
