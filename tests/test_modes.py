@@ -245,6 +245,17 @@ def test_stacked_cube_is_a_whole_cube_and_a_tilted_one_is_offered_square(tmp_pat
     assert build(stl, "stacked", {**params, "rotate": tilted["square"]["rotate"]})["coverage"] > 0.99
 
 
+@pytest.mark.parametrize("joint", ["rivet", "laced", "strip"])
+def test_folded_holes_keep_the_wall_the_check_asks_for(joint):
+    """Reported on the wedge: P-1 'a hole sits closer than 2 mm to the outline', and its one-click fix set dowel_d,
+    which folded never reads. The panel holes were placed half a min_feature from the edge while the check asks for
+    a whole one, a hole exactly min_feature in was counted as closer, and a strip's end holes sat in its rounded cap
+    at 0.47 mm. Every hole now keeps the full wall, so the warning has nothing to report."""
+    plan = build(EXAMPLES / "wedge.stl", "folded", {"thickness": 1, "facet": 0, "joint": joint, "autofix": "off"})
+    assert not [w for s in plan["slices"] for w in s["warnings"] if "closer than" in w]
+    assert sum(1 for s in plan["slices"] if s["group"] == "F" for _ in s["pieces"]) >= 1
+
+
 def test_one_sheet_nests_everything_on_one_strip():
     """one_sheet ignores the sheet height: one sheet as wide as asked and as long as it needs, nothing split."""
     params = {"nx": 6, "ny": 5, "sheet": [200, 120], "autofix": "off"}

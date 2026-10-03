@@ -219,7 +219,7 @@ class Folded(Mode):
         s["sl"].cuts.append(geom); self.face_cuts.setdefault(s["f"], []).append(geom)
 
     def cut_if_fits(self, s, geom, j, what):
-        if s["tri"].buffer(-self.p["min_feature"] / 2).contains(geom) and not self.collides(s, geom):
+        if s["tri"].buffer(-self.p["min_feature"]).contains(geom) and not self.collides(s, geom):
             self.add_cut(s, geom); return True
         s["sl"].skipped.setdefault(what, []).append(j)
         return False
@@ -249,8 +249,8 @@ class Folded(Mode):
 
     def hole_range(self, s, inset, hole_d):
         """Parameter interval [q0, q1] along the seam where a hole centred `inset` inside stays clear of the triangle's
-        other edges (hole radius + half the min feature)."""
-        r = hole_d / 2 + self.p["min_feature"] / 2
+        other edges (hole radius + the min feature: the wall the hole check asks for, so a hole placed here passes it)."""
+        r = hole_d / 2 + self.p["min_feature"]
         tri_in = s["tri"].buffer(-r)
         if tri_in.is_empty:
             return None
@@ -292,8 +292,10 @@ class Folded(Mode):
         if p["joint"] != "strip" or not placed:
             return []
         # connecting strip: rounded, folded along its centreline, holes mirrored on both halves
-        wall = hole_d; Wd = 2 * inset + hole_d + 2 * wall; Ls = L
-        strip = LineString([(-Ls / 2 + Wd / 2, 0), (Ls / 2 - Wd / 2, 0)]).buffer(Wd / 2)
+        wall = max(hole_d, p["min_feature"]); Wd = 2 * inset + hole_d + 2 * wall; Ls = L
+        # the straight part reaches the outermost holes: one in a rounded end kept a fraction of the wall
+        xs = [(q - 0.5) * L for q in placed]
+        strip = LineString([(min(-Ls / 2 + Wd / 2, min(xs)), 0), (max(Ls / 2 - Wd / 2, max(xs)), 0)]).buffer(Wd / 2)
         holes = [circle(((q - 0.5) * L, sgn * inset), hole_d) for q in placed for sgn in (1, -1)]
         sl = Slice(f"S-{j}", "J", np.eye(4), self.t, note=f"{phi:.0f}°")
         sl.raw = as_multi(strip); sl.cuts = holes

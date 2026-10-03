@@ -27,6 +27,10 @@ What changed in each release. The GitHub release for a version is this section, 
 - **Dowel lines work from the first click.** `+ line` added a line from 0,0,0 to 0,0,0, which placed nothing; it now
   draws one up through as many layers as it can, alt-click draws one through the point you click, and the help
   explains aligned, random and lines.
+- **Folded panels keep a proper wall around their holes.** Rivet, laced and strip joints placed their holes half the
+  minimum wall from the edge, so the checks warned "a hole sits closer than 2 mm to the outline", and the one-click
+  fix changed the dowel size, which folded panels do not use. The holes keep the full wall now, strip ends are
+  long enough for their end holes, and the fix, when it is needed, changes the hole size.
 
 ## 0.2.1
 

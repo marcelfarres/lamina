@@ -58,7 +58,7 @@ def check_slice(sl, p):
         sl.errors.append("no crossing slice — this slice touches nothing: add a slice of the other family through it, move it toward the centre, or delete it")
     # hole wall check: a closed cut (hole, slot, dowel) must leave at least min_feature of material to the outline
     if sl.cuts:
-        inner = sl.raw.buffer(-mf)
+        inner = sl.raw.buffer(-(mf - 1e-3))     # a hole placed exactly min_feature in is not "closer than" it
         for c in sl.cuts:
             if sl.raw.contains(c) and not inner.contains(c):
                 sl.warnings.append(f"a hole sits closer than {mf} mm to the outline (thin wall may tear) — move the connection point inward, use a smaller dowel, or accept")
@@ -355,7 +355,10 @@ def suggest_fixes(slices, p, ctx, mode):
                 if mode.name == "stacked" and p.get("connect") == "none":
                     opts.append({"title": "hold the stack with pegs", "set": {"connect": "tab"}})
             elif "closer than" in w and "outline" in w:
-                opts = [{"title": f"smaller connectors ({max(2.0, p.get('dowel_d', 6) * 0.6):g} mm)", "set": {"dowel_d": round(max(2.0, p.get("dowel_d", 6) * 0.6), 1)}}]
+                # the setting that sizes this part's holes: a joint's hole on folded panels, the dowel everywhere else
+                key, d = ("hole_d", p.get("hole_d", 2.5)) if mode.name == "folded" else ("dowel_d", p.get("dowel_d", 6))
+                small = round(max(0.5 if key == "hole_d" else 2.0, d * 0.6), 1)
+                opts = [{"title": f"smaller {'holes' if key == 'hole_d' else 'connectors'} ({small:g} mm)", "set": {key: small}}]
             elif "skipped" in w and "connection point" in w:
                 opts = [{"title": f"smaller connectors ({max(2.0, p.get('dowel_d', 6) * 0.6):g} mm)", "set": {"dowel_d": round(max(2.0, p.get("dowel_d", 6) * 0.6), 1)}},
                         {"title": "fewer connection points", "set": {"n_points": max(1, int(p.get("n_points", 2)) - 1)}}]
