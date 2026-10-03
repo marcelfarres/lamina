@@ -422,8 +422,9 @@ the quick run.
 
 ```bash
 uv run ruff check                       # lint (pyflakes, bugbear, bandit, pyupgrade); the test workflow runs it first
-uv run pytest tests                     # pipeline, nesting, checks, export, the web API, the browser build's code path,
-                                        # and every slider end / choice / toggle of every technique (tests/test_params.py)
+uv run pytest tests -n auto             # pipeline, nesting, checks, export, the web API, the browser build's code path,
+                                        # and every slider end / choice / toggle of every technique (tests/test_params.py);
+                                        # -n auto spreads it over every core: about 4 min on 12, 32 in one process
 uv run --with pytest-cov pytest --cov=core --cov=web --cov-report=term-missing   # coverage: 88 % of core + web
 uv run python tests/browser_env.py working-files/jobs   # the whole matrix without the compiled extras Pyodide lacks
 uv run --with playwright playwright install chromium

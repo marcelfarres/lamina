@@ -39,6 +39,7 @@ dev = [
     "httpx>=0.28.1",
     "pytest>=8",
     "pytest-timeout>=2.4.0",
+    "pytest-xdist>=3.8.0",
     "ruff>=0.8",
 ]         # installed by a plain `uv sync`; run with `uv run pytest` and `uv run ruff check`
 
