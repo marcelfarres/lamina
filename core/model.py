@@ -3,10 +3,23 @@ from __future__ import annotations
 import random
 import zlib
 from dataclasses import dataclass, field
+from pathlib import Path
 import numpy as np
 from shapely.geometry import MultiPolygon
 
 ABC = "ABCDEFGHJKLMNPQRSTUVWXYZ"        # no I or O: engraved at 4 mm they are a 1 and a 0
+
+
+def label_tag(params, model_path="") -> str:
+    """What is engraved before every part label, so parts of two models cut together are never mixed up — "bunny Z-3"
+    beside "egg Z-3". The project's name when it has one, else the model's (`model_name`, which the server sets from
+    the file as it was uploaded; the path is the fallback for the CLI). Letters, digits, - _ . and spaces only: the
+    name comes from a file someone else chose, and a bracket or backslash would break the EPS string it is written
+    into. Capped at 20 characters, so the label still fits beside a small part."""
+    if not params.get("labels", True) or not params.get("label_model", True):
+        return ""
+    name = params.get("project") or params.get("model_name") or (Path(model_path).stem if model_path else "")
+    return " ".join("".join(c if c.isalnum() or c in "-_." else " " for c in str(name)).split())[:20].strip()
 
 
 def label_codes(labels, seed: str) -> dict:

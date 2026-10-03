@@ -273,7 +273,15 @@ does not slip through. It carries the most signal for stacked and folded work; d
 - **Identical pieces once**: in per-piece mode a shape that occurs several times is exported one time, with the
   quantity last in the file name and on the label. A per-piece file is named part, material, thickness, quantity, in
   that order and separated by spaces, and it always ends in its quantity, `x1` included (`Z-1 plywood x4.svg`,
-  `Z-2 plywood x1.svg`); a `cut-list.txt` says which parts each file covers.
+  `Z-2 plywood x1.svg`); a `cut-list.txt` says which parts each file covers and gives each part's width × height in
+  your units.
+- **The model's name on every part**: each engraved label starts with it (`bunny Z-3`), so parts of two models cut
+  together are never mixed up. The project's name when it has one, else the model's file name; room for it is kept
+  when the parts are nested, and `label_model` turns it off.
+- **Weight**: the Export tab weighs the parts as cut (holes and slots taken out, each part at its own thickness, one
+  line per stock when a job mixes them), the sheets they are nested on and the dowels, from the material's density. Every
+  material on the list has a typical density you can correct, and a material of your own (+ beside the material)
+  keeps the density you give it.
 - **Scale check**: every export carries a calibration bar, 10 cm or 4 in following the units, to cut first and
   measure before committing to the whole set.
 - **Kerf compensation is off by default**: many machines compensate their own kerf, and compensating twice ruins
@@ -315,10 +323,15 @@ sheets are always the same plan. Hover a parameter name for its help.
   turn. A layer nothing joins is never deleted — the Checks tab says what would hold it.
 - **Model**: quarter-turn buttons and three angles to re-orient it, scale or target size, and Modify Form: shrinkwrap,
   hollow, thicken, round (drops features thinner than a radius) and smooth (Taubin passes for pointy vertices).
-- **Material, machine, sheet**: the material sets its stock thicknesses (sheet steel by Manufacturers' Standard
-  Gauge, plate, plywood and acrylic by fraction of an inch, each shown in mm and decimal inches), the sheet sizes it
-  comes in (4 × 8 and 5 × 10 ft, A-series, laser beds) and the 3D look; the machine (CO2 laser, fiber laser, plasma,
-  CNC router, knife, by hand) sets kerf, slot offset and corner relief. Saved manufacturing presets keep all of it.
+- **Material, machine, sheet**: 21 materials — paper, card, cardboard, greyboard, plywood, MDF, basswood, balsa,
+  acrylic, polypropylene, foam board, EVA foam, steel, stainless steel, aluminium, brass, copper, leather, fabric, and
+  PLA and PETG to 3D-print the parts at full size (whole layers for thicknesses, print beds for sheets). The
+  material sets its stock thicknesses (sheet steel by Manufacturers' Standard Gauge and stainless by its own gauge
+  table, copper by ounces per square foot, chipboard by points, plate, plywood, acrylic and model wood by fraction of
+  an inch, each shown in mm and decimal inches), the sheet sizes it comes in (4 × 8 and 5 × 10 ft, A-series, balsa
+  strips, foam board sheets, laser beds), its density and the 3D look; only machines that can cut it are offered.
+  The machine (CO2 laser, fiber laser, plasma, CNC router, knife, by hand, 3D printer, or one listed by name)
+  sets kerf, slot offset and corner relief. Saved manufacturing presets keep all of it.
 - **View cube**: the cube in the corner of the 3D view turns with the camera; click a face for a flat top, front or
   side view.
 - **Session and projects**: the session belongs to the browser tab, so a refresh resumes where you were; a second tab

@@ -228,7 +228,7 @@ def _rect_nest(prepared, sheet, gap, margin):
     return [sheets[k] for k in sorted(sheets)]
 
 
-def nest(pieces, sheet, gap, margin, kerf=0.0, label_h=0.0, font=4.0):
+def nest(pieces, sheet, gap, margin, kerf=0.0, label_h=0.0, font=4.0, tag=""):
     """Sets piece.place, .kerfed, .placed(+lines, marks), .label_pos, .leader. Returns sheet count.
 
     One sheet is one stock thickness. A part whose thickness was changed is cut from another piece of material, so
@@ -237,18 +237,18 @@ def nest(pieces, sheet, gap, margin, kerf=0.0, label_h=0.0, font=4.0):
     for pc in pieces:
         by_thick.setdefault(round(pc.parent.thickness, 6), []).append(pc)
     if len(by_thick) < 2:
-        return _nest(pieces, sheet, gap, margin, kerf, label_h, font)
+        return _nest(pieces, sheet, gap, margin, kerf, label_h, font, tag)
     n = 0
     for t in sorted(by_thick):
         group = by_thick[t]
-        used = _nest(group, sheet, gap, margin, kerf, label_h, font)
+        used = _nest(group, sheet, gap, margin, kerf, label_h, font, tag)
         for pc in group:
             pc.place = (pc.place[0] + n, *pc.place[1:])      # each group numbered after the ones before it
         n += used
     return n
 
 
-def _nest(pieces, sheet, gap, margin, kerf=0.0, label_h=0.0, font=4.0):
+def _nest(pieces, sheet, gap, margin, kerf=0.0, label_h=0.0, font=4.0, tag=""):
     W, H = sheet
     k = kerf / 2; half = gap / 2
     prepared = []
@@ -260,13 +260,19 @@ def _nest(pieces, sheet, gap, margin, kerf=0.0, label_h=0.0, font=4.0):
         sheets = _rect_nest(prepared, sheet, gap, margin)
         if label_h:
             for sh in sheets:
-                place_labels(sh, font)
+                place_labels(sh, font, tag)
         return max(1, len(sheets))
     order = sorted(range(len(prepared)), key=lambda i: -prepared[i][0].kerfed.area)
     sheets = [Sheet(W, H, margin)]
     for i in order:
         pc, rot0 = prepared[i]
-        grown = pc.kerfed.buffer(half + TOL, join_style=1).simplify(TOL)   # half the gap on each part keeps them the gap apart
+        grown = pc.kerfed.buffer(half + TOL, join_style=1)                 # half the gap on each part keeps them the gap apart
+        # Douglas-Peucker, not the topology-preserving simplifier: GEOS 3.12 — the one Pyodide ships, so the browser
+        # build — now and then throws "orientationIndex encountered NaN" from that one on a perfectly finite outline
+        # (it reads memory it never wrote; the desktop's GEOS 3.13 does not). Both keep every point within TOL, which
+        # the buffer above already allows for; a shape that comes out invalid keeps its full outline — slower, never wrong.
+        thin = grown.simplify(TOL, preserve_topology=False)
+        grown = thin if thin.is_valid and not thin.is_empty else grown
         convex = _convex_pieces(grown, POCKET, PIECES)
         turned = {r: _rot(convex, rot0 + r) for r in ROTS}
         # ponytail: the part on its way in is its convex hull, the placed ones their pieces, so the no-fit polygons
@@ -306,16 +312,16 @@ def _nest(pieces, sheet, gap, margin, kerf=0.0, label_h=0.0, font=4.0):
         sh.add(affinity.translate(affinity.rotate(grown, rot0 + r, origin=(0, 0)), x, y), pc, [p + (x, y) for p in turned[r]])
     if label_h:
         for sh in sheets:
-            place_labels(sh, font)
+            place_labels(sh, font, tag)
     return len(sheets)
 
 
-def place_labels(sh, font):
+def place_labels(sh, font, tag=""):
     """Each label in free space next to its part: try above, right, below, left at growing distances; leader to the outline."""
     tree = STRtree(sh.placed)
     taken = []
     for pc in sh.pieces:
-        w = max(6.0, 0.62 * font * len(pc.label) + 2); h = font * 1.4
+        w = max(6.0, 0.62 * font * (len(pc.label) + (len(tag) + 1 if tag else 0)) + 2); h = font * 1.4   # `tag`: the model name engraved first
         x0, y0, x1, y1 = pc.placed.bounds; cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
         spots = []
         for d in (1.0, 4.0, 8.0, 14.0, 22.0):

@@ -68,17 +68,16 @@ def test_a_prototype_too_thin_to_print_is_planned_again_thicker():
     assert all(sl["thickness"] == 4.8 for sl in thick["slices"])
 
 
-def test_build_reports_its_progress_from_start_to_one(tmp_path):
+def test_build_reports_its_progress_from_start_to_one(tmp_path, monkeypatch):
     """What the page's overlay is drawn from: every stage in order, per-slice sections, ending at 1.0 — and the
     preview mesh announced as soon as it is written, so the 3D view can show the model before the slices exist."""
     import core.plan as P
     seen = []
-    P.report = lambda text, frac, artifact=None: seen.append((text, frac, artifact))
-    try:
-        build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 4, "autofix": "off"},
-              mesh_out=tmp_path / "model.stl")
-    finally:
-        P.report = lambda text, frac, artifact=None: None
+    # monkeypatch puts back the hook it found: the server's, which is how a newer slice stops an older one — a
+    # hand-made reset to a no-op left the rest of the test run with no way to stop a slice (test_web failed after it)
+    monkeypatch.setattr(P, "report", lambda text, frac, artifact=None: seen.append((text, frac, artifact)))
+    build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 4, "autofix": "off"},
+          mesh_out=tmp_path / "model.stl")
     fr = [f for _, f, _ in seen]
     assert fr == sorted(fr) and fr[0] < 0.1 and fr[-1] == 1.0
     assert sum("sectioning" in t for t, _, _ in seen) == 4 and any("nesting" in t for t, _, _ in seen)
@@ -110,16 +109,13 @@ def test_a_slice_turns_about_the_point_the_view_gives_it():
     assert gap(build(EXAMPLES / "egg.stl", "radial", {**rolled, "pivot": {sl["label"]: centre}})) < 1e-4
 
 
-def test_a_second_autofix_pass_never_sends_the_bar_backwards():
+def test_a_second_autofix_pass_never_sends_the_bar_backwards(monkeypatch):
     """The stages repeat when autofix adds crossing slices, which used to drop the bar from 70 % back to 20 % with no
     word about why. Each extra pass now has a band of its own at the end, and says which pass it is."""
     import core.plan as P
     seen = []
-    P.report = lambda text, frac, artifact=None: seen.append((text, frac))
-    try:                                                     # spines 0 leaves every rib floating: autofix adds them
-        build(EXAMPLES / "cube.stl", "curve", {"count": 6, "spines": 0, "autofix": "add"})
-    finally:
-        P.report = lambda text, frac, artifact=None: None
+    monkeypatch.setattr(P, "report", lambda text, frac, artifact=None: seen.append((text, frac)))   # put back after
+    build(EXAMPLES / "cube.stl", "curve", {"count": 6, "spines": 0, "autofix": "add"})   # spines 0: every rib floats, autofix adds them
     fr = [f for _, f in seen]
     assert fr == sorted(fr), [x for x in seen if x[1] < max(f for _, f in seen[:seen.index(x)] or [(0, 0)])][:3]
     assert any("pass 2 of 3" in t for t, _ in seen), [t for t, _ in seen][:20]

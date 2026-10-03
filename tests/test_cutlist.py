@@ -25,6 +25,39 @@ def test_per_piece_export_merges_identical_pieces_with_a_quantity(tmp_path):
     cut_list = (tmp_path / "cut-list.txt").read_text(encoding="utf-8")
     assert "Z-1 plywood x4" in cut_list and "also Z-2, Z-3, Z-4" in cut_list
     assert "×4" in (tmp_path / "Z-1 plywood x4.svg").read_text(encoding="utf-8")
+    # a material of several words is one word in the name, so the spaces still split it into its four fields;
+    # a stranger's material name cannot reach outside the folder
+    for material, tag in (("stainless steel", "stainless-steel"), ("birch / yard\\..", "birch-yard")):
+        plan["params"]["material"] = material
+        names = {f.name for f in export(plan, tmp_path / tag, fmts=("svg",), labels=True, per_piece=True)}
+        assert f"Z-1 {tag} x4.svg" in names, names
+        assert all(len(n.split(" ")) in (3, 4) for n in names if n.endswith(".svg")), names
+
+
+def test_parts_carry_the_model_name_and_the_cut_list_their_size(tmp_path):
+    """Two models have the same part names, so every engraved label starts with the model's (cube Z-1 beside egg Z-1),
+    and the cut list gives each part's width × height in the export's units. A name from someone else's file is
+    cleaned before it is engraved: a bracket would break the EPS string it is written into."""
+    base = {"distribution": "count", "count": 4, "autofix": "off", "connect": "none"}
+    plan = build(EXAMPLES / "cube.stl", "stacked", base)
+    export(plan, tmp_path / "mm", fmts=("svg",), labels=True, per_piece=True)
+    assert ">cube Z-1 ×4<" in (tmp_path / "mm" / "Z-1 x4.svg").read_text(encoding="utf-8")
+    rows = (tmp_path / "mm" / "cut-list.txt").read_text(encoding="utf-8").splitlines()
+    assert "size (mm)" in rows[0] and any(r.startswith("Z-1 x4") and "180.0 × 180.0" in r for r in rows), rows
+    assert any(r.startswith("scale-check") and "100.0 × 12.0" in r for r in rows), rows
+    export(plan, tmp_path / "in", fmts=("svg",), labels=True, per_piece=True, units="in")
+    assert "7.087 × 7.087" in (tmp_path / "in" / "cut-list.txt").read_text(encoding="utf-8")   # 180 mm in inches
+    export(plan, tmp_path / "sheet", fmts=("svg",), labels=True)
+    assert (tmp_path / "sheet" / "sheet1.svg").read_text(encoding="utf-8").count(">cube Z-") == 4
+
+    odd = build(EXAMPLES / "cube.stl", "stacked", {**base, "project": "my (final) \\ cube"})
+    assert odd["label_tag"] == "my final cube"
+    export(odd, tmp_path / "odd", fmts=("eps",), labels=True, per_piece=True)
+    assert "(my final cube Z-1 ×4)" in (tmp_path / "odd" / "Z-1 x4.eps").read_text(encoding="latin-1")
+
+    off = build(EXAMPLES / "cube.stl", "stacked", {**base, "label_model": False})
+    export(off, tmp_path / "off", fmts=("svg",), labels=True, per_piece=True)
+    assert off["label_tag"] == "" and ">Z-1 ×4<" in (tmp_path / "off" / "Z-1 x4.svg").read_text(encoding="utf-8")
 
 
 def test_mirror_ok_merges_a_part_with_its_mirror_image(tmp_path):

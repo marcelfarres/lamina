@@ -112,8 +112,8 @@ def test_puzzle_mode_engraves_codes_and_the_key_is_the_way_back(tmp_path):
     export(plan, tmp_path, fmts=("svg",), labels=True, key=True)
     sheets = "".join(f.read_text(encoding="utf-8") for f in sorted(tmp_path.glob("sheet*.svg")))
     for label, code in codes.items():
-        assert f">{code}<" in sheets                      # engraved: the code
-        assert f">{label}<" not in sheets                 # never where the part goes
+        assert f">egg {code}<" in sheets                  # engraved: the model's name and the code
+        assert f" {label}<" not in sheets                 # never where the part goes
         assert f'data-label="{label}"' in sheets          # the sheet ↔ 3D selection is unchanged
     key = (tmp_path / "assembly-key.txt").read_text(encoding="utf-8")
     assert all(code in key and label in key for label, code in codes.items())

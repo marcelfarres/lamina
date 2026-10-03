@@ -10,6 +10,7 @@ uncaught JavaScript error, on a status line that never settles, and on a paramet
 plan the server built.
 """
 import json
+import math
 import os
 import pathlib
 import re
@@ -538,6 +539,130 @@ def test_units_change_what_is_shown_never_what_is_stored(page):
     page.select_option("#unit", "mm")
     page.click('nav button[data-t="model"]')
     page.click("#origsize")
+    settle(page)
+
+
+@pytest.mark.timeout(900)
+def test_the_export_tab_weighs_the_parts(page):
+    """The cube as four 180 × 180 mm slices of 14 ga steel (1.897 mm, 7.85 g/cm³): 4 × 32400 mm² × 1.897 mm =
+    245.85 cm³, which is 1.93 kg — worked out by hand, not by the page. One slice cut from 6 mm instead weighs on its
+    own stock line (1.45 kg + 1.53 kg = 2.97 kg). Inches read in pounds and lb/in³, and a material of your own keeps
+    the density typed for it."""
+    page.click('nav button[data-t="model"]')
+    page.select_option("#example", "cube")
+    settle(page)
+    page.click('nav button[data-t="technique"]')
+    page.click('#modes button[data-m="stacked"]')
+    settle(page)
+    set_fields(page, [("p_distribution", "count"), ("p_count", 4), ("p_connect", "none")])
+    settle(page)
+    page.click('nav button[data-t="sheet"]')
+    page.select_option("#material", "steel")
+    page.select_option("#thicklist", "1.897")                            # 14 ga
+    settle(page)
+    page.click('nav button[data-t="export"]')
+    weight = lambda: page.text_content("#weight")
+    assert "1.93 kg" in weight() and "246 cm³" in weight() and "7.85 g/cm³" in weight(), weight()
+
+    page.evaluate("""() => { window.__t.state().thick = {'Z-2': 6};
+        document.getElementById('p_count').dispatchEvent(new Event('input', {bubbles: true})) }""")
+    settle(page)
+    assert "2.97 kg" in weight(), weight()
+    assert "1.897 mm stock: 3 part(s) · 1.45 kg" in weight() and "6 mm stock: 1 part(s) · 1.53 kg" in weight(), weight()
+    page.evaluate("""() => { window.__t.state().thick = {};
+        document.getElementById('p_count').dispatchEvent(new Event('input', {bubbles: true})) }""")
+    settle(page)
+
+    page.select_option("#unit", "in")
+    assert "4.25 lb" in weight() and "0.2836 lb/in³" in weight(), weight()
+    page.select_option("#unit", "mm")
+
+    # dowels: two aligned rods, each one piece from the first slice's outer face to the last one's, of the same steel
+    page.click('nav button[data-t="technique"]')
+    set_fields(page, [("p_connect", "dowel")])
+    settle(page)
+    page.click('nav button[data-t="export"]')
+    p = plan(page)
+    assert len(p["rods"]) == 2 * 3, p["rods"]                            # two points × three pairs of slices
+    n = p["slices"][0]["M"]; z = sorted(sum(s["M"][i][3] * n[i][2] for i in range(3)) for s in p["slices"])
+    rod = (z[-1] - z[0]) + 1.897                                         # outer face to outer face
+    mass = 2 * rod * math.pi * 3 ** 2 * 7.85 / 1000                      # 6 mm dowels, in grams
+    assert "2 dowel(s)" in weight() and f"{mass:.3g} g" in weight(), (mass, weight())
+    # assembled = parts + dowels, the parts now 8 holes lighter: 6 mm dowels + the fiber laser's 0.15 mm slot offset
+    holes = 8 * math.pi * 3.075 ** 2 * 1.897 * 7.85 / 1000
+    assert f"{(245.8512 * 7.85 - holes + mass) / 1000:.3g} kg" in weight(), (holes, mass, weight())
+    page.click('nav button[data-t="technique"]')
+    set_fields(page, [("p_connect", "none")])
+    settle(page)
+
+    page.click('nav button[data-t="sheet"]')                             # a material of your own, with its own density
+    # the name is answered by the page's own prompt: an earlier test leaves a handler that accepts every dialog empty
+    page.evaluate("() => { const p = window.prompt; window.prompt = () => (window.prompt = p, 'birch from the yard') }")
+    page.click("#matadd")
+    assert page.eval_on_selector("#material", "s => s.value") == "birch from the yard"
+    set_fields(page, [("density", 0.6)])
+    page.select_option("#material", "plywood")
+    page.select_option("#material", "birch from the yard")                 # the density went with the material
+    assert page.input_value("#density") == "0.6"
+    page.select_option("#thicklist", "1.897")
+    settle(page)
+    page.click('nav button[data-t="export"]')
+    assert "148 g" in weight(), weight()                                 # 245.85 cm³ × 0.6 g/cm³ = 147.5 g
+    page.click('nav button[data-t="sheet"]')
+    page.click("#matdel")
+    assert "birch from the yard" not in page.eval_on_selector_all("#material option", "os => os.map(o => o.value)")
+    assert page.eval_on_selector("#material", "s => s.value") == "steel"   # back to the built-in it was made from
+    settle(page)
+
+
+@pytest.mark.timeout(1200)
+def test_every_material_is_complete(page):
+    """Each material on the list, picked the way a person picks it: it lands on its own machine, one of its stock
+    thicknesses, a sheet it is sold in and a 3D look that exists, and the Export tab weighs it at its own density.
+    A material missing any of these would leave the form holding the last one's values."""
+    page.click('nav button[data-t="model"]')
+    page.select_option("#example", "cube")
+    settle(page)
+    page.click('nav button[data-t="technique"]')
+    page.click('#modes button[data-m="stacked"]')
+    settle(page)
+    set_fields(page, [("p_distribution", "count"), ("p_count", 2), ("p_connect", "none")])
+    settle(page)
+    page.click('nav button[data-t="sheet"]')
+    names = page.eval_on_selector_all("#material option", "os => os.map(o => o.value)")
+    for want in ("stainless steel", "brass", "copper", "greyboard", "polypropylene", "foam board", "EVA foam", "basswood", "balsa"):
+        assert want in names, (want, names)
+    looks = page.eval_on_selector_all("#look option", "os => os.map(o => o.value)")
+    for name in names:
+        page.select_option("#material", name)
+        settle(page)
+        got = page.evaluate("""() => ({machines: [...document.querySelectorAll('#machine option')].map(o => o.value),
+            machine: document.getElementById('machine').value, thick: document.getElementById('thicklist').value,
+            sheet: document.getElementById('sheetpreset').value, look: document.getElementById('look').value,
+            density: +document.getElementById('density').value, t: window.__t.state().thickness})""")
+        assert got["machine"] in got["machines"], (name, got)                       # a machine that cuts it
+        assert got["thick"] and abs(float(got["thick"]) - got["t"]) < 1e-9, (name, got)   # one of its own stocks
+        assert got["sheet"], (name, got)                                            # a size it is sold in
+        assert got["look"] in looks, (name, got)
+        assert 0.01 < got["density"] < 20, (name, got)
+        # the weight is drawn with the plan that comes back after the switch: wait for it rather than read the last one
+        page.wait_for_function("d => (document.getElementById('weight').textContent || '').includes(d + ' g/cm')",
+                               arg=f"{got['density']:g}", timeout=60_000)
+        assert f"{got['density']:g} g/cm³" in page.text_content("#weight"), (name, page.text_content("#weight"))
+    page.select_option("#material", "stainless steel")                     # its own gauges, not carbon steel's
+    assert "14 ga · 1.984 mm" in page.text_content("#thicklist")
+    # printed materials: made by a printer and nothing else, nested on its bed, and the Export tab's print set at 1:1
+    set_fields(page, [("pr_scale", 0.5)])                                  # it sits on the Export tab, closed here
+    page.select_option("#material", "PETG")
+    settle(page)
+    machines = page.eval_on_selector_all("#machine option", "os => os.map(o => o.value)")
+    assert "fdm" in machines and "co2" not in machines and "hand" not in machines, machines
+    page.select_option("#machine", "bambu_h2c")
+    settle(page)
+    assert plan(page)["sheet"] == [325, 320] and plan(page)["params"]["slot_offset"] == 0.2
+    assert page.input_value("#pr_scale") == "1"
+    assert "1.27 g/cm³" in page.text_content("#weight")
+    page.select_option("#material", "cardboard")
     settle(page)
 
 

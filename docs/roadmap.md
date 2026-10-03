@@ -48,7 +48,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Folded: score vs cut, yellow fold lines | ✅ | SCORE layer: solid mountain, dashed valley, dotted perforate |
 | 3D Slices | ✅ | stacked with `surface=outer` (outline follows the surface through the slice) + pegs |
 | Assembly Steps: play / scrub | ✅ | `steps` slider in the 3D view; `explode` slider |
-| Assembly Steps: material look (cardboard, plywood, plastic) | ✅ | `look` select in the 3D view: by family, cardboard, paper, plywood, steel, plastic |
+| Assembly Steps: material look (cardboard, plywood, plastic) | ✅ | `look` select in the 3D view: by family, cardboard, paper, plywood, steel, brass, copper, plastic, foam |
 | Reference sheets beside the 3D view, zoom | ✅ | cut sheets live under the 3D view; click one to open it full size |
 
 ## Extras (not in the original)
@@ -64,11 +64,12 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Sheet-metal ribs | ✅ | joint `rib`: slots + angle ribs cut at the dihedral angle |
 | Assembly collision simulation | ✅ | every slotted part is slid along its crossing line out through the slot's mouth; material of the slotted part left in that path (a hollow section crossed twice, a concave outline) is an error with fixes |
 | Live update, dark UI, tooltips, tabs | ✅ | |
-| Material / machine / stock-sheet presets | ✅ | thickness by gauge or fraction with mm and inch, sheet sizes per material, kerf / slot / relief per machine (CO2 laser, fiber laser, plasma, router, knife) |
+| Material / machine / stock-sheet presets | ✅ | 21 materials: thickness by gauge (steel's and stainless's own tables), ounce, point or fraction with mm and inch, sheet sizes per material, a density for the weight, and only the machines that can cut it; kerf / slot / relief per machine (CO2 laser, fiber laser, plasma, router, knife, by hand, 3D printer, and machines by name). PLA and PETG print the parts at full size: whole-layer thicknesses, print beds as sheets, 0.2 mm slot clearance |
+| Weight | ✅ | Export tab: the parts as cut (net of holes and slots, each at its own thickness, a line per stock), the sheets, the dowels and the assembled total, in g/kg or oz/lb |
 | One-sheet strip | ✅ | `one_sheet`: everything on one sheet as wide as the stock and as long as it needs |
 | View cube | ✅ | click a face of the cube in the 3D view for a flat view |
 | Session kept by the server | ✅ | refresh, a new tab or another browser resumes the last slice |
-| Identical pieces counted once | ✅ | the plan decides which pieces are the same part (same outline, any quarter turn, same stock): the Parts table lists each once with a quantity and its twins, the per-piece export writes one file named part, material, thickness, quantity (`Z-1 plywood x4`), quantity last and `x1` included, plus `cut-list.txt` |
+| Identical pieces counted once | ✅ | the plan decides which pieces are the same part (same outline, any quarter turn, same stock): the Parts table lists each once with a quantity and its twins, the per-piece export writes one file named part, material, thickness, quantity (`Z-1 plywood x4`), quantity last and `x1` included, plus `cut-list.txt` with each part's width × height |
 | Mirror images counted once | ✅ | `mirror_ok` (off by default): a part and its mirror image share one file, cut twice and one turned over — only for stock that is the same both sides; the cut list and the table (⇄) name the ones to turn over |
 | Undo / redo | ✅ | Ctrl+Z / Ctrl+Y (or the ↶ ↷ buttons): one step per change that reaches the slicer, technique included; the model itself is not on the stack |
 | Scale-check bar | ✅ | 10 cm or 4 in bar on the first sheet with room and as its own piece file, to cut and measure first |
@@ -81,7 +82,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 |---|---|
 | Summary stats (sheets, slices, parts) | ✅ plus sheet usage % and material area |
 | Cut sheets view, click to magnify | ✅ |
-| Part labels `Axis-Slice-Part` | ✅ engraved beside the part with a leader line |
+| Part labels `Axis-Slice-Part` | ✅ engraved beside the part with a leader line, after the model's name (`bunny Z-3`) so two models' parts are never mixed up; `label_model` turns that off |
 | Automatic nesting | ✅ no-fit-polygon nesting on the part outlines after [Deepnest](https://github.com/Jack000/Deepnest) (min-rect angle plus quarter turns, lowest-left free point, parts slide into cavities and holes); a bounding-rectangle packer takes over above 150 parts, for speed |
 | Colour coding blue / green / yellow / red | ✅ OUTER / INNER / SCORE layers; parts with errors are drawn red in the UI (3D and sheet) |
 | Prototyping (extra) | ✅ scaled 3D-print set: one flat STL per part + plate, labels engraved (groove) or cut (hole) at a minimum letter height in printed mm, placed where the part is widest and off the slots, printable minimum thickness; a print slot offset in printed mm (a clearance is not a ratio); fit tests (the job's joints on a small stand-in at five slot offsets, marked) as cut files at 1:1 for the real material and as a print for the print; every zip carries the project file that reopens the job |

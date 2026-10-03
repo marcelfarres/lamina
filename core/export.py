@@ -27,13 +27,14 @@ class Item:
     """One piece ready to draw: rings [(layer, [(x,y)...])], scores [(style, [(x,y)...])], marks [(x, y, text)], label.
     `names` (puzzle mode) replaces what is engraved; `key` stays the real label, which is what the sheet and the 3D
     view match a selection on."""
-    def __init__(self, pc, rings_key, note="", names=None):
+    def __init__(self, pc, rings_key, note="", names=None, tag=""):
         self.rings = []
         for region in pc[rings_key]:
             self.rings.append(("OUTER", region[0]))
             self.rings += [("INNER", r) for r in region[1:]]
         self.key = pc["label"]
-        self.label = (names or {}).get(pc["label"], pc["label"]) + (f" {note}" if note else "")
+        # `tag` is the model's name (plan["label_tag"]), engraved first so parts of two models never get mixed up
+        self.label = (f"{tag} " if tag else "") + (names or {}).get(pc["label"], pc["label"]) + (f" {note}" if note else "")
         self.label_pos = pc.get("label_pos")
         self.leader = pc.get("leader")
         self.scores = pc.get("lines") or []
@@ -42,7 +43,8 @@ class Item:
 
 def items_for_sheet(plan, si):
     names = plan.get("codes") or {}
-    items = [Item(pc, "placed", sl.get("note", ""), names) for sl in plan["slices"] for pc in sl["pieces"] if pc["place"][0] == si]
+    items = [Item(pc, "placed", sl.get("note", ""), names, plan.get("label_tag", ""))
+             for sl in plan["slices"] for pc in sl["pieces"] if pc["place"][0] == si]
     coupon = scale_check_item(plan, si)
     return items + [coupon] if coupon else items
 
@@ -108,9 +110,9 @@ def identical_groups(plan):
             for sl in plan["slices"] for pc in sl["pieces"] if pc["label"] not in copies]
 
 
-def item_for_piece(pc, note="", pad=1.0, names=None):
+def item_for_piece(pc, note="", pad=1.0, names=None, tag=""):
     """Piece alone at the origin (kerf applied, no sheet placement): cuts and label only."""
-    it = Item(pc, "kerfed", note, names)
+    it = Item(pc, "kerfed", note, names, tag)
     xs = [x for _, r in it.rings for x, _ in r]; ys = [y for _, r in it.rings for _, y in r]
     x0, y0 = min(xs) - pad, min(ys) - pad
     it.rings = [(l, [(x - x0, y - y0) for x, y in r]) for l, r in it.rings]
@@ -147,9 +149,10 @@ def thick_tag(plan, mm):
 
 def mat_tag(plan):
     """The stock in a file name, when the job says what it is: a file that leaves for a machine should name what it is
-    cut from. Anything but a letter, digit, dash or space becomes a space — the name travels from a project file
+    cut from. It is one word, joined by dashes ("stainless-steel"), because the spaces separate part, material,
+    thickness and quantity; anything but a letter or digit becomes a dash — the name travels from a project file
     someone else wrote, and a path separator in it must never reach the file system."""
-    m = "".join(c if c.isalnum() or c in " -" else " " for c in str(plan["params"].get("material") or "")).strip()
+    m = "-".join("".join(c if c.isalnum() else " " for c in str(plan["params"].get("material") or "")).split())
     return f" {m}" if m else ""
 
 
@@ -317,7 +320,7 @@ def key_text(plan):
     says nothing about where its part goes, and this file is the only way back."""
     p = plan["params"]; codes = plan.get("codes") or {}
     u = p.get("units", "mm"); f = UNIT[u]
-    title = f"{p.get('project') or 'Lamina'} v{p.get('rev') or '1.0'} — assembly key"
+    title = f"{p.get('project') or p.get('model_name') or 'Lamina'} v{p.get('rev') or '1.0'} — assembly key"   # whose key it is
     out = [title, "=" * len(title),
            f"{plan['mode']} · {plan['counts']['slices']} slices · {plan['counts']['parts']} parts · {plan['sheets']} sheet(s)",
            "", "How the labels read"]
@@ -348,6 +351,12 @@ def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, bor
     names = plan.get("codes") or {}                 # puzzle mode: engraved codes instead of positions
     written = []
 
+    def size_of(it):
+        """Width × height of a piece's cut outline as it lies in its file, in the export's units."""
+        xs = [x for _, r in it.rings for x, _ in r]; ys = [y for _, r in it.rings for _, y in r]
+        f, dec = UNIT[units], {"mm": 1, "cm": 2, "in": 3}[units]
+        return f"{(max(xs) - min(xs)) * f:.{dec}f} × {(max(ys) - min(ys)) * f:.{dec}f}"
+
     def write(stem, items, w, h, border_, fmts=fmts, title=""):
         for fmt in fmts:
             f = out_dir / f"{stem}.{fmt}"
@@ -362,19 +371,24 @@ def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, bor
             cpc, cnote, _, _ = scale_check_piece(plan)
             stem = "scale-check" + mat_tag(plan) + " x1"
             it, w, h = item_for_piece(cpc, cnote); write(stem, [it], w, h, False)
-            rows.append((stem, 1, cnote))
+            rows.append((stem, 1, size_of(it), cnote))
         thick = {pc["label"]: sl["thickness"] for sl in plan["slices"] for pc in sl["pieces"]}
         for pc, note, labels, flips in identical_groups(plan):
             n = len(labels); t = thick[pc["label"]]
             # in puzzle mode the file is named after the code too: a folder of Z-1, Z-2 … gives the order away
             stem = names.get(pc["label"], pc["label"]) + mat_tag(plan) + thick_tag(plan, t) + f" x{n}"
             # the drawing carries the count and how many of them are turned over; the cut list names which ones
-            it, w, h = item_for_piece(pc, " ".join(x for x in ([f"×{n}"] if n > 1 else []) + [f"({len(flips)} turned over)" if flips else "", note] if x), names=names)
+            it, w, h = item_for_piece(pc, " ".join(x for x in ([f"×{n}"] if n > 1 else []) + [f"({len(flips)} turned over)" if flips else "", note] if x), names=names,
+                                      tag=plan.get("label_tag", ""))
             write(stem, [it], w, h, False)
             also = "also " + ", ".join(names.get(l, l) for l in labels[1:]) if n > 1 else note
-            rows.append((stem, n, "; ".join(x for x in [also, "turn over " + ", ".join(names.get(l, l) for l in flips) if flips else ""] if x)))
+            rows.append((stem, n, size_of(it), "; ".join(x for x in [also, "turn over " + ", ".join(names.get(l, l) for l in flips) if flips else ""] if x)))
+        # one row per file: how many to cut, and each part's width × height as it lies in its file (what to check
+        # against the stock, and the way to tell two parts apart that look alike)
+        fw = max(len(s) for s, *_ in rows) + 2; sw = max(len(z) for _, _, z, _ in rows) + 2
         f = out_dir / "cut-list.txt"
-        f.write_text("file                  qty  notes\n" + "".join(f"{s:22s}{n:3d}  {t}\n".rstrip() + "\n" for s, n, t in rows), encoding="utf-8")
+        f.write_text(f"{'file':<{fw}}qty  {f'size ({units})':<{sw}}notes\n"
+                     + "".join(f"{s:<{fw}}{n:3d}  {z:<{sw}}{t}".rstrip() + "\n" for s, n, z, t in rows), encoding="utf-8")
         written.append(f)
     else:
         W, H = plan["sheet"]

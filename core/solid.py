@@ -298,6 +298,7 @@ def fit_sheets(plan, out_dir, fmts=("svg", "dxf"), labels=True, step=0.1, steps=
     for k in range(-steps, steps + 1):
         off = round(plan["params"]["slot_offset"] + k * step, 3); tag = f"{off:.2f}"; tags.append(tag)
         vp = fit_plan(plan, off, plan["params"]["sheet"])
+        vp["label_tag"] = ""                                   # a coupon is known by its offset, not by the model
         for sl in vp["slices"]:
             for pc in sl["pieces"]:
                 pc["label"] = tag                              # as short as the name it replaces: the label box was nested for that

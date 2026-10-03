@@ -21,7 +21,7 @@ body:
     id: what
     attributes:
       label: Which one
-      description: A machine — make and model, and whether the kerf and slot offset come from a test cut. A material — what it is, where it is from, and what you cut it on.
+      description: A machine — make and model, and whether the kerf and slot offset come from a test cut (or, for a 3D printer, a test print). A material — what it is, where it is from, what you cut or print it on, and whether the density was weighed.
       placeholder: xTool P2 (55 W CO2); kerf measured on 3 mm birch, slot offset from the fit test.
     validations:
       required: true
@@ -30,7 +30,7 @@ body:
     id: settings
     attributes:
       label: The settings
-      description: What the share button fills in — a machine's kerf, slot offset, corner relief, tool diameter and bed; a material's thickness and sheet sizes.
+      description: What the share button fills in — a machine's kerf, slot offset, corner relief, tool diameter and bed; a material's density, thickness and sheet sizes.
       render: json
     validations:
       required: true

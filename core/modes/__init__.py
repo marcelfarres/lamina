@@ -79,6 +79,9 @@ COMMON: list[Param] = [
     P("gap", "number", 3, "Gap between parts on the sheet (mm)", 0, 50, 0.5, group="sheet", unit="mm"),
     P("labels", "bool", True, "Engrave part labels beside each part, with a leader line to the part (LABEL layer)", group="sheet"),
     P("font", "number", 4.0, "Label text height (mm)", 1, 30, 0.5, group="sheet", unit="mm"),
+    P("label_model", "bool", True, "Engrave the model's name before each label (bunny Z-3): two models have the same part names, "
+      "and parts cut together would otherwise get mixed up. The project name when it has one. Off for a longer label's room "
+      "beside small parts", group="sheet", show_if=("labels", True)),
     P("label_style", "choice", "position", "What the engraved label says. position = where the part belongs (Z-3, R-2a, P-7) · "
       "code = a short code that gives nothing away, for a puzzle: the app, the Parts list and the 3D view still show the real "
       "labels, and assembly-key.txt in the export maps code → part. Leave that file out of the zip and the puzzle stays a puzzle",
@@ -107,6 +110,7 @@ COMMON: list[Param] = [
     P("project", "text", "", "Project name (printed on every sheet)", group="hidden"),
     # The form's own stock picker fills this; the planner only carries it so the cut files say what they are cut from.
     P("material", "text", "", "What the sheet is (cardboard, plywood, steel …) — named in every cut file", group="hidden"),
+    P("model_name", "text", "", "The model's file name as it was uploaded (set by the server), engraved before every label", group="hidden"),
     P("rev", "text", "1.0", "Revision major.minor (printed on every sheet)", group="hidden"),
     # -- sheet fitting + checks
     P("split", "bool", True, "Split parts that do not fit the sheet, joining them with puzzle tabs", group="sheet"),

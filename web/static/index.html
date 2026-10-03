@@ -101,7 +101,7 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
   <ol>
     <li><b>Model</b> — upload your own (STL, OBJ, 3MF, PLY, OFF, GLB, STEP) or pick an example, then set how big you want the finished piece: type one of the <b>size</b> boxes and the other two follow the model's proportions. <b>turn</b> stands it the right way up.</li>
     <li><b>Technique</b> — how the model is taken apart: stacked layers, interlocked slices, a radial fan, ribs along a curve, folded panels. Each has its own settings underneath.</li>
-    <li><b>Sheet &amp; fit</b> — what you cut and on what: material, thickness, sheet size (your machine's bed), and the cut compensation. Not on the list? Type any thickness or sheet size and press <b>+</b> to keep it.</li>
+    <li><b>Sheet &amp; fit</b> — what you cut and on what: material and its density, thickness, sheet size (your machine's bed), and the cut compensation. PLA or PETG print the parts instead, nested on your printer's bed. Not on the list? Type any thickness or sheet size, or a material's density, and press <b>+</b> to keep it.</li>
     <li><b>Checks</b> — whether it holds together. Every error offers one-click fixes; press one and it re-slices.</li>
     <li><b>Export</b> — the cut files (SVG, DXF, PDF, EPS), a 3D-printable prototype, a fit test, the assembly key.</li>
   </ol>
@@ -183,8 +183,9 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
       <h2>Manufacturing preset <button class="small reset" data-reset="sheet">reset tab</button></h2>
       <div class="f"><span class="k" data-tip="Your saved manufacturing settings (material, sheet, fit): pick one to apply it; + saves the current values under a name, − deletes the selected one">saved</span><span class="vec"><select id="presets"></select><button id="psave" class="small" title="save current as…">+</button><button id="pdel" class="small" title="delete selected">−</button></span></div>
       <h2>Material &amp; sheet</h2>
-      <div class="f"><span class="k" data-tip="What you cut: sets the thickness options, the sheet sizes it comes in, the 3D look and the default machine; pick the thickness next">material</span><span class="vec"><select id="material"></select><button class="small" data-feedback="material" title="Share this material — its name, the thickness and sheet size in use and the ones you added, nothing else — so it ships with Lamina. Opens a prefilled email or GitHub issue for you to send">share</button></span></div>
-      <div class="f"><span class="k" data-tip="Stock thicknesses of that material: sheet steel by Manufacturers' Standard Gauge (the Canadian and US standard), plate, plywood and acrylic by fraction of an inch, each with its mm and decimal-inch value. + adds the current thickness, − removes it. Type any value in the thickness field below">thickness list</span><span class="vec"><select id="thicklist"></select><button id="madd" class="small">+</button><button id="mdel" class="small">−</button></span></div>
+      <div class="f"><span class="k" data-tip="What you cut: sets the thickness options, the sheet sizes it comes in, the 3D look and the default machine; pick the thickness next. Not on the list? + keeps the one in use as a material of your own under its name — the thickness and density as they stand, and the sheets, look and machines of the one it was made from — and − deletes it">material</span><span class="vec"><select id="material"></select><button id="matadd" class="small" title="keep this as a material of your own, under a name, with the thickness and density as they stand">+</button><button id="matdel" class="small" title="delete the selected material of yours">−</button><button class="small" data-feedback="material" title="Share this material — its name, density, the thickness and sheet size in use and the ones you added, nothing else — so it ships with Lamina. Opens a prefilled email or GitHub issue for you to send">share</button></span></div>
+      <div class="f"><span class="k" data-tip="What a cubic centimetre of this material weighs (a cubic inch when the units are inches), for the weight on the Export tab. The list's figure is a typical one — steel 7.85 g/cm³, aluminium 2.7, acrylic 1.19, plywood about 0.68 (birch; poplar and pine are lighter), corrugated cardboard about 0.12. Weigh an offcut of known size and type yours: it is kept for this material in this job, and for a material of your own it is kept with the material">density (g/cm³)</span><input type="number" id="density" min="0" step="any"></div>
+      <div class="f"><span class="k" data-tip="Stock thicknesses of that material: sheet steel by Manufacturers' Standard Gauge (the Canadian and US standard) and stainless by its own gauge table, copper by ounces per square foot, chipboard by points (thousandths of an inch), plate, plywood, acrylic and model wood by fraction of an inch, each with its mm and decimal-inch value. + adds the current thickness, − removes it. Type any value in the thickness field below">thickness list</span><span class="vec"><select id="thicklist"></select><button id="madd" class="small">+</button><button id="mdel" class="small">−</button></span></div>
       <div class="f"><span class="k" data-tip="Stock sizes this material comes in, plus the beds of the machine in use. + saves the current size for this material, − deletes the selected one. Turn on `one sheet` below to ignore the height and nest everything on one strip">sheet preset</span><span class="vec"><select id="sheetpreset"></select><button id="sadd" class="small">+</button><button id="sdel" class="small">−</button></span></div>
       <div id="g-sheet"></div>
       <h2>Machine &amp; cut compensation</h2>
@@ -192,7 +193,8 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
       <div id="g-fit"></div>
     </section>
     <section data-tab="checks"><h2>Physical checks <button class="small reset" data-reset="checks">reset tab</button></h2><div id="g-checks"></div><h2>Report</h2><div id="report"></div></section>
-    <section data-tab="export"><h2>Downloads</h2>
+    <section data-tab="export"><h2>Weight</h2><div id="weight"></div>
+      <h2>Downloads</h2>
       <div class="f"><span class="k" data-tip="Include the red LABEL layer (part names, leader lines, seam numbers, sheet border) in the cut files. Off = cuts and score lines only">labels in files</span><input type="checkbox" id="x_labels" checked></div>
       <div class="f"><span class="k" data-tip="assembly-key.txt in the zip: what the labels mean, every part with where its centre sits and what it slots onto, in the order the 3D view builds them. In puzzle mode it is also the only way from an engraved code back to a part — untick it and the puzzle stays a puzzle (the file can always be downloaded later)">assembly key</span><input type="checkbox" id="x_key" checked></div>
       <div class="hint" id="legend" style="margin:2px 0 8px"></div>
@@ -204,7 +206,7 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
         — with your OK it goes in the <a href="https://marcelfarres.github.io/lamina/?ref=app#made" target="_blank" rel="noopener">gallery</a>,
         credited as you like — or post it with <b>#applamina</b> on Instagram or X.</p>
       <h2>Prototyping (3D print)</h2>
-      <div class="f"><span class="k" data-tip="Scale factor for the printed prototype (parts and thickness scale together; thickness never goes below min thickness)">scale</span><input type="number" id="pr_scale" value="0.5" min="0.05" max="5" step="0.05"></div>
+      <div class="f"><span class="k" data-tip="Scale factor for the printed prototype (parts and thickness scale together; thickness never goes below min thickness). With PLA or PETG as the material the print is the job itself, so picking one sets this to 1">scale</span><input type="number" id="pr_scale" value="0.5" min="0.05" max="5" step="0.05"></div>
       <div class="f"><span class="k" data-tip="Or give the prototype's longest side (mm); overrides the scale when set">final size (mm)</span><input type="number" id="pr_size" data-len data-mm="" data-ph="100" data-min="5" data-step="1"></div>
       <div class="f"><span class="k" data-tip="Part labels embedded in the printed part: groove = engraved 0.6 mm deep, hole = cut through">labels</span><select id="pr_labels"><option>groove</option><option>hole</option><option>none</option></select></div>
       <div class="f"><span class="k" data-tip="Letter height of the labels as printed, whatever the scale: 5 mm reads well and its bold strokes print with a 0.4 mm nozzle. A label sits where its part is widest, away from slots and edges, 1.5× this size where that fits. A part with no room for it gets none, and README.txt in the zip lists them — lower this to label them">label size (mm)</span><input type="number" id="pr_font" data-len data-mm="5" data-min="1" data-step="0.5"></div>
@@ -220,7 +222,7 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
 </aside>
 <section class="view" id="view">
   <div id="v3d">
-    <div class="bar"><label><input type="checkbox" id="ghost" checked> model</label><label>explode <input type="range" id="explode" min="1" max="3" step="0.05" value="1"></label><label>steps <input type="range" id="steps" min="0" max="1" step="1" value="1"></label><label>look <select id="look"><option value="group">by family</option><option>cardboard</option><option>paper</option><option>plywood</option><option>steel</option><option>plastic</option></select></label><label title="transparency of folded panels, to see the connectors inside">panels <input type="range" id="opacity" min="0.1" max="1" step="0.05" value="1"></label><button id="fit">fit view</button></div>
+    <div class="bar"><label><input type="checkbox" id="ghost" checked> model</label><label>explode <input type="range" id="explode" min="1" max="3" step="0.05" value="1"></label><label>steps <input type="range" id="steps" min="0" max="1" step="1" value="1"></label><label>look <select id="look"><option value="group">by family</option><option>cardboard</option><option>paper</option><option>plywood</option><option>steel</option><option>brass</option><option>copper</option><option>plastic</option><option>foam</option></select></label><label title="transparency of folded panels, to see the connectors inside">panels <input type="range" id="opacity" min="0.1" max="1" step="0.05" value="1"></label><button id="fit">fit view</button></div>
     <div id="sel" hidden></div>
     <div id="busy" hidden><span id="busy_txt">slicing…</span><div class="bar"><i></i></div><ol id="busy_steps"></ol><span id="busy_note"></span></div>
     <div id="hint">drag = orbit · wheel = zoom · right-drag = pan · drag a coloured ring = turn the model · click a part = select · on a selected part: yellow arrow = move it along its normal, green ring = tilt, blue ring = roll (about its own middle) · alt-click = add / remove a dowel, a curve point or a radial axis · drag a blue dot = move a curve point · drag a radial axis or its end = move it · click the plane between two lobes = move / tilt it like a slice · click the cube = flat view</div>
@@ -238,31 +240,65 @@ const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const UNIT={mm:1,cm:0.1,in:1/25.4};
 // materials: stock thicknesses as [mm, stock name] — sheet steel by Manufacturers' Standard Gauge (the Canadian and US
 // standard), aluminium by Brown & Sharpe gauge, plate / plywood / acrylic by fraction of an inch — the family that
-// decides the sheet sizes, the 3D look, and the machine that usually cuts it
-const IN=25.4, ga=(g,inch)=>[+(inch*IN).toFixed(3),`${g} ga`], fr=(txt,inch)=>[+(inch*IN).toFixed(3),`${txt}″`];
+// decides the sheet sizes, the 3D look, and the machine that usually cuts it — and its density in g/cm³, a typical
+// figure for the Export tab's weight (cardboard is corrugated; solid board is greyboard), editable on the Sheet tab.
+// Checked 2026-09 against suppliers and references: corrugated single-wall 0.09–0.2 by flute (grammage ÷ caliper),
+// greyboard 0.62–0.75 (Golden Paper's gsm table), EVA "high density" 0.085 (the Foamory's 85 kg/m³), PS foam board
+// about 0.1 (≈ 500 g/m² at 5 mm, most of it the paper faces), basswood 0.415 and balsa 0.16 (Wood Database, Timber
+// Development UK), firm veg-tan leather 0.7–0.95 (IS 579 puts sole leather at ≥ 0.9)
+const IN=25.4, ga=(g,inch)=>[+(inch*IN).toFixed(3),`${g} ga`], fr=(txt,inch)=>[+(inch*IN).toFixed(3),`${txt}″`],
+  oz=(n,inch)=>[+(inch*IN).toFixed(3),`${n} oz`], pt=n=>[+(n/1000*IN).toFixed(3),`${n} pt`];
 const MATERIALS={
-  paper:{t:[[0.2],[0.3],[0.5]],family:'paper',look:'paper',machine:'co2'},
-  card:{t:[[0.8],[1],[1.5]],family:'paper',look:'paper',machine:'co2'},
-  cardboard:{t:[[1.5],[2],[3],[4],[5],[7]],family:'paper',look:'cardboard',machine:'co2'},
-  plywood:{t:[[3],fr('1/8',0.125),[4],[5],[6],fr('1/4',0.25),[9],fr('3/8',0.375),[12],fr('1/2',0.5),fr('5/8',0.625),[18],fr('3/4',0.75)],family:'wood',look:'plywood',machine:'co2'},
-  mdf:{t:[[3],fr('1/8',0.125),[6],fr('1/4',0.25),[9],[12],fr('1/2',0.5),[18],fr('3/4',0.75),[25]],family:'wood',look:'plywood',machine:'co2'},
-  acrylic:{t:[fr('1/16',0.0625),[2],[3],fr('1/8',0.125),[4],[5],fr('3/16',0.1875),[6],fr('1/4',0.25),[8],[10],fr('3/8',0.375),fr('1/2',0.5)],family:'plastic',look:'plastic',machine:'co2'},
-  steel:{t:[ga(22,0.0299),ga(20,0.0359),ga(18,0.0478),ga(16,0.0598),ga(14,0.0747),ga(12,0.1046),ga(11,0.1196),ga(10,0.1345),fr('3/16',0.1875),fr('1/4',0.25),fr('3/8',0.375),fr('1/2',0.5)],family:'metal',look:'steel',machine:'fiber'},
-  aluminium:{t:[ga(16,0.0508),ga(14,0.0641),ga(12,0.0808),ga(10,0.1019),fr('1/8',0.125),fr('3/16',0.1875),fr('1/4',0.25)],family:'metal',look:'steel',machine:'fiber'},
-  leather:{t:[[1.5],[2],[3]],family:'paper',look:'cardboard',machine:'co2'},
-  fabric:{t:[[0.5],[1],[2]],family:'paper',look:'paper',machine:'knife'}};
+  paper:{t:[[0.2],[0.3],[0.5]],family:'paper',look:'paper',machine:'co2',density:0.8},
+  card:{t:[[0.8],[1],[1.5]],family:'paper',look:'paper',machine:'co2',density:0.75},
+  cardboard:{t:[[1.5],[2],[3],[4],[5],[7]],family:'paper',look:'cardboard',machine:'co2',density:0.12},
+  plywood:{t:[[3],fr('1/8',0.125),[4],[5],[6],fr('1/4',0.25),[9],fr('3/8',0.375),[12],fr('1/2',0.5),fr('5/8',0.625),[18],fr('3/4',0.75)],family:'wood',look:'plywood',machine:'co2',density:0.68},
+  mdf:{t:[[3],fr('1/8',0.125),[6],fr('1/4',0.25),[9],[12],fr('1/2',0.5),[18],fr('3/4',0.75),[25]],family:'wood',look:'plywood',machine:'co2',density:0.75},
+  acrylic:{t:[fr('1/16',0.0625),[2],[3],fr('1/8',0.125),[4],[5],fr('3/16',0.1875),[6],fr('1/4',0.25),[8],[10],fr('3/8',0.375),fr('1/2',0.5)],family:'plastic',look:'plastic',machine:'co2',density:1.19},
+  steel:{t:[ga(22,0.0299),ga(20,0.0359),ga(18,0.0478),ga(16,0.0598),ga(14,0.0747),ga(12,0.1046),ga(11,0.1196),ga(10,0.1345),fr('3/16',0.1875),fr('1/4',0.25),fr('3/8',0.375),fr('1/2',0.5)],family:'metal',look:'steel',machine:'fiber',density:7.85},
+  aluminium:{t:[ga(16,0.0508),ga(14,0.0641),ga(12,0.0808),ga(10,0.1019),fr('1/8',0.125),fr('3/16',0.1875),fr('1/4',0.25)],family:'metal',look:'steel',machine:'fiber',density:2.7},
+  leather:{t:[[1.5],[2],[3]],family:'paper',look:'cardboard',machine:'co2',density:0.86},
+  fabric:{t:[[0.5],[1],[2]],family:'paper',look:'paper',machine:'knife',density:0.4},
+  // stainless has a gauge table of its own: 14 ga is 1.984 mm, where carbon steel's is 1.897 — a slot cut for one is
+  // wrong for the other. This is the fractional-inch table most mills use (RMFG, Fabworks); some suppliers (Ryerson)
+  // sell stainless on carbon steel's numbers, which is why a gauge is always worth checking with a caliper
+  'stainless steel':{t:[ga(24,0.025),ga(22,0.0312),ga(20,0.0375),ga(18,0.05),ga(16,0.0625),ga(14,0.0781),ga(12,0.1094),ga(11,0.125),ga(10,0.1406),[1],[1.5],[2],[3],fr('3/16',0.1875),fr('1/4',0.25),fr('3/8',0.375)],family:'metal',look:'steel',machine:'fiber',density:7.93},
+  brass:{t:[fr('0.020',0.02),fr('0.032',0.032),fr('0.040',0.04),fr('0.064',0.064),fr('1/8',0.125),[0.5],[1],[1.5],[2],[3]],family:'metal',look:'brass',machine:'fiber',density:8.5},
+  // copper sheet is sold by weight: ounces per square foot, at the thicknesses of Alaskan Copper's chart
+  copper:{t:[oz(16,0.0216),oz(20,0.027),oz(24,0.032),oz(32,0.043),oz(48,0.0647),[0.5],[1],[1.5],[2],[3]],family:'metal',look:'copper',machine:'fiber',density:8.96},
+  // chipboard in North America is sold by points (thousandths of an inch), greyboard in Europe by millimetres
+  greyboard:{t:[[1],pt(50),[1.5],[2],pt(80),[2.5],[3]],family:'paper',look:'cardboard',machine:'co2',density:0.7},
+  polypropylene:{t:[[0.5],[0.8],[1],[1.5],[2],[3],fr('1/8',0.125),[5],[6],fr('1/4',0.25),[10]],family:'plastic',look:'plastic',machine:'co2',density:0.9},
+  // foam board's polystyrene core melts and burns under a laser, so it is cut by hand
+  'foam board':{t:[[3],fr('3/16',0.1875),[5],[10],fr('1/2',0.5)],family:'foam',look:'paper',machine:'hand',density:0.1},
+  'EVA foam':{t:[[2],[3],[4],[5],[6],[8],[10]],family:'foam',look:'foam',machine:'co2',density:0.085},
+  basswood:{t:[fr('1/32',0.03125),fr('1/16',0.0625),fr('3/32',0.09375),fr('1/8',0.125),fr('3/16',0.1875),fr('1/4',0.25),[1],[1.5],[2],[3]],family:'craft',look:'plywood',machine:'co2',density:0.42},
+  balsa:{t:[fr('1/32',0.03125),fr('1/16',0.0625),fr('3/32',0.09375),fr('1/8',0.125),fr('3/16',0.1875),fr('1/4',0.25),fr('3/8',0.375),[1],[2],[3],[5]],family:'craft',look:'plywood',machine:'co2',density:0.16},
+  // printed, not cut: every part flat on the bed at full size. The thicknesses are whole layers of a 0.4 mm nozzle
+  // at 0.2 mm, and the densities are the solid plastic's (PLA 1.24, PETG 1.27) — a plate a few mm thick prints solid
+  // from its walls and top and bottom layers; a thicker one at low infill weighs less, so lower the density for it
+  PLA:{t:[[0.8],[1.2],[1.6],[2],[2.4],[3],[4],[5],[6]],family:'print',look:'plastic',machine:'fdm',density:1.24},
+  PETG:{t:[[0.8],[1.2],[1.6],[2],[2.4],[3],[4],[5],[6]],family:'print',look:'plastic',machine:'fdm',density:1.27}};
 // machines: the cut compensation belongs here, not to the material (kerf and slot offset in mm)
-const CO2_CUTS=['paper','card','cardboard','plywood','mdf','acrylic','leather','fabric'];
-const DIODE_CUTS=['paper','card','cardboard','plywood','mdf','leather','fabric'];
+const CO2_CUTS=['paper','card','cardboard','greyboard','plywood','mdf','basswood','balsa','acrylic','polypropylene','EVA foam','leather','fabric'];
+// diode lasers: they cut thin wood, card, foam and leather slowly and do not cut clear or translucent plastic at all
+// (it passes the blue light straight through), so acrylic and polypropylene are deliberately not in their list
+const DIODE_CUTS=['paper','card','cardboard','greyboard','plywood','mdf','basswood','balsa','EVA foam','leather','fabric'];
+const METAL_CUTS=['steel','stainless steel','aluminium','brass','copper'];     // fiber and plasma: anything that conducts
+const ROUTER_CUTS=['plywood','mdf','basswood','acrylic','polypropylene'];
+// the deep-cut blade of a Cricut Maker or Cameo takes board, balsa and foam up to about 2.4 mm
+const KNIFE_CUTS=['paper','card','greyboard','balsa','polypropylene','EVA foam','fabric','leather'];
+const PRINT_CUTS=Object.keys(MATERIALS).filter(k=>MATERIALS[k].family==='print');   // a printer makes these, nothing cuts them
 const MACHINES={
   co2:{name:'CO2 laser',kerf:0.15,slot:0.1,relief:'square',tool:0,cuts:CO2_CUTS,
     beds:[['300 × 200 mm bed',[300,200]],['400 × 400 mm bed',[400,400]],['510 × 300 mm bed',[510,300]],
           ['600 × 400 mm bed',[600,400]],['700 × 500 mm bed',[700,500]],['900 × 600 mm bed',[900,600]],['1300 × 900 mm bed',[1300,900]]]},
-  fiber:{name:'fiber laser (steel)',kerf:0.2,slot:0.15,relief:'square',tool:0,cuts:['steel','aluminium'],beds:[]},
-  plasma:{name:'plasma (steel)',kerf:1.5,slot:0.3,relief:'square',tool:0,cuts:['steel','aluminium'],beds:[]},
-  router:{name:'CNC router',kerf:3.175,slot:0.2,relief:'dogbone',tool:3.175,cuts:['plywood','mdf','acrylic'],beds:[]},
-  knife:{name:'knife / vinyl cutter',kerf:0,slot:0.05,relief:'square',tool:0,cuts:['paper','card','fabric','leather'],beds:[['12 in roll',[304.8,914.4]],['24 in roll',[609.6,1219.2]]]},
-  hand:{name:'by hand',kerf:0,slot:0.1,relief:'square',tool:0,cuts:['paper','card','cardboard','plywood','mdf','acrylic','steel','aluminium','leather','fabric'],beds:[]},
+  fiber:{name:'fiber laser (metal)',kerf:0.2,slot:0.15,relief:'square',tool:0,cuts:METAL_CUTS,beds:[]},
+  plasma:{name:'plasma (metal)',kerf:1.5,slot:0.3,relief:'square',tool:0,cuts:METAL_CUTS,beds:[]},
+  router:{name:'CNC router',kerf:3.175,slot:0.2,relief:'dogbone',tool:3.175,cuts:ROUTER_CUTS,beds:[]},
+  knife:{name:'knife / vinyl cutter',kerf:0,slot:0.05,relief:'square',tool:0,cuts:KNIFE_CUTS,beds:[['12 in roll',[304.8,914.4]],['24 in roll',[609.6,1219.2]]]},
+  hand:{name:'by hand',kerf:0,slot:0.1,relief:'square',tool:0,cuts:Object.keys(MATERIALS).filter(k=>!PRINT_CUTS.includes(k)),beds:[]},
+  fdm:{name:'3D printer (FDM)',kerf:0,slot:0.2,relief:'square',tool:0,cuts:PRINT_CUTS,beds:[]},   // no kerf; 0.2 mm slides on most FDM printers
   // Machines by name, so nobody has to translate their machine into a process first. A * means the bed size is the
   // manufacturer's published one and the kerf is an educated guess for that class of machine — nobody has measured
   // this one on your material. Pick it, then cut the fit test (Export tab) and correct kerf and slot offset: two
@@ -274,25 +310,35 @@ const MACHINES={
   epilog:{name:'Epilog Fusion Maker 24 *',kerf:0.15,slot:0.1,relief:'square',tool:0,cuts:CO2_CUTS,beds:[['Epilog Maker 24 bed · 610 × 305 mm',[610,305]]]},
   thunder:{name:'Thunder Laser Nova 35 *',kerf:0.15,slot:0.1,relief:'square',tool:0,cuts:CO2_CUTS,beds:[['Nova 35 bed · 900 × 600 mm',[900,600]]]},
   trotec:{name:'Trotec Speedy 400 *',kerf:0.15,slot:0.1,relief:'square',tool:0,cuts:CO2_CUTS,beds:[['Speedy 400 bed · 1000 × 610 mm',[1000,610]]]},
-  // diode lasers: they cut thin wood, card and leather slowly and do not cut clear acrylic at all (it passes the
-  // blue light straight through), so acrylic is deliberately not in their list
   xtool_s1:{name:'xTool S1 (diode) *',kerf:0.12,slot:0.1,relief:'square',tool:0,cuts:DIODE_CUTS,beds:[['xTool S1 bed · 498 × 319 mm',[498,319]]]},
   xtool_d1:{name:'xTool D1 Pro (diode) *',kerf:0.15,slot:0.1,relief:'square',tool:0,cuts:DIODE_CUTS,beds:[['xTool D1 Pro bed · 430 × 400 mm',[430,400]]]},
   diode400:{name:'Atomstack / Ortur / Falcon (diode) *',kerf:0.15,slot:0.1,relief:'square',tool:0,cuts:DIODE_CUTS,beds:[['400 × 400 mm frame',[400,400]]]},
-  shapeoko:{name:'Shapeoko 4 XXL (CNC) *',kerf:3.175,slot:0.2,relief:'dogbone',tool:3.175,cuts:['plywood','mdf','acrylic'],beds:[['Shapeoko 4 XXL · 838 × 838 mm',[838,838]]]},
-  xcarve:{name:'X-Carve / Onefinity (CNC) *',kerf:3.175,slot:0.2,relief:'dogbone',tool:3.175,cuts:['plywood','mdf','acrylic'],beds:[['750 × 750 mm bed',[750,750]]]},
-  genmitsu:{name:'Genmitsu 3018 (desktop CNC) *',kerf:3.175,slot:0.2,relief:'dogbone',tool:3.175,cuts:['plywood','mdf','acrylic'],beds:[['3018 bed · 300 × 180 mm',[300,180]]]},
-  cricut:{name:'Cricut Maker / Explore *',kerf:0,slot:0.05,relief:'square',tool:0,cuts:['paper','card','fabric','leather'],beds:[['12 × 12 in mat · 305 × 305 mm',[305,305]],['12 × 24 in mat · 305 × 610 mm',[305,610]]]},
-  cameo:{name:'Silhouette Cameo 4 *',kerf:0,slot:0.05,relief:'square',tool:0,cuts:['paper','card','fabric','leather'],beds:[['12 × 12 in mat · 305 × 305 mm',[305,305]],['12 × 24 in mat · 305 × 610 mm',[305,610]]]}};
+  shapeoko:{name:'Shapeoko 4 XXL (CNC) *',kerf:3.175,slot:0.2,relief:'dogbone',tool:3.175,cuts:ROUTER_CUTS,beds:[['Shapeoko 4 XXL · 838 × 838 mm',[838,838]]]},
+  xcarve:{name:'X-Carve / Onefinity (CNC) *',kerf:3.175,slot:0.2,relief:'dogbone',tool:3.175,cuts:ROUTER_CUTS,beds:[['750 × 750 mm bed',[750,750]]]},
+  genmitsu:{name:'Genmitsu 3018 (desktop CNC) *',kerf:3.175,slot:0.2,relief:'dogbone',tool:3.175,cuts:ROUTER_CUTS,beds:[['3018 bed · 300 × 180 mm',[300,180]]]},
+  cricut:{name:'Cricut Maker / Explore *',kerf:0,slot:0.05,relief:'square',tool:0,cuts:KNIFE_CUTS,beds:[['12 × 12 in mat · 305 × 305 mm',[305,305]],['12 × 24 in mat · 305 × 610 mm',[305,610]]]},
+  cameo:{name:'Silhouette Cameo 4 *',kerf:0,slot:0.05,relief:'square',tool:0,cuts:KNIFE_CUTS,beds:[['12 × 12 in mat · 305 × 305 mm',[305,305]],['12 × 24 in mat · 305 × 610 mm',[305,610]]]},
+  // printers by name: the bed is the sheet, so a job nests into plates the printer can take
+  bambu_h2c:{name:'Bambu Lab H2C *',kerf:0,slot:0.2,relief:'square',tool:0,cuts:PRINT_CUTS,beds:[['H2C bed · 325 × 320 mm (300 × 320 with both nozzles)',[325,320]]]},
+  bambu_x1:{name:'Bambu Lab X1 / P1 / A1 *',kerf:0,slot:0.2,relief:'square',tool:0,cuts:PRINT_CUTS,beds:[['X1 / P1 / A1 bed · 256 × 256 mm',[256,256]]]},
+  bambu_a1mini:{name:'Bambu Lab A1 mini *',kerf:0,slot:0.2,relief:'square',tool:0,cuts:PRINT_CUTS,beds:[['A1 mini bed · 180 × 180 mm',[180,180]]]},
+  prusa_mk4:{name:'Prusa MK4S *',kerf:0,slot:0.2,relief:'square',tool:0,cuts:PRINT_CUTS,beds:[['MK4S bed · 250 × 210 mm',[250,210]]]},
+  prusa_core:{name:'Prusa CORE One *',kerf:0,slot:0.2,relief:'square',tool:0,cuts:PRINT_CUTS,beds:[['CORE One bed · 250 × 220 mm',[250,220]]]},
+  ender3:{name:'Creality Ender-3 V3 *',kerf:0,slot:0.2,relief:'square',tool:0,cuts:PRINT_CUTS,beds:[['Ender-3 V3 bed · 220 × 220 mm',[220,220]]]}};
 // stock sheet sizes per material family: imperial stock as sold in Canada, with its mm size
 const ft=(w,h)=>[w*12*IN,h*12*IN], inch=(w,h)=>[w*IN,h*IN];
 const SHEETS={
-  metal:[['4 × 8 ft · 1219 × 2438 mm',ft(4,8)],['4 × 10 ft · 1219 × 3048 mm',ft(4,10)],['5 × 10 ft · 1524 × 3048 mm',ft(5,10)],['2 × 4 ft · 610 × 1219 mm',ft(2,4)],['1000 × 2000 mm',[1000,2000]],['1250 × 2500 mm',[1250,2500]]],
+  metal:[['4 × 8 ft · 1219 × 2438 mm',ft(4,8)],['4 × 10 ft · 1219 × 3048 mm',ft(4,10)],['5 × 10 ft · 1524 × 3048 mm',ft(5,10)],['2 × 4 ft · 610 × 1219 mm',ft(2,4)],['1000 × 2000 mm',[1000,2000]],['1250 × 2500 mm',[1250,2500]],['12 × 24 in · 305 × 610 mm',inch(12,24)],['12 × 12 in · 305 × 305 mm',inch(12,12)]],
   wood:[['4 × 8 ft · 1219 × 2438 mm',ft(4,8)],['5 × 5 ft · 1524 × 1524 mm (baltic birch)',ft(5,5)],['4 × 4 ft · 1219 × 1219 mm',ft(4,4)],['2 × 4 ft · 610 × 1219 mm',ft(2,4)],['2 × 2 ft · 610 × 610 mm',ft(2,2)]],
   plastic:[['4 × 8 ft · 1219 × 2438 mm',ft(4,8)],['2 × 4 ft · 610 × 1219 mm',ft(2,4)],['24 × 24 in · 610 × 610 mm',inch(24,24)],['12 × 24 in · 305 × 610 mm',inch(12,24)],['12 × 12 in · 305 × 305 mm',inch(12,12)]],
-  paper:[['A4 · 297 × 210 mm',[297,210]],['A3 · 420 × 297 mm',[420,297]],['A2 · 594 × 420 mm',[594,420]],['A1 · 841 × 594 mm',[841,594]],['A0 · 1189 × 841 mm',[1189,841]],['letter · 11 × 8.5 in',inch(11,8.5)],['tabloid · 17 × 11 in',inch(17,11)],['24 × 18 in · 610 × 457 mm',inch(24,18)],['24 × 36 in · 610 × 914 mm',inch(24,36)],['32 × 40 in · 813 × 1016 mm',inch(32,40)],['4 × 8 ft · 1219 × 2438 mm',ft(4,8)]]};
+  paper:[['A4 · 297 × 210 mm',[297,210]],['A3 · 420 × 297 mm',[420,297]],['A2 · 594 × 420 mm',[594,420]],['A1 · 841 × 594 mm',[841,594]],['A0 · 1189 × 841 mm',[1189,841]],['letter · 11 × 8.5 in',inch(11,8.5)],['tabloid · 17 × 11 in',inch(17,11)],['24 × 18 in · 610 × 457 mm',inch(24,18)],['24 × 36 in · 610 × 914 mm',inch(24,36)],['32 × 40 in · 813 × 1016 mm',inch(32,40)],['4 × 8 ft · 1219 × 2438 mm',ft(4,8)]],
+  // model-making wood: balsa and basswood come in strips and small sheets, not in plywood's panels
+  craft:[['12 × 24 in · 305 × 610 mm',inch(12,24)],['12 × 12 in · 305 × 305 mm',inch(12,12)],['3 × 36 in · 76 × 914 mm',inch(3,36)],['4 × 36 in · 102 × 914 mm',inch(4,36)],['6 × 24 in · 152 × 610 mm',inch(6,24)],['100 × 1000 mm',[100,1000]],['300 × 300 mm',[300,300]]],
+  foam:[['20 × 30 in · 508 × 762 mm',inch(20,30)],['32 × 40 in · 813 × 1016 mm',inch(32,40)],['40 × 60 in · 1016 × 1524 mm',inch(40,60)],['A2 · 594 × 420 mm',[594,420]],['A1 · 841 × 594 mm',[841,594]],['A0 · 1189 × 841 mm',[1189,841]],['1000 × 2000 mm',[1000,2000]]],
+  // print beds: one sheet is one plate
+  print:[['180 × 180 mm bed',[180,180]],['220 × 220 mm bed',[220,220]],['250 × 210 mm bed',[250,210]],['256 × 256 mm bed',[256,256]],['300 × 300 mm bed',[300,300]],['325 × 320 mm bed',[325,320]],['350 × 350 mm bed',[350,350]]]};
 const COLORS={X:0xd9a760,Y:0x7fb0d9,S:0xd9c080,R:0x8fd08f,C:0xc07070,F:0xc9a0e0,J:0xf0c060,P:0x9a9a9a,B:0x4fd1ff};
-const LOOKS={cardboard:[0xb98a5a,.9,0],paper:[0xf2f0e6,.95,0],plywood:[0xd9b98a,.7,0],steel:[0xaab2bb,.35,.8],plastic:[0x6fb7e8,.25,.05]};
+const LOOKS={cardboard:[0xb98a5a,.9,0],paper:[0xf2f0e6,.95,0],plywood:[0xd9b98a,.7,0],steel:[0xaab2bb,.35,.8],plastic:[0x6fb7e8,.25,.05],brass:[0xc9a44c,.3,.85],copper:[0xc27a52,.3,.85],foam:[0x45484f,.95,0]};
 const PLANE_IDX={xz:[0,2],yz:[1,2],xy:[0,1]};
 let MODES=[],mode=null,state={},job=null,plan=null,seq=0,timer=null,pendingFile=null,unit='mm',selected=null,busy=false,busySince=0;
 // this tab's own id: everything it slices lives under it on the server, so people sharing one server never meet.
@@ -500,13 +546,22 @@ async function whatsNew(){
 }
 
 // presets: manufacturing (sheet+fit params), materials, sheets — builtin + user (this browser)
-const PKEYS=()=>['material','machine',...mode.common.filter(p=>p.group==='sheet'||p.group==='fit').map(p=>p.name)];
+const PKEYS=()=>['material','density','machine',...mode.common.filter(p=>p.group==='sheet'||p.group==='fit').map(p=>p.name)];
 function renderPresets(sel=''){const ps=ls('slicer_presets',{});$('#presets').innerHTML='<option value="">— none —</option>'+Object.keys(ps).sort().map(n=>`<option ${n===sel?'selected':''}>${n}</option>`).join('')}
-const fam=()=>MATERIALS[state.material]?.family||'paper';
+// materials of your own (this browser) sit beside the built-ins in the same shape, keyed by the name you gave them;
+// `base` is the built-in they were made from, which is what the machines' `cuts` lists name. A material nobody here
+// knows (a stranger's project file) is handled like cardboard, but keeps its own name and the density it came with.
+const userMaterials=()=>ls('slicer_materials',{});
+const matOf=k=>MATERIALS[k]||userMaterials()[k]||MATERIALS.cardboard, kind=k=>userMaterials()[k]?.base||k;
+// density in g/cm³: what this job set for its material, else the list's figure — keyed by material, so a preset or a
+// project that switches the material can never carry another material's density with it
+const dens=()=>state.density?.[state.material]??matOf(state.material).density;
+const DU=()=>unit==='in'?0.0361273:1, DUNIT=()=>unit==='in'?'lb/in³':'g/cm³';   // 1 g/cm³ = 0.0361273 lb/in³
+const fam=()=>matOf(state.material).family||'paper';
 // sheets for the current material: its family's stock sizes, the beds of the machine in use, and the user's own for that family
 const shs=()=>[...(SHEETS[fam()]||[]),...(machineOf(state.machine)?.beds||[]),...ls('slicer_sheets',[]).filter(s=>!s[2]||s[2]===fam())];
 const thickLabel=([mm,name])=>`${name?name+' · ':''}${+mm.toFixed(3)} mm · ${(mm/IN).toFixed(3)} in`;
-const matThicks=m=>{const seen=new Map();for(const e of [...(MATERIALS[m]?.t||[]),...(ls('slicer_thick',{})[m]||[]).map(t=>[t])])if(!seen.has(e[0]))seen.set(e[0],e);return [...seen.values()].sort((a,b)=>a[0]-b[0])};
+const matThicks=m=>{const seen=new Map();for(const e of [...(matOf(m).t||[]),...(ls('slicer_thick',{})[m]||[]).map(t=>[t])])if(!seen.has(e[0]))seen.set(e[0],e);return [...seen.values()].sort((a,b)=>a[0]-b[0])};
 // machines of your own (this browser) sit beside the built-ins in the same shape, keyed by the name you gave them
 const userMachines=()=>ls('slicer_machines',{});
 const machineOf=k=>MACHINES[k]||userMachines()[k];
@@ -515,9 +570,12 @@ const sameSheet=(a,b)=>a&&b&&Math.abs(a[0]-b[0])<0.01&&Math.abs(a[1]-b[1])<0.01;
 function applyMachine(k){const x=machineOf(k);if(!x)return;state.machine=k;state.kerf=x.kerf;state.slot_offset=x.slot;state.relief=x.relief;state.tool_d=x.tool;
   if(x.beds.length===1)state.sheet=[...x.beds[0][1]]}    // a machine by name has one bed, and that is the sheet
 function syncPresetSelects(){
-  const m=state.material||(state.material='cardboard'); if(!machineOf(state.machine)?.cuts.includes(m))state.machine=MATERIALS[m].machine;
-  $('#material').innerHTML=Object.keys(MATERIALS).map(n=>`<option ${n===m?'selected':''}>${n}</option>`).join('');
-  $('#machine').innerHTML=machinesFor(m).map(k=>`<option value="${esc(k)}" ${k===state.machine?'selected':''}>${esc(machineOf(k).name)}</option>`).join('');
+  const m=state.material||(state.material='cardboard'); if(!machineOf(state.machine)?.cuts.includes(kind(m)))state.machine=matOf(m).machine;
+  const names=[...new Set([...Object.keys(MATERIALS),...Object.keys(userMaterials()),m])];   // m last: kept even when nobody here knows it
+  $('#material').innerHTML=names.map(n=>`<option value="${esc(n)}" ${n===m?'selected':''}>${esc(n)}</option>`).join('');
+  // the density box shows the stored g/cm³ in the unit on show and is never read back, so switching units cannot drift it
+  $('#density').value=+(dens()*DU()).toPrecision(4); $('#density').previousElementSibling.textContent=`density (${DUNIT()})`;
+  $('#machine').innerHTML=machinesFor(kind(m)).map(k=>`<option value="${esc(k)}" ${k===state.machine?'selected':''}>${esc(machineOf(k).name)}</option>`).join('');
   $('#thicklist').innerHTML='<option value="">— pick —</option>'+matThicks(m).map(e=>`<option value="${e[0]}" ${Math.abs(e[0]-state.thickness)<1e-6?'selected':''}>${thickLabel(e)}</option>`).join('');
   $('#sheetpreset').innerHTML='<option value="">— pick —</option>'+shs().map(([n,s],i)=>`<option value="${i}" ${sameSheet(s,state.sheet)?'selected':''}>${n}</option>`).join('');
 }
@@ -1050,8 +1108,37 @@ function protoHint(){if(!plan)return;const size=lenMM('#pr_size'),s=size>0?size/
   const thin=Math.min(...plan.slices.map(x=>x.thickness)),printed=thin*s,h=$('#pr_hint');
   if(printed>=mn-1e-9){h.textContent=`parts print ${fmtLen(printed)} thick (${fmtLen(thin)} × ${s.toFixed(3)})`;h.style.color=''}
   else{h.textContent=`at ×${s.toFixed(3)} the ${fmtLen(thin)} parts would print ${fmtLen(printed)}, under the ${fmtLen(mn)} minimum — the set is planned again at ${fmtLen(mn/s)} material so the slots fit the printed parts (a note travels in the zip)`;h.style.color='var(--warn)'}}
+// What the cut parts weigh: each part's own area (holes and slots taken out) × its slice's thickness × the density.
+// A job that mixes thicknesses is cut from several stocks, and each gets a line; the sheets are what you buy and lift.
+const fmtMass=g=>unit==='in'?(g<453.59237?`${+(g/28.349523125).toPrecision(3)} oz`:`${+(g/453.59237).toPrecision(3)} lb`)
+                            :(g<1000?`${+g.toPrecision(3)} g`:`${+(g/1000).toPrecision(3)} kg`);
+const fmtVol=mm3=>unit==='in'?`${+(mm3/16387.064).toPrecision(3)} in³`:`${+(mm3/1000).toPrecision(3)} cm³`;
+// Dowel rods are bought, not cut, and are taken to be of the job's material. The plan stores them a pair of slices at
+// a time, overlapping by a slice, so collinear pieces are merged: an aligned dowel through the stack counts once.
+// ponytail: round section for every shape but square; a hexagonal pencil is 10 % more, add its own when it matters
+function rodStats(){const lines=new Map(),q=x=>Math.round(x*100);
+  for(const [a,b,dd] of plan.rods||[]){const v=b.map((x,i)=>x-a[i]),n=Math.hypot(...v),u=v.map(x=>x/n),s=a.reduce((t,x,i)=>t+x*u[i],0);
+    const k=[...u,...a.map((x,i)=>x-s*u[i]),dd].map(q).join();(lines.get(k)||lines.set(k,[]).get(k)).push([s,s+n,dd])}
+  let len=0,vol=0;
+  for(const iv of lines.values()){iv.sort((p,r)=>p[0]-r[0]);let [lo,hi,dd]=iv[0],l=0;
+    for(const [a,b] of iv.slice(1)){if(a>hi){l+=hi-lo;lo=a}hi=Math.max(hi,b)}l+=hi-lo;
+    len+=l;vol+=l*(state.dowel_shape==='square'?dd*dd:Math.PI*dd*dd/4)}
+  return {n:lines.size,len,vol}}
+function renderWeight(){if(!plan)return;const d=dens(),g=d/1000,by=new Map();   // g/cm³ → g per mm³
+  for(const s of plan.slices)for(const pc of s.pieces){const b=by.get(s.thickness)||{n:0,v:0};b.n++;b.v+=pc.area*s.thickness;by.set(s.thickness,b)}
+  const parts=[...by.values()].reduce((a,b)=>a+b.v,0), rods=rodStats();
+  const stock=[...Array(plan.sheets).keys()].reduce((a,i)=>a+plan.sheet[0]*plan.sheet[1]*(plan.sheet_thick?.[i]??state.thickness),0);
+  $('#weight').innerHTML=`<div class="stats"><div class="k" data-tip="Every part as cut, holes and slots taken out, each at its own thickness"><b>${fmtMass(parts*g)}</b>parts</div>
+    <div><b>${fmtVol(parts)}</b>of ${esc(state.material)}</div>
+    <div class="k" data-tip="The whole sheets the parts are nested on, offcuts included: what you buy and lift onto the machine"><b>${fmtMass(stock*g)}</b>${plan.sheets} sheet(s)</div>`
+    +(rods.n?`<div class="k" data-tip="The dowel rods, bought rather than cut, taken to be of the same material as the parts"><b>${fmtMass(rods.vol*g)}</b>${rods.n} dowel(s)</div>
+      <div class="k" data-tip="Parts and dowels together: what the finished model weighs, glue aside"><b>${fmtMass((parts+rods.vol)*g)}</b>assembled</div>`:'')+`</div>`
+    +(rods.n?`<div class="hint">${rods.n} dowel(s), ${fmtLen(rods.len)} of rod in all</div>`:'')
+    +(by.size>1?[...by].sort((a,b)=>a[0]-b[0]).map(([t,b])=>`<div class="hint">${fmtLen(t)} stock: ${b.n} part(s) · ${fmtMass(b.v*g)}</div>`).join(''):'')
+    +`<div class="hint">at ${+(d*DU()).toPrecision(4)} ${DUNIT()}, set with the material on Sheet &amp; fit</div>`;
+}
 function renderDownloads(){ // the labels checkbox applies to every cut file; the server names files <project or model>_v<rev>_…
-  protoHint();
+  protoHint(); renderWeight();
   const b=`api/job/${CLIENT}/${job}`,L=$('#x_labels').checked?1:0,K=$('#x_key').checked?1:0,step=lenMM('#pr_step',0.1),U=`&units=${unit}`;   // the cut files come out in the unit on show, without a re-slice
   // what the labels on the parts mean, before the cut rather than after it
   $('#legend').innerHTML=`<b>how the parts are labelled</b><br>${(mode.legend||'every part carries its own label').replace(/ · /g,'<br>')}`
@@ -1145,11 +1232,13 @@ async function init(){
   $('#example').innerHTML=ex.map(e=>`<option>${e}</option>`).join(''); $('#example').value=ex.includes('egg')?'egg':ex[0];
   $('#modes').innerHTML=MODES.map(m=>`<button data-m="${m.name}">${m.title}</button>`).join('');
   $('#modes').onclick=e=>{if(e.target.dataset.m){deselect();setMode(e.target.dataset.m);countUse('technique',e.target.dataset.m);slice()}};
-  $('#material').onchange=e=>{const n=e.target.value,m=MATERIALS[n];state.material=n;
+  $('#material').onchange=e=>{const n=e.target.value,m=matOf(n);state.material=n;
     if(m){const ts=matThicks(n);if(!ts.some(t=>Math.abs(t[0]-state.thickness)<1e-6))state.thickness=ts[Math.floor(ts.length/2)][0];   // a stock thickness of the new material
-      if(!machineOf(state.machine)?.cuts.includes(n))applyMachine(m.machine);                                                             // a machine that cuts it
+      if(!machineOf(state.machine)?.cuts.includes(kind(n)))applyMachine(m.machine);                                                       // a machine that cuts it
       if(!shs().some(([,s])=>sameSheet(s,state.sheet)))state.sheet=[...shs()[0][1]];                                                       // a sheet it comes in
-      $('#look').value=m.look;applyLook()}
+      $('#look').value=m.look;applyLook()
+      // a printed material is the job itself, not a model of it: the print set on the Export tab comes out full size
+      if(m.family==='print'){$('#pr_scale').value=1;$('#pr_size').value='';$('#pr_size').dataset.mm=''}}
     renderFields();schedule()};
   $('#machine').onchange=e=>{applyMachine(e.target.value);renderFields();schedule()};
   // a machine of your own: the compensation and sheet as they stand, cutting what the machine it was made from cuts
@@ -1157,7 +1246,19 @@ async function init(){
     if(MACHINES[n])return status('that name is a built-in machine — pick another','err');
     const u=userMachines();u[n]={name:n,base:u[state.machine]?.base||state.machine,kerf:state.kerf,slot:state.slot_offset,relief:state.relief,tool:state.tool_d,cuts:b.cuts,beds:[[`${n} bed · ${fmtLen(state.sheet[0])} × ${fmtLen(state.sheet[1])}`,[...state.sheet]]]};
     lsSet('slicer_machines',u);state.machine=n;syncPresetSelects()};
-  $('#kdel').onclick=()=>{const u=userMachines();if(!u[state.machine])return status('built-in machines cannot be deleted');delete u[state.machine];lsSet('slicer_machines',u);applyMachine(MATERIALS[state.material].machine);renderFields();schedule()};
+  $('#kdel').onclick=()=>{const u=userMachines();if(!u[state.machine])return status('built-in machines cannot be deleted');delete u[state.machine];lsSet('slicer_machines',u);applyMachine(matOf(state.material).machine);renderFields();schedule()};
+  // a material of your own: the one in use, kept under a name with the thickness and density as they stand — its sheets,
+  // 3D look and machines are the ones of the built-in it was made from
+  $('#matadd').onclick=()=>{const cur=state.material,n=prompt('material name (what it is, where it comes from)',userMaterials()[cur]?cur:'');if(!n)return;
+    if(MATERIALS[n])return status('that name is a built-in material — pick another','err');
+    const b=matOf(cur),u=userMaterials(),d=dens();
+    u[n]={base:kind(cur),t:[...(u[n]?.t||[]),[state.thickness]],family:b.family,look:b.look,machine:b.machine,density:d};
+    lsSet('slicer_materials',u);state.material=n;state.density={...state.density,[n]:d};renderFields();renderWeight();schedule()};
+  $('#matdel').onclick=()=>{const u=userMaterials(),n=state.material;if(!u[n])return status('built-in materials cannot be deleted');
+    state.material=u[n].base;delete u[n];lsSet('slicer_materials',u);renderFields();renderWeight();schedule()};
+  // typed in the unit on show, stored in g/cm³ for this material — and with the material itself when it is one of yours
+  $('#density').oninput=e=>{const v=+e.target.value;if(!(v>0))return;const d=+(v/DU()).toPrecision(12),n=state.material,u=userMaterials();
+    state.density={...state.density,[n]:d};if(u[n]){u[n].density=d;lsSet('slicer_materials',u)}renderWeight()};
   $('#thicklist').onchange=e=>{if(e.target.value){state.thickness=+e.target.value;renderFields();schedule()}};
   $('#sheetpreset').onchange=e=>{const s=shs()[+e.target.value];if(s){state.sheet=[...s[1]];renderFields();schedule()}};
   $('#madd').onclick=()=>{const m=state.material||'cardboard',u=ls('slicer_thick',{});u[m]=[...new Set([...(u[m]||[]),state.thickness])];lsSet('slicer_thick',u);syncPresetSelects()};
@@ -1215,7 +1316,7 @@ async function init(){
   if(sess.mode){Object.assign(memo,sess.memo||{});setMode(sess.mode,false);Object.assign(state,sess.params||{});unit=state.units||unit;
     if(sess.example)$('#example').value=sess.example; job=sess.alive?sess.job:null;
     if(!sess.alive&&sess.job)status('the uploaded model of the last session is gone — upload it again or pick an example','err')}
-  else{setMode(location.hash.slice(1)||'interlocked',false);applyMachine(MATERIALS[state.material].machine);applyPreset()}   // a fresh start gets the machine's compensation and the example's preset (the #technique in the URL is the app's own mirror of its state, not a request)
+  else{setMode(location.hash.slice(1)||'interlocked',false);applyMachine(matOf(state.material).machine);applyPreset()}   // a fresh start gets the machine's compensation and the example's preset (the #technique in the URL is the app's own mirror of its state, not a request)
   applyUnit(); slice();
 }
 init();
@@ -1254,7 +1355,7 @@ function reportSummary(){
   return [`technique      ${plan.mode}`,
     `model          ${job?.startsWith('ex_')?'bundled example '+job.slice(3):'uploaded by the reporter'}, ${plan.bbox.map(n).join(' × ')} mm, ${c.faces} faces`,
     `result         ${c.slices} slices, ${c.parts} parts, ${plan.sheets} sheet(s) at ${n(plan.sheet_usage*100)}% used, ${c.errors} errors, ${c.warnings} warnings`,
-    `material       ${state.material} ${p.thickness} mm on ${state.machine}, kerf ${p.kerf}, slot offset ${p.slot_offset}, relief ${p.relief}`,   // material and machine are the form's own, not the planner's
+    `material       ${state.material} ${p.thickness} mm (${dens()} g/cm³) on ${state.machine}, kerf ${p.kerf}, slot offset ${p.slot_offset}, relief ${p.relief}`,   // material and machine are the form's own, not the planner's
     `sheet          ${plan.sheet.map(n).join(' × ')} mm, units ${p.units}`,
     `timing (s)     ${Object.entries(plan.timing).map(([k,v])=>`${k}=${v}`).join(', ')}`,
     `running        ${document.documentElement.dataset.static?'in the browser (Pyodide)':'against a local server'}`,
@@ -1270,7 +1371,7 @@ window.laminaFeedback?.({bug:async withModel=>{
  machine:async()=>{const x=machineOf(state.machine)||{};
   return {summary:JSON.stringify({name:x.name,base:x.base||state.machine,kerf:state.kerf,slot_offset:state.slot_offset,relief:state.relief,tool_d:state.tool_d,bed:x.beds?.length===1?x.beds[0][1]:state.sheet},null,1)}},
  // a material to ship: what MATERIALS and SHEETS hold for one — the thickness and sheet in use, and the ones added here
- material:async()=>({summary:JSON.stringify({material:state.material,thickness:state.thickness,thicknesses:ls('slicer_thick',{})[state.material]||[],sheet:state.sheet,
+ material:async()=>({summary:JSON.stringify({material:state.material,base:kind(state.material),density_g_cm3:dens(),thickness:state.thickness,thicknesses:ls('slicer_thick',{})[state.material]||[],sheet:state.sheet,
   sheets:ls('slicer_sheets',[]).filter(s=>!s[2]||s[2]===fam()).map(([n,s])=>[n,s]),units:state.units},null,1)})});
 
 // test and capture hook (tests/test_ui.py, scripts/media/capture.mjs)

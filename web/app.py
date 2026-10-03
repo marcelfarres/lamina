@@ -200,7 +200,8 @@ def slice_model(client: str = Form(...), mode: str = Form(...), params: str = Fo
     _building.model = None                         # …and the preview mesh, once this build has written it
     try:
         prm = json.loads(params or "{}")
-        plan = build(mpath, mode, prm, jd / "plan", mesh_out=jd / "model.stl")
+        # the name as it was uploaded (the copy on disk is renamed), engraved before every label; not kept in the session
+        plan = build(mpath, mode, {**prm, "model_name": pathlib.Path(model_name(jd)).stem}, jd / "plan", mesh_out=jd / "model.stl")
     except Exception as e:
         raise HTTPException(500, f"{type(e).__name__}: {e}") from e
     finally:

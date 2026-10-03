@@ -13,7 +13,7 @@ from .geometry import section_polygons, as_multi, poly_coords, line_coords
 from .checks import check_plan, min_dims, autofix, suggest_fixes, crossing_suggestions
 from .split import split_slice, fits_rotated
 from .nest import nest, _min_rect_angle
-from .model import Piece, label_codes
+from .model import Piece, label_codes, label_tag
 
 MODES = load_all()
 CAD_SUFFIXES = {".step", ".stp", ".brep", ".iges", ".igs"}
@@ -429,7 +429,8 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         n_err += len(over) + 1
     pieces = [pc for sl in slices for pc in sl.pieces]
     kerf = p["kerf"] if p["compensate"] else 0.0       # off by default: many machines compensate their own kerf
-    n_sheets = nest(pieces, p["sheet"], p["gap"], p["sheet_margin"], kerf, p["font"] * 1.6 if p["labels"] else 0, p["font"])
+    tag = label_tag(p, model_path)                     # the model's name, engraved before every label: nested with room for it
+    n_sheets = nest(pieces, p["sheet"], p["gap"], p["sheet_margin"], kerf, p["font"] * 1.6 if p["labels"] else 0, p["font"], tag)
     mark_identical(pieces, p["mirror_ok"])             # which parts are the same part: one cut file, one row, a quantity
     # puzzle mode: what gets engraved is a code with no order in it. The plan keeps the real labels — the app, the
     # checks and the 3D view are the "plans" you consult when you give up — and the export carries the key.
@@ -462,6 +463,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         "sheets": n_sheets, "sheet": sheet_out, "sheet_thick": sheet_thick, "kerf": kerf,
         "counts": {"slices": len(slices), "parts": len(pieces), "errors": n_err, "warnings": n_warn, "faces": int(len(mesh.faces))},
         "codes": codes,                                                      # puzzle mode: engraved code → real label
+        "label_tag": tag,                                                    # engraved before every label (the model's name)
         "errors": ctx.errors, "fixes": getattr(ctx, "fixes", []),          # mode-level errors and their one-click fixes
         "square": square and {"rotate": square[0], "off": round(square[1], 1)},   # a boxy model a few degrees off its axes
         "material_area_mm2": float(sum(pc.geom.area for pc in pieces)),
@@ -480,6 +482,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
                         "lines": [[s, line_coords(l)[0]] for s, l in pc.placed_lines],   # score lines on the sheet
                         "marks": [[round(x, 3), round(y, 3), t] for x, y, t in pc.placed_marks],
                         "label_pos": pc.label_pos, "leader": pc.leader, "same": pc.same, "flipped": pc.flipped,
+                        "area": round(float(pc.geom.area), 3),   # net of holes and slots: × its slice's thickness × density = its weight
                         } for pc in sl.pieces],
         } for sl in slices],
         "dropped": [{"label": s.label, "errors": s.errors} for s in dropped],
