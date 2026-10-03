@@ -155,7 +155,8 @@ the copy you self-host or run from Docker** — there is no script and no endpoi
 visits with GoatCounter (no cookies, no IP stored, so no consent banner) when the `COUNT_URL` repository variable is
 set: the landing page records the visit, the referrer, which link was clicked and which clips played, and the demo
 records that it was opened. What someone *does* in the demo — technique, whether the model came from the examples or
-their own computer, which formats they export — is sent only if they tick the box at the foot of its Model tab.
+their own computer, which formats they export — is sent while the box at the foot of its Model tab is ticked. It is
+ticked by default and unticking it switches this off for good on that browser.
 
 ### How long a slice takes
 
