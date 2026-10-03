@@ -55,12 +55,14 @@ const CSS = `
 #fb_dlg button{padding:8px 15px;border-radius:6px;border:1px solid var(--line,#2f3138);background:var(--panel2,#232429);color:inherit;font:inherit;cursor:pointer}
 #fb_dlg button.go{background:var(--acc-btn,#2563eb);border-color:transparent;color:#fff;font-weight:600}
 #fb_dlg #fb_tick{width:auto;margin-right:7px;accent-color:var(--acc,#4f8cff)}
-#fb_dlg #fb_note:empty{display:none}`;
+#fb_dlg #fb_note:empty{display:none}
+#fb_dlg summary{cursor:pointer;margin-top:12px}
+#fb_dlg pre{max-height:220px;overflow:auto;white-space:pre-wrap;margin:6px 0 0;padding:8px 10px;border-radius:5px;background:#0003;font:11.5px/1.45 ui-monospace,monospace}`;
 
 // What is about to travel, said plainly before any of it does. The model is the expensive part of the promise, so
 // the sentence that matters most is in the same breath as the ask.
 const WARN = {
-  bug: `What goes with your report: the technique, every setting, and what the checks said. With the box ticked the model file is saved alongside it for you to attach — that is what makes a report reproducible, so please do, unless it is a model you are not free to share. Nothing is sent by this page: your mail program or the GitHub form opens with everything filled in, and you press send. An issue on GitHub is public; an email is not.`,
+  bug: `What goes with your report: the technique, every setting, what the checks said, the Lamina version, and the steps you took since loading the model (settings changed, undo, fixes, errors) — so the problem can be replayed exactly. With the box ticked the model file goes in too — that is what makes a report reproducible, so please do, unless it is a model you are not free to share. Nothing is sent by this page: your mail program or the GitHub form opens with everything filled in, and you press send. An issue on GitHub is public; an email is not.`,
   page: `What goes with your report: your description, the address of this page and your browser version. No model and no settings — this page has none. Nothing is sent by this page: your mail program or the GitHub form opens with it filled in, and you press send. An issue on GitHub is public; an email is not.`,
   machine: `What goes with it: the machine as selected — its name, kerf, slot offset, corner relief, tool diameter and bed size. No model, no material, no other settings. Nothing is sent by this page: your mail program or the GitHub form opens with it filled in, and you press send. An issue on GitHub is public; an email is not.`,
   material: `What goes with it: the material as selected — its name, the thickness and sheet size in use and the ones you added for it. No model, no machine, no other settings. Nothing is sent by this page: your mail program or the GitHub form opens with it filled in, and you press send. An issue on GitHub is public; an email is not.`,
@@ -73,6 +75,7 @@ const FORM = k => `<form id="fb_form">
     <textarea id="fb_what" rows="5" required placeholder="${k.eg}"></textarea></label>
   <label id="fb_att" hidden><input type="checkbox" id="fb_tick" checked>Attach the model and every setting</label>
   <div class="warn" id="fb_warn"></div>
+  <details id="fb_see" hidden><summary class="m">See what is sent</summary><pre id="fb_pre"></pre></details>
   <p class="m" id="fb_note" style="margin-top:14px"></p>
   <div class="row"><button type="button" id="fb_no">Cancel</button>
     <button type="button" id="fb_gh">Open the GitHub issue form</button>
@@ -92,6 +95,14 @@ function show(k = 'bug') {
   dlg.innerHTML = FORM(KIND[kind]);                            // a fresh form every time, from this file's own strings only
   $('#fb_att').hidden = !(kind === 'bug' && collect.bug);
   $('#fb_warn').textContent = KIND[kind].warn ?? WARN[collect[kind] ? kind : 'page'];
+  $('#fb_see').hidden = !collect[kind];
+  $('#fb_see').ontoggle = async e => {                        // the text as it will go out, and the file that goes with it
+    if (!e.target.open) return;
+    $('#fb_pre').textContent = 'gathering…';
+    const fd = await build(), file = fd.get('project');
+    $('#fb_pre').textContent = asText(fd) + (file ? `\n\n+ the file ${file.name}: every setting, every step since the model loaded`
+      + ($('#fb_tick').checked ? ', and the model itself' : '') : '');
+  };
   $('#fb_no').onclick = () => dlg.close();
   $('#fb_gh').onclick = () => hand('github');
   $('#fb_form').onsubmit = e => { e.preventDefault(); hand('email') };   // submit = the default button, so Enter sends
@@ -137,10 +148,12 @@ function sendMail(url) {
 const asText = fd => [fd.get('what'), '', `technique: ${fd.get('technique') || '—'}`, `page: ${fd.get('page')}`,
                       `browser: ${fd.get('agent')}`, '', fd.get('summary') || ''].join('\n');
 
-// long mailto bodies are cut by some clients, so the settings are trimmed; the attached project file has them all
+// long mailto bodies are cut by some clients (~2000 characters as sent, escapes included), so the text is trimmed to
+// fit; the attached project file has it all
+const fit = (s, n) => { while (encodeURIComponent(s).length > n) s = [...s].slice(0, -40).join(''); return s };   // by code point: half an emoji will not encode
 const mailto = (fd, file) =>
   `mailto:${MAIL}?subject=${encodeURIComponent(KIND[kind].subject + cut(fd.get('what').split(/\r?\n/)[0], 80))}`
-  + `&body=${encodeURIComponent(cut(asText(fd), 1500) + (file ? `\n\n(please attach ${file.name})` : KIND[kind].attach ? `\n\n(${KIND[kind].attach})` : ''))}`;
+  + `&body=${encodeURIComponent(fit(asText(fd), 1550) + (file ? `\n\n(please attach ${file.name})` : KIND[kind].attach ? `\n\n(${KIND[kind].attach})` : ''))}`;
 
 // GitHub prefills an issue form by field id and refuses a URL over roughly 8 kB, so this is trimmed
 function issueUrl(fd, file) {

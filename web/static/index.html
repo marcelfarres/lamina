@@ -143,7 +143,7 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
 <label style="font-size:12px;color:var(--muted)">view <select id="viewmode"><option value="both">3D + sheets</option><option value="only3d">3D only</option><option value="only2d">sheets only</option></select></label>
 <label style="font-size:12px;color:var(--muted)">units <select id="unit"><option>mm</option><option>cm</option><option>in</option></select></label>
 <a class="kofi" href="https://marcelfarres.github.io/lamina/?ref=app" target="_blank" rel="noopener" data-tip="What Lamina does, every technique explained, how to run it yourself">docs</a><a class="kofi" href="https://github.com/marcelfarres/lamina" target="_blank" rel="noopener" data-tip="Source code, issues, releases (AGPL-3.0)">GitHub</a>
-<a class="kofi" data-feedback href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml" target="_blank" rel="noopener" data-tip="Something came out wrong? Write a sentence here and the report fills in the rest: the technique, every setting, what the checks said, and the model saved ready to attach unless you untick that box. It then opens a prefilled email or the GitHub issue form for you to send — email needs no account.">report a problem</a>
+<a class="kofi" data-feedback href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml" target="_blank" rel="noopener" data-tip="Something came out wrong? Write a sentence here and the report fills in the rest: the technique, every setting, what the checks said, the steps you took since loading the model, and the model saved ready to attach unless you untick that box. It then opens a prefilled email or the GitHub issue form for you to send — email needs no account.">report a problem</a>
 <a class="kofi" href="https://ko-fi.com/marcelfarres" target="_blank" rel="noopener" data-tip="Lamina is free and always will be — no account, no paid tier, and none of that depends on donations. If you would like to support the work and can comfortably afford it, a coffee is very welcome. No pressure.">♥ Ko-fi</a></header>
 <main>
 <aside>
@@ -340,7 +340,7 @@ const SHEETS={
 const COLORS={X:0xd9a760,Y:0x7fb0d9,S:0xd9c080,R:0x8fd08f,C:0xc07070,F:0xc9a0e0,J:0xf0c060,P:0x9a9a9a,B:0x4fd1ff};
 const LOOKS={cardboard:[0xb98a5a,.9,0],paper:[0xf2f0e6,.95,0],plywood:[0xd9b98a,.7,0],steel:[0xaab2bb,.35,.8],plastic:[0x6fb7e8,.25,.05],brass:[0xc9a44c,.3,.85],copper:[0xc27a52,.3,.85],foam:[0x45484f,.95,0]};
 const PLANE_IDX={xz:[0,2],yz:[1,2],xy:[0,1]};
-let MODES=[],mode=null,state={},job=null,plan=null,seq=0,timer=null,pendingFile=null,unit='mm',selected=null,busy=false,busySince=0;
+let MODES=[],mode=null,state={},job=null,plan=null,seq=0,timer=null,pendingFile=null,srcFile=null,unit='mm',selected=null,busy=false,busySince=0;
 // this tab's own id: everything it slices lives under it on the server, so people sharing one server never meet.
 // sessionStorage keeps it across a refresh but not into another tab; getRandomValues (not randomUUID) so it also
 // works over plain http on a LAN.
@@ -488,16 +488,31 @@ const snapshot=()=>JSON.stringify({m:mode.name,u:unit,s:state});
 function record(){
   if(restoring){restoring=false;cur=snapshot();return}                       // the slice a restore triggered is not a new step
   const now=snapshot(); if(now===cur)return;
-  if(cur!==null){undos.push(cur);if(undos.length>60)undos.shift();redos.length=0}
+  if(cur!==null){undos.push(cur);if(undos.length>60)undos.shift();redos.length=0;changes(cur,now).forEach(act)}
   cur=now; syncUndo();
 }
 // schedule(), not slice(): holding Ctrl+Z walks back several steps, and one slice of the step you land on is the
 // point — a slice per step queues minutes of work in the browser build and looks like a hang
-function step(from,to){if(!from.length)return;to.push(cur);const j=from.pop();cur=j;restoring=true;
+function step(from,to){if(!from.length)return;act((from===undos?'undo: ':'redo: ')+changes(cur,from.at(-1)).join(', '));to.push(cur);const j=from.pop();cur=j;restoring=true;
   const d=JSON.parse(j); if(d.m!==mode.name)setMode(d.m,false);
   for(const k of Object.keys(state))delete state[k]; Object.assign(state,d.s);
   unit=d.u; deselect(); applyUnit(); syncUndo(); schedule()}
 function syncUndo(){$('#undo').disabled=!undos.length;$('#redo').disabled=!redos.length}
+
+// ---------------------------------------------------------------- what happened since the model loaded
+// The state at the end rarely says how somebody got there — an example's settings kept by an upload, a ring nudged
+// to 85°, a technique switched in from another's memory. So every change, undo, fix, slice and page error since the
+// model was loaded is kept here with its seconds, and a bug report carries all of it (`trail` in its project file,
+// the last few in its text). A saved project does not. A new model (`fresh`, read by slice()) starts it over.
+let trail=[],trailT0=Date.now(),fresh='';
+const act=s=>trail.push([+((Date.now()-trailT0)/1000).toFixed(1),s]);
+const short=v=>{const s=JSON.stringify(v)??'—';return s.length>60?s.slice(0,57)+'…':s};
+function changes(a,b){const x=JSON.parse(a),y=JSON.parse(b),out=[];
+  if(x.m!==y.m)out.push(`technique ${x.m} → ${y.m}`); if(x.u!==y.u)out.push(`units ${x.u} → ${y.u}`);
+  for(const k of new Set([...Object.keys(x.s),...Object.keys(y.s)]))if(JSON.stringify(x.s[k])!==JSON.stringify(y.s[k]))out.push(`${k} ${short(x.s[k])} → ${short(y.s[k])}`);
+  return out}
+addEventListener('error',e=>act('page error: '+e.message));
+addEventListener('unhandledrejection',e=>act('page error: '+(e.reason?.message||e.reason)));
 addEventListener('keydown',e=>{
   const typing=e.target.type==='text'||e.target.tagName==='TEXTAREA';   // a text box keeps its own undo, and its own ?
   if(e.key==='?'&&!typing&&!e.ctrlKey&&!e.metaKey){$('#helpdlg').showModal();return e.preventDefault()}
@@ -583,6 +598,7 @@ function syncPresetSelects(){
 // ---------------------------------------------------------------- slicing
 async function slice(){
   record();                                        // one undo step per change that gets this far
+  if(fresh){trail=[];trailT0=Date.now();act(fresh);fresh=''}   // after record(): a new model's own settings are not steps
   const my=++seq, fd=new FormData(), loading=pendingFile;
   fd.append('client',CLIENT); fd.append('mode',mode.name); fd.append('params',JSON.stringify(state)); fd.append('memo',JSON.stringify(memo));   // the server keeps this as the tab's session
   if(pendingFile)fd.append('model',pendingFile); else if(job)fd.append('job',job); else fd.append('example',$('#example').value);
@@ -597,12 +613,13 @@ async function slice(){
     // the server was updated under an open tab: this page is the old one, so fetch it again (once — never a loop)
     if(r.status===422&&!sessionStorage.reloaded){sessionStorage.reloaded=1;return location.reload()}
     if(!r.ok)throw new Error(typeof j.detail==='string'?j.detail:j.detail?JSON.stringify(j.detail):r.statusText);   // a 422 details itself as objects
-    pendingFile=null; job=j.job; plan=j.plan; const t1=Date.now();
+    if(pendingFile)srcFile=pendingFile; pendingFile=null; job=j.job; plan=j.plan; const t1=Date.now();
     render3D(j.model); renderSheets(j.sheets); renderReport(); syncSizeHints();
     status(`ready · ${j.took} s · ${plan.counts.parts} parts · ${plan.sheets} sheet(s) · ${plan.counts.errors} errors`,plan.counts.errors?'err':'');
+    act(`sliced in ${j.took} s: ${plan.counts.parts} parts, ${plan.counts.errors} errors, ${plan.counts.warnings} warnings`);
     // where the time went, for anyone tuning it: the build's stages (seconds), the round trip around them, and the page's own drawing
     console.info('lamina timing', mode.name, {...plan.timing, 'round trip beyond the build': +((t1-t0)/1000-j.took).toFixed(2), 'page drawing': (Date.now()-t1)/1000});
-  }catch(e){if(my===seq){status('error: '+inUnit(e.message),'err'); if(loading)modelFailed(loading,e.message)}}
+  }catch(e){if(my===seq){act('slice failed: '+e.message); status('error: '+inUnit(e.message),'err'); if(loading)modelFailed(loading,e.message)}}
   if(my===seq){$('#busy').hidden=true;busy=false}
 }
 // The model never arrived, so the 3D view still shows the one before it and the file box still names this one —
@@ -1102,7 +1119,7 @@ function renderSheets(svgs){
     const p=e.target.closest('path[data-label]');if(!p)return;const lab=pieceToSlice()[p.dataset.label],m=parts.children.find(c=>c.userData.slice===lab);if(m)highlight(m)};
   if(selected)hlSheet(selected);
 }
-function applyFix(set){for(const [k,v] of Object.entries(set)){if(v&&typeof v==='object'&&!Array.isArray(v))state[k]={...(state[k]||{}),...v};else if(Array.isArray(v)&&['skip','extra_x','extra_y'].includes(k))state[k]=[...new Set([...(state[k]||[]),...v])];else state[k]=v}renderFields();slice()}
+function applyFix(set){act('clicked a fix');for(const [k,v] of Object.entries(set)){if(v&&typeof v==='object'&&!Array.isArray(v))state[k]={...(state[k]||{}),...v};else if(Array.isArray(v)&&['skip','extra_x','extra_y'].includes(k))state[k]=[...new Set([...(state[k]||[]),...v])];else state[k]=v}renderFields();slice()}
 // what the printed prototype parts come out at — and the re-plan the server does when that is under the printer's minimum
 function protoHint(){if(!plan)return;const size=lenMM('#pr_size'),s=size>0?size/Math.max(...plan.bbox):(+$('#pr_scale').value||1),mn=lenMM('#pr_min',1.2);
   const thin=Math.min(...plan.slices.map(x=>x.thickness)),printed=thin*s,h=$('#pr_hint');
@@ -1201,7 +1218,15 @@ async function projectObj(withModel=true){
   // the uploaded model travels inside the project file — when the server still has it. A job swept by the TTL, a
   // restarted server or a slice still in flight answers with nothing, and a project file without its model is far
   // better than a save that dies half way: whoever opens it is told which model to bring.
-  if(withModel&&job&&!job.startsWith('ex_')){
+  // The model's own bytes are read here, not asked of the slicer: in the browser version one worker does all the
+  // Python, so a slice that hangs held the report's request behind it and "gathering the report…" never ended
+  // (reported) — and a hang is exactly when a report is written. A model still on its way in (its first slice not
+  // back yet) is `pendingFile`; one already sliced is `srcFile`. Neither (a job left from before a reload): ask.
+  const f=pendingFile||(job&&!job.startsWith('ex_')?srcFile:null);
+  if(withModel&&f){
+    const u8=new Uint8Array(await f.arrayBuffer());let bin='';for(let i=0;i<u8.length;i+=0x8000)bin+=String.fromCharCode(...u8.subarray(i,i+0x8000));
+    proj.model={name:f.name,b64:btoa(bin)};
+  }else if(withModel&&job&&!job.startsWith('ex_')){
     const r=await fetch(`api/job/${CLIENT}/${job}/source`), src=r.ok?await r.json():null;
     if(src?.b64)proj.model={name:src.name,b64:src.b64}; else proj.missing_model=modelName();
   }
@@ -1216,11 +1241,11 @@ const projName=proj=>`${proj.name||proj.model?.name||proj.example||'model'}_v${p
 async function openProject(f){
   const s=JSON.parse(await f.text()); Object.assign(memo,s.memo||{}); setMode(s.mode||'interlocked',false); Object.assign(state,s.state||{}); unit=s.unit||state.units||'mm';
   state.project=s.name||state.project||''; state.rev=s.rev||state.rev||'1.0'; syncProject();
-  job=null; pendingFile=null; fitted=false; deselect();
+  job=null; pendingFile=null; srcFile=null; fitted=false; deselect(); $('#file').value='';   // as an example does: the upload box lets go
   if(s.model?.b64){const bin=atob(s.model.b64),u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);pendingFile=new File([u8],s.model.name)}
   else if(s.example)$('#example').value=s.example;
   else if(s.missing_model)status(`this project was saved without its model — the settings are here, upload ${s.missing_model} again`,'err');
-  applyUnit(); slice();
+  fresh='opened project '+f.name; applyUnit(); slice();
 }
 function syncProject(){$('#pname').value=state.project||'';$('#prev').textContent=state.rev||'1.0'}
 function bump(major){const [a,b]=(state.rev||'1.0').split('.').map(Number);state.rev=major?`${a+1}.0`:`${a}.${(b||0)+1}`;syncProject();schedule()}
@@ -1287,7 +1312,7 @@ async function init(){
   // labels — axis lines, curve points, dowels, per-slice edits — so they are cleared from the form *and* from the
   // per-technique memory. Without the second half, opening a model that slices stacked and then switching to radial
   // restored the fan of axes placed on some earlier model, instead of the single centred axis radial starts from.
-  const newModel=()=>{job=null;fitted=false;deselect();
+  const newModel=()=>{job=null;srcFile=null;fitted=false;deselect();
     for(const m of Object.values(memo))for(const k of MODEL_BOUND)delete m[k];
     for(const p of allParams())if(MODEL_BOUND.includes(p.name))state[p.name]=structuredClone(p.default);
     for(const k of MODEL_BOUND)if(!allParams().some(p=>p.name===k))delete state[k];   // another technique's: gone entirely
@@ -1298,12 +1323,13 @@ async function init(){
   // clean — the model preparation is reset first so nothing carries over from the previous shape
   const applyPreset=()=>{const pr=PRESETS[$('#example').value];if(!pr)return;
     setMode(pr.mode,false);Object.assign(state,{rotate:[0,0,0],size:[0,0,0],scale:1,round:0,thicken:0,shrinkwrap:0,smooth:0,hollow:0,space:0},structuredClone(pr.params));renderFields()};
-  $('#example').onchange=()=>{pendingFile=null;newModel();applyPreset();countUse('model','example');slice()};
+  // the file box lets go of the upload too: left holding it, choosing that same file again fires no change and loads nothing
+  $('#example').onchange=()=>{pendingFile=null;$('#file').value='';newModel();applyPreset();countUse('model','example');fresh='loaded example '+$('#example').value;slice()};
   // A big mesh in the browser build is slow but not refused — the ceiling is this tab's memory, and it is the
   // reporter's machine that knows better than a fixed number. So: say what it will cost, then do as they say.
   const BIG=50e6;   // ~1 M triangles: the point where a slice in Pyodide goes from a wait to a very long wait
   $('#file').onchange=e=>{const f=e.target.files[0]||null; pendingFile=f; newModel(); if(!f)return;
-    const go=()=>{countUse('model','upload');slice()};
+    const go=()=>{countUse('model','upload');fresh=`uploaded ${f.name} (${(f.size/1e6).toFixed(1)} MB)`;slice()};
     if(document.documentElement.dataset.static&&f.size>BIG)
       popup(`${f.name} is ${(f.size/1e6).toFixed(0)} MB`,'',
         `<p>This published version slices inside your browser tab, and a model this size can take many minutes there — or run the tab out of memory.</p>
@@ -1317,7 +1343,7 @@ async function init(){
     if(sess.example)$('#example').value=sess.example; job=sess.alive?sess.job:null;
     if(!sess.alive&&sess.job)status('the uploaded model of the last session is gone — upload it again or pick an example','err')}
   else{setMode(location.hash.slice(1)||'interlocked',false);applyMachine(matOf(state.material).machine);applyPreset()}   // a fresh start gets the machine's compensation and the example's preset (the #technique in the URL is the app's own mirror of its state, not a request)
-  applyUnit(); slice();
+  fresh=sess.mode?'page reloaded, last session resumed':'page opened on example '+$('#example').value; applyUnit(); slice();
 }
 init();
 
@@ -1342,12 +1368,17 @@ if(COUNT_URL){
 }
 
 // ---------------------------------------------------------------- bug reports (static/feedback.js draws the dialog)
-// What a report carries from here: the checks in words — small enough to read in an issue — and the project file,
-// which is the whole data model and reopens the job exactly as it was. The model is inside it only while the
-// reporter leaves the box ticked; everything else is the same either way.
+// What a report carries from here: the checks and the last steps in words — small enough to read in an issue — and
+// the project file, which is the whole data model and reopens the job exactly as it was, plus every step since the
+// model loaded (`trail`). The model is inside it only while the reporter leaves the box ticked.
 const TECHNIQUE={stacked:'Stacked slices',interlocked:'Interlocked slices',radial:'Radial slices',curve:'Curve (ribs)',folded:'Folded panels'};
-function reportSummary(){
-  if(!plan)return 'nothing sliced yet';
+function reportSummary(version){
+  const where=`lamina         ${version}, ${document.documentElement.dataset.static?'in the browser (Pyodide)':'against a local server'}`;
+  // a hang is reported while it hangs: the result below is then the slice before it, not this one
+  const now=busy?[`now            still slicing after ${Math.round((Date.now()-busySince)/1000)} s: ${$('#busy_txt').textContent}`]:[];
+  const steps=['',`steps since the model loaded${trail.length>15?` (last 15 of ${trail.length}, all in the attached file)`:''}`,
+    ...trail.slice(-15).map(([t,s])=>`${t} s  ${s}`)];
+  if(!plan)return [where,...now,'nothing sliced yet',...steps].join('\n');
   const p=plan.params, c=plan.counts, n=v=>+(+v).toPrecision(4);
   const msgs=[...plan.notes.map(x=>'note: '+x),...plan.errors.map(x=>'error: '+x),
     ...plan.dropped.flatMap(s=>s.errors.map(e=>`error ${s.label}: ${e}`)),
@@ -1357,14 +1388,15 @@ function reportSummary(){
     `result         ${c.slices} slices, ${c.parts} parts, ${plan.sheets} sheet(s) at ${n(plan.sheet_usage*100)}% used, ${c.errors} errors, ${c.warnings} warnings`,
     `material       ${state.material} ${p.thickness} mm (${dens()} g/cm³) on ${state.machine}, kerf ${p.kerf}, slot offset ${p.slot_offset}, relief ${p.relief}`,   // material and machine are the form's own, not the planner's
     `sheet          ${plan.sheet.map(n).join(' × ')} mm, units ${p.units}`,
-    `timing (s)     ${Object.entries(plan.timing).map(([k,v])=>`${k}=${v}`).join(', ')}`,
-    `running        ${document.documentElement.dataset.static?'in the browser (Pyodide)':'against a local server'}`,
+    where, ...now, ...steps,
+    '', `timing (s)     ${Object.entries(plan.timing).map(([k,v])=>`${k}=${v}`).join(', ')}`,
     '', ...(msgs.length?msgs.slice(0,60):['the checks reported nothing'])].join('\n');
 }
 window.laminaFeedback?.({bug:async withModel=>{
-  const proj=await projectObj(withModel);
+  const proj={...await projectObj(withModel),trail};   // the report's copy only: a saved project has no trail
+  const version=await news().then(v=>v[0]?.v,()=>'unknown');
   const gone=proj.missing_model?`\n(the model could not be attached: ${proj.missing_model} is no longer on the server)`:'';
-  return {technique:TECHNIQUE[plan?.mode]||'Not technique-specific (import, export, UI, install)', summary:reportSummary()+gone,
+  return {technique:TECHNIQUE[plan?.mode]||'Not technique-specific (import, export, UI, install)', summary:reportSummary(version)+gone,
           file:new File([JSON.stringify(proj)],projName(proj),{type:'application/json'})};
  },
  // a machine to ship: what MACHINES holds for one — the compensation as it stands, and its bed when it has exactly one
