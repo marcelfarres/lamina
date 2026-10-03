@@ -141,6 +141,11 @@ and the browser version's one intermittent failure.
   ends of the wavy torus, was one part: its pieces were nested as one group with the empty space between them, and
   only one carried a label. Each piece is now a part of its own, labelled `Z-1-1`, `Z-1-2` …, and nested on its own:
   the wavy torus goes from 14 sheets to 8.
+- **Aligned tab spacers hold every layer.** With tab connectors and aligned placement, every second pair of layers
+  could end up with no spacer at all: the automatic fixes then removed the pieces nothing held, and spacers that did
+  fit could cut into each other ("two slots / holes overlap"). Each spacer is now placed where its slot really fits
+  both layers, with a full wall from every other cut, and a piece the regular points miss gets spacers of its own.
+  On ten example shapes the errors went from 319 to 6, all at the tip of a cone too small for a 6 mm connector.
 
 Verified by 604 tests, plus 25 driving the app in a real browser and one slicing the published build end to end.
 
