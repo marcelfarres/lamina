@@ -237,10 +237,13 @@ S.square = async () => {      // a cube left 8° off square cuts every straight 
     await params({ axis: "z", connect: "dowel", placement: "aligned", rotate: [8, 0, 0] });
     console.log("  square: tilted", await verdict(), await js("JSON.stringify(window.__t.plan().square)"));
     await view(-55, 16, 1.0);
+    // the Model tab's rotate rings would hide the stepped edges the clip is about; every slice draws them anew
+    const noRings = () => js("window.__t.axes().filter(o => o.geometry?.type === 'TorusGeometry').forEach(o => o.visible = false)");
     const d = await js("window.__t.camera.position.length()"); let az = -55;
+    await noRings();
     await clip("square", 56, async i => {
         await cam(az += 0.8, 16, d);
-        if (i === 24) { await js("document.querySelector('#square button').click()"); await settle(); }
+        if (i === 24) { await js("document.querySelector('#square button').click()"); await settle(); await noRings(); }
         else await sleep(60);
     });
     await project("square");
