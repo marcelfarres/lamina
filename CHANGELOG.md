@@ -4,12 +4,71 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ## 0.2.2
 
+What your model weighs, eleven more materials (PLA and PETG among them, to 3D-print the parts at full size), the
+model's name on every part, a button that squares up a tilted model, a desktop version that keeps itself up to date,
+and fixes for stacks that came out short, layers whose pieces were nested as one, folded holes too near the edge,
+and the browser version's one intermittent failure.
+
+### Weight
+
+- **The Export tab weighs the job.** The parts as cut (holes and slots taken out, each at its own thickness), the
+  whole sheets you buy and lift onto the machine, and the dowels, with a total for the assembled model. A job that
+  mixes thicknesses gets a line per stock. It follows the units switch: grams and kilograms, or ounces and pounds.
+- **Every material has a density** you can correct on the Sheet & fit tab. The figures are typical ones, checked
+  against suppliers and wood and material references; weigh an offcut of your own stock for an exact number.
+- **Materials of your own**: + beside the material keeps the one in use under a name, with its thickness and
+  density, and − deletes it.
+
 ### Model
 
 - **Square it up.** A boxy model that sits a few degrees off its axes (a rotate slider left at 85 instead of 90, a
   CAD export that came out tilted) cuts every straight edge as a staircase. The Model tab now says how far off it
   is, "sits 5° off square", with a **square it up** button right under the rotate controls. Nothing turns by
   itself: leave it if the tilt is on purpose.
+
+### Materials
+
+- **Nine new ones to cut**: stainless steel, brass, copper, greyboard, polypropylene, foam board, EVA foam, basswood
+  and balsa, each with the thicknesses it is sold in, the sheet sizes, a 3D look and only the machines that can cut it.
+- **Stainless has its own gauge table.** 14 ga stainless is 1.984 mm where carbon steel's is 1.897 mm, so picking
+  "steel" for it cut every slot too tight. Copper is listed by ounces per square foot and chipboard by points, the
+  way they are sold.
+- **Foam board is cut by hand only**, because its polystyrene core melts and can catch fire under a laser.
+- **PLA and PETG, to 3D-print the parts at full size.** Their thicknesses are whole layers (0.8 to 6 mm), their
+  "sheets" are print beds so the parts nest plate by plate, and a 3D printer machine gives every slot 0.2 mm of
+  clearance. Six printers are listed by name with their beds: Bambu Lab H2C, X1 / P1 / A1 and A1 mini, Prusa MK4S
+  and CORE One, Creality Ender-3 V3. Picking PLA or PETG sets the Export tab's print set to full size.
+
+### Labels and cut files
+
+- **Every part carries the model's name**: `bunny Z-3`, so parts of two models cut together are never mixed up,
+  even though both have a Z-3. It is the project's name when you have given one, otherwise the model's file name.
+  The room for it is kept when the parts are nested; **label model** on the Sheet & fit tab turns it off.
+- **The cut list gives each part's size**, width × height as it lies in its file, in your units.
+- **A material of several words is one word** in a file name: `Z-1 stainless-steel x4.svg`. The spaces always
+  separate part, material, thickness and quantity.
+
+### 3D view
+
+- **The controls under the view are one short line.** It shows orbit, zoom and pan; **all controls** opens the rest,
+  grouped by view, model, alt-click, curve and radial. The handles on a selected part are explained in its own
+  panel, so they are no longer repeated there.
+
+### On your computer
+
+- **Updates come by themselves.** The double-click starter installs the newest release each time it starts, and
+  starts the one you have when there is no internet. A starter downloaded before this version never updates:
+  download the ZIP once more and use the new one; your jobs stay in the old folder's `working-files`.
+- **From a terminal it is one install:** `uv tool install lamina3d`, then `lamina3d` opens it, and
+  `uv tool upgrade lamina3d` updates it.
+
+### Docker
+
+- **The Docker image runs on Debian 13** with uv 0.12.22. The Debian 12 base it was built on is no longer updated.
+  Nothing changes in how you run it, and it slices the bunny exactly as the desktop version does.
+- **Dependencies are kept up to date.** The Python packages, the Docker base image and the GitHub Actions are
+  checked every week, a new release is only taken once it is a week old, and every image is built before an update
+  can be merged.
 
 ### Gallery
 
@@ -18,8 +77,18 @@ What changed in each release. The GitHub release for a version is this section, 
   needed) or a GitHub issue form you drag the photos into. With your OK it goes up, credited the way you ask. Or
   post it on Instagram or X with **#applamina**.
 
+### Usage counting
+
+- **The box at the foot of the published app's Model tab now starts ticked.** While it is ticked it sends the
+  technique you pick, whether the model came from the examples or your computer, and which formats you export:
+  never the model, a file name, your measurements, an account or a cookie. Untick it and it stays off on that
+  browser. The copy you run yourself or in Docker has no counting at all.
+
 ### Fixed
 
+- **The browser version no longer fails now and then while nesting** with `GEOSException … NaN/Inf`. The bunny
+  example hit it about one time in three. It came from the geometry library the browser version runs, and nesting
+  now avoids the function that caused it.
 - **Stacked slices run the full height of the model.** A layer's thickness was always left off each end, and the
   stack was built up from the bottom, so a 100 mm cube in 4 mm card came out 23 layers tall with the missing 8 mm
   all at the top. It is 25 layers now, centred.
@@ -38,6 +107,42 @@ What changed in each release. The GitHub release for a version is this section, 
   minimum wall from the edge, so the checks warned "a hole sits closer than 2 mm to the outline", and the one-click
   fix changed the dowel size, which folded panels do not use. The holes keep the full wall now, strip ends are
   long enough for their end holes, and the fix, when it is needed, changes the hole size.
+- **Your own model starts from its own shape.** Uploading after an example (the horse, which the page opens on)
+  kept that example's size, rounding and thickening, so Julia's square 100 mm cube came out 308 mm across with
+  14 mm round corners and its 15 mm hole closed to 3.5 mm. An upload now starts with every Model setting at zero.
+  The note after a remesh gives the voxel size and how much rounding and narrowing to expect, and the help for
+  shrinkwrap, hollow, thicken and round now says that all four at 0 keep the model exactly as drawn. A model under
+  5 mm across (Blender saves STL in metres, so a 100 mm cube arrives as 0.1 mm) gets a note asking for its real size.
+- **Stacked slices no longer stop at "placing slices and slots"** on a model with flat walls. Each layer's outline
+  carried stray points along its straight edges, a different set on every layer, and lining up the dowels through
+  the whole stack piled them all up: a 300 mm cube with a hole reached nearly 400,000 points by its 15th layer and
+  never finished. Its 100 layers now take about 18 s from start to cut sheets. Thanks to Colin for the report and
+  the project file.
+- **A tall slanted part is measured at its real size.** A 120 × 660 mm part with slots along a slanted side could
+  read as 0 mm wide, so it was reported "too thin" and taken away instead of being split to fit the sheet.
+- **Report a problem works while the page is stuck.** In the browser version, "gathering the report…" waited for
+  a slice that would never finish, so the report could only be sent after reloading, which lost what it was
+  about. It now has the model straight away.
+- **Picking the same file again loads it.** After switching to an example, choosing the file you had uploaded
+  before did nothing: the upload box still held it, so the browser saw no change and the page stayed on the example.
+  Picking an example or opening a project now clears the box.
+- **The local and Docker versions no longer finish slices nobody is waiting for.** Every change sends a new slice
+  and the page shows only the newest, but the server used to compute every earlier one to the end as well, side by
+  side, so dragging a slider through a few values made each slice several times slower. A newer slice now stops the
+  older ones.
+- **A problem report says how you got there.** Besides the settings and the checks, it now carries the Lamina
+  version, every step since you loaded the model (each setting changed, undo, fix clicked, slice and error, with its
+  time), and, if a slice is still running, how long and at which step. **See what is sent** in the report dialog
+  shows all of it before you send. Saving a project is unchanged: it holds the design, not the steps.
+- **A dowel in the 3D view has the shape of its hole.** Square, hexagonal, cross and slot dowels were all drawn as
+  round rods, so changing the dowel shape seemed to change nothing; the weight of the dowels now uses their real
+  section too.
+- **Every piece of a layer is its own part.** A layer that falls apart into separate shapes, like the lobes at the
+  ends of the wavy torus, was one part: its pieces were nested as one group with the empty space between them, and
+  only one carried a label. Each piece is now a part of its own, labelled `Z-1-1`, `Z-1-2` …, and nested on its own:
+  the wavy torus goes from 14 sheets to 8.
+
+Verified by 604 tests, plus 25 driving the app in a real browser and one slicing the published build end to end.
 
 ## 0.2.1
 
