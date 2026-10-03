@@ -323,7 +323,7 @@ class Stacked(Mode):
                     q += [shapely.maximum_inscribed_circle(g, 0.1).coords[0] for g in parts]   # each room's middle first
                     q += [tuple(c) for c in grid[shapely.contains_xy(room, grid[:, 0], grid[:, 1])]]
                 def far(q, ms):                                        # farthest from the connectors in ms first
-                    q.sort(key=lambda c: -min(np.hypot(c[0] - m[0], c[1] - m[1]) for m in ms))
+                    q.sort(key=lambda pt: -min(np.hypot(pt[0] - m[0], pt[1] - m[1]) for m in ms))
                 if have:
                     far(q, have)                                       # a second connector goes far from the first
                 mine = []
