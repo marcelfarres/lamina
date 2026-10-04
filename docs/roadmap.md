@@ -47,6 +47,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Folded: Add / Remove seams by clicking an edge | ⬜ | seams are chosen automatically (flattest-edge unfolding); `max_faces` limits panel size |
 | Folded: 10 joint types | ✅ | seam, tab, multitab, diamond, ticked, gear, tongue, puzzle, rivet, laced (+ loops, strip, rib) |
 | Folded: score vs cut, yellow fold lines | ✅ | SCORE layer: solid mountain, dashed valley, dotted perforate |
+| Folded: the material folds (extra) | ✅ | fold lines, and tabs or strips bending over a seam, in a sheet thicker than its material folds at are an error; one click cuts every face alone, joined by ribs |
 | 3D Slices | ✅ | stacked with `surface=outer` (outline follows the surface through the slice) + pegs |
 | Assembly Steps: play / scrub | ✅ | `steps` slider in the 3D view; `explode` slider |
 | Assembly Steps: material look (cardboard, plywood, plastic) | ✅ | `look` select in the 3D view: by family, cardboard, paper, plywood, steel, brass, copper, plastic, foam |
@@ -67,6 +68,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Live update, dark UI, tooltips, tabs | ✅ | |
 | Material / machine / stock-sheet presets | ✅ | 21 materials: thickness by gauge (steel's and stainless's own tables), ounce, point or fraction with mm and inch, sheet sizes per material, a density for the weight, and only the machines that can cut it; kerf / slot / relief per machine (CO2 laser, fiber laser, plasma, router, knife, by hand, 3D printer, and machines by name). PLA and PETG print the parts at full size: whole-layer thicknesses, print beds as sheets, 0.2 mm slot clearance |
 | Weight | ✅ | Export tab: the parts as cut (net of holes and slots, each at its own thickness, a line per stock), the sheets, the dowels and the assembled total, in g/kg or oz/lb |
+| 3D-printed parts at full size (extra) | ✅ | PLA / PETG tick **3D printed**: sheets are print beds, the page counts plates, the Export tab gives one 3MF per plate with the print's own slot offset |
 | One-sheet strip | ✅ | `one_sheet`: everything on one sheet as wide as the stock and as long as it needs |
 | View cube | ✅ | click a face of the cube in the 3D view for a flat view |
 | Session kept by the server | ✅ | refresh, a new tab or another browser resumes the last slice |

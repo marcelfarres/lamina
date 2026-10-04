@@ -113,16 +113,16 @@ class Stacked(Mode):
 
         # as many as fit, down to two: three that do not fit a small layer used to fall straight to one point, which
         # the carried rods then crowded (the horse's legs came out worse held for asking more dowels)
-        for n in range(n, 1, -1):
+        for many in range(n, 1, -1):
             sets = []
             for span, along_x in sorted([(w, True), (h, False)], reverse=True):
                 for k in (0.45, 0.38, 0.3, 0.22, 0.15):
-                    pts = [(cx + span * t, cy) if along_x else (cx, cy + span * t) for t in np.linspace(-k, k, n)]
+                    pts = [(cx + span * t, cy) if along_x else (cx, cy + span * t) for t in np.linspace(-k, k, many)]
                     if ok(pts):
                         sets.append(pts); break
             c = region.centroid
-            for start in np.arange(4) / (4 * n):          # ponytail: 4 starting angles; a finer search if one misses
-                edge = np.array([region.exterior.interpolate(start + i / n, normalized=True).coords[0] for i in range(n)])
+            for start in np.arange(4) / (4 * many):       # ponytail: 4 starting angles; a finer search if one misses
+                edge = np.array([region.exterior.interpolate(start + i / many, normalized=True).coords[0] for i in range(many)])
                 for k in (0.9, 0.75, 0.6, 0.45):
                     pts = [(float(x), float(y)) for x, y in (c.x, c.y) + k * (edge - (c.x, c.y))]
                     if ok(pts):
@@ -190,11 +190,11 @@ class Stacked(Mode):
                 # held is the piece's hold, not the overlap's: an ear's overlap is a sliver of the ear, and two dowels
                 # holding the sliver dropped the third rod the ear itself needed (1.37 where the check promised 0.9)
                 piece = max(as_multi(a.raw).geoms, key=lambda g: g.intersection(isl).area)
-                lev = lambda pts: dowel_leverage(piece, pts)                                    # noqa: E731
+                lev = lambda pts, piece=piece: dowel_leverage(piece, pts)                       # noqa: E731
                 # dowels someone placed come on top of the n_points asked for: counted in, one typed into a horse's
                 # ear stood in for one of its two and the ear came out held 1.56 where the check promised 1.2
                 need = want + sum(isl.contains(Point(q)) for q in p["dowels"])
-                held = lambda pts: len(pts) >= need and lev(pts) <= LEVERAGE_OK                 # noqa: E731
+                held = lambda pts, need=need, lev=lev: len(pts) >= need and lev(pts) <= LEVERAGE_OK   # noqa: E731
                 mine = [q for q in fixed if isl.contains(Point(q))]
                 # One point is a hinge: a piece pinned once still turns about it, which is exactly what a glued stack
                 # does while it dries. Two locate it. An island the common points miss (an ear) gets its own, and one
@@ -360,8 +360,8 @@ class Stacked(Mode):
                 # held and the next spot holds it better (at most as many again): a dowel typed into a bunny's ear
                 # made the count, and the ear's tip lost the dowel the count used to bring it — 1.37 for 0.9 promised.
                 piece = max(as_multi(a.raw).geoms, key=lambda g: g.intersection(isl).area)
-                on = lambda: [(x, y) for x, y, _ in a._cutkeys if piece.contains(Point(x, y))]   # noqa: E731
-                loose = lambda: not tab and dowel_leverage(piece, on()) > LEVERAGE_OK            # noqa: E731
+                on = lambda a=a, piece=piece: [(x, y) for x, y, _ in a._cutkeys if piece.contains(Point(x, y))]   # noqa: E731
+                loose = lambda piece=piece, on=on: not tab and dowel_leverage(piece, on()) > LEVERAGE_OK          # noqa: E731
                 need = want + (sum(isl.contains(Point(q)) for q in p["dowels"]) if p["placement"] == "aligned" else 0)
                 if len(have) >= need and not loose():
                     continue

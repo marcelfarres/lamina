@@ -2,7 +2,50 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
-## Unreleased
+## 0.2.2
+
+What your model weighs, eleven more materials, PLA and PETG printed plate by plate at full size, a check that the
+material folds before a folded job is cut, curve ribs that branch down each leg, dowels that hold a big layer from
+near its edge, the model's name on every part, a button that squares up a tilted model, radial lobes side by side or
+at right angles, a desktop version that keeps itself up to date, an auto-fix that never deletes a piece of your model,
+and fixes for stacks that came out short, parts off their sheet, layers whose pieces were nested as one, folded holes
+too near the edge, and the browser version's one intermittent failure.
+
+### Printing
+
+- **A printed job is plates, not sheets.** Picking PLA or PETG ticks **3D printed** on the Sheet & fit tab: the sheet
+  size is the printer's bed, the page counts plates, and the Export tab offers the print plates (one 3MF per bed,
+  at full size, with the job's own slot offset) instead of cut files nothing would cut. Untick it to get the cut
+  files anyway.
+
+### Checks
+
+- **Folded panels check that the material folds.** Fold lines, and tabs that fold over a seam, in 3 mm plywood (or
+  MDF, acrylic, balsa, foam board, printed PLA or PETG, or card and metal past the thickness they fold at) are an
+  error now: the sheet would crack along the score. One click cuts every face as its own panel, joined by ribs that
+  need no fold, at a facet size that keeps the part count workable. A material of your own is checked as the one
+  it was made from.
+
+### Weight
+
+- **The Export tab weighs the job.** The parts as cut (holes and slots taken out, each at its own thickness), the
+  whole sheets you buy and lift onto the machine, and the dowels, with a total for the assembled model. A job that
+  mixes thicknesses gets a line per stock. It follows the units switch: grams and kilograms, or ounces and pounds.
+- **Every material has a density** you can correct on the Sheet & fit tab. The figures are typical ones, checked
+  against suppliers and wood and material references; weigh an offcut of your own stock for an exact number.
+- **Materials of your own**: + beside the material keeps the one in use under a name, with its thickness and
+  density, and − deletes it.
+
+### Model
+
+- **Square it up.** A boxy model that sits a few degrees off its axes (a rotate slider left at 85 instead of 90, a
+  CAD export that came out tilted) cuts every straight edge as a staircase. The Model tab now says how far off it
+  is, "sits 5° off square", with a **square it up** button right under the rotate controls. Nothing turns by
+  itself: leave it if the tilt is on purpose.
+- **Radial lobes side by side or at right angles.** Three balls on a neck, an axis through each, used to cut the
+  spine into loose pieces, because a middle lobe's rings reached it through a neighbour's cap; their rings now go
+  down the neck, and only a lobe no ring can join says so. Two axes at right angles work when they share a plane:
+  the dumbbell now opens that way, across the lower ball and up the upper one.
 
 ### Curve
 
@@ -21,38 +64,8 @@ What changed in each release. The GitHub release for a version is this section, 
 - **A new horse for stacked slices**: `horse_statue`, a porcelain horse rearing on a round base (CC0, from Poly
   Haven). It opens as side profiles across its width with a 4 mm gap on 2 mm square dowels: 39 parts, no errors,
   no warnings. Layered up its height, the body over its slanted hind legs would rest on nothing.
-
-## 0.2.2
-
-What your model weighs, eleven more materials (PLA and PETG among them, to 3D-print the parts at full size), the
-model's name on every part, a button that squares up a tilted model, dowels that hold a big layer from near its
-edge, a desktop version that keeps itself up to date,
-an auto-fix that never deletes a piece of your model, and fixes for stacks that came out short, layers whose pieces were nested as one, folded holes too near the edge,
-and the browser version's one intermittent failure.
-
-### Printing
-
-- **A printed job is plates, not sheets.** Picking PLA or PETG ticks **3D printed** on the Sheet & fit tab: the sheet
-  size is the printer's bed, the page counts plates, and the Export tab offers the print plates (one 3MF per bed,
-  at full size, with the job's own slot offset) instead of cut files nothing would cut. Untick it to get the cut
-  files anyway.
-
-### Weight
-
-- **The Export tab weighs the job.** The parts as cut (holes and slots taken out, each at its own thickness), the
-  whole sheets you buy and lift onto the machine, and the dowels, with a total for the assembled model. A job that
-  mixes thicknesses gets a line per stock. It follows the units switch: grams and kilograms, or ounces and pounds.
-- **Every material has a density** you can correct on the Sheet & fit tab. The figures are typical ones, checked
-  against suppliers and wood and material references; weigh an offcut of your own stock for an exact number.
-- **Materials of your own**: + beside the material keeps the one in use under a name, with its thickness and
-  density, and − deletes it.
-
-### Model
-
-- **Square it up.** A boxy model that sits a few degrees off its axes (a rotate slider left at 85 instead of 90, a
-  CAD export that came out tilted) cuts every straight edge as a staircase. The Model tab now says how far off it
-  is, "sits 5° off square", with a **square it up** button right under the rotate controls. Nothing turns by
-  itself: leave it if the tilt is on purpose.
+- **A new example, the wavy torus:** a ring rising and falling in three waves with a channel along it for an LED
+  tube, stacked in PETG for a 3D printer. The page now opens on the blob.
 
 ### Technique
 
@@ -105,7 +118,7 @@ and the browser version's one intermittent failure.
 
 ### Docker
 
-- **The Docker image runs on Debian 13** with uv 0.12.22. The Debian 12 base it was built on is no longer updated.
+- **The Docker image runs on Debian 13** with uv 0.12.23. The Debian 12 base it was built on is no longer updated.
   Nothing changes in how you run it, and it slices the bunny exactly as the desktop version does.
 - **Dependencies are kept up to date.** The Python packages, the Docker base image and the GitHub Actions are
   checked every week, a new release is only taken once it is a week old, and every image is built before an update
@@ -162,7 +175,7 @@ and the browser version's one intermittent failure.
   minimum wall from the edge, so the checks warned "a hole sits closer than 2 mm to the outline", and the one-click
   fix changed the dowel size, which folded panels do not use. The holes keep the full wall now, strip ends are
   long enough for their end holes, and the fix, when it is needed, changes the hole size.
-- **Your own model starts from its own shape.** Uploading after an example (the horse, which the page opens on)
+- **Your own model starts from its own shape.** Uploading after an example (the horse, which the page opened on)
   kept that example's size, rounding and thickening, so Julia's square 100 mm cube came out 308 mm across with
   14 mm round corners and its 15 mm hole closed to 3.5 mm. An upload now starts with every Model setting at zero.
   The note after a remesh gives the voxel size and how much rounding and narrowing to expect, and the help for
@@ -206,7 +219,7 @@ and the browser version's one intermittent failure.
   run a millimetre or two into the sheet margin, and now and then two parts were nested on top of each other. Every
   part is placed inside the margin and clear of the others now.
 
-Verified by 612 tests, plus 25 driving the app in a real browser and one slicing the published build end to end.
+Verified by 632 tests, plus 27 driving the app in a real browser and one slicing the published build end to end.
 
 ## 0.2.1
 

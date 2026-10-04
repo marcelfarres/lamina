@@ -621,7 +621,7 @@ async function slice(){
   record();                                        // one undo step per change that gets this far
   if(fresh){trail=[];trailT0=Date.now();act(fresh);fresh=''}   // after record(): a new model's own settings are not steps
   const my=++seq, fd=new FormData(), loading=pendingFile;
-  fd.append('client',CLIENT); fd.append('mode',mode.name); fd.append('params',JSON.stringify(state)); fd.append('memo',JSON.stringify(memo));   // the server keeps this as the tab's session
+  fd.append('client',CLIENT); fd.append('mode',mode.name); fd.append('params',JSON.stringify({...state,material_kind:kind(state.material)})); fd.append('memo',JSON.stringify(memo));   // the server keeps this as the tab's session; a material of your own is checked as the one it was made from
   if(pendingFile)fd.append('model',pendingFile); else if(job)fd.append('job',job); else fd.append('example',$('#example').value);
   status('slicing…','busy'); $('#busy').hidden=false; $('#busy_txt').textContent='slicing…'; $('#busy_note').textContent=''; $('#busy .bar').className='bar';
   expectStages(); $('#busy_steps').innerHTML=''; ghostLive=false;   // this slice's own stages, counted from the settings it runs with
@@ -1247,7 +1247,7 @@ function renderReport(){
     const m=parts.children.find(c=>c.userData.slice===d.dataset.s); if(m){highlight(m);fitted=true}};
   renderDownloads();
   // the link itself does the download (a navigation on the server, a blob from the worker in the browser build)
-  const prq=()=>new URLSearchParams({scale:prScale(),size:0,labels:$('#pr_labels').value,font:lenMM('#pr_font',5),min_thick:lenMM('#pr_min',1.2),offset:state.printed?state.slot_offset:lenMM('#pr_offset',0.2)});
+  const prq=()=>new URLSearchParams({scale:state.printed?1:$('#pr_scale').value||1,size:state.printed?0:lenMM('#pr_size'),labels:$('#pr_labels').value,font:lenMM('#pr_font',5),min_thick:lenMM('#pr_min',1.2),offset:state.printed?state.slot_offset:lenMM('#pr_offset',0.2)});
   $('#pr_go').onclick=e=>{e.currentTarget.href=`api/job/${CLIENT}/${job}/proto?${prq()}`;countUse('export','proto-3mf')};
   $('#fit_go').onclick=e=>{const q=prq();q.set('step',lenMM('#pr_step',0.1));e.currentTarget.href=`api/job/${CLIENT}/${job}/fit?${q}`;countUse('export','fit-3mf')};
   // typing in a length box writes its mm back, so what the server is given never depends on the unit on show
@@ -1321,7 +1321,7 @@ async function init(){
       if(!shs().some(([,s])=>sameSheet(s,state.sheet)))state.sheet=[...shs()[0][1]];                                                       // a sheet it comes in
       $('#look').value=m.look;applyLook()
       // a printed material is the job itself, not a model of it: its sheets are plates of the bed, printed full size
-      state.printed=m.family==='print'}
+      state.printed=m.family==='print';if(state.printed){$('#pr_scale').value=1;$('#pr_size').value='';$('#pr_size').dataset.mm=''}}
     renderFields();schedule()};
   $('#machine').onchange=e=>{applyMachine(e.target.value);renderFields();schedule()};
   // a machine of your own: the compensation and sheet as they stand, cutting what the machine it was made from cuts

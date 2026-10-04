@@ -1,6 +1,6 @@
 // The Python side of browser.js: Pyodide + the same core/ and web/app.py the server runs, answering one request per
 // message through web/browser.py. Jobs live in IndexedDB so a refresh resumes the session, as on the server.
-const PYODIDE = 'https://cdn.jsdelivr.net/pyodide/v314.0.6/full/';
+const PYODIDE = 'https://cdn.jsdelivr.net/pyodide/v314.0.7/full/';
 const say = progress => postMessage({progress});
 const APP = '/app', EXAMPLES = APP + '/examples';
 
