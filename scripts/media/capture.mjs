@@ -174,22 +174,24 @@ S.lobes = async () => {       // the plane between two lobes is a part: select i
 };
 S.curve = async () => {       // the horse is long along y; the curve follows the back and climbs the neck to the head
     await example("horse"); await mode("curve"); await tab("technique");
-    // 20 ribs on one spine: centred on the body the spine passes between the legs; a second one would cross a leg
-    // and the body on one line, which no slot can assemble
-    await params({ plane: "yz", count: 20, spines: 1, round: 2 });
+    // One spine, centred on the body, passes between the legs; a second would cross a leg and the body on one line,
+    // which no slot can assemble. So only rib counts that never catch a leg on its own are shown: 6 (either head
+    // point), 8 and 12 ribs hold every piece. 20 ribs did look clean only because auto-fix used to delete the legs.
+    await params({ plane: "yz", count: 12, spines: 1, round: 2 });
     const CURVE = [[-85, 22], [-30, 32], [25, 30], [55, 55], [90, 74]];
-    await fix({ curve: CURVE }); await heal();
+    await fix({ curve: CURVE });
     await view(-70, 16, 0.9, 1.0); await project("curve");
-    await techClip("curve", -70, 16, 0.9, [["8 ribs", () => set("count", 8)], ["12 ribs", () => set("count", 12)], ["20 ribs", () => set("count", 20)],
-        ["head point down", () => fix({ curve: [...CURVE.slice(0, 4), [90, 55]] })], ["head point up", () => fix({ curve: CURVE })]]);
+    await techClip("curve", -70, 16, 0.9, [["6 ribs", () => set("count", 6)], ["head point down", () => fix({ curve: [...CURVE.slice(0, 4), [90, 55]] })],
+        ["head point up", () => fix({ curve: CURVE })], ["8 ribs", () => set("count", 8)], ["12 ribs", () => set("count", 12)]]);
 };
 S.folded = async () => {      // the cow mesh is y-up: rotate x 90° stands it up
     await example("cow"); await mode("folded"); await tab("technique");
     await params({ rotate: [90, 0, 0], joint: "tab", facet: 15, strategy: "area", thickness: 1 });
     await fix({ grow: { "P-1": 1, "P-6": 1 } }); await heal();
     await view(-60, 18, 0.85); await project("folded");
-    await techClip("folded", -60, 18, 0.9, [["laced", () => set("joint", "laced")], ["rib", () => set("joint", "rib")], ["tab", () => set("joint", "tab")],
-        ["facet 25", () => set("facet", 25)], ["facet 15", () => set("facet", 15)]]);
+    // the rib joint at 25 mm triangles: at 15 one seam is too short for a rib you can handle (auto-fix used to delete it)
+    await techClip("folded", -60, 18, 0.9, [["laced", () => set("joint", "laced")], ["facet 25", () => set("facet", 25)], ["rib", () => set("joint", "rib")],
+        ["tab", () => set("joint", "tab")], ["facet 15", () => set("facet", 15)]]);
 };
 S.rib = async () => {         // rib closeup: a pyramid keeps every face, so five long ribs at real fold angles, and nothing else in the frame
     await example("pyramid"); await mode("folded"); await tab("technique");

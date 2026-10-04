@@ -7,10 +7,11 @@ import argparse, json, math, pathlib, threading, time
 import numpy as np
 import trimesh
 from shapely import affinity
+from shapely.geometry import MultiPolygon
 from shapely.ops import unary_union
 from .modes import load_all, Ctx
 from .geometry import section_polygons, as_multi, poly_coords, line_coords
-from .checks import check_plan, min_dims, autofix, suggest_fixes, crossing_suggestions
+from .checks import STRUCTURAL, check_plan, min_dims, suggest_fixes, crossing_suggestions
 from .split import split_slice, fits_rotated, islands
 from .nest import nest, _min_rect_angle
 from .model import Piece, label_codes, label_tag
@@ -63,8 +64,9 @@ def timing() -> dict[str, float]:
 
 def coerce_params(mode, raw: dict) -> dict:
     p = {prm.name: prm.coerce(raw.get(prm.name)) for prm in mode.all_params()}
-    if p.get("autofix") not in ("add", "remove", "off"):            # older projects stored a boolean
-        p["autofix"] = "off" if str(p.get("autofix")).lower() in ("false", "0") else "add"
+    # older projects stored a boolean, or "remove" (auto-fix used to delete what nothing held): that is report-only now
+    if p.get("autofix") not in ("add", "off"):
+        p["autofix"] = "off" if str(p.get("autofix")).lower() in ("false", "0", "remove") else "add"
     if "cloth" in raw and "separate" not in raw:                    # older names
         p["separate"] = bool(raw["cloth"])
     if "simplify" in raw and "facet" not in raw and "facet" in p and raw["simplify"] in (0, "0"):
@@ -342,6 +344,25 @@ def mark_identical(pieces, mirror=False, tol=1e-3):
             groups.append((pc, g))
 
 
+def shed_slivers(raw, prof, cuts, mf, mp):
+    """What is not a piece of the model, though the geometry has it: a shaving a slot cuts off its own part, thinner
+    than min_feature everywhere — the slot's waste, which would snap off at the cutter — and a speck where the plane
+    only grazes the surface, thinner than min_feature everywhere and shorter than min_part every way (the bunny's
+    0.5 mm² toe edges). Those go; any region of the model past either size stays, held or flagged, never deleted.
+    Returns the profile and how many went."""
+    keep = []
+    for r in prof.geoms:
+        if r.buffer(-mf / 2).is_empty:
+            if min_dims(r)[1] < mp:
+                continue
+            if any(r.distance(c) < 1e-6 for c in cuts):
+                parent = max(raw.geoms, key=lambda q: q.intersection(r).area)
+                if not parent.buffer(-mf / 2).is_empty and parent.area > 2 * r.area:
+                    continue
+        keep.append(r)
+    return MultiPolygon(keep), len(prof.geoms) - len(keep)   # empty: the plane only grazes the model, there is no part
+
+
 def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     mode = MODES[mode_name]
     p = coerce_params(mode, raw_params)
@@ -367,9 +388,10 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         progress("placing slices and slots" + again, 0.2)
         ctx = Ctx(mesh, p)
         slices = mode.build(ctx)
-        kept = []
+        kept, shaved, grazed = [], 0, set()
         for i, sl in enumerate(slices):         # sections → profiles (modes may hand over a finished `raw` for synthetic parts)
             progress(f"sectioning{DETAIL}{i + 1} of {len(slices)}{again}", 0.35 + 0.35 * i / len(slices))
+            sectioned = sl.group in STRUCTURAL       # a plane through the model, not a part the technique draws (peg, panel, strip)
             if sl.raw is None:
                 raw = section_polygons(mesh, sl.M)
                 if sl.clip is not None:
@@ -382,12 +404,18 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
             if g:                                    # per-slice outline growth (fix for thin bridges)
                 sl.raw = as_multi(sl.raw.buffer(float(g), join_style=1))
             prof = as_multi(sl.raw.difference(unary_union(sl.cuts))) if sl.cuts else sl.raw
+            if sectioned and not prof.is_empty:
+                prof, n = shed_slivers(sl.raw, prof, sl.cuts, p["min_feature"], p["min_part"])
+                shaved += n
+                if prof.is_empty:                    # a speck and nothing else: not a part, not an error
+                    grazed.add(sl.label)
+                    continue
             if prof.is_empty:
                 sl.errors.append("slots/holes remove all material — dropped")
                 continue
             sl.profile = prof
             kept.append(sl)
-        dropped = [s for s in slices if s not in kept]
+        dropped = [s for s in slices if s not in kept and s.label not in grazed]
         slices = kept
         progress("checking the parts and the assembly" + again, 0.7)
         n_err, n_warn = check_plan(slices, p, mesh, ctx.span)
@@ -401,11 +429,9 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
                 p[k] = sorted(set(map(float, p[k])) | set(map(float, v))) if isinstance(v, list) else v
         notes.append(f"auto-fix: added crossing slices ({len(adds)}) so every region is held")
     _run.band = (0.0, 1.0)                          # the passes are over: the last stages own the rest of the bar
-    if p["autofix"] != "off" and n_err:
-        slices, fixed = autofix(slices, p)
-        if fixed:
-            notes += fixed
-            n_err, n_warn = check_plan(slices, p, mesh, ctx.span)
+    if shaved:
+        notes.append(f"{shaved} sliver(s) thinner than {p['min_feature']:g} mm everywhere left out: shavings a slot cuts off its own part, "
+                     f"and specks under {p['min_part']:g} mm where a slice only grazes the surface — too small to cut or handle")
     suggest_fixes(slices, p, ctx, mode)
     n_err += len(ctx.errors) + len(dropped)
 

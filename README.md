@@ -258,8 +258,11 @@ Common to all: model `rotate` (three angles) and slicing `center`, per-slice `of
 Besides per-part checks (too small, too thin, severed by slots, holes near the outline, overlapping cuts), every plan
 is checked as an **assembly**: each region of each slice must reach the main body through a slot, a connector or
 glued contact; a head held only by slices that never touch the body is reported as a separate group. `autofix=add`
-(the default) first adds crossing slices through regions nothing holds, up to two rounds, then removes what still
-cannot work, and lists everything it did. Every remaining error and most warnings carry one-click fixes: add a slice
+(the default) holds regions nothing holds the way the technique holds things — crossing slices placed where their own
+section reaches the rest of the assembly, rings, spines — up to two rounds, and lists everything it did. It never
+deletes a piece of the model: what still cannot be held stays on the plan with its error. (Left out, and said so: a
+shaving a slot cuts off its own part and a speck where a slice only grazes the surface, both thinner than the minimum
+wall everywhere — too small to cut or handle.) Every remaining error and most warnings carry one-click fixes: add a slice
 through the region, move it, delete the group, round the model, change the notch ratio, split the part.
 
 A coverage figure says how much of the model's surface the parts represent, so a leg or an ear that no slice reaches
