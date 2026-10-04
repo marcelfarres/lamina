@@ -219,7 +219,7 @@ too near the edge, and the browser version's one intermittent failure.
   run a millimetre or two into the sheet margin, and now and then two parts were nested on top of each other. Every
   part is placed inside the margin and clear of the others now.
 
-Verified by 612 tests, plus 25 driving the app in a real browser and one slicing the published build end to end.
+Verified by 632 tests, plus 27 driving the app in a real browser and one slicing the published build end to end.
 
 ## 0.2.1
 
