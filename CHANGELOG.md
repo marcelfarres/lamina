@@ -214,6 +214,15 @@ too near the edge, and the browser version's one intermittent failure.
   fit could cut into each other ("two slots / holes overlap"). Each spacer is now placed where its slot really fits
   both layers, with a full wall from every other cut, and a piece the regular points miss gets spacers of its own.
   On ten example shapes the errors went from 319 to 6, all at the tip of a cone too small for a 6 mm connector.
+- **A new example starts every technique fresh.** Switching the horse to stacked after the statue brought back the
+  statue's 2 mm square dowels on its side axis, so every tab spacer came out too thin to cut. An example now opens
+  every technique on its defaults and its own preset; your own model keeps the settings you gave it.
+- **A spacer too thin to cut says why, and how to fix it.** Tab spacers and pegs are drawn at the connector's
+  size, but their error told you to thicken or round the model, which never reaches them. It now names the connector,
+  and one click sets a size whose spacers keep the minimum wall.
+- **Turning the view while a model loads turns the view.** On the Model tab, a drag across the middle of the view
+  while a new model was slicing could catch a turn ring still sized for the last model, and stood the statue on its
+  head. While a slice runs, a drag only turns the view.
 - **Every part lands on its sheet.** A part that filled a sheet almost exactly, like a big folded panel, could be
   placed hundreds of millimetres off the sheet, and jobs of more than 150 parts let the last part along the edges
   run a millimetre or two into the sheet margin, and now and then two parts were nested on top of each other. Every
@@ -222,7 +231,7 @@ too near the edge, and the browser version's one intermittent failure.
   piece could land 4.5 mm from another of its family in 3 mm material, leaving 1.3 mm between their slots in every
   slice they cross. Each one now keeps the material's thickness, the slot offset and the minimum wall away.
 
-Verified by 634 tests, plus 27 driving the app in a real browser and one slicing the published build end to end.
+Verified by 635 tests, plus 29 driving the app in a real browser and one slicing the published build end to end.
 
 ## 0.2.1
 

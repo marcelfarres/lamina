@@ -87,3 +87,16 @@ def test_thin_feature_error_when_min_feature_exceeds_part():
     assert plan["counts"]["errors"] > 0
     all_errors = [e for sl in plan["slices"] for e in sl["errors"]]
     assert any("thin" in e.lower() for e in all_errors)
+
+
+def test_a_spacer_too_thin_offers_bigger_connectors_and_they_hold():
+    """Reported: the horse in stacked with tab spacers on 2 mm connectors came back with every spacer "thinner than
+    2 mm everywhere — thicken / round the model", which never reaches a spacer: it is drawn at the connector's size.
+    The error says so, and its fix sets a connector size whose spacers keep the wall; applied, they are clean."""
+    job = {"distribution": "count", "count": 6, "space": 4, "connect": "tab", "dowel_d": 2, "thickness": 3, "autofix": "off"}
+    thin = build(EXAMPLES / "egg.stl", "stacked", job)
+    spacers = [s for s in thin["slices"] if s["group"] == "P"]
+    assert spacers and all(any("connector's size" in e for e in s["errors"]) for s in spacers), spacers[0]["errors"]
+    fix = next(o["set"] for f in spacers[0]["fixes"] for o in f["options"] if "dowel_d" in o["set"])
+    fixed = build(EXAMPLES / "egg.stl", "stacked", {**job, **fix})
+    assert not [e for s in fixed["slices"] if s["group"] == "P" for e in s["errors"]], fix

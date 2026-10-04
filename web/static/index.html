@@ -874,7 +874,9 @@ let down=null, drag=null;
 function ndc(ev){const r=renderer.domElement.getBoundingClientRect();return new THREE.Vector2(((ev.clientX-r.left)/r.width)*2-1,-((ev.clientY-r.top)/r.height)*2+1)}
 function hit(ev){ray.setFromCamera(ndc(ev),camera);const g=ray.intersectObjects(gizmo.children);if(g.length)return g[0];   // the arrow wins even when a part is in front of it
   const cp=ray.intersectObjects(guides.children.filter(o=>o.userData.cp!==undefined||o.userData.ax!==undefined||o.userData.axline!==undefined));if(cp.length)return cp[0];   // curve points, axis rods and ends too: they draw on top, so they pick on top
-  const rg=rings.visible?ray.intersectObjects(rings.children):[];if(rg.length)return rg[0];                                   // rotation rings (Model tab only)
+  // rotation rings (Model tab only), and not while a slice runs: they are the last model's size then, and a drag meant
+  // to turn the view caught one and stood the new model on its head (reported on the statue, picked from the list)
+  const rg=rings.visible&&!busy?ray.intersectObjects(rings.children):[];if(rg.length)return rg[0];
   const h=ray.intersectObjects(parts.children.filter(m=>m.visible));return h.length?h[0]:null}
 function screenAngle(ev,centre){const r=renderer.domElement.getBoundingClientRect(),c=centre.clone().project(camera);return Math.atan2(-(ev.clientY-r.top)+(1-c.y)/2*r.height*-1+r.height-(1-c.y)/2*r.height,(ev.clientX-r.left)-(c.x+1)/2*r.width)}
 const pick=ev=>{const h=hit(ev);return h&&!h.object.userData.gizmo?h.object:null};
@@ -1380,9 +1382,11 @@ async function init(){
   // a bundled example opens on its preset (examples/presets.json): its technique, standing the right way up, sliced
   // clean — the model preparation is reset first so nothing carries over from the previous shape. A preset that names a
   // material or a machine picks it as the selects would (its look, its compensation, its bed as the sheet); the caller
-  // slices straight after, so the select's own delayed slice is dropped
+  // slices straight after, so the select's own delayed slice is dropped. Every other technique starts from its defaults
+  // too: the memory kept the last example's preset, so the horse switched to stacked after the statue came back with
+  // the statue's 2 mm square dowels on axis y, and its tab spacers were all "thinner than 2 mm" (reported)
   const applyPreset=()=>{const pr=PRESETS[$('#example').value];if(!pr)return;
-    setMode(pr.mode,false);Object.assign(state,{rotate:[0,0,0],size:[0,0,0],scale:1,round:0,thicken:0,shrinkwrap:0,smooth:0,hollow:0,space:0},structuredClone(pr.params));
+    setMode(pr.mode,false);for(const k of Object.keys(memo))delete memo[k];Object.assign(state,{rotate:[0,0,0],size:[0,0,0],scale:1,round:0,thicken:0,shrinkwrap:0,smooth:0,hollow:0,space:0},structuredClone(pr.params));
     if(pr.params.material)$('#material').onchange({target:{value:pr.params.material}});
     if(pr.params.machine)applyMachine(pr.params.machine);
     clearTimeout(timer);renderFields()};
