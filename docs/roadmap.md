@@ -31,7 +31,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Slice Direction gizmo (any angle, reset) | ✅ | `rotate` (three angles) turns the whole model, `center` moves the slicing axis / grid; per-slice `tilt` / `roll`, `rotate_grid` on top; "original size" resets |
 | Stacked Slices: direction, by count / by distance | ✅ | `axis`, `distribution`, `count`; plus `space` (empty space between slices) |
 | Stacked: dowels (diameter, 6 shapes) | ✅ | `connect=dowel`, 6 hole shapes; `connect=tab` = flat pegs, or tabbed spacers when `space` > 0 |
-| Stacked: dowel placement by clicking in 3D, Automatic, delete | ✅ | alt-click a part = add a point there, alt-click a point = remove; `placement` aligned / random per pair / along your 3D `lines` |
+| Stacked: dowel placement by clicking in 3D, Automatic, delete | ✅ | alt-click a part = add a point there, alt-click a point = remove; `placement` aligned / random per pair / along your 3D `lines`. Aligned dowels hold each layer from near its edge: how well is measured per piece (how far it reaches from its dowels' middle over their widest spacing, `dowel_leverage`), a layer the shared rods do not hold gets its own spread, and the Checks tab names the dowel that would hold a piece still bunched, with a button. Dowels you add come on top of `n_points` |
 | Interlocked Slices: 2 families, counts, direction, rotate | ✅ | `nx`, `ny`, `up`, `rotate`, `distribution` |
 | Interlocked: Notch Factor + Notch Angle + relief | ✅ | `notch_factor`, `notch_angle`, `relief` |
 | Interlocked: drag individual slices | ✅ | click a part in the 3D view: its own handles sit on it — a yellow arrow along its normal, a green ring to tilt and a blue one to roll, both turning about the part's own middle (`pivot`) — or type `offset` / `tilt` / `roll`. Shift-drag and ctrl-drag still do the two rotations |
@@ -134,6 +134,27 @@ What makes more models buildable comes first; polish and speed after.
    move the slices (slot width, notch ratio, sheet), so a fit tweak on a scan answers in a second.
 6. **Touch**: the 3D view's drag / shift-drag / ctrl-drag editing has no touch equivalent; a tablet at the laser is
    a common place to use it.
+7. **Stacked dowels, after 0.2.2's spread check:**
+   - **A dowel you add rearranges the ones around it.** It goes straight through every layer it fits, and the
+     layers below are planned again around it instead of carrying their rods on. Measured on the horse example
+     (aligned, 3 mm square dowels): the Checks tab offers Z-4's 24 mm hoof one dowel that takes it from 2.17 to 1.0
+     (two holes to three). Taking it does reach 1.01, but with 4–6 holes in the hoof, and 10 more rods in the stack
+     (164 → 174). Four changes were tried in the placer: rank sets by the fewest new holes; top up past `n_points`
+     only while a piece would be flagged (1.5); keep a suggested spot as far from the holes as the hole's own shape
+     needs; aim the extra dowels at 1.5 instead of 0.8. Together they cut the hoof to 4 holes but broke what the
+     0.8 target exists for: a 200 mm sphere layer came out at 1.12 (the test wants 1.0 or better, it was 2.2 before
+     0.2.2), and the horse's ear fix gave 1.26 for a promised 1.0. The way through is probably a rule for when a
+     dowel someone placed may move the automatic ones near it, at every layer it passes, and not a threshold.
+     `tests/test_modify.py::test_a_bunched_piece_is_offered_the_dowel_that_holds_it` and
+     `tests/test_ui.py::test_the_dowel_the_spread_check_offers_lands_where_it_says` are the cases to keep passing,
+     plus a hole count for the hoof.
+   - **The spot is given in mm in inch mode.** "a dowel at (x, y)" has no unit after it, so the units switch leaves
+     it in mm while the rest of the message turns to inches.
+   - **Tab connectors are not measured.** `connect=tab` uses the same placement, but the spread check only looks at
+     dowels; pegs and spacers bunched in the middle of a big layer are not said.
+   - **A thin ring is warned about, not helped.** A hollowed layer about 6 mm wide (the bunny's) holds a 6 mm dowel
+     only at a bulge: the check says how thick the wall is and what the dowel needs, and there is no button. Placing
+     dowels at the bulges farthest apart, or a smaller dowel for that layer alone, would be the next step.
 
 Left out of the four features above, deliberately: the instructions are a text file (`assembly-key.txt`) with the
 build order as a column, not a numbered page per step; the 3D-printed prototype still engraves real labels in puzzle
