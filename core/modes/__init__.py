@@ -116,6 +116,8 @@ COMMON: list[Param] = [
     P("project", "text", "", "Project name (printed on every sheet)", group="hidden"),
     # The form's own stock picker fills this; the planner only carries it so the cut files say what they are cut from.
     P("material", "text", "", "What the sheet is (cardboard, plywood, steel …) — named in every cut file", group="hidden"),
+    P("material_kind", "text", "", "The built-in material a material of your own was made from (its name for a built-in one): "
+      "what the physical checks go by, such as whether it folds", group="hidden"),
     P("model_name", "text", "", "The model's file name as it was uploaded (set by the server), engraved before every label", group="hidden"),
     P("rev", "text", "1.0", "Revision major.minor (printed on every sheet)", group="hidden"),
     # -- sheet fitting + checks

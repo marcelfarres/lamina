@@ -16,6 +16,14 @@ and the browser version's one intermittent failure.
   at full size, with the job's own slot offset) instead of cut files nothing would cut. Untick it to get the cut
   files anyway.
 
+### Checks
+
+- **Folded panels check that the material folds.** Fold lines, and tabs that fold over a seam, in 3 mm plywood (or
+  MDF, acrylic, balsa, foam board, printed PLA or PETG, or card and metal past the thickness they fold at) are an
+  error now: the sheet would crack along the score. One click cuts every face as its own panel, joined by ribs that
+  need no fold, at a facet size that keeps the part count workable. A material of your own is checked as the one
+  it was made from.
+
 ### Weight
 
 - **The Export tab weighs the job.** The parts as cut (holes and slots taken out, each at its own thickness), the

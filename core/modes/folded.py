@@ -17,6 +17,13 @@ from ..geometry import as_multi, circle, rect_along, frame_xy
 from ..unfold import unfold
 
 JOINTS = ["seam", "tab", "multitab", "diamond", "ticked", "gear", "tongue", "puzzle", "rivet", "laced", "loops", "strip", "rib"]
+# The thickest sheet of each material that folds along a score line (mm); 0 = it does not fold at all, it cracks or
+# splits along the line (wood, MDF, acrylic, foam board, printed plastic). Sheet metal bends on a brake.
+# ponytail: rules of thumb, not measurements, and a material not listed is not checked; add it here when it matters.
+FOLDS = {"paper": 1, "card": 1.5, "cardboard": 7, "greyboard": 2, "polypropylene": 2, "fabric": 10, "leather": 6,
+         "EVA foam": 10, "steel": 3, "stainless steel": 3, "aluminium": 3, "brass": 3, "copper": 3,
+         "plywood": 0, "mdf": 0, "acrylic": 0, "basswood": 0, "balsa": 0, "foam board": 0, "PLA": 0, "PETG": 0}
+FOLDED_JOINTS = ("tab", "multitab", "diamond", "ticked", "gear", "tongue", "puzzle", "strip")   # a flap or bridge that bends
 MAX_HOLES = 60                        # holes along one seam (rivet / laced / strip)
 MAX_FACES = 4000                      # triangles this can unfold and lay out in a usable time
 MAX_PANELS = 400                      # …and parts, when `separate` makes every triangle one (see build)
@@ -170,8 +177,27 @@ class Folded(Mode):
         n_panels = len(slices)
         if not p["separate"] and n_panels > 0.6 * len(mesh.faces):
             ctx.errors.append(f"unfolding gave {n_panels} panels for {len(mesh.faces)} faces — use a bigger facet size or enlarge the sheet")
+        self.check_folds(ctx, panels, seams)
         ctx.notes_extra = f"unfolded {len(mesh.faces)} triangles into {n_panels} panel(s), {len(seams)} seams"
         return slices + extra
+
+    def check_folds(self, ctx, panels, seams):
+        """A fold line in a panel, or a joint whose tab or strip bends over the seam, needs a sheet that folds: 3 mm
+        plywood cracks along the score where 3 mm cardboard folds. Every face its own panel, joined by ribs, folds
+        nothing."""
+        p = self.p; kind = p.get("material_kind") or p.get("material"); most = FOLDS.get(kind)
+        folds = sum(len(pn.folds) for pn in panels) + (len(seams) if p["joint"] in FOLDED_JOINTS else 0)
+        if most is None or not folds or self.t <= most:
+            return
+        why = "it does not fold, it cracks along the line" if most == 0 else f"it folds along a score up to about {most:g} mm"
+        msg = (f"{folds} fold(s) in {self.t:g} mm {kind}: {why}. Cut every face as its own panel (separate) and join them with "
+               f"a joint that needs no fold (rib, rivet or laced), or use a thinner or foldable material")
+        ctx.errors.append(msg)
+        fix = {"separate": True, "joint": "rib"}
+        if (target_faces(ctx.mesh, p["facet"]) or len(ctx.mesh.faces)) > MAX_PANELS:    # each face is a part now: as few as build cuts
+            fix["facet"] = math.ceil(math.sqrt(ctx.mesh.area / (0.433 * MAX_PANELS)))
+        ctx.fixes = [{"error": msg, "options": [{"title": "every face its own panel, joined by ribs", "set": fix,
+                                                 "note": "rigid panels, each rib cut at its seam's angle and slotted in from the back"}]}]
 
     # ---------------------------------------------------------------- helpers
     @staticmethod
