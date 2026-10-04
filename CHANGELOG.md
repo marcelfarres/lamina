@@ -5,7 +5,8 @@ What changed in each release. The GitHub release for a version is this section, 
 ## 0.2.2
 
 What your model weighs, eleven more materials (PLA and PETG among them, to 3D-print the parts at full size), the
-model's name on every part, a button that squares up a tilted model, a desktop version that keeps itself up to date,
+model's name on every part, a button that squares up a tilted model, dowels that hold a big layer from near its
+edge, a desktop version that keeps itself up to date,
 an auto-fix that never deletes a piece of your model, and fixes for stacks that came out short, layers whose pieces were nested as one, folded holes too near the edge,
 and the browser version's one intermittent failure.
 
@@ -32,6 +33,19 @@ and the browser version's one intermittent failure.
   CAD export that came out tilted) cuts every straight edge as a staircase. The Model tab now says how far off it
   is, "sits 5° off square", with a **square it up** button right under the rotate controls. Nothing turns by
   itself: leave it if the tilt is on purpose.
+
+### Technique
+
+- **Dowels hold a big layer from near its edge.** Aligned dowels were placed in the part every layer shares, so on
+  a round model the widest layers in the middle hung on two dowels close together at the centre, free to swing a
+  little at the rim. A layer those shared dowels do not hold now gets its own, out toward its edge; with three or
+  more they go round the layer instead of along a line, and asking for more dowels never leaves a layer worse
+  held. Where a layer is still held by dowels bunched together, the Checks tab says so — its size, how much its
+  far edge can shift — and names the one more dowel that would hold it, with a button to add it. Where no dowel
+  fits farther out because the wall is too thin (a hollowed model's ring), it says how thick the wall is and how
+  much the dowel needs. Small pieces, where two dowels this size cannot sit any farther apart, are left in peace.
+- **A dowel you add comes on top of the automatic ones.** One alt-clicked or typed under dowels used to stand in for
+  one of the `n_points` per layer, so the layer could end up held no better. Now it is added to them.
 
 ### Materials
 
