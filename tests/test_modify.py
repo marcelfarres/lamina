@@ -290,6 +290,38 @@ def test_aligned_dowels_hold_a_big_piece_from_near_its_edge(n):
     assert said and "mm across" in said[0], said
 
 
+def test_a_bunched_piece_is_offered_the_dowel_that_holds_it():
+    """The spread warning names one more dowel, and taking it has to hold the piece. The bunny's ear layers come out
+    held 1.6–1.8 (the layers above and below overlap them only near the head). The spot is chosen where a rod is cut
+    through a neighbour as well: chosen in the piece alone, it was a spot no rod reached and taking it changed
+    nothing. Measured on the section, with every rod through the layer. Pieces too small for two of these dowels to
+    sit farther apart are not flagged at all (the horse's hooves, the pyramid's tip)."""
+    job = {"connect": "dowel"}
+    plan = build(EXAMPLES / "bunny.stl", "stacked", job)
+    label, w, fix = next((s["label"], f["error"], f["options"][0]) for s in plan["slices"] for f in s["fixes"]
+                         if "bunched together" in f["error"])
+    promised = float(re.search(r"brings that to ([\d.]+)×", w).group(1))
+    x, y = fix["set"]["dowels"][-1]
+
+    after = build(EXAMPLES / "bunny.stl", "stacked", {**job, **fix["set"]})
+    mesh = load_mesh(EXAMPLES / "bunny.stl", coerce_params(MODES["stacked"], {**job, **fix["set"]}), [], "stacked")
+    sl = next(s for s in after["slices"] if s["label"] == label)
+    M = np.asarray(sl["M"]); inv = np.linalg.inv(M)
+    piece = next(g for g in section_polygons(mesh, M).geoms if g.buffer(1).contains(Point(x, y)))
+    through = [(inv @ [*a[:3], 1])[:2] for a, b, *_ in after["rods"]
+               if min(a[2], b[2]) <= M[2, 3] <= max(a[2], b[2]) and piece.contains(Point(*(inv @ [*a[:3], 1])[:2]))]
+    held = dowel_leverage(piece, through)
+    assert held <= promised + 0.05, f"{label} promised {promised}× with a dowel at ({x}, {y}), got {held:.2f}×"
+    assert not [w for w in sl["warnings"] if "bunched" in w], sl["warnings"]
+    assert not [w for s in build(EXAMPLES / "horse.stl", "stacked", job)["slices"] for w in s["warnings"] if "bunched" in w]
+
+    # the bunny's thin 220 mm rings take a dowel only at a bulge: nothing to add, so it says what the wall lacks
+    thin = [w for s in plan["slices"] for w in s["warnings"] if "no dowel fits farther out" in w]
+    assert thin, "a thin ring held 11.5× says nothing"
+    wall, need = map(float, re.search(r"wall is about ([\d.]+) mm, a [\d.]+ mm dowel needs ([\d.]+) mm", thin[0]).groups())
+    assert wall < need, thin[0]
+
+
 def test_a_wall_too_thin_for_the_dowel_says_so():
     """Where a 6 mm dowel genuinely does not fit, placing none is right — but it has to be said, and any size it
     names has to work when followed. A 6 mm wall holds no dowel at all, so no size is offered there; the hollowed

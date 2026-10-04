@@ -16,8 +16,11 @@ What changed in each release. The GitHub release for a version is this section, 
 - **Dowels hold a big layer from near its edge.** Aligned dowels were placed in the part every layer shares, so on
   a round model the widest layers in the middle hung on two dowels close together at the centre, free to swing a
   little at the rim. A layer those shared dowels do not hold now gets its own, out toward its edge; with three or
-  more they go round the layer instead of along a line. The Checks tab says when a layer is still held by
-  connectors bunched together, with its size and how much its far edge can shift.
+  more they go round the layer instead of along a line, and asking for more dowels never leaves a layer worse
+  held. Where a layer is still held by dowels bunched together, the Checks tab says so — its size, how much its
+  far edge can shift — and names the one more dowel that would hold it, with a button to add it. Where no dowel
+  fits farther out because the wall is too thin (a hollowed model's ring), it says how thick the wall is and how
+  much the dowel needs. Small pieces, where two dowels this size cannot sit any farther apart, are left in peace.
 
 ### Gallery
 

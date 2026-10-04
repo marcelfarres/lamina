@@ -193,7 +193,12 @@ def dowel(c, d, shape="round") -> Polygon:
     return circle(c, d)
 
 
-LEVERAGE_OK = 0.8          # dowels that hold a piece: its far edge moves less than the play in their holes. 1.0 let
+def hole_reach(d, shape="round") -> float:
+    """How far a dowel hole reaches from its centre: d/2 round, 0.71 d at a square's corner, 0.75 d at a slot's end."""
+    return max(math.hypot(x, y) for x, y in dowel((0, 0), d, shape).exterior.coords)
+
+
+LEVERAGE_OK = 0.8         # dowels that hold a piece: its far edge moves less than the play in their holes. 1.0 let
                            # rods carried up from a smaller layer stand in for three around the edge of a disc (0.69)
 
 

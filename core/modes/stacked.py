@@ -3,11 +3,12 @@ import math
 
 import numpy as np
 import shapely
+import shapely.affinity
 from shapely.geometry import Polygon, Point
 from shapely.ops import unary_union
 from . import Mode, Param, register
 from ..model import Slice
-from ..geometry import dowel, dowel_leverage, LEVERAGE_OK, rect_along, as_multi, section_polygons, frame_xy, to_local
+from ..geometry import dowel, dowel_leverage, hole_reach, LEVERAGE_OK, rect_along, as_multi, section_polygons, frame_xy, to_local
 
 CONNECT_HELP = ("dowel = round/square rods through holes (drawn in the 3D view), the default: glue alone leaves every layer free to "
                 "slide while it dries, and two dowels through a piece hold it where it belongs · tab = flat pieces cut from the sheet: "
@@ -110,7 +111,9 @@ class Stacked(Mode):
                     and all(region.contains(Point(q)) for q in pts)
                     and all(np.hypot(q[0] - r[0], q[1] - r[1]) > by for q in pts for r in clear))
 
-        if n > 1:
+        # as many as fit, down to two: three that do not fit a small layer used to fall straight to one point, which
+        # the carried rods then crowded (the horse's legs came out worse held for asking more dowels)
+        for n in range(n, 1, -1):
             sets = []
             for span, along_x in sorted([(w, True), (h, False)], reverse=True):
                 for k in (0.45, 0.38, 0.3, 0.22, 0.15):
@@ -168,6 +171,12 @@ class Stacked(Mode):
         for g in getattr(raw, "geoms", [raw]):
             isl = g.buffer(-margin)
             islands += [h for h in getattr(isl, "geoms", [isl]) if not h.is_empty and h.area >= (d / 2) ** 2]
+        # where a rod through this pair can go, kept on both slices (b's own frame: a layer can be tilted) for the
+        # spread check to offer a dowel that will really be cut — the piece alone offered ears spots nothing cut
+        T = np.linalg.inv(b.M) @ a.M
+        a.__dict__.setdefault("dowel_room", []).extend(islands)
+        b.__dict__.setdefault("dowel_room", []).extend(
+            shapely.affinity.affine_transform(h, [T[0, 0], T[0, 1], T[1, 0], T[1, 1], T[0, 3], T[1, 3]]) for h in islands)
         if not islands:
             return []
         out = []
@@ -189,7 +198,8 @@ class Stacked(Mode):
                 # sphere, the smallest one — so a 200 mm piece in the middle was held by two dowels 46 mm apart
                 # (reported). Rods carry on farthest out first; a piece they still do not hold is offered them topped up
                 # from its own spread toward its edge, or that spread whole beside the dowels typed in (topping one rod
-                # up left the blob's foot lopsided, 2.2) — the count first, then whichever holds it better.
+                # up left the blob's foot lopsided, 2.2) — one that holds first, then the count, then the better hold:
+                # counting first chose three dowels bunched on a horse's leg over two that held it.
                 c = isl.centroid
                 for q in sorted(taken, key=lambda q: -np.hypot(q[0] - c.x, q[1] - c.y)):
                     if held(mine):
@@ -205,7 +215,8 @@ class Stacked(Mode):
                             topped.append(q)
                     own = [q for q in p["dowels"] if isl.contains(Point(q))]
                     own += [q for q in fresh if clear(q, own)]
-                    mine = min((mine, topped, own), key=lambda pts: (-min(len(pts), want), dowel_leverage(isl, pts)))
+                    mine = min((mine, topped, own), key=lambda pts: (dowel_leverage(isl, pts) > LEVERAGE_OK,
+                                                                     -min(len(pts), want), dowel_leverage(isl, pts)))
                 out += mine
         elif p["placement"] == "random":
             rng = np.random.default_rng(1000 + i)
@@ -254,8 +265,7 @@ class Stacked(Mode):
     def connect(self, ctx, slices):
         p = ctx.p; t = p["thickness"]; gap = p["space"]; d = p["dowel_d"]
         # keep the hole's real reach from the outline, not d/2: a square's corner sits at 0.71 d, a slot's end at 0.75 d
-        hole = dowel((0, 0), d + p["slot_offset"], p["dowel_shape"])
-        margin = max(np.hypot(x, y) for x, y in hole.exterior.coords) + p["min_feature"]
+        margin = hole_reach(d + p["slot_offset"], p["dowel_shape"]) + p["min_feature"]
         rod = [[round(x, 3), round(y, 3)] for x, y in dowel((0, 0), d, p["dowel_shape"]).exterior.coords[:-1]]   # the rod's section, for the 3D view
         ctx._stack = slices
         extra, k, skipped = [], 0, 0
