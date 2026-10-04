@@ -141,6 +141,10 @@ and the browser version's one intermittent failure.
   ends of the wavy torus, was one part: its pieces were nested as one group with the empty space between them, and
   only one carried a label. Each piece is now a part of its own, labelled `Z-1-1`, `Z-1-2` …, and nested on its own:
   the wavy torus goes from 14 sheets to 8.
+- **Every part lands on its sheet.** A part that filled a sheet almost exactly, like a big folded panel, could be
+  placed hundreds of millimetres off the sheet, and jobs of more than 150 parts let the last part along the edges
+  run a millimetre or two into the sheet margin, and now and then two parts were nested on top of each other. Every
+  part is placed inside the margin and clear of the others now.
 
 Verified by 604 tests, plus 25 driving the app in a real browser and one slicing the published build end to end.
 

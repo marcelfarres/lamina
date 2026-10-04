@@ -105,12 +105,18 @@ def _rot(pieces, deg):
 
 
 def _edges(c):
-    """A convex, counter-clockwise piece ready for Minkowski sums: its lowest point and its edges sorted by angle."""
+    """A convex, counter-clockwise piece ready for Minkowski sums: its edges in ring order from the one of smallest
+    angle, their angles, and the vertex that edge starts from. An edge horizontal to within rounding is angle 0, never
+    2π: a hull with two collinear edges along its top, negated, had one at 0 and the other at 2π, so sorting by angle
+    put them at opposite ends of the ring, and every no-fit polygon of that part came out a wrong shape — parts were
+    nested on top of each other, up to 773 mm² (found by the validation sweep)."""
     e = np.roll(c, -1, 0) - c
-    e = e[np.hypot(e[:, 0], e[:, 1]) > 1e-12]
+    keep = np.hypot(e[:, 0], e[:, 1]) > 1e-12
+    c, e = c[keep], e[keep]
     ang = np.arctan2(e[:, 1], e[:, 0]) % (2 * np.pi)
-    o = np.argsort(ang, kind="stable")
-    return c[np.lexsort((c[:, 0], c[:, 1]))[0]], e[o], ang[o]
+    ang[ang > 2 * np.pi - 1e-9] = 0.0
+    k = int(np.argmax(np.roll(ang, 1) - ang))                # where the ring's angles wrap from largest to smallest
+    return c[k], np.roll(e, -k, 0), np.roll(ang, -k)
 
 
 def _minkowski(A, b):
@@ -212,7 +218,10 @@ def _rect_nest(prepared, sheet, gap, margin):
         w0, h0 = dims[i]
         rot = rot0 + (90 if abs(w - h0) < 1e-6 and abs(h - w0) < 1e-6 and abs(w0 - h0) > 1e-6 else 0)
         g = affinity.rotate(pc.kerfed, rot, origin=(0, 0))
-        dx, dy = margin + x + gap / 2 - g.bounds[0], margin + y + gap / 2 - g.bounds[1]
+        # each rectangle is the part plus one gap, in a bin one gap wider than the sheet inside its margins: the part
+        # sits at the rectangle's corner, so the gap falls between neighbours and the last one ends at the margin.
+        # Centred in its rectangle, every part on the far edges ran half a gap into the margin.
+        dx, dy = margin + x - g.bounds[0], margin + y - g.bounds[1]
         geom, lines, marks = _xf(pc, rot, dx, dy)
         pc.place = (b, geom.bounds[0], geom.bounds[1], rot)
         pc.placed, pc.placed_lines, pc.placed_marks = geom, lines, marks
@@ -297,8 +306,11 @@ def _nest(pieces, sheet, gap, margin, kerf=0.0, label_h=0.0, font=4.0, tag=""):
                     best = (score, r, float(xy[0]), float(xy[1]))
             if best is not None:
                 break
-        if best is None:                                            # genuinely bigger than one sheet (already flagged)
-            dx, dy = margin - pc.kerfed.bounds[0], margin - pc.kerfed.bounds[1]
+        if best is None:        # bigger than one sheet (already flagged), or filling one so exactly the gap tips it over
+            # where the part's corner lands once it is turned: the unturned outline's corner put a 586 × 390 mm panel
+            # 485 mm off a 600 × 400 sheet, with nothing said
+            b = affinity.rotate(pc.kerfed, rot0, origin=(0, 0)).bounds
+            dx, dy = margin - b[0], margin - b[1]
             geom, lines, marks = _xf(pc, rot0, dx, dy)
             pc.place = (len(sheets) - 1, margin, margin, rot0); pc.placed, pc.placed_lines, pc.placed_marks = geom, lines, marks
             # with its convex pieces, like any other part: without them the sheet reads as empty and the next parts
