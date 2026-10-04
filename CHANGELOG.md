@@ -217,6 +217,9 @@ too near the edge, and the browser version's one intermittent failure.
 - **A new example starts every technique fresh.** Switching the horse to stacked after the statue brought back the
   statue's 2 mm square dowels on its side axis, so every tab spacer came out too thin to cut. An example now opens
   every technique on its defaults and its own preset; your own model keeps the settings you gave it.
+- **A spacer too thin to cut says why, and how to fix it.** Tab spacers and pegs are drawn at the connector's
+  size, but their error told you to thicken or round the model, which never reaches them. It now names the connector,
+  and one click sets a size whose spacers keep the minimum wall.
 - **Every part lands on its sheet.** A part that filled a sheet almost exactly, like a big folded panel, could be
   placed hundreds of millimetres off the sheet, and jobs of more than 150 parts let the last part along the edges
   run a millimetre or two into the sheet margin, and now and then two parts were nested on top of each other. Every
