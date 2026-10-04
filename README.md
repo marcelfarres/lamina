@@ -222,7 +222,7 @@ stranger's 2 GB scan is not yours to hold. `WEB_CONCURRENCY` is how many slices 
 time (one uvicorn worker each, about 300 MB). Lamina still has no login of its own, so put it behind your reverse
 proxy's authentication if the server is reachable from the internet.
 
-The Model tab opens on a bundled example; [examples/](examples/README.md) holds 23 of them, and each opens on the
+The Model tab opens on a bundled example; [examples/](examples/README.md) holds 24 of them, and each opens on the
 technique and parameters that suit it ([examples/presets.json](examples/presets.json) — the shape standing the right
 way up, sliced without an error; a test keeps that true). The same pipeline runs headless, so it can be scripted:
 
@@ -246,7 +246,7 @@ The original's six techniques as five modes: its *3D Slices* is stacked with `su
 | `stacked` | parallel sections, touching or with an empty `space`; outline `mid` / `outer` (Slicer's 3D Slices: sand down to shape) / `inner`; connected by **dowels** (6 hole shapes), flat **pegs**, or tabbed **spacers** that keep the space; points aligned, random per pair, or along your 3D lines | `Z-n`, connectors `P-n` |
 | `interlocked` | two slotted families, egg-crate; notch ratio / flare / relief; grid rotation; extra slices at chosen positions | `X-n`, `Y-n` |
 | `radial` | half-slices around an axis (move it with `center`, turn the fan with `angle`) locked by horizontal ring slices with radial slots; ring count or spacing. **Several axes**: a fan per lobe — an axis through each of a dumbbell's balls, one per ball of a snowman, tilted to follow it. Neighbouring lobes are parted by a flat plane between their axes — a translucent part in the 3D view that you click and move or tilt like any slice — so the fans never run into each other, and a **spine** — one full plane through every axis, cut whole and slotted into every ring — ties the lobes together: automatic, found from how the axes lie (on one line, any number; on one plane, exactly one; on no plane, an error naming the fix). Every axis is drawn in the 3D view where it passes through the model: drag it whole or by either end (it stays on the plane the other axes share, so the spine survives the drag), alt-click the model for a parallel axis through that point, `+` to split one in two, alt-click an axis to remove it | `R-na/b` (`R2-na/b` per axis), rings `Z-n`, spines `SP-n` |
-| `curve` | ribs perpendicular to a curve through the model (its centre line by default, following the body across the plane too; drag the blue dots, alt-click to add or remove one), so they follow a bend instead of staying parallel; locked together by spine slices. The turn between neighbouring ribs is limited so they do not meet inside the model | `R-n`, spines `K-n` |
+| `curve` | ribs perpendicular to a curve through the model (its centre line by default, following the body across the plane too; drag the blue dots, alt-click to add or remove one, or type them in the `curve` table), so they follow a bend instead of staying parallel; locked together by spine slices. The turn between neighbouring ribs is limited so they do not meet inside the model. **Branches**: a straight line per leg, arm or tail, each with ribs square to it and a spine of its own that reaches back into the body and slots into the body's ribs, so a horse's legs are held instead of cut across by body ribs. Shift+alt-click a hoof to add one, drag its ends, alt-click it to remove it; a branch that starts past the body's ribs is an error, not a loose leg | `R-n`, spines `K-n`; branch 2: ribs `R2-n`, spine `K2`, joint `J-2` |
 | `folded` | surface unfolded into flat panels with score lines (strategies flat / strip / area, or auto); thirteen joints: seam, tab, multitab, diamond, ticked, gear, tongue, puzzle, rivet, laced, loops, strip, rib, each sized to its triangle; **separate** mode cuts every triangle alone. The model need not be closed: panels are cut from the surface, so a clothing pattern, a mask or a shell with a neck hole is panelled as it is — its boundary edges stay open and carry no joints | `P-n`, strips `S-n`, ribs `R-n` |
 
 Common to all: model `rotate` (three angles) and slicing `center`, per-slice `offset` / `tilt` / `roll` / `thick` /
@@ -340,7 +340,8 @@ sheets are always the same plan. Hover a parameter name for its help.
   thickness and a delete button. Only those move it: a plain drag on a selected part turns the view, and
   Ctrl+Z or the ↶ undo button takes back the last 60 changes. The selected part is highlighted on the cut sheet,
   clicking a part on the sheet selects it in 3D, and clicking a warning does the same. Alt-click adds or removes a
-  dowel (stacked), a curve control point (curve) or a radial axis. `explode` and `steps` sliders animate the
+  dowel (stacked), a curve control point (curve) or a radial axis; shift+alt-click a hoof, hand or tail tip adds a
+  curve branch out to it. `explode` and `steps` sliders animate the
   assembly; `look` previews the material.
 - **Dowels in a stack** (`placement`): **aligned** puts the same points straight through every layer, one rod each;
   alt-click a layer to add one there, alt-click it to remove it, or type exact x, y under `dowels` — that is how you
@@ -383,7 +384,7 @@ web/static/index.html         │                            ──▶  core/sol
 
 - **All geometry is computed in Python** (trimesh sections → shapely polygons). The browser only extrudes finished
   polygons; the STL export extrudes the same polygons with trimesh.
-- **A construction technique is one file** in `core/modes/` (see `curve.py`, about 70 lines): declare `Param`s and
+- **A construction technique is one file** in `core/modes/` (see `interlocked.py`, about 50 lines): declare `Param`s and
   return `Slice` objects (frame + thickness + optional clip + cuts, or a ready `raw` profile for synthetic parts).
   Sections, per-slice edits, checks, splitting, nesting, export and the web form are shared and automatic.
 - Labels follow Slicer: `Axis-Slice` (`X-3`, `Z-6`), split pieces `Axis-Slice-Part` (`X-3-1`).
@@ -451,7 +452,7 @@ Actions tab), and committed back to main, so they always show the version people
 ```text
 core/        planner, modes, unfold, notch, checks, nest, split, export, solid
 web/         FastAPI app + single-page UI (vendored three.js)
-examples/    23 test models: 18 synthetic + a scanned head, three animals and the bunny (terms in examples/README.md)
+examples/    24 test models: 18 synthetic + a scanned head, a porcelain horse statue, three animals and the bunny (terms in examples/README.md)
 docs/        index.html + media/ (the GitHub Pages site), roadmap.md, folded-panels.md, original-slicer-reference.md
 tests/       pytest suite, test_ui.py (the app in a browser), test_unfold.py, run_matrix.py
 ```

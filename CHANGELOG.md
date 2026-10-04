@@ -5,10 +5,11 @@ What changed in each release. The GitHub release for a version is this section, 
 ## 0.2.2
 
 What your model weighs, eleven more materials, PLA and PETG printed plate by plate at full size, a check that the
-material folds before a folded job is cut, the model's name on every part, a button that squares up a tilted model,
-radial lobes side by side or at right angles, a desktop version that keeps itself up to date, an auto-fix that never
-deletes a piece of your model, and fixes for stacks that came out short, parts off their sheet, layers whose pieces
-were nested as one, folded holes too near the edge, and the browser version's one intermittent failure.
+material folds before a folded job is cut, curve ribs that branch down each leg, dowels that hold a big layer from
+near its edge, the model's name on every part, a button that squares up a tilted model, radial lobes side by side or
+at right angles, a desktop version that keeps itself up to date, an auto-fix that never deletes a piece of your model,
+and fixes for stacks that came out short, parts off their sheet, layers whose pieces were nested as one, folded holes
+too near the edge, and the browser version's one intermittent failure.
 
 ### Printing
 
@@ -45,8 +46,39 @@ were nested as one, folded holes too near the edge, and the browser version's on
   spine into loose pieces, because a middle lobe's rings reached it through a neighbour's cap; their rings now go
   down the neck, and only a lobe no ring can join says so. Two axes at right angles work when they share a plane:
   the dumbbell now opens that way, across the lower ball and up the upper one.
+
+### Curve
+
+- **Curve (ribs) takes branches**: one line per leg, arm or tail, each with its own ribs square to it and a spine
+  that reaches up into the body and slots into its ribs. A horse's legs are held instead of cut across by body ribs:
+  with a branch down each leg it comes out in 55 parts and no errors, where the same job without them has two
+  parts that fail. Shift+alt-click a hoof to add a branch (its joint lands inside the leg, even on a leg splayed
+  out to the side), drag its ends, alt-click it to remove it. A branch that starts past the body's ribs is an error
+  that says where to move it, not a loose leg.
+- **Body ribs turn further**, because the legs no longer count toward how far the material reaches.
+- **The curve's points are a table in the form.** Typing in the old box sent a number and the slice failed.
+
+### Examples
+
+- **The horse opens in Curve**, with its curve from tail to muzzle and a branch down each leg: 55 parts, no errors.
+- **A new horse for stacked slices**: `horse_statue`, a porcelain horse rearing on a round base (CC0, from Poly
+  Haven). It opens as side profiles across its width with a 4 mm gap on 2 mm square dowels: 39 parts, no errors,
+  no warnings. Layered up its height, the body over its slanted hind legs would rest on nothing.
 - **A new example, the wavy torus:** a ring rising and falling in three waves with a channel along it for an LED
   tube, stacked in PETG for a 3D printer. The page now opens on the blob.
+
+### Technique
+
+- **Dowels hold a big layer from near its edge.** Aligned dowels were placed in the part every layer shares, so on
+  a round model the widest layers in the middle hung on two dowels close together at the centre, free to swing a
+  little at the rim. A layer those shared dowels do not hold now gets its own, out toward its edge; with three or
+  more they go round the layer instead of along a line, and asking for more dowels never leaves a layer worse
+  held. Where a layer is still held by dowels bunched together, the Checks tab says so — its size, how much its
+  far edge can shift — and names the one more dowel that would hold it, with a button to add it. Where no dowel
+  fits farther out because the wall is too thin (a hollowed model's ring), it says how thick the wall is and how
+  much the dowel needs. Small pieces, where two dowels this size cannot sit any farther apart, are left in peace.
+- **A dowel you add comes on top of the automatic ones.** One alt-clicked or typed under dowels used to stand in for
+  one of the `n_points` per layer, so the layer could end up held no better. Now it is added to them.
 
 ### Materials
 

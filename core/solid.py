@@ -230,7 +230,7 @@ def proto_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2
 
 # ---------------------------------------------------------------- fit test: the job's joints on a small stand-in, at offsets around its own
 FIT_SIZE = 40.0     # mm across the stand-in sphere; radial grows it so 2 × count half-slices have room around the core
-FIT_DROP = ("skip", "offset", "tilt", "roll", "thick", "grow", "extra_x", "extra_y", "dowels", "lines", "curve", "center")   # edits of the model's own slices
+FIT_DROP = ("skip", "offset", "tilt", "roll", "thick", "grow", "extra_x", "extra_y", "dowels", "lines", "curve", "branches", "center")   # edits of the model's own slices
 
 
 def fit_plan(plan, slot_offset, sheet=None, thickness=None):

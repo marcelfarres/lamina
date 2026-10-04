@@ -495,8 +495,8 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         "bbox": [float(e) for e in mesh.extents],
         "axes": [a.tolist() for a in ctx.ax], "mid": ctx.mid.tolist(),      # slicing frame (for click-placed points in the UI)
         "curve3d": getattr(ctx, "curve3d", None), "curve_pts": getattr(ctx, "curve_pts", None),
-        "axes3d": getattr(ctx, "axes3d", None),                              # radial: each fan's axis, drawn and dragged in 3D
-        "bounds3d": getattr(ctx, "bounds3d", []),                            # radial: the planes between lobes, moved and tilted like slices
+        "axes3d": getattr(ctx, "axes3d", None),                              # radial's fan axes, curve's branches: drawn and dragged in 3D
+        "bounds3d": getattr(ctx, "bounds3d", []),                            # the planes between lobes or at a branch's joint, moved and tilted like slices
         "rods": getattr(ctx, "rods", []),                                    # dowel rods for the 3D view: [[x0,y0,z0],[x1,y1,z1],d,section [[x,y]…] in the slice's x/y,slice x axis]
         "params_used": {k: p[k] for k in ("extra_x", "extra_y", "ring_count") if k in p},   # what autofix=add changed
         "sheets": n_sheets, "sheet": sheet_out, "sheet_thick": sheet_thick, "kerf": kerf,

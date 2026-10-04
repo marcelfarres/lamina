@@ -31,13 +31,14 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Slice Direction gizmo (any angle, reset) | ✅ | `rotate` (three angles) turns the whole model, `center` moves the slicing axis / grid; per-slice `tilt` / `roll`, `rotate_grid` on top; "original size" resets |
 | Stacked Slices: direction, by count / by distance | ✅ | `axis`, `distribution`, `count`; plus `space` (empty space between slices) |
 | Stacked: dowels (diameter, 6 shapes) | ✅ | `connect=dowel`, 6 hole shapes; `connect=tab` = flat pegs, or tabbed spacers when `space` > 0 |
-| Stacked: dowel placement by clicking in 3D, Automatic, delete | ✅ | alt-click a part = add a point there, alt-click a point = remove; `placement` aligned / random per pair / along your 3D `lines` |
+| Stacked: dowel placement by clicking in 3D, Automatic, delete | ✅ | alt-click a part = add a point there, alt-click a point = remove; `placement` aligned / random per pair / along your 3D `lines`. Aligned dowels hold each layer from near its edge: how well is measured per piece (how far it reaches from its dowels' middle over their widest spacing, `dowel_leverage`), a layer the shared rods do not hold gets its own spread, and the Checks tab names the dowel that would hold a piece still bunched, with a button. Dowels you add come on top of `n_points` |
 | Interlocked Slices: 2 families, counts, direction, rotate | ✅ | `nx`, `ny`, `up`, `rotate`, `distribution` |
 | Interlocked: Notch Factor + Notch Angle + relief | ✅ | `notch_factor`, `notch_angle`, `relief` |
 | Interlocked: drag individual slices | ✅ | click a part in the 3D view: its own handles sit on it — a yellow arrow along its normal, a green ring to tilt and a blue one to roll, both turning about the part's own middle (`pivot`) — or type `offset` / `tilt` / `roll`. Shift-drag and ctrl-drag still do the two rotations |
 | Delete a slice (troubleshooting advice) | ✅ | select → delete (`skip`); crossing slices get no slot for it |
 | Radial Slices: axis, count, 1st-axis density, notch factor | ✅ | half-slices around a movable axis (`center`, fan turned with `angle`) + horizontal ring slices (`ring_count` / `ring_spacing`, each movable with offset) with radial slots; `axes` gives a fan per lobe (one line each: where the axis sits, which way it points, the stretch its rings spread along); neighbouring lobes are parted by a flat plane between their axes (`B-1-2`: through the middle of the axes' closest points, facing centre to centre — the mitre between a snowman's balls, the plane across a dumbbell's neck; side-by-side axes face straight across so shortening one does not tilt it), a translucent part in the 3D view that the per-slice offset / tilt / roll move and turn; and the spine — the full plane through every axis, cut whole and slotted into every ring — is automatic from how the axes lie: on one line any number, on one plane exactly one (every fan turned to start on it), on no plane an error naming the fix. A ring slides onto the spine from its own side of the model. Every axis is drawn in the 3D view where it passes through the model and dragged whole or by either end — on the plane the other axes share while that plane faces the camera, freely when it is seen edge-on (the view you take to leave it on purpose); axes that end up on no plane get the error with a one-click fix that puts every end on the plane nearest to all of them. Alt-click the model adds a parallel axis there, `+` splits one in two, alt-click an axis removes it, and the single default axis is draggable before `axes` has ever been filled in. Spine ↔ ring slots are one slot for the whole crossing line (through-cut across a grazing chord, half-lapped where the closed end lies), reaching the sheet's own edge |
-| Curve: draggable control points, distribution, notch factor | ✅ | drag a control point in the curve's plane (the mouse ray meets the plane, from any view); alt-click on the model adds one, alt-click a point removes it; the curve follows the body's centre across the plane and the ribs turn with it; the curve and its points are drawn on top in 3D; `spines` interlock the ribs |
+| Curve: draggable control points, distribution, notch factor | ✅ | drag a control point in the curve's plane (the mouse ray meets the plane, from any view); alt-click on the model adds one, alt-click a point removes it; the curve follows the body's centre across the plane and the ribs turn with it; the curve and its points are drawn on top in 3D, and typed in the `curve` table; `spines` interlock the ribs |
+| Curve: branches (extra) | ✅ | `branches`: one straight line per leg, arm or tail, start to tip. Each gets ribs square to it (`R2-n`, at the body's rib spacing) and a spine of its own (`K2`) down the middle of the limb, holding the curve's direction there so the body ribs cross it square (a leg's lies parallel to the body spine, an arm's flat), with a tongue reaching back past the joint plane (`J-2`, movable and tiltable like any slice, and the branch's start moves with it) into the body, where it slots into the body ribs and stops short of the body spine. What a branch owns — past its joint, on its own side of the plane between it and its neighbour (radial's `B-i-j`), and no wider than its own sections plus a rib pitch — the body's parts leave out, and the legs no longer count toward how far the body ribs may turn. Either end can be typed first; parts and edits are numbered by table row. Shift+alt-click a hoof adds one (its joint lands inside the leg, not in the air between splayed legs), drag its ends, alt-click it to remove it (the later branches' edits are renumbered with them); a branch that starts past the body's ribs is an error naming the fix. Horse, 20 ribs, four legs, autofix on or off: 55 parts, no errors, coverage 93.9 %, every leg's centreline inside its spine. Bent branches and finding the limbs automatically are not done |
 | Folded: Simplify Form | ✅ | `facet` (target average triangle edge, mm) |
 | Folded: Optimize Panels (reduce panel vertices) | ⬜ | panel outlines keep every triangle vertex; harmless for laser cutting |
 | Folded: Perforate | ✅ | `perforate` (dotted score lines) |
@@ -135,6 +136,27 @@ What makes more models buildable comes first; polish and speed after.
    move the slices (slot width, notch ratio, sheet), so a fit tweak on a scan answers in a second.
 6. **Touch**: the 3D view's drag / shift-drag / ctrl-drag editing has no touch equivalent; a tablet at the laser is
    a common place to use it.
+7. **Stacked dowels, after 0.2.2's spread check:**
+   - **A dowel you add rearranges the ones around it.** It goes straight through every layer it fits, and the
+     layers below are planned again around it instead of carrying their rods on. Measured on the horse example
+     (aligned, 3 mm square dowels): the Checks tab offers Z-4's 24 mm hoof one dowel that takes it from 2.17 to 1.0
+     (two holes to three). Taking it does reach 1.01, but with 4–6 holes in the hoof, and 10 more rods in the stack
+     (164 → 174). Four changes were tried in the placer: rank sets by the fewest new holes; top up past `n_points`
+     only while a piece would be flagged (1.5); keep a suggested spot as far from the holes as the hole's own shape
+     needs; aim the extra dowels at 1.5 instead of 0.8. Together they cut the hoof to 4 holes but broke what the
+     0.8 target exists for: a 200 mm sphere layer came out at 1.12 (the test wants 1.0 or better, it was 2.2 before
+     0.2.2), and the horse's ear fix gave 1.26 for a promised 1.0. The way through is probably a rule for when a
+     dowel someone placed may move the automatic ones near it, at every layer it passes, and not a threshold.
+     `tests/test_modify.py::test_a_bunched_piece_is_offered_the_dowel_that_holds_it` and
+     `tests/test_ui.py::test_the_dowel_the_spread_check_offers_lands_where_it_says` are the cases to keep passing,
+     plus a hole count for the hoof.
+   - **The spot is given in mm in inch mode.** "a dowel at (x, y)" has no unit after it, so the units switch leaves
+     it in mm while the rest of the message turns to inches.
+   - **Tab connectors are not measured.** `connect=tab` uses the same placement, but the spread check only looks at
+     dowels; pegs and spacers bunched in the middle of a big layer are not said.
+   - **A thin ring is warned about, not helped.** A hollowed layer about 6 mm wide (the bunny's) holds a 6 mm dowel
+     only at a bulge: the check says how thick the wall is and what the dowel needs, and there is no button. Placing
+     dowels at the bulges farthest apart, or a smaller dowel for that layer alone, would be the next step.
 
 Left out of the four features above, deliberately: the instructions are a text file (`assembly-key.txt`) with the
 build order as a column, not a numbered page per step; the 3D-printed prototype still engraves real labels in puzzle

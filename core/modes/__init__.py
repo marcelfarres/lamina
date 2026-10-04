@@ -22,7 +22,7 @@ MAX_SLICES = 500                      # the count slider's ceiling, and the ceil
 #   map           per-slice numbers (edited from the 3D view)   value: {label: number}
 #   labels        list of slice labels (chips)                  value: [label, …]
 #   chips         list of numbers or labels                   value: [v, …]
-LIST_TYPES = ("vec2", "vec3", "points", "lines3", "map", "labels", "chips", "list")
+LIST_TYPES = ("vec2", "vec3", "points", "lines3", "map", "labels", "chips")
 
 
 @dataclass

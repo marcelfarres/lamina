@@ -291,3 +291,86 @@ def test_folded_panels_in_a_material_that_does_not_fold_say_so_and_offer_ribs():
     assert not fold_err(build(EXAMPLES / "cube.stl", "folded", {**job, "material": "cardboard"}))
     mine = build(EXAMPLES / "cube.stl", "folded", {**job, "material": "my birch ply", "material_kind": "plywood"})
     assert fold_err(mine) and "plywood" in fold_err(mine)[0]
+
+
+# the horse on the landing page: its body curve and a branch down each leg, from where it leaves the body to the hoof
+HORSE = {"size": [0, 300, 0], "thicken": 1, "round": 2, "thickness": 3, "slot_offset": 0.1, "plane": "yz", "count": 20, "spines": 1}
+HORSE_CURVE = [[-119, 11], [-89, 18], [-59, 23], [-14, 10], [16, 13], [50, 22], [76, 47], [91, 76], [106, 89], [136, 83]]
+BRANCHES = [[[-2, 46.6, -33], [-5.2, 64.5, -128]], [[40.5, 36.8, -33], [49, 25.8, -125]],
+            [[-2.8, -100.1, -11], [-5, -134.2, -125]], [[52, -83.1, -15], [54.9, -101, -125]]]
+# each leg's centreline, measured on the model: a leg bends, its branch is one straight line from body to hoof
+LEGS = [[[-2.0, 46.6, -33], [-2.3, 47.8, -61], [-3.7, 49.2, -81], [-3.6, 54.9, -101], [-5.2, 64.5, -128]],
+        [[40.5, 36.8, -33], [44.5, 30.7, -61], [47.1, 23.6, -81], [48.6, 19.9, -101], [49.0, 25.8, -125]],
+        [[-2.8, -100.1, -11], [-2.8, -120.4, -41], [-3.8, -133.5, -69], [-4.1, -139.7, -97], [-5.0, -134.2, -125]],
+        [[52.0, -83.1, -15], [50.7, -95.5, -45], [52.1, -104.1, -69], [52.9, -110.4, -97], [54.9, -101.0, -125]]]
+
+
+def test_curve_branches_hold_every_leg_of_the_horse():
+    """A branch per leg: its ribs square to the leg and a spine of its own down the middle of it, reaching back into
+    the body and slotted into the body ribs. Measured on the cut parts: every 2 mm along each leg's centreline lies
+    in a branch spine (within 6 mm of its plane, within 2 mm of its outline), each leg keeps its ribs, nothing is in
+    error and the model is still covered."""
+    from shapely.geometry import Point, Polygon
+    from shapely.ops import unary_union
+    plan = build(EXAMPLES / "horse.stl", "curve", {**HORSE, "curve": HORSE_CURVE, "branches": BRANCHES, "autofix": "add"})
+    assert plan["counts"]["errors"] == 0, [(s["label"], s["errors"]) for s in plan["slices"] if s["errors"]] + plan["errors"]
+    assert plan["coverage"] >= 0.9
+    spines = [(np.array(s["M"]), unary_union([Polygon(r[0], r[1:]) for pc in s["pieces"] for r in pc["kerfed"]]))
+              for s in plan["slices"] if s["label"][0] == "K" and s["label"][1:2].isdigit()]
+    for i, leg in enumerate(LEGS, 1):
+        C = np.array(leg)
+        X = np.concatenate([np.linspace(a, b, max(2, int(np.linalg.norm(b - a) // 2)), endpoint=False) for a, b in zip(C, C[1:])])
+        held = np.zeros(len(X), bool)
+        for M, g in spines:
+            L = (np.c_[X, np.ones(len(X))] @ np.linalg.inv(M).T)[:, :3]
+            held |= (np.abs(L[:, 2]) < 6) & np.array([g.distance(Point(x)) < 2 for x in L[:, :2]])
+        assert held.mean() >= 0.95, f"leg {i}: {held.mean():.0%} of it in a branch spine"
+        assert len([s for s in plan["slices"] if s["label"].startswith(f"R{i}-")]) >= 5
+    assert len(plan["axes3d"]) == 4 and {b["label"] for b in plan["bounds3d"]} >= {"J-1", "J-2", "J-3", "J-4"}
+
+
+def test_curve_branch_past_the_ribs_is_an_error():
+    """The landing page's shorter curve stops before the hind legs: the third branch's spine meets no body rib, so
+    nothing holds the leg on — said, not cut as a loose leg. The fourth starts further forward and its tongue
+    still reaches R-1."""
+    plan = build(EXAMPLES / "horse.stl", "curve", {**HORSE, "curve": [[-85, 22], [-30, 32], [25, 30], [55, 55], [90, 74]],
+                                                    "branches": BRANCHES, "autofix": "off"})
+    assert [e[:8] for e in plan["errors"]] == ["branch 3"], plan["errors"]
+
+
+def test_curve_branch_follows_its_joint_and_either_end_can_come_first():
+    """J-1 moved 15 mm down the leg takes branch 1's start with it — its ribs and spine stay one assembly, not a
+    tongue on its own with every rib floating — and a branch typed hoof first is the same branch, not a joint at the
+    hoof that hands the whole body to the leg."""
+    plan = build(EXAMPLES / "horse.stl", "curve", {**HORSE, "curve": HORSE_CURVE, "autofix": "off", "offset": {"J-1": 15},
+                                                    "branches": [BRANCHES[0][::-1]] + BRANCHES[1:]})
+    assert plan["counts"]["errors"] == 0, [(s["label"], s["errors"]) for s in plan["slices"] if s["errors"]] + plan["errors"]
+    assert plan["coverage"] >= 0.9
+    assert len([s for s in plan["slices"] if s["label"].startswith("R1-")]) >= 5
+
+
+def test_curve_branch_takes_its_limb_and_no_more(tmp_path):
+    """A box body along y with an arm straight out of its side and a leg down and out at a slant, a branch each.
+    The body keeps everything the branches' parts do not take: a rib far from both limbs is as big as with no
+    branches (past J alone, the arm took a 4 mm slab off every rib). The arm's spine lies flat, so the body ribs
+    cross it and hold it — square to the curve plane, it was parallel to them and held by nothing — and the leg's
+    slanted spine stops short of the body spine instead of crossing it unslotted."""
+    import trimesh
+    T = trimesh.util.concatenate([trimesh.creation.box([40, 200, 40]), trimesh.creation.box([80, 30, 30]).apply_translation([60, 0, 0]),
+                                  trimesh.creation.cylinder(12, segment=[[5, 60, -5], [60, 60, -75]])])
+    sh = -T.bounds.mean(0); T.apply_translation(sh); T.export(tmp_path / "t.stl")
+    base = {"plane": "yz", "count": 12, "spines": 1, "thickness": 3, "curve": [[-95, sh[2]], [95, sh[2]]], "autofix": "off", "shrinkwrap": 2}
+    area = lambda p: {s["label"]: sum(pc["area"] for pc in s["pieces"]) for s in p["slices"]}
+    bare = build(tmp_path / "t.stl", "curve", base)
+    # R2-1, the leg's rib at the joint, grazes the body's corner: on its plane it would meet K2 twice, which 2 mm either way clears
+    plan = build(tmp_path / "t.stl", "curve", {**base, "offset": {"R2-1": 2}, "branches": [[(np.add(q, sh)).tolist() for q in seg]
+                                                                    for seg in ([[15, 0, 0], [100, 0, 0]], [[14, 60, -15], [58, 60, -72]])]})
+    assert plan["counts"]["errors"] == 0 and not plan["errors"], [(s["label"], s["errors"]) for s in plan["slices"] if s["errors"]] + plan["errors"]
+    assert plan["coverage"] >= 0.9
+    for lab in ("R-1", "R-2", "R-3"):
+        assert abs(area(plan)[lab] - area(bare)[lab]) < 1, (lab, area(plan)[lab], area(bare)[lab])
+    by = {s["label"]: s for s in plan["slices"]}
+    assert abs(np.array(by["K1"]["M"])[:3, 2] @ [0, 0, 1]) > 0.99                          # the arm's spine lies flat
+    assert sum(x.startswith("R-") for x in by["K1"]["engages"]) >= 2 and sum(x.startswith("R-") for x in by["K2"]["engages"]) >= 2
+    K = np.array(by["K-1"]["M"]); side = (world_pts(by["K2"]) - K[:3, 3]) @ K[:3, 2]      # K2's outline against K-1's plane
+    assert (side > 3).all() or (side < -3).all(), (side.min(), side.max())
