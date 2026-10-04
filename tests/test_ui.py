@@ -1042,3 +1042,18 @@ def test_every_control_does_what_it_says_and_every_download_holds_the_plan(page,
     assert plan(page)["counts"]["errors"] == 0, plan(page)["errors"]
     page.remove_listener("dialog", answer)
     assert not page.errors, page.errors
+
+
+def test_an_example_starts_every_technique_from_its_defaults(page):
+    """Reported: the horse switched to stacked after the statue came back with the statue's preset (2 mm square
+    dowels, axis y, random), so its tab spacers were all "thinner than 2 mm". The technique memory carried the last
+    example's preset; a new example now starts every technique from its defaults and its own preset."""
+    page.click('nav button[data-t="model"]')
+    page.select_option("#example", "horse_statue"); settle(page)
+    page.select_option("#example", "horse"); settle(page)
+    page.click('nav button[data-t="technique"]'); page.click('#modes button[data-m="stacked"]'); settle(page)
+    defaults = page.evaluate("async () => Object.fromEntries((await (await fetch('api/modes')).json())"
+                             ".find(m => m.name === 'stacked').params.map(p => [p.name, p.default]))")
+    st = page.evaluate("() => window.__t.state()")
+    for k in ("dowel_d", "dowel_shape", "axis", "placement", "space"):
+        assert st[k] == defaults[k], (k, st[k], defaults[k])

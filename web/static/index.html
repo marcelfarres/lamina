@@ -1380,9 +1380,11 @@ async function init(){
   // a bundled example opens on its preset (examples/presets.json): its technique, standing the right way up, sliced
   // clean — the model preparation is reset first so nothing carries over from the previous shape. A preset that names a
   // material or a machine picks it as the selects would (its look, its compensation, its bed as the sheet); the caller
-  // slices straight after, so the select's own delayed slice is dropped
+  // slices straight after, so the select's own delayed slice is dropped. Every other technique starts from its defaults
+  // too: the memory kept the last example's preset, so the horse switched to stacked after the statue came back with
+  // the statue's 2 mm square dowels on axis y, and its tab spacers were all "thinner than 2 mm" (reported)
   const applyPreset=()=>{const pr=PRESETS[$('#example').value];if(!pr)return;
-    setMode(pr.mode,false);Object.assign(state,{rotate:[0,0,0],size:[0,0,0],scale:1,round:0,thicken:0,shrinkwrap:0,smooth:0,hollow:0,space:0},structuredClone(pr.params));
+    setMode(pr.mode,false);for(const k of Object.keys(memo))delete memo[k];Object.assign(state,{rotate:[0,0,0],size:[0,0,0],scale:1,round:0,thicken:0,shrinkwrap:0,smooth:0,hollow:0,space:0},structuredClone(pr.params));
     if(pr.params.material)$('#material').onchange({target:{value:pr.params.material}});
     if(pr.params.machine)applyMachine(pr.params.machine);
     clearTimeout(timer);renderFields()};
