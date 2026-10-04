@@ -560,13 +560,16 @@ def test_stacked_with_aligned_dowels_finishes_on_a_box_with_a_hole(page, tmp_pat
 def test_the_dowel_the_spread_check_offers_lands_where_it_says(page):
     """A layer held by dowels bunched together is told on the Checks tab, under its own label, which dowel would hold
     it, with a button. The button adds that dowel to the ones typed in (the Technique tab's dowels), a rod appears
-    through that layer at that spot in the 3D view, and the warning goes. The horse as its example opens (random
-    3 mm square dowels, a 6 mm gap), set to aligned: the button is for dowels straight through the stack."""
+    through that layer at that spot in the 3D view, and the warning goes. The horse stacked as its example used to
+    open (random 3 mm square dowels, a 6 mm gap), set to aligned: the button is for dowels straight through the stack."""
     page.click('nav button[data-t="model"]')
     page.select_option("#example", "horse")
     settle(page)
     page.click('nav button[data-t="technique"]')
     page.click('#modes button[data-m="stacked"]')
+    settle(page)
+    page.evaluate("""() => window.__t.applyFix({axis: 'z', size: [0, 300, 0], connect: 'dowel', dowel_shape: 'square', placement: 'random',
+                                                space: 6, dowel_d: 3, n_points: 2, round: 3, thicken: 1, margin: 6})""")
     settle(page)
     set_fields(page, [("p_placement", "aligned")])
     settle(page)
