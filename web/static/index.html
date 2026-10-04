@@ -198,23 +198,23 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
     <section data-tab="checks"><h2>Physical checks <button class="small reset" data-reset="checks">reset tab</button></h2><div id="g-checks"></div><h2>Report</h2><div id="report"></div></section>
     <section data-tab="export"><h2>Weight</h2><div id="weight"></div>
       <h2>Downloads</h2>
-      <div class="f"><span class="k" data-tip="Include the red LABEL layer (part names, leader lines, seam numbers, sheet border) in the cut files. Off = cuts and score lines only">labels in files</span><input type="checkbox" id="x_labels" checked></div>
+      <div class="f cutonly"><span class="k" data-tip="Include the red LABEL layer (part names, leader lines, seam numbers, sheet border) in the cut files. Off = cuts and score lines only">labels in files</span><input type="checkbox" id="x_labels" checked></div>
       <div class="f"><span class="k" data-tip="assembly-key.txt in the zip: what the labels mean, every part with where its centre sits and what it slots onto, in the order the 3D view builds them. In puzzle mode it is also the only way from an engraved code back to a part — untick it and the puzzle stays a puzzle (the file can always be downloaded later)">assembly key</span><input type="checkbox" id="x_key" checked></div>
       <div class="hint" id="legend" style="margin:2px 0 8px"></div>
-      <div class="f"><span class="k" data-tip="Step between the five slot offsets of a fit test: yours −2, −1, 0, +1, +2 steps. A fit test is five small assemblies with this job's joints — same thickness, connectors and the counts that make the assembly tight (every radial half-slice) — each part marked with its offset. The loosest that slides together without forcing and still holds is the offset to set. The cut-file test below is at 1:1 on your real material and machine and is the one that predicts the model's fit; the print test under Prototyping dials in the print only — a clearance is a length, not a ratio">fit step (mm)</span><input type="number" id="pr_step" data-len data-mm="0.1" data-min="0.01" data-step="0.05"></div>
+      <div class="f cutonly"><span class="k" data-tip="Step between the five slot offsets of a fit test: yours −2, −1, 0, +1, +2 steps. A fit test is five small assemblies with this job's joints — same thickness, connectors and the counts that make the assembly tight (every radial half-slice) — each part marked with its offset. The loosest that slides together without forcing and still holds is the offset to set. The cut-file test below is at 1:1 on your real material and machine and is the one that predicts the model's fit; the print test under Prototyping dials in the print only — a clearance is a length, not a ratio">fit step (mm)</span><input type="number" id="pr_step" data-len data-mm="0.1" data-min="0.01" data-step="0.05"></div>
       <div class="dl" id="dl"></div>
       <!-- Here, not on the Model tab: the people who just downloaded the cut files are the ones about to make it. -->
       <p class="hint" style="margin:10px 0 4px">Once it is cut and built, please
         <a data-feedback="made" href="https://github.com/marcelfarres/lamina/issues/new?template=made.yml" target="_blank" rel="noopener">send me a photo</a>
         — with your OK it goes in the <a href="https://marcelfarres.github.io/lamina/?ref=app#made" target="_blank" rel="noopener">gallery</a>,
         credited as you like — or post it with <b>#applamina</b> on Instagram or X.</p>
-      <h2>Prototyping (3D print)</h2>
-      <div class="f"><span class="k" data-tip="Scale factor for the printed prototype (parts and thickness scale together; thickness never goes below min thickness). With PLA or PETG as the material the print is the job itself, so picking one sets this to 1">scale</span><input type="number" id="pr_scale" value="0.5" min="0.05" max="5" step="0.05"></div>
-      <div class="f"><span class="k" data-tip="Or give the prototype's longest side (mm); overrides the scale when set">final size (mm)</span><input type="number" id="pr_size" data-len data-mm="" data-ph="100" data-min="5" data-step="1"></div>
+      <h2 id="pr_title">Prototyping (3D print)</h2>
+      <div class="f protoonly"><span class="k" data-tip="Scale factor for the printed prototype (parts and thickness scale together; thickness never goes below min thickness). With PLA or PETG as the material the print is the job itself, so picking one sets this to 1">scale</span><input type="number" id="pr_scale" value="0.5" min="0.05" max="5" step="0.05"></div>
+      <div class="f protoonly"><span class="k" data-tip="Or give the prototype's longest side (mm); overrides the scale when set">final size (mm)</span><input type="number" id="pr_size" data-len data-mm="" data-ph="100" data-min="5" data-step="1"></div>
       <div class="f"><span class="k" data-tip="Part labels embedded in the printed part: groove = engraved 0.6 mm deep, hole = cut through">labels</span><select id="pr_labels"><option>groove</option><option>hole</option><option>none</option></select></div>
       <div class="f"><span class="k" data-tip="Letter height of the labels as printed, whatever the scale: 5 mm reads well and its bold strokes print with a 0.4 mm nozzle. A label sits where its part is widest, away from slots and edges, 1.5× this size where that fits. A part with no room for it gets none, and README.txt in the zip lists them — lower this to label them">label size (mm)</span><input type="number" id="pr_font" data-len data-mm="5" data-min="1" data-step="0.5"></div>
       <div class="f"><span class="k" data-tip="Thinnest part the printer can make (mm). Parts that would print thinner cannot simply be made thicker — their slots were cut for the thin material — so the set is planned again at the material thickness that prints to this">min thickness (mm)</span><input type="number" id="pr_min" data-len data-mm="1.2" data-min="0.2" data-step="0.1"></div>
-      <div class="f"><span class="k" data-tip="How much wider than the material the print's slots and holes are, as printed, whatever the scale. A fit is a clearance, a length, not a ratio: the job's slot offset (Fit) is for the real material at 1:1 and would print 5× too tight at ×0.2, so the print gets its own. 0.2 mm suits most FDM printers; dial it in with the print fit test below">print slot offset (mm)</span><input type="number" id="pr_offset" data-len data-mm="0.2" data-min="-1" data-max="2" data-step="0.05"></div>
+      <div class="f protoonly"><span class="k" data-tip="How much wider than the material the print's slots and holes are, as printed, whatever the scale. A fit is a clearance, a length, not a ratio: the job's slot offset (Fit) is for the real material at 1:1 and would print 5× too tight at ×0.2, so the print gets its own. 0.2 mm suits most FDM printers; dial it in with the print fit test below">print slot offset (mm)</span><input type="number" id="pr_offset" data-len data-mm="0.2" data-min="-1" data-max="2" data-step="0.05"></div>
       <div class="hint" id="pr_hint" style="margin:2px 0 8px"></div>
       <div class="dl"><a href="#" id="pr_go">download prototype set (plate.3mf for OrcaSlicer + one STL per part)</a></div>
       <div class="dl"><a href="#" id="fit_go">download print fit test (5 print slot offsets around yours, at the scale above)</a></div>
@@ -457,7 +457,9 @@ $('#tabs').addEventListener('input',e=>{
 const TABGROUPS={model:['model'],technique:['technique','slices'],sheet:['sheet','fit'],checks:['checks']};
 function resetTab(tab){for(const p of mode.common)if(TABGROUPS[tab].includes(p.group))state[p.name]=structuredClone(p.default);
   if(tab==='technique')for(const p of mode.params)state[p.name]=structuredClone(p.default);
-  if(tab==='model')fitted=false; if(tab==='sheet')applyMachine(state.machine); unit=state.units||unit; applyUnit(); slice()}   // the Sheet tab holds `units`: the page follows it back to mm
+  // the material sets the 3D look when it is picked, so the reset material takes the look back to the page's own
+  if(tab==='model')fitted=false; if(tab==='sheet'){applyMachine(state.machine);$('#look').value='group';applyLook()}
+  unit=state.units||unit; applyUnit(); slice()}   // the Sheet tab holds `units`: the page follows it back to mm
 $('#tabs').addEventListener('click',e=>{
   const t=e.target, P=name=>allParams().find(p=>p.name===name);
   if(t.dataset.rot!==undefined){const r=[...(state.rotate||[0,0,0])],i=+t.dataset.rot;r[i]=((r[i]+(e.shiftKey?-90:90)+180)%360+360)%360-180;state.rotate=r;fitted=false;renderFields();schedule();return}
@@ -627,7 +629,7 @@ async function slice(){
     if(!r.ok)throw new Error(typeof j.detail==='string'?j.detail:j.detail?JSON.stringify(j.detail):r.statusText);   // a 422 details itself as objects
     if(pendingFile)srcFile=pendingFile; pendingFile=null; job=j.job; plan=j.plan; const t1=Date.now();
     render3D(j.model); renderSheets(j.sheets); renderReport(); syncSizeHints();
-    status(`ready · ${j.took} s · ${plan.counts.parts} parts · ${plan.sheets} sheet(s) · ${plan.counts.errors} errors`,plan.counts.errors?'err':'');
+    status(`ready · ${j.took} s · ${plan.counts.parts} parts · ${plan.sheets} ${SH()}(s) · ${plan.counts.errors} errors`,plan.counts.errors?'err':'');
     act(`sliced in ${j.took} s: ${plan.counts.parts} parts, ${plan.counts.errors} errors, ${plan.counts.warnings} warnings`);
     // where the time went, for anyone tuning it: the build's stages (seconds), the round trip around them, and the page's own drawing
     console.info('lamina timing', mode.name, {...plan.timing, 'round trip beyond the build': +((t1-t0)/1000-j.took).toFixed(2), 'page drawing': (Date.now()-t1)/1000});
@@ -1135,7 +1137,10 @@ function renderSheets(svgs){
 }
 function applyFix(set){act('clicked a fix');for(const [k,v] of Object.entries(set)){if(v&&typeof v==='object'&&!Array.isArray(v))state[k]={...(state[k]||{}),...v};else if(Array.isArray(v)&&['skip','extra_x','extra_y'].includes(k))state[k]=[...new Set([...(state[k]||[]),...v])];else state[k]=v}renderFields();slice()}
 // what the printed prototype parts come out at — and the re-plan the server does when that is under the printer's minimum
-function protoHint(){if(!plan)return;const size=lenMM('#pr_size'),s=size>0?size/Math.max(...plan.bbox):(+$('#pr_scale').value||1),mn=lenMM('#pr_min',1.2);
+// a printed job is printed as it is: full size, with the job's own slot offset (its machine's, for that printer)
+const SH=()=>state.printed?'plate':'sheet';
+function prScale(){const size=lenMM('#pr_size');return state.printed?1:size>0?size/Math.max(...plan.bbox):(+$('#pr_scale').value||1)}
+function protoHint(){if(!plan)return;const s=prScale(),mn=lenMM('#pr_min',1.2);
   const thin=Math.min(...plan.slices.map(x=>x.thickness)),printed=thin*s,h=$('#pr_hint');
   if(printed>=mn-1e-9){h.textContent=`parts print ${fmtLen(printed)} thick (${fmtLen(thin)} × ${s.toFixed(3)})`;h.style.color=''}
   else{h.textContent=`at ×${s.toFixed(3)} the ${fmtLen(thin)} parts would print ${fmtLen(printed)}, under the ${fmtLen(mn)} minimum — the set is planned again at ${fmtLen(mn/s)} material so the slots fit the printed parts (a note travels in the zip)`;h.style.color='var(--warn)'}}
@@ -1160,8 +1165,8 @@ function renderWeight(){if(!plan)return;const d=dens(),g=d/1000,by=new Map();   
   const parts=[...by.values()].reduce((a,b)=>a+b.v,0), rods=rodStats();
   const stock=[...Array(plan.sheets).keys()].reduce((a,i)=>a+plan.sheet[0]*plan.sheet[1]*(plan.sheet_thick?.[i]??state.thickness),0);
   $('#weight').innerHTML=`<div class="stats"><div class="k" data-tip="Every part as cut, holes and slots taken out, each at its own thickness"><b>${fmtMass(parts*g)}</b>parts</div>
-    <div><b>${fmtVol(parts)}</b>of ${esc(state.material)}</div>
-    <div class="k" data-tip="The whole sheets the parts are nested on, offcuts included: what you buy and lift onto the machine"><b>${fmtMass(stock*g)}</b>${plan.sheets} sheet(s)</div>`
+    <div><b>${fmtVol(parts)}</b>of ${esc(state.material)}</div>`
+    +(state.printed?'':`<div class="k" data-tip="The whole sheets the parts are nested on, offcuts included: what you buy and lift onto the machine"><b>${fmtMass(stock*g)}</b>${plan.sheets} sheet(s)</div>`)
     +(rods.n?`<div class="k" data-tip="The dowel rods, bought rather than cut, taken to be of the same material as the parts"><b>${fmtMass(rods.vol*g)}</b>${rods.n} dowel(s)</div>
       <div class="k" data-tip="Parts and dowels together: what the finished model weighs, glue aside"><b>${fmtMass((parts+rods.vol)*g)}</b>assembled</div>`:'')+`</div>`
     +(rods.n?`<div class="hint">${rods.n} dowel(s), ${fmtLen(rods.len)} of rod in all</div>`:'')
@@ -1174,6 +1179,12 @@ function renderDownloads(){ // the labels checkbox applies to every cut file; th
   // what the labels on the parts mean, before the cut rather than after it
   $('#legend').innerHTML=`<b>how the parts are labelled</b><br>${(mode.legend||'every part carries its own label').replace(/ · /g,'<br>')}`
     +(state.label_style==='code'?'<br><b>puzzle mode:</b> the parts are engraved with codes instead — assembly-key.txt maps them back':'');
+  // a printed job has nothing to cut: the plates are under Print, and the cut files and their fit test step aside
+  for(const el of $$('.cutonly,.protoonly'))el.hidden=state.printed;
+  $('#pr_title').textContent=state.printed?'Print plates':'Prototyping (3D print)';
+  $('#pr_go').textContent=state.printed?`download print plates (plate-1.3mf … plate-${plan.sheets}.3mf, one per bed, + one STL per part)`
+    :'download prototype set (plate.3mf for OrcaSlicer + one STL per part)';
+  if(state.printed){$('#dl').innerHTML=[['assembled STL',`${b}/stl`],['plan.json',`jobs/${CLIENT}/${job}/plan.json`]].map(([t,u])=>`<a href="${u}">${t}</a>`).join('');return}
   $('#dl').innerHTML=[['sheets SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}${U}`],['sheets PDF (one page per sheet)',`${b}/export?fmt=pdf&labels=${L}&key=${K}${U}`],['sheets EPS',`${b}/export?fmt=eps&labels=${L}&key=${K}${U}`],
     ['one file per piece SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&per_piece=1${U}`],['assembled STL',`${b}/stl`],['plan.json',`jobs/${CLIENT}/${job}/plan.json`],
     ['fit test SVG + DXF (5 slot offsets around yours, cut at 1:1 first)',`${b}/fitcut?fmt=svg,dxf&labels=${L}&step=${step}${U}`],['fit test PDF',`${b}/fitcut?fmt=pdf&labels=${L}&step=${step}${U}`]].map(([t,u])=>`<a href="${u}">${t}</a>`).join('');
@@ -1185,7 +1196,7 @@ function renderReport(){
   const twins=pc=>[...(pc.same||[]),...(pc.flipped||[])];   // flipped = the same file, turned over (`mirror ok`)
   const copies=new Set(p.slices.flatMap(s=>s.pieces.flatMap(twins)));
   const kinds=p.slices.flatMap(s=>s.pieces.filter(pc=>!copies.has(pc.label)).map(pc=>[s,pc,[pc.label,...twins(pc)],pc.flipped||[]]));
-  $('#stats').innerHTML=`<div class="stats"><div><b>${c.parts}</b>parts</div><div class="k" data-tip="How many different parts to cut: identical ones (same outline, any quarter turn, same stock — and with mirror ok also mirror images) count once — the Parts table and the per-piece export list them once, with the quantity"><b>${kinds.length}</b>different</div><div><b>${p.sheets}</b>sheet(s)</div><div><b>${(p.sheet_usage*100).toFixed(0)}%</b>sheet used</div>
+  $('#stats').innerHTML=`<div class="stats"><div><b>${c.parts}</b>parts</div><div class="k" data-tip="How many different parts to cut: identical ones (same outline, any quarter turn, same stock — and with mirror ok also mirror images) count once — the Parts table and the per-piece export list them once, with the quantity"><b>${kinds.length}</b>different</div><div><b>${p.sheets}</b>${SH()}(s)</div><div><b>${(p.sheet_usage*100).toFixed(0)}%</b>${SH()} used</div>
    <div class="k" data-tip="How much of the model the parts represent: sample points inside the model that lie within a slice spacing of some part. Below 90 % parts of the model (legs, ears) have no geometry — add slices or change the axis"><b style="color:${p.coverage<0.9?'var(--warn)':'var(--ok)'}">${(p.coverage*100).toFixed(0)}%</b>model covered</div>
    <div><b>${(p.material_area_mm2/1e4).toFixed(1)}</b>dm² material</div><div><b>${p.bbox.map(inU).join(' × ')}</b>model ${unit}</div>
    <div><b style="color:${c.errors?'var(--err)':'var(--ok)'}">${c.errors}</b>errors</div><div><b style="color:${c.warnings?'var(--warn)':'var(--ok)'}">${c.warnings}</b>warnings</div></div>`;
@@ -1203,7 +1214,7 @@ function renderReport(){
     const m=parts.children.find(c=>c.userData.slice===d.dataset.s); if(m){highlight(m);fitted=true}};
   renderDownloads();
   // the link itself does the download (a navigation on the server, a blob from the worker in the browser build)
-  const prq=()=>new URLSearchParams({scale:$('#pr_scale').value||1,size:lenMM('#pr_size'),labels:$('#pr_labels').value,font:lenMM('#pr_font',5),min_thick:lenMM('#pr_min',1.2),offset:lenMM('#pr_offset',0.2)});
+  const prq=()=>new URLSearchParams({scale:prScale(),size:0,labels:$('#pr_labels').value,font:lenMM('#pr_font',5),min_thick:lenMM('#pr_min',1.2),offset:state.printed?state.slot_offset:lenMM('#pr_offset',0.2)});
   $('#pr_go').onclick=e=>{e.currentTarget.href=`api/job/${CLIENT}/${job}/proto?${prq()}`;countUse('export','proto-3mf')};
   $('#fit_go').onclick=e=>{const q=prq();q.set('step',lenMM('#pr_step',0.1));e.currentTarget.href=`api/job/${CLIENT}/${job}/fit?${q}`;countUse('export','fit-3mf')};
   // typing in a length box writes its mm back, so what the server is given never depends on the unit on show
@@ -1276,8 +1287,8 @@ async function init(){
       if(!machineOf(state.machine)?.cuts.includes(kind(n)))applyMachine(m.machine);                                                       // a machine that cuts it
       if(!shs().some(([,s])=>sameSheet(s,state.sheet)))state.sheet=[...shs()[0][1]];                                                       // a sheet it comes in
       $('#look').value=m.look;applyLook()
-      // a printed material is the job itself, not a model of it: the print set on the Export tab comes out full size
-      if(m.family==='print'){$('#pr_scale').value=1;$('#pr_size').value='';$('#pr_size').dataset.mm=''}}
+      // a printed material is the job itself, not a model of it: its sheets are plates of the bed, printed full size
+      state.printed=m.family==='print'}
     renderFields();schedule()};
   $('#machine').onchange=e=>{applyMachine(e.target.value);renderFields();schedule()};
   // a machine of your own: the compensation and sheet as they stand, cutting what the machine it was made from cuts

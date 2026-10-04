@@ -159,7 +159,8 @@ def mat_tag(plan):
 def sheet_title(plan, si):
     p = plan["params"]; u = p.get("units", "mm")
     thick = f"{sheet_thickness(plan, si) * UNIT[u]:.3g} {u} stock"
-    return f"{p.get('project') or ''} v{p.get('rev') or '1.0'} · {plan['mode']} · {thick} · sheet {si + 1}/{plan['sheets']}".strip(" ·")
+    return (f"{p.get('project') or ''} v{p.get('rev') or '1.0'} · {plan['mode']} · {thick} · "
+            f"{'plate' if p.get('printed') else 'sheet'} {si + 1}/{plan['sheets']}").strip(" ·")
 
 
 def svg_doc(items, width, height, labels, border=False, font=4.0, units="mm", title=""):

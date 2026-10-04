@@ -97,7 +97,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 ## §5 Troubleshooting checks of the original
 | Original | Status |
 |---|---|
-| Unconnected / floating pieces | ✅ region-level assembly connectivity (slots, connectors, glued contact): floating regions and separate groups are errors; `autofix=add` adds crossing slices first, then removes what still floats; one-click fixes add a slice, move, delete the group, round the model |
+| Unconnected / floating pieces | ✅ region-level assembly connectivity (slots, connectors, glued contact): floating regions and separate groups are errors; `autofix=add` adds crossing slices whose section reaches the rest (interlocked), rings or spines, and never deletes a piece; one-click fixes add a slice, move, delete the group, round the model |
 | Part too small / too narrow | ✅ `min_part`, `min_feature`, thin-neck erosion |
 | Notches split a part | ✅ error: slots cut the part into loose regions |
 | Parts exceed the sheet | ✅ error (rotation considered) or auto-split with puzzle tabs, placed only where a whole tab fits (never clipped by a hole or the outline). A part over the sheet in *both* directions is cut the long way and then across; whatever still does not fit is named with the size that would, and keeps its sheet to itself instead of being nested over |

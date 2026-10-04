@@ -119,11 +119,20 @@ the starter for your computer in the folder that appears:
 
 It asks once whether it may install [uv](https://docs.astral.sh/uv/) (a small tool that fetches Python and the
 libraries into your own user folder), downloads them — a few minutes, once — and opens
-<http://localhost:8000>. Leave the text window open while you work; closing it stops Lamina. There is no signed
+<http://localhost:8000>. Leave the text window open while you work; closing it stops Lamina. Every start checks for
+a new release and installs it ([Updating](#updating)). There is no signed
 `.dmg`/`.exe` installer: Apple and Microsoft both charge yearly for the signature a free tool would need, so the
 starters are the same convenience without it.
 
-**From a terminal** — Python 3.11 or newer and [uv](https://docs.astral.sh/uv/); everything else is installed for you:
+**From a terminal** — [uv](https://docs.astral.sh/uv/) fetches Python and everything else; the starters run exactly
+this:
+
+```bash
+uv tool install lamina3d     # "lamina3d[cad]" adds STEP / BREP import
+lamina3d                     # opens http://localhost:8000 (--port to change it)
+```
+
+**To work on Lamina itself**, from a clone:
 
 ```bash
 git clone https://github.com/marcelfarres/lamina.git
@@ -139,6 +148,21 @@ The image on GitHub Container Registry carries everything; the machine that runs
 ```bash
 docker run -d -p 8000:8000 -v lamina-jobs:/app/working-files ghcr.io/marcelfarres/lamina:latest
 ```
+
+### Updating
+
+The browser version is always the newest. A local copy moves only to a tagged release, whose package is installed
+and made to slice before it is published:
+
+| how you run it | how it updates |
+|---|---|
+| the double-click starter | by itself: every start runs `uv tool install --upgrade lamina3d`; offline it starts the version you have |
+| `uv tool install` | `uv tool upgrade lamina3d` |
+| Docker | `docker pull ghcr.io/marcelfarres/lamina:latest`, then start it again (`docker compose pull && docker compose up -d`) |
+| a clone | `git pull && uv sync` |
+
+The what's-new dialog opens by itself on the first start after an update. An older starter (one that says `uv sync` inside) never updates
+— download the ZIP once more and use the new one; your jobs are in the old folder's `working-files/`.
 
 **No server at all:** the same page runs its Python in a web worker (Pyodide) when nothing answers `api/`. That is
 the public demo, at [marcelfarres.github.io/lamina/app](https://marcelfarres.github.io/lamina/app/?ref=github-readme) and on
@@ -234,8 +258,11 @@ Common to all: model `rotate` (three angles) and slicing `center`, per-slice `of
 Besides per-part checks (too small, too thin, severed by slots, holes near the outline, overlapping cuts), every plan
 is checked as an **assembly**: each region of each slice must reach the main body through a slot, a connector or
 glued contact; a head held only by slices that never touch the body is reported as a separate group. `autofix=add`
-(the default) first adds crossing slices through regions nothing holds, up to two rounds, then removes what still
-cannot work, and lists everything it did. Every remaining error and most warnings carry one-click fixes: add a slice
+(the default) holds regions nothing holds the way the technique holds things — crossing slices placed where their own
+section reaches the rest of the assembly, rings, spines — up to two rounds, and lists everything it did. It never
+deletes a piece of the model: what still cannot be held stays on the plan with its error. (Left out, and said so: a
+shaving a slot cuts off its own part and a speck where a slice only grazes the surface, both thinner than the minimum
+wall everywhere — too small to cut or handle.) Every remaining error and most warnings carry one-click fixes: add a slice
 through the region, move it, delete the group, round the model, change the notch ratio, split the part.
 
 A coverage figure says how much of the model's surface the parts represent, so a leg or an ear that no slice reaches
@@ -398,8 +425,9 @@ the quick run.
 
 ```bash
 uv run ruff check                       # lint (pyflakes, bugbear, bandit, pyupgrade); the test workflow runs it first
-uv run pytest tests                     # pipeline, nesting, checks, export, the web API, the browser build's code path,
-                                        # and every slider end / choice / toggle of every technique (tests/test_params.py)
+uv run pytest tests -n auto             # pipeline, nesting, checks, export, the web API, the browser build's code path,
+                                        # and every slider end / choice / toggle of every technique (tests/test_params.py);
+                                        # -n auto spreads it over every core: about 4 min on 12, 32 in one process
 uv run --with pytest-cov pytest --cov=core --cov=web --cov-report=term-missing   # coverage: 88 % of core + web
 uv run python tests/browser_env.py working-files/jobs   # the whole matrix without the compiled extras Pyodide lacks
 uv run --with playwright playwright install chromium

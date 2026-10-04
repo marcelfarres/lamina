@@ -675,7 +675,10 @@ def test_the_export_tab_weighs_the_parts(page):
     assert len(p["rods"]) == 2 * 3, p["rods"]                            # two points × three pairs of slices
     n = p["slices"][0]["M"]; z = sorted(sum(s["M"][i][3] * n[i][2] for i in range(3)) for s in p["slices"])
     rod = (z[-1] - z[0]) + 1.897                                         # outer face to outer face
-    mass = 2 * rod * math.pi * 3 ** 2 * 7.85 / 1000                      # 6 mm dowels, in grams
+    sec = p["rods"][0][3]                                                # the rod's section as cut: a 96-gon, not π r²
+    area = abs(sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(sec, sec[1:] + sec[:1]))) / 2
+    assert abs(area - math.pi * 3 ** 2) < 0.01 * math.pi * 3 ** 2, area  # 6 mm dowels
+    mass = 2 * rod * area * 7.85 / 1000                                  # in grams
     assert "2 dowel(s)" in weight() and f"{mass:.3g} g" in weight(), (mass, weight())
     # assembled = parts + dowels, the parts now 8 holes lighter: 6 mm dowels + the fiber laser's 0.15 mm slot offset
     holes = 8 * math.pi * 3.075 ** 2 * 1.897 * 7.85 / 1000

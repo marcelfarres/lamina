@@ -6,8 +6,15 @@ What changed in each release. The GitHub release for a version is this section, 
 
 What your model weighs, eleven more materials (PLA and PETG among them, to 3D-print the parts at full size), the
 model's name on every part, a button that squares up a tilted model, a desktop version that keeps itself up to date,
-and fixes for stacks that came out short, layers whose pieces were nested as one, folded holes too near the edge,
+an auto-fix that never deletes a piece of your model, and fixes for stacks that came out short, layers whose pieces were nested as one, folded holes too near the edge,
 and the browser version's one intermittent failure.
+
+### Printing
+
+- **A printed job is plates, not sheets.** Picking PLA or PETG ticks **3D printed** on the Sheet & fit tab: the sheet
+  size is the printer's bed, the page counts plates, and the Export tab offers the print plates (one 3MF per bed,
+  at full size, with the job's own slot offset) instead of cut files nothing would cut. Untick it to get the cut
+  files anyway.
 
 ### Weight
 
@@ -77,6 +84,20 @@ and the browser version's one intermittent failure.
   needed) or a GitHub issue form you drag the photos into. With your OK it goes up, credited the way you ask. Or
   post it on Instagram or X with **#applamina**.
 
+### Auto-fix
+
+- **Auto-fix never deletes a piece of your model.** It used to add crossing slices and then remove whatever still
+  floated: on a tube sliced 6 × 5 that was 71 % of the model, and on the horse the whole top layer with its ear tips.
+  Now what nothing can hold stays on the plan with its error and the fixes to click, deleting among them if that is
+  what you want. The only things left out, and the report says so, are slivers thinner than the minimum wall
+  everywhere: shavings a slot cuts off its own part, and specks where a slice only grazes the surface.
+- **Interlocked slices are held where it counts.** A crossing slice through the middle of a loose piece used to be just
+  as loose there. Auto-fix now places it where its own cut reaches the rest of the model: the tube and the torus are
+  held whole, and on thirteen hard cases the errors left went from 281 to 92 (all of them now kept and shown, where
+  before they were deleted).
+- The **remove** choice of auto-fix is gone: **add** holds what it can, **off** only reports. A project saved with
+  remove opens with off.
+
 ### Usage counting
 
 - **The box at the foot of the published app's Model tab now starts ticked.** While it is ticked it sends the
@@ -141,8 +162,17 @@ and the browser version's one intermittent failure.
   ends of the wavy torus, was one part: its pieces were nested as one group with the empty space between them, and
   only one carried a label. Each piece is now a part of its own, labelled `Z-1-1`, `Z-1-2` …, and nested on its own:
   the wavy torus goes from 14 sheets to 8.
+- **Aligned tab spacers hold every layer.** With tab connectors and aligned placement, every second pair of layers
+  could end up with no spacer at all: the automatic fixes then removed the pieces nothing held, and spacers that did
+  fit could cut into each other ("two slots / holes overlap"). Each spacer is now placed where its slot really fits
+  both layers, with a full wall from every other cut, and a piece the regular points miss gets spacers of its own.
+  On ten example shapes the errors went from 319 to 6, all at the tip of a cone too small for a 6 mm connector.
+- **Every part lands on its sheet.** A part that filled a sheet almost exactly, like a big folded panel, could be
+  placed hundreds of millimetres off the sheet, and jobs of more than 150 parts let the last part along the edges
+  run a millimetre or two into the sheet margin, and now and then two parts were nested on top of each other. Every
+  part is placed inside the margin and clear of the others now.
 
-Verified by 604 tests, plus 25 driving the app in a real browser and one slicing the published build end to end.
+Verified by 612 tests, plus 25 driving the app in a real browser and one slicing the published build end to end.
 
 ## 0.2.1
 
