@@ -43,11 +43,11 @@ const set = async (name, v) => {
 const BASE = { rotate: [0, 0, 0], size: [0, 0, 0], round: 0, thicken: 0, shrinkwrap: 0, smooth: 0, thickness: 3, autofix: "add" };
 const params = async p => {
     // every per-slice edit and every slice autofix added: none of it belongs to the next scene or sweep state
-    await js("Object.assign(window.__t.state(),{grow:{},offset:{},tilt:{},roll:{},thick:{},skip:[],extra_x:[],extra_y:[],dowels:[],axes:[]})");   // axes: the snowman's preset has three; a scene asks for its own
+    await js("Object.assign(window.__t.state(),{grow:{},offset:{},tilt:{},roll:{},thick:{},skip:[],extra_x:[],extra_y:[],dowels:[],axes:[],branches:[]})");   // axes: the snowman's preset has three; a scene asks for its own
     for (const [k, v] of Object.entries({ ...BASE, ...p })) await set(k, v);
     await settle();
 };
-// what the fix buttons do (grow an outline, move a slice) and the curve control points, applied as the app applies them
+// what the fix buttons do (grow an outline, move a slice) and the curve's points and branches, applied as the app applies them
 const fix = async set => { await js(`window.__t.applyFix(${JSON.stringify(set)})`); await settle(); };
 // whatever warning is left on screen, take the app's own first offer for it (grow the outline, move the slice),
 // one at a time, as a user would: the project file then carries those fixes too
@@ -174,14 +174,17 @@ S.lobes = async () => {       // the plane between two lobes is a part: select i
 };
 S.curve = async () => {       // the horse is long along y; the curve follows the back and climbs the neck to the head
     await example("horse"); await mode("curve"); await tab("technique");
-    // 20 ribs on one spine: centred on the body the spine passes between the legs; a second one would cross a leg
-    // and the body on one line, which no slot can assemble
-    await params({ plane: "yz", count: 20, spines: 1, round: 2 });
-    const CURVE = [[-85, 22], [-30, 32], [25, 30], [55, 55], [90, 74]];
-    await fix({ curve: CURVE }); await heal();
+    // 20 ribs on one body spine, and a branch down each leg: ribs square to the leg and a spine of its own that slots
+    // into the body ribs, so no body rib cuts across a leg. Points in mm for the horse 300 mm long, as on the landing
+    // settings. The head goes up, not down: down, the head ribs cross (the legs no longer hold back the turn limit)
+    await params({ plane: "yz", count: 20, spines: 1, round: 2, size: [0, 300, 0], thicken: 1 });
+    const CURVE = [[-119, 11], [-89, 18], [-59, 23], [-14, 10], [16, 13], [50, 22], [76, 47], [91, 76], [106, 89], [136, 83]];
+    const BRANCHES = [[[-2, 46.6, -33], [-5.2, 64.5, -128]], [[40.5, 36.8, -33], [49, 25.8, -125]],
+        [[-2.8, -100.1, -11], [-5, -134.2, -125]], [[52, -83.1, -15], [54.9, -101, -125]]];
+    await fix({ curve: CURVE, branches: BRANCHES }); await heal();
     await view(-70, 16, 0.9, 1.0); await project("curve");
     await techClip("curve", -70, 16, 0.9, [["8 ribs", () => set("count", 8)], ["12 ribs", () => set("count", 12)], ["20 ribs", () => set("count", 20)],
-        ["head point down", () => fix({ curve: [...CURVE.slice(0, 4), [90, 55]] })], ["head point up", () => fix({ curve: CURVE })]]);
+        ["head point up", () => fix({ curve: [...CURVE.slice(0, -1), [136, 92]] })], ["head point back", () => fix({ curve: CURVE })]]);
 };
 S.folded = async () => {      // the cow mesh is y-up: rotate x 90° stands it up
     await example("cow"); await mode("folded"); await tab("technique");
