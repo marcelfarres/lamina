@@ -489,6 +489,46 @@ def test_stacked_with_aligned_dowels_finishes_on_a_box_with_a_hole(page, tmp_pat
     assert not page.errors, page.errors
 
 
+@pytest.mark.timeout(900)
+def test_the_dowel_the_spread_check_offers_lands_where_it_says(page):
+    """A layer held by dowels bunched together is told on the Checks tab, under its own label, which dowel would hold
+    it, with a button. The button adds that dowel to the ones typed in (the Technique tab's dowels), a rod appears
+    through that layer at that spot in the 3D view, and the warning goes. The horse as its example opens (random
+    3 mm square dowels, a 6 mm gap), set to aligned: the button is for dowels straight through the stack."""
+    page.click('nav button[data-t="model"]')
+    page.select_option("#example", "horse")
+    settle(page)
+    page.click('nav button[data-t="technique"]')
+    page.click('#modes button[data-m="stacked"]')
+    settle(page)
+    set_fields(page, [("p_placement", "aligned")])
+    settle(page)
+    page.click('nav button[data-t="checks"]')
+    offered = page.locator("#msgs .msg.warn", has_text="bunched together").filter(has=page.locator(".fix"))
+    assert offered.count(), [w for s in plan(page)["slices"] for w in s["warnings"] if "bunched" in w]
+    msg = offered.first
+    label, text = msg.get_attribute("data-s"), msg.text_content()
+    x, y = map(float, re.search(r"a dowel at \(([-\d.]+), ([-\d.]+)\)", text).groups())
+    assert plan(page)["params"]["dowels"] == []
+
+    msg.locator(".fix").first.click()
+    settle(page)
+    p = plan(page)
+    assert p["params"]["dowels"] == [[x, y]], p["params"]["dowels"]
+    # the rod in the 3D view: through this layer, at the spot the message named (a rod is drawn from its start point)
+    M = next(s for s in p["slices"] if s["label"] == label)["M"]
+    wx, wy = M[0][0] * x + M[0][1] * y + M[0][3], M[1][0] * x + M[1][1] * y + M[1][3]
+    rods = page.evaluate("""() => window.__t.axes().filter(m => m.isMesh && m.geometry.type === 'ExtrudeGeometry')
+                                  .map(m => [m.position.x, m.position.y, m.position.z])""")
+    assert len(rods) == len(p["rods"]), (len(rods), len(p["rods"]))
+    assert [r for r in rods if math.hypot(r[0] - wx, r[1] - wy) < 0.1], f"no rod drawn at ({x}, {y}) of {label}"
+    assert any(a[2] <= M[2][3] <= b[2] for a, b, *_ in p["rods"] if math.hypot(a[0] - wx, a[1] - wy) < 0.1), \
+        f"the rod at ({x}, {y}) does not pass through {label}"
+    assert not page.locator(f'#msgs .msg.warn[data-s="{label}"]', has_text="bunched together").count(), \
+        page.locator(f'#msgs .msg[data-s="{label}"]').all_text_contents()
+    assert not page.errors, page.errors
+
+
 @pytest.mark.timeout(600)
 def test_only_a_handle_moves_a_part(page):
     """Reported as "needs a step undo, it is easy to move a layer unintentionally": once a layer was selected, a drag
