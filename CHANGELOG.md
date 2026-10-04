@@ -160,6 +160,10 @@ and the browser version's one intermittent failure.
   fit could cut into each other ("two slots / holes overlap"). Each spacer is now placed where its slot really fits
   both layers, with a full wall from every other cut, and a piece the regular points miss gets spacers of its own.
   On ten example shapes the errors went from 319 to 6, all at the tip of a cone too small for a 6 mm connector.
+- **Every part lands on its sheet.** A part that filled a sheet almost exactly, like a big folded panel, could be
+  placed hundreds of millimetres off the sheet, and jobs of more than 150 parts let the last part along the edges
+  run a millimetre or two into the sheet margin, and now and then two parts were nested on top of each other. Every
+  part is placed inside the margin and clear of the others now.
 
 Verified by 607 tests, plus 25 driving the app in a real browser and one slicing the published build end to end.
 
