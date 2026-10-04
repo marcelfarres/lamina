@@ -214,6 +214,9 @@ too near the edge, and the browser version's one intermittent failure.
   fit could cut into each other ("two slots / holes overlap"). Each spacer is now placed where its slot really fits
   both layers, with a full wall from every other cut, and a piece the regular points miss gets spacers of its own.
   On ten example shapes the errors went from 319 to 6, all at the tip of a cone too small for a 6 mm connector.
+- **Turning the view while a model loads turns the view.** On the Model tab, a drag across the middle of the view
+  while a new model was slicing could catch a turn ring still sized for the last model, and stood the statue on its
+  head. While a slice runs, a drag only turns the view.
 - **Every part lands on its sheet.** A part that filled a sheet almost exactly, like a big folded panel, could be
   placed hundreds of millimetres off the sheet, and jobs of more than 150 parts let the last part along the edges
   run a millimetre or two into the sheet margin, and now and then two parts were nested on top of each other. Every

@@ -1042,3 +1042,21 @@ def test_every_control_does_what_it_says_and_every_download_holds_the_plan(page,
     assert plan(page)["counts"]["errors"] == 0, plan(page)["errors"]
     page.remove_listener("dialog", answer)
     assert not page.errors, page.errors
+
+
+def test_a_drag_while_a_slice_runs_turns_the_view_not_the_model(page):
+    """Reported: the statue "is not there if you move it before it is complete". Picked from the list on the Model
+    tab, the turn rings still had the last model's size, and a drag across the middle of the view to look round
+    caught one: the statue was turned upside down (rotate x = -162) and sliced again with ten errors. While a slice
+    runs a drag turns the view only."""
+    page.click('nav button[data-t="model"]')
+    page.select_option("#example", "head_igea"); settle(page)
+    box = page.locator("#v3d canvas").first.bounding_box()
+    cx, cy = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+    page.select_option("#example", "horse_statue")
+    for _ in range(6):                                   # across the middle, where the red ring runs edge-on
+        page.wait_for_timeout(250)
+        page.mouse.move(cx, cy); page.mouse.down(); page.mouse.move(cx + 120, cy + 30, steps=8); page.mouse.up()
+    settle(page)
+    assert page.evaluate("() => window.__t.state().rotate") == [0, 0, 0]
+    assert plan(page)["counts"]["errors"] == 0
