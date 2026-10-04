@@ -8,15 +8,22 @@ from . import Mode, Param, register
 from .radial import Radial
 from ..geometry import as_multi, section_polygons, to_local
 from ..model import Slice
-from ..notch import cut_slots
+from ..notch import interlock
 
 PLANES = {"xz": (0, 2, 1), "yz": (1, 2, 0), "xy": (0, 1, 2)}      # (u, v, w=plane normal)
 
 
-def lock(r, k, ctx, open_dir):
-    """Slot rib `r` and spine `k` into each other: the rib opens toward `open_dir`, the spine the other way."""
-    cut_slots(r, k, ctx, tuple(open_dir), ctx.p["notch_ratio"])
-    cut_slots(k, r, ctx, tuple(-np.asarray(open_dir)), 1 - ctx.p["notch_ratio"])
+def island(M, sec, near):
+    """The piece of `sec` (in frame M) nearest `near`, None when there is none: a plane across the front legs also
+    cuts the other leg."""
+    sec = as_multi(sec)
+    return None if sec.is_empty else min(sec.geoms, key=Point(to_local(M, [near])[0]).distance)
+
+
+def part(ctx, lab, group, M, isl):
+    sl = Slice(lab, group, M, ctx.thickness_of(lab), clip=as_multi(isl.buffer(0.01)))   # the clip keeps slots to it
+    sl.raw = as_multi(isl)
+    return sl
 
 
 def resample(pts, n_dense=400):
@@ -57,7 +64,7 @@ class Curve(Mode):
         return {"title": f"add a rib ({ctx.p['count'] + 1} in total)", "set": {"count": ctx.p["count"] + 1, "distribution": "count"}}
 
     @staticmethod
-    def reach(ctx, eu, ev, Q, keep=slice(None)):
+    def reach(ctx, eu, ev, Q, keep):
         """How far the material reaches from the curve, measured in the curve's plane — two rib planes meet along a
         line at some distance from the curve, and that line must stay outside the model. Sampled, not exact. Only
         the `keep` vertices count: a leg with ribs of its own is not where the body ribs meet."""
@@ -98,74 +105,85 @@ class Curve(Mode):
             return np.zeros(len(U))
         return np.interp(U, st, wv)
 
-    def _branches(self, ctx, ev, ew):
-        """[start, tip, direction, length, spine normal, region] per branch. The region — past the joint plane J-i,
-        and on its own side of the plane between it and each neighbouring branch (radial's B-i-j) — is what the
-        branch's parts own and the body's do not. The spine normal is the body spines' made square to the branch:
-        a branch spine lies parallel to the body's and never crosses them."""
-        out = []
+    def _branches(self, ctx, ew, C, pitch):
+        """[row, start, tip, direction, length, spine normal, region, ribs] per branch, numbered by its row in the
+        table (a row left out keeps the others' labels and edits). The start is the end nearer the curve and sits on
+        the joint plane J-i as edited. The region — past J-i, on its own side of the plane between it and each
+        neighbouring branch (radial's B-i-j), and no further to either side than its own ribs' sections reach, plus
+        a pitch — is what the branch's parts own and the body's do not. The spine contains the curve's tangent where
+        the branch leaves it, so the body ribs cross it square, whichever way the branch points."""
+        big = ctx.span; out = []
         for i, seg in enumerate(ctx.p["branches"] or []):
             a, b = (np.asarray(q, float) for q in seg)
-            L = float(np.linalg.norm(b - a))
-            if L < 1e-6:
+            if np.linalg.norm(C - b, axis=1).min() < np.linalg.norm(C - a, axis=1).min():
+                a, b = b, a                                      # drawn from the tip: a joint at the hoof owns the body
+            if np.linalg.norm(b - a) < 1e-6:
                 ctx.errors.append(f"branch {i + 1} has no length: give it a start and a tip (they are the same point)")
                 continue
-            d = (b - a) / L; ns = ew - (ew @ d) * d
-            ns = ns if np.linalg.norm(ns) > 0.2 else np.cross(d, ev)
-            out.append([a, b, d, L, ns / np.linalg.norm(ns)])
-        # one sign for every direction, as radial's axes: a leg down and an arm up would otherwise cancel in _bounds
-        axes = [((a + b) / 2, d if d @ out[0][2] >= 0 else -d, L / 2, ns) for a, b, d, L, ns in out]
-        bounds = Radial._bounds(ctx, axes) if len(out) > 1 else {}
-        joints = [ctx.frame(f"J-{i + 1}", a, d, up_hint=ns) for i, (a, _, d, _, ns) in enumerate(out)]
-        for i, (br, J) in enumerate(zip(out, joints)):          # read back from the frame: offset / tilt on J-i move it
-            br.append([(J[:3, 3], J[:3, 2])] + [(M[:3, 3], M[:3, 2] * (np.sign((axes[i][0] - M[:3, 3]) @ M[:3, 2]) or 1.0))
-                                                for k, M in bounds.items() if i in k])
-        ctx.axes3d = [[a.tolist(), b.tolist()] for a, b, *_ in out]
-        ctx.bounds3d = ([{"label": f"J-{i + 1}", "M": np.round(J, 6).tolist(), "size": round(0.6 * br[3], 1)} for i, (br, J) in enumerate(zip(out, joints))]
-                        + [{"label": f"B-{i + 1}-{j + 1}", "M": np.round(M, 6).tolist(), "size": round(1.3 * min(axes[i][2], axes[j][2]) * 2, 1)}
-                           for (i, j), M in bounds.items()])
+            d = (b - a) / np.linalg.norm(b - a)
+            j = int(np.linalg.norm(C - a, axis=1).argmin()); t = C[min(j + 1, len(C) - 1)] - C[max(j - 1, 0)]
+            t -= (t @ ew) * ew                                   # in the curve's plane, as the ribs are: a leg pulls C sideways
+            ns = np.cross(d, t / np.linalg.norm(t))
+            ns = ns if np.linalg.norm(ns) > 0.2 else ew - (ew @ d) * d    # a tail runs on along the curve
+            ns /= np.linalg.norm(ns)
+            J = ctx.frame(f"J-{i + 1}", a, d, up_hint=ns)
+            a = a + d * ((J[:3, 3] - a) @ J[:3, 2]) / (d @ J[:3, 2]); L = float((b - a) @ d)
+            if L < 1e-6:
+                ctx.errors.append(f"branch {i + 1}: its joint (J-{i + 1}) is moved past its tip")
+                continue
+            out.append([i, a, b, d, L, ns, J])
+        lobes, b3d = Radial._parted(ctx, [((a + b) / 2, d, L / 2, ns) for _, a, b, d, L, ns, _ in out], [br[0] + 1 for br in out])
+        ctx.axes3d = [[[float(x) for x in q] for q in seg] for seg in ctx.p["branches"] or []]    # as the table has them
+        ctx.bounds3d = [{"label": f"J-{i + 1}", "M": np.round(J, 6).tolist(), "size": round(0.6 * L, 1)} for i, _, _, _, L, _, J in out] + b3d
+        for br, lobe in zip(out, lobes):
+            i, a, b, d, L, ns, J = br
+            cell = [(J[:3, 3], J[:3, 2])] + lobe; nb = max(1, round(L / pitch)); secs = []
+            for j in range(nb):
+                lab = f"R{i + 1}-{j + 1}"; c = a + d * (L * (j + 0.5) / nb); M = ctx.frame(lab, c, d, up_hint=ns)
+                secs.append((lab, M, c, section_polygons(ctx.mesh, M).intersection(Radial._owned(M, cell, big))))
+            # Sideways the region stops a pitch past the sections of the branch's outer half — past J alone, a branch
+            # out of the body's side took a slab of it as long as the body, and its parts keep only the leg. Nearer
+            # the joint a slanted rib's plane runs on through the body
+            E = np.array([ns, np.cross(d, ns)])
+            X = np.vstack([[a, b]] + [np.asarray(g.exterior.coords) @ M[:3, :2].T + M[:3, 3]
+                                      for _, M, c, S in secs[nb // 2:] if (g := island(M, S, c)) is not None]) - a
+            lo, hi = (X @ E.T).min(0) - pitch, (X @ E.T).max(0) + pitch
+            cell += [(a + e * h, -e) for e, h in zip(E, hi)] + [(a + e * h, e) for e, h in zip(E, lo)]
+            br[6:] = [cell, [(lab, M, g) for lab, M, c, S in secs if (g := island(M, S.intersection(Radial._owned(M, cell, big)), c)) is not None]]
         return out
 
-    def _limbs(self, ctx, br, ribs, pitch):
+    def _limbs(self, ctx, br, spines, ribs, pitch):
         """Each branch's ribs (R2-3), square to it at the body's rib pitch, and its spine (K2) through them, with a
-        tongue reaching back past the joint into the body, where it slots into the body ribs. A part keeps the one
-        island nearest its branch — a plane across the front legs also cuts the other leg."""
-        p = ctx.p; big = ctx.span; out = []
-
-        def part(lab, group, M, region, near):
-            sec = as_multi(section_polygons(ctx.mesh, M).intersection(region))
-            if sec.is_empty:
-                return []
-            c = Point(to_local(M, [near])[0]); isl = min(sec.geoms, key=c.distance)
-            sl = Slice(lab, group, M, ctx.thickness_of(lab), clip=as_multi(isl.buffer(0.01)))   # the clip keeps slots to it
-            sl.raw = as_multi(isl)
-            return [sl]
-        for i, (a, b, d, L, ns, cell) in enumerate(br):
-            nb = max(1, round(L / pitch)); lrs = []
-            for j in range(nb):
-                lab = f"R{i + 1}-{j + 1}"; c = a + d * (L * (j + 0.5) / nb)
-                M = ctx.frame(lab, c, d, up_hint=ns)
-                lrs += part(lab, "X", M, Radial._owned(M, cell, big), c)
+        tongue reaching back past the joint into the body, where it slots into the body ribs. The spine runs through
+        the middle of the outer half's sections, not along the line: a line clicked on the hoof's skin put it there."""
+        big = ctx.span; out = []
+        for i, a, b, d, _, ns, cell, isles in br:
+            lrs = ctx.keep([part(ctx, lab, "X", M, isl) for lab, M, isl in isles])
+            if isles:
+                off = np.mean([(M[:3, :2] @ isl.centroid.coords[0] + M[:3, 3] - a) @ ns for _, M, isl in isles[len(isles) // 2:]])
+                a, b = a + ns * off, b + ns * off
             lab = f"K{i + 1}"; Mk = ctx.frame(lab, (a + b) / 2, ns, up_hint=d)
-            e = np.cross(ns, d) * 1.5 * pitch; down = d * max(2 * pitch, 4 * p["thickness"])
-            tongue = Polygon(to_local(Mk, [a + e + d * pitch, a - e + d * pitch, a - e - down, a + e - down]))
-            others = unary_union([Radial._owned(Mk, c2, big) for *_, c2 in br if c2 is not cell])
-            ks = ctx.keep(part(lab, "Y", Mk, unary_union([Radial._owned(Mk, cell, big), tongue]).difference(others), a + d * pitch))
-            lrs = ctx.keep(lrs)
-            for k in ks:
-                for r in lrs:
-                    lock(r, k, ctx, r.M[:3, 0])
-                for r in ribs:                                   # body spines are parallel to it: no crossing
-                    lock(r, k, ctx, d)
-                if not any(x.startswith("R-") for x in k.engages):
-                    ctx.errors.append(f"branch {i + 1}: its start is past the body's ribs, nothing holds it — extend the "
-                                      f"curve over it, or move the start (J-{i + 1}) into the body")
+            e = np.cross(ns, d) * 1.5 * pitch; down = d * max(2 * pitch, 4 * ctx.p["thickness"])
+            # the tongue stops short of each body spine: a branch at a slant would cross it in the body, unslotted
+            h = [(s.thickness + ctx.thickness_of(lab)) / 2 + 1 for s in spines]
+            bands = [Radial._owned(Mk, [(s.M[:3, 3] + s.M[:3, 2] * w, -s.M[:3, 2]), (s.M[:3, 3] - s.M[:3, 2] * w, s.M[:3, 2])], big) for s, w in zip(spines, h)]
+            tongue = Polygon(to_local(Mk, [a + e + d * pitch, a - e + d * pitch, a - e - down, a + e - down])).difference(unary_union(bands))
+            others = unary_union([Radial._owned(Mk, c2, big) for *_, c2, _ in br if c2 is not cell])
+            isl = island(Mk, section_polygons(ctx.mesh, Mk).intersection(unary_union([Radial._owned(Mk, cell, big), tongue]).difference(others)), a + d * pitch)
+            ks = ctx.keep([part(ctx, lab, "Y", Mk, isl)] if isl is not None else [])
+            for r in lrs:
+                interlock([r], ks, ctx, r.M[:3, 0], -r.M[:3, 0])
+            interlock(ribs, ks, ctx, d, -d)
+            if ks and not any(x.startswith("R-") for x in ks[0].engages):
+                ctx.errors.append(f"branch {i + 1}: its start is past the body's ribs, nothing holds it — extend the "
+                                  f"curve over it, or move the start (J-{i + 1}) into the body")
             out += lrs + ks
         return out
 
     legend = ("R-4 = the 4th rib along the curve, counted from its start · "
               "K-1 = the 1st spine, the long part that threads through every rib and holds the spacing · "
-              "R2-3 = the 3rd rib of branch 2 · K2 = branch 2's spine · J-2 = where branch 2 leaves the body")
+              "R2-3 = the 3rd rib of branch 2 · K2 = branch 2's spine · J-2 = where branch 2 leaves the body · "
+              "B-1-2 = the plane between branches 1 and 2")
     params = [
         Param("plane", "choice", "xz", "Plane that contains the curve (first letter = along, second = up)", choices=["xz", "yz", "xy"]),
         Param("curve", "points", [], "Control points [[u,v],...] in the plane (model centred at 0); fewer than two = a curve through the middle along the plane's first axis", unit="mm"),
@@ -184,16 +202,16 @@ class Curve(Mode):
         cv = p["curve"] if len(p["curve"] or []) >= 2 else self.default_curve(ctx, u, v, eu, ev)
         pts = np.array(sorted([float(q[0]), float(q[1])] for q in cv))   # in-plane; the UI may hand back the w it was shown
         Q, s = resample(pts)
-        br = self._branches(ctx, ev, ew)
-        sq = Polygon([(-ctx.span, -ctx.span), (ctx.span, -ctx.span), (ctx.span, ctx.span), (-ctx.span, ctx.span)])
-
-        def clip(M):                                             # body parts stop where a branch's own begin
-            owned = [g for *_, cell in br if not (g := Radial._owned(M, cell, ctx.span)).is_empty]
-            return as_multi(sq.difference(unary_union(owned))) if owned else None
         W = self.across(ctx, Q[:, 0], u, eu, ew)                 # the curve's third coordinate: through the body, not the box
-        ctx.curve3d = (ctx.mid + np.outer(Q[:, 0], eu) + np.outer(Q[:, 1], ev) + np.outer(W, ew)).tolist()   # for the 3D view
+        C = ctx.mid + np.outer(Q[:, 0], eu) + np.outer(Q[:, 1], ev) + np.outer(W, ew)
+        ctx.curve3d = C.tolist()                                 # for the 3D view
         ctx.curve_pts = [[float(a), float(b), float(c)] for (a, b), c in zip(pts, self.across(ctx, pts[:, 0], u, eu, ew))]
         n = p["count"] if p["distribution"] == "count" else max(1, int(s[-1] // p["spacing"]))
+        br = self._branches(ctx, ew, C, s[-1] / (n + 1))
+
+        def clip(M):                                             # body parts stop where a branch's own begin
+            owned = [g for *_, cell, _ in br if not (g := Radial._owned(M, cell, ctx.span)).is_empty]
+            return as_multi(Radial._owned(M, [], ctx.span).difference(unary_union(owned))) if owned else None
         stations = np.linspace(0, s[-1], n + 2)[1:-1] if n > 1 else [s[-1] / 2]
         # station position and tangent angle in the curve plane
         place = []
@@ -209,7 +227,7 @@ class Curve(Mode):
         # cuts the parts living there. Clamping runs outward from the middle rib, so on a bend tighter than the
         # model is wide the shortfall is shared by both ends instead of piling up at one.
         V = ctx.mesh.vertices
-        body = ~np.any([np.all([(V - m) @ nm > 0 for m, nm in cell], axis=0) for *_, cell in br], axis=0) if br else slice(None)
+        body = ~np.any([np.all([(V - m) @ nm > 0 for m, nm in cell], axis=0) for *_, cell, _ in br], axis=0) if br else slice(None)
         reach = 2 * (self.reach(ctx, eu, ev, Q, body) + p["thickness"])
         turned = 0
         mid = len(place) // 2
@@ -243,7 +261,6 @@ class Curve(Mode):
                 M = ctx.frame(lab, ctx.mid + ew * (off + w_mid), ew, up_hint=ev)
                 spines.append(Slice(lab, "Y", M, tk, clip=clip(M)))
             spines = ctx.keep(spines)
-            for r in ribs:
-                for k in spines:
-                    lock(r, k, ctx, r.M[:3, 0])                       # ribs open toward their in-plane normal
-        return ribs + spines + self._limbs(ctx, br, ribs, s[-1] / (n + 1))
+            for r in ribs:                                           # ribs open toward their in-plane normal
+                interlock([r], spines, ctx, r.M[:3, 0], -r.M[:3, 0])
+        return ribs + spines + self._limbs(ctx, br, spines, ribs, s[-1] / (n + 1))

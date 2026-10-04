@@ -234,7 +234,7 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
       <dt>model</dt><dd>drag a coloured ring = turn it · click a part = select it, its handles are explained in the panel that opens</dd>
       <dt>alt-click</dt><dd>add or remove a dowel, a curve point or a radial axis</dd>
       <dt>curve</dt><dd>drag a blue dot = move that point · shift+alt-click a hoof, hand or tail tip = a branch out to it;
-        drag its ends to move it, alt-click it to remove it</dd>
+        drag its ends to move it, alt-click it to remove it · click a J or B plane = move or tilt it like a slice</dd>
       <dt>radial</dt><dd>drag the axis or its end = move it · click the plane between two lobes = move or tilt it like a slice</dd>
     </dl></details>
   </div>
@@ -467,12 +467,14 @@ $('#tabs').addEventListener('click',e=>{
     // + on the axes table splits the axis you can already see: the list starts from the one the plan used, so it is
     // kept rather than replaced (a zero-length line would draw nothing and slice nothing)
     if(p.name==='axes')setVal('axes',splitAxis(axisList()));
-    else if(p.name==='branches'){   // a leg down from the middle of the curve to the bottom of the box
-      const i=PLANE_IDX[state.plane||'xz'][1],V=V3(plan.axes[i]),P=V3(plan.curve3d[plan.curve3d.length>>1]);
-      setVal('branches',[...state.branches||[],branchTo(P.addScaledVector(V,-plan.bbox[i]/2-P.dot(V)))])}
+    else if(p.name==='branches'){   // a leg down to the bottom of the box, from a quarter of the way along and across: four presses, four legs
+      const [ui,vi]=PLANE_IDX[state.plane||'xz'],wi=3-ui-vi,n=(state.branches||[]).length,A=k=>V3(plan.axes[k]);
+      const P=V3(plan.curve3d[plan.curve3d.length>>1]).addScaledVector(A(wi),(n%2?1:-1)*plan.bbox[wi]/4).addScaledVector(A(ui),(n&2?-1:1)*plan.bbox[ui]/4);
+      setVal('branches',[...state.branches||[],branchTo(P.addScaledVector(A(vi),-plan.bbox[vi]/2-P.dot(A(vi))))])}
     else setVal(p.name,[...(p.name==='curve'?curveList():state[p.name]||[]),p.type==='lines3'?newLine():[0,0]]);   // the curve grows from the one on screen
     renderFields()}
-  else if(t.dataset.del){const p=P(t.dataset.del);if(p.type==='map'){const v={...state[p.name]};delete v[t.dataset.i];setVal(p.name,v)}else setVal(p.name,(state[p.name]||[]).filter((_,i)=>i!==+t.dataset.i));renderFields()}
+  else if(t.dataset.del){const p=P(t.dataset.del);if(p.type==='map'){const v={...state[p.name]};delete v[t.dataset.i];setVal(p.name,v)}
+    else setVal(p.name,p.type==='lines3'?dropLine(+t.dataset.i):(state[p.name]||[]).filter((_,i)=>i!==+t.dataset.i));renderFields()}
 });
 $('#tabs').addEventListener('keydown',e=>{const t=e.target;if(!t.dataset.chip||e.key!=='Enter')return;const p=allParams().find(p=>p.name===t.dataset.chip);const raw=t.value.trim();if(!raw)return;
   const v=p.type==='chips'?fromU(p,+raw):raw; if(p.type==='chips'&&isNaN(v))return; setVal(p.name,[...(state[p.name]||[]),v]);renderFields()});
@@ -771,7 +773,7 @@ function renderGuides(){
   // the curve and its control points run through the middle of the model, so they draw on top of it (like the gizmo):
   // otherwise the ribs hide the very thing alt-click edits
   const onTop=o=>{o.material.depthTest=false;o.renderOrder=2;return o};
-  // radial: every fan's axis where it passes through the model — a rod you can drag whole, a handle at each end. The
+  // radial's fan axes where they pass through the model, curve's branches — a rod you can drag whole, a handle at each end. The
   // plan sends the axes it actually used, so the single default one can be taken hold of before `axes` has ever
   // been filled in
   const hr=Math.max(...plan.bbox)*0.014+1;
@@ -801,7 +803,7 @@ function render3D(modelUrl){
     m.userData={slice:s.label,piece:pc.label,group:s.group,i:i++,origin:new THREE.Vector3(s.M[0][3],s.M[1][3],s.M[2][3]),normal:new THREE.Vector3(s.M[0][2],s.M[1][2],s.M[2][2]),bad:s.errors.length>0};
     parts.add(m);
   }
-  // radial: the plane between two lobes is a part too — translucent, outside the build order (i = -1 keeps it on every
+  // the plane between two lobes, or at a branch's joint, is a part too — translucent, outside the build order (i = -1 keeps it on every
   // step) — so the one select / arrow / shift / ctrl-drag and the sliders move and tilt it, and the plan's per-slice
   // offset / tilt / roll carry the edit under its label
   for(const b of plan.bounds3d||[]){
@@ -983,12 +985,23 @@ const lineParam=()=>mode.params.some(p=>p.name==='branches')?'branches':'axes';
 const axisList=()=>{const v=state[lineParam()];return (v&&v.length?v:(plan&&plan.axes3d)||[]).map(l=>l.map(q=>q.map(v=>+(+v).toFixed(1))))};
 // the curve's points as the form holds them, else the ones the plan drew, in-plane only (the plan's carry a third value)
 const curveList=()=>(state.curve&&state.curve.length?state.curve:(plan&&plan.curve_pts)||[]).map(x=>[x[0],x[1]]);
-// a branch out to P from the nearest point of the curve, its joint a third of the way out, inside the body — or, when
-// the line crosses air on the way (a leg splayed to the side of the curve), just past where it last enters the model,
-// inside the leg: a joint in the air between the legs holds nothing. The ghost's faces only meet a ray coming in.
-const branchTo=P=>{const c=V3(plan.curve3d.reduce((a,q)=>V3(q).distanceTo(P)<V3(a).distanceTo(P)?q:a)),L=c.distanceTo(P);
-  const hits=new THREE.Raycaster(c,P.clone().sub(c).normalize(),0,0.95*L).intersectObjects(ghost.children);
-  return [rnd(c.lerp(P,Math.max(.35,...hits.map(h=>h.distance/L+.05)))),rnd(P)]};
+// a branch out to P from the nearest point of the curve, its joint a third of the way out, inside the body — moved
+// across the curve's plane to P's own side, so a leg splayed to the side of the curve has its joint in the leg, not
+// in the air between the legs. Measured on the horse: all four legs held, no errors. An arm, out to the side of the
+// curve rather than below it, keeps the straight line
+const branchTo=P=>{const c=V3(plan.curve3d.reduce((a,q)=>V3(q).distanceTo(P)<V3(a).distanceTo(P)?q:a)),[ui,vi]=PLANE_IDX[state.plane||'xz'];
+  const w=V3(plan.axes[3-ui-vi]), v=P.clone().sub(c), inP=v.clone().addScaledVector(w,-v.dot(w));
+  return [rnd(P.clone().addScaledVector(inP.length()>v.length()/2?inP:v,-.65)),rnd(P)]};
+// drop line i (a radial axis or a curve branch) with the per-slice edits made for its parts; a later line's parts
+// move down a number (R3-2 → R2-2, J-4 → J-3, B-2-4 → B-2-3) and their edits go with them
+function dropLine(i){const n=i+1,re=x=>x>n?x-1:x;
+  const name=l=>{let m;
+    if((m=l.match(/^(J-|[RK])(\d+)(-.*)?$/)))return +m[2]===n?null:m[1]+re(+m[2])+(m[3]||'');
+    if((m=l.match(/^B-(\d+)-(\d+)$/)))return +m[1]===n||+m[2]===n?null:`B-${re(+m[1])}-${re(+m[2])}`;
+    return l};
+  for(const k of ['offset','tilt','roll','thick','pivot'])if(state[k])state[k]=Object.fromEntries(Object.entries(state[k]).map(([l,v])=>[name(l),v]).filter(([l])=>l));
+  if(state.skip)state.skip=state.skip.map(name).filter(Boolean);
+  const list=axisList();list.splice(i,1);return list}
 const rnd=Q=>[+Q.x.toFixed(1),+Q.y.toFixed(1),+Q.z.toFixed(1)];
 // The plane the other axes share (all of them but `skipI`), or null when they leave it free: on one line, the plane
 // through that line and P; on one plane, that plane; already skew, or none, nothing. A dragged axis moves in it and
@@ -1036,7 +1049,8 @@ function newLine(){const a='xyz'.indexOf(state.axis||'z'),[b,c]=[(a+1)%3,(a+2)%3
   const layers=p=>new THREE.Raycaster(V3(p).setComponent(a,-bb[a]),up).intersectObjects(parts.children).length;
   return upLine([1/6,1/4,1/8,1/3,0.4].map(at).reduce((x,y)=>layers(y)>layers(x)?y:x))}
 function togglePoint(h,shift){ // alt-click: dowel (stacked) in the clicked slice's plane, a curve control point in the curve plane (shift: a branch out to the click), or a radial axis at the click
-  const P=h.point, s=plan.slices.find(x=>x.label===h.object.userData.slice); if(!s)return;
+  if(h.object.userData.group==='B')h=ray.intersectObjects(parts.children.filter(m=>m.visible)).find(x=>x.object.userData.group!=='B');   // a J / B plane is see-through: the click is for the part behind it
+  const P=h?.point, s=h&&plan.slices.find(x=>x.label===h.object.userData.slice); if(!s)return;
   if(mode.params.some(p=>p.name==='lines')&&state.placement==='lines'){
     // a straight line through the click, the stack's whole height: a dowel exactly there. Alt-click on one removes
     // it: a click whose ray passes within a dowel of a line means that line — the surface point is no guide, since
@@ -1133,7 +1147,7 @@ renderer.domElement.addEventListener('pointerup',ev=>{
     if(Math.abs(d.delta)>0.05){const k=d.mode,cur=state[k]?.[selected]||0,st=niceStep(0.1*UNIT[unit]);setEdit(k,cur+(k==='offset'?toMM(Math.round(d.delta*UNIT[unit]/st)*st):Math.round(d.delta)))}else applyExplode();return}
   if(!down||Math.hypot(ev.clientX-down.x,ev.clientY-down.y)>10)return;const h=hit(ev);if(h&&(h.object.userData.gizmo||h.object.userData.ring!==undefined))return;
   if(h&&(h.object.userData.ax!==undefined||h.object.userData.axline!==undefined)){if(ev.altKey){const list=axisList(),i=h.object.userData.ax?h.object.userData.ax.i:h.object.userData.axline;   // alt-click an axis or its end: drop that fan (the last one stays — a radial job has to turn about something) or that branch
-      if(list.length>1||lineParam()==='branches'){list.splice(i,1);state[lineParam()]=list;renderFields();slice()}
+      if(list.length>1||lineParam()==='branches'){state[lineParam()]=dropLine(i);renderFields();slice()}
       else status('the last axis stays — alt-click the model to add another first');}return}
   if(h&&h.object.userData.cp!==undefined){if(ev.altKey){const list=curveList();if(list.length>2){list.splice(h.object.userData.cp,1);state.curve=list;renderFields();slice()}}return}   // alt-click a dot: remove it (a curve keeps two)
   if(h&&ev.altKey)togglePoint(h,ev.shiftKey);else if(h)highlight(h.object);else deselect()});

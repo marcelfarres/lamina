@@ -255,7 +255,7 @@ def test_the_tables_take_a_row(page):
             settle(page)
         p = plan(page)
         assert p["counts"]["parts"] > 0, m
-        if m == "curve":         # the curve's + grows the curve on screen; the branch's hangs from its middle
+        if m == "curve":         # the curve's + grows the curve on screen; the branch's hangs below it
             assert {"curve", "branches"} <= set(names), names
             assert len(p["params"]["curve"]) == len(before["curve_pts"]) + 1, p["params"]["curve"]
             assert len(p["params"]["branches"]) == 1 and any(s["label"] == "K1" for s in p["slices"])
@@ -441,8 +441,10 @@ def test_a_model_a_few_degrees_off_square_is_squared_by_its_button(page):
 
 @pytest.mark.timeout(900)
 def test_a_curve_takes_a_branch_from_a_hoof(page):
-    """Shift+alt-click near a hoof of the horse in curve mode: a branch from the curve out to there, with ribs and a
-    spine of its own. Alt-click its rod and it is gone, parts and all."""
+    """Shift+alt-click each hoof of the horse in view, in curve mode: a branch from the curve out to it, every one
+    with ribs and a spine of its own (a joint in the air between splayed legs held nothing). Alt-click on a joint
+    plane reaches the leg behind it. Alt-click branch 1's rod and it is gone, parts and all, and the edit made for
+    branch 2's joint stays with that leg, now branch 1."""
     page.click('nav button[data-t="model"]')
     page.select_option("#example", "horse")
     settle(page)
@@ -450,28 +452,48 @@ def test_a_curve_takes_a_branch_from_a_hoof(page):
     page.click('#modes button[data-m="curve"]')
     set_fields(page, [("p_plane", "yz"), ("p_count", 20)])
     settle(page)
-    x, y = page.evaluate("""() => {   // the pixel whose point on a part is lowest: a hoof
-      const c = window.__t.canvas().getBoundingClientRect(); let best = null, z = Infinity;
-      for (let y = c.top + 20; y < c.bottom - 20; y += 6) for (let x = c.left + 20; x < c.right - 20; x += 6) {
+    hooves = page.evaluate("""() => {   // the lowest part points, one pixel per hoof (clustered in world x / y)
+      const c = window.__t.canvas().getBoundingClientRect(), pts = [], bb = window.__t.plan().bbox;
+      for (let y = c.top + 10; y < c.bottom - 10; y += 5) for (let x = c.left + 10; x < c.right - 10; x += 5) {
         const h = window.__t.hit({clientX: x, clientY: y});
-        if (h && h.object.userData.slice && h.point.z < z) { best = [x, y]; z = h.point.z } }
-      return best }""")
-    page.keyboard.down("Shift"); page.keyboard.down("Alt"); page.mouse.click(x, y)
-    page.keyboard.up("Alt"); page.keyboard.up("Shift")
-    settle(page)
+        if (h && h.object.userData.slice) pts.push([x, y, h.point.x, h.point.y, h.point.z]) }
+      const z0 = Math.min(...pts.map(p => p[4])), out = [];
+      for (const p of pts.filter(p => p[4] < z0 + 0.06 * bb[2]).sort((a, b) => a[4] - b[4]))
+        if (!out.some(q => Math.hypot(q[2] - p[2], q[3] - p[3]) < 0.08 * Math.max(...bb))) out.push(p);
+      return out }""")[:2]
+    assert len(hooves) == 2, hooves
+    for x, y, *_ in hooves:
+        page.keyboard.down("Shift"); page.keyboard.down("Alt"); page.mouse.click(x, y)
+        page.keyboard.up("Alt"); page.keyboard.up("Shift")
+        settle(page)
     p = plan(page)
     branches = page.evaluate("() => window.__t.state().branches")
-    assert len(branches) == 1, branches
-    assert branches[0][1][2] < -0.35 * p["bbox"][2], branches          # its tip is down at the hoof
-    own = [s["label"] for s in p["slices"] if re.match(r"R1-|K1$", s["label"])]
-    assert "K1" in own and len(own) > 1, (own, branches, p["errors"])
+    assert len(branches) == 2 and not p["errors"], (branches, p["errors"])
+    for i, (_, tip) in enumerate(branches, 1):
+        assert tip[2] < -0.35 * p["bbox"][2], branches                   # its tip is down at the hoof
+        own = [s["label"] for s in p["slices"] if re.match(rf"R{i}-|K{i}$", s["label"])]
+        assert f"K{i}" in own and len(own) >= 4, (i, own, branches)
 
-    a, b = p["axes3d"][0]
+    curve = page.evaluate("() => window.__t.state().curve")
+    x, y = page.evaluate("""() => {   // a pixel on a joint plane with a part behind it
+      const c = window.__t.canvas().getBoundingClientRect(), B = window.__t.parts().filter(m => m.userData.group === 'B');
+      const at = (x, y) => window.__t.hit({clientX: x, clientY: y});
+      for (let y = c.top + 10; y < c.bottom - 10; y += 4) for (let x = c.left + 10; x < c.right - 10; x += 4) {
+        if (at(x, y)?.object.userData.group !== 'B') continue;
+        B.forEach(m => m.visible = false); const h = at(x, y); B.forEach(m => m.visible = true);
+        if (h?.object.userData.slice) return [x, y] } }""")
+    page.keyboard.down("Alt"); page.mouse.click(x, y); page.keyboard.up("Alt")
+    settle(page)
+    assert page.evaluate("() => window.__t.state().curve") != curve      # a curve point at the leg, not a dead click
+
+    page.evaluate("() => { window.__t.state().offset = {'J-2': 4} }")
+    a, b = branches[0]
     x, y = page.evaluate("p => window.__t.screen(p)", [(u + v) / 2 for u, v in zip(a, b)])
     page.keyboard.down("Alt"); page.mouse.click(x, y); page.keyboard.up("Alt")
     settle(page)
-    assert page.evaluate("() => window.__t.state().branches") == []
-    assert not [s["label"] for s in plan(page)["slices"] if re.match(r"R1-|K1$", s["label"])]
+    assert page.evaluate("() => window.__t.state().branches") == branches[1:]
+    assert page.evaluate("() => window.__t.state().offset") == {"J-1": 4}
+    assert not [s["label"] for s in plan(page)["slices"] if re.match(r"R2-|K2$", s["label"])]
 
 
 ON_PART = """label => {

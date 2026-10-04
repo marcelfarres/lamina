@@ -129,7 +129,7 @@ class Radial(Mode):
         return ("plane" if off < tol else "skew"), Vt[2], off, flat
 
     @staticmethod
-    def _bounds(ctx, axes):
+    def _bounds(ctx, axes, ids):
         """The flat plane between every pair of axes: through the middle of their closest points, facing from one
         axis's centre to the other's — the mitre between a snowman's balls, the plane across a dumbbell's neck.
         Axes side by side (their stretches overlap along the direction) face each other straight across instead, so
@@ -142,6 +142,7 @@ class Radial(Mode):
         for i in range(len(axes)):
             for j in range(i + 1, len(axes)):
                 (Oi, ui, hi, ei), (Oj, uj, hj, _) = axes[i], axes[j]
+                uj = uj if uj @ ui >= 0 else -uj          # a line's sign is arbitrary: opposite ones would cancel in um
                 P, Q = closest(Oi - ui * hi, Oi + ui * hi, Oj - uj * hj, Oj + uj * hj)
                 n = C[j] - C[i]
                 um = ui + uj; um /= np.linalg.norm(um)
@@ -150,7 +151,7 @@ class Radial(Mode):
                     n = n - (n @ um) * um
                 if np.linalg.norm(n) < 1e-6:
                     n = um
-                out[(i, j)] = ctx.frame(f"B-{i + 1}-{j + 1}", (P + Q) / 2, n / np.linalg.norm(n), up_hint=ei)
+                out[(i, j)] = ctx.frame(f"B-{ids[i]}-{ids[j]}",(P + Q) / 2, n / np.linalg.norm(n), up_hint=ei)
         keep = {}
         for (i, j), M in out.items():
             m, n = M[:3, 3], M[:3, 2]
@@ -160,6 +161,17 @@ class Radial(Mode):
                    for k in out if k != (i, j) and j in k):
                 keep[(i, j)] = M
         return keep
+
+    @staticmethod
+    def _parted(ctx, axes, ids=None):
+        """Each lobe's side of every plane it meets a neighbour at — the normal turned to point into the lobe — and
+        those planes for the 3D view. `ids` number them (B-2-4) when the axes are not simply 1, 2, 3…"""
+        ids = ids or range(1, len(axes) + 1)
+        bounds = Radial._bounds(ctx, axes, ids) if len(axes) > 1 else {}
+        lobes = [[(M[:3, 3], M[:3, 2] * (np.sign((axes[i][0] - M[:3, 3]) @ M[:3, 2]) or 1.0)) for k, M in bounds.items() if i in k]
+                 for i in range(len(axes))]
+        return lobes, [{"label": f"B-{ids[i]}-{ids[j]}", "M": np.round(M, 6).tolist(), "size": round(1.3 * min(axes[i][2], axes[j][2]) * 2, 1)}
+                       for (i, j), M in bounds.items()]
 
     @staticmethod
     def _owned(M, planes, big):
@@ -189,12 +201,7 @@ class Radial(Mode):
         # included, so it can be taken hold of before `axes` has ever been filled in
         ctx.axes3d = [[(O - u * h).tolist(), (O + u * h).tolist()] for O, u, h, _ in axes]
         several = len(axes) > 1
-        bounds = self._bounds(ctx, axes) if several else {}
-        # each lobe's side of every plane it meets a neighbour at: the normal turned to point into the lobe
-        lobes = [[(M[:3, 3], M[:3, 2] * (np.sign((axes[i][0] - M[:3, 3]) @ M[:3, 2]) or 1.0)) for k, M in bounds.items() if i in k]
-                 for i in range(len(axes))]
-        ctx.bounds3d = [{"label": f"B-{i + 1}-{j + 1}", "M": np.round(M, 6).tolist(), "size": round(1.3 * min(axes[i][2], axes[j][2]) * 2, 1)}
-                        for (i, j), M in bounds.items()]
+        lobes, ctx.bounds3d = self._parted(ctx, axes)
         # the spine: automatic for several axes — without one nothing joins a fan to the next and the lobes part
         kind, n_s, off, flat = self._layout(axes, t)
         n_sp = p["spine"] or (1 if several else 0)

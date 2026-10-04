@@ -319,3 +319,41 @@ def test_curve_branch_past_the_ribs_is_an_error():
     plan = build(EXAMPLES / "horse.stl", "curve", {**HORSE, "curve": [[-85, 22], [-30, 32], [25, 30], [55, 55], [90, 74]],
                                                     "branches": BRANCHES, "autofix": "off"})
     assert [e[:8] for e in plan["errors"]] == ["branch 3"], plan["errors"]
+
+
+def test_curve_branch_follows_its_joint_and_either_end_can_come_first():
+    """J-1 moved 15 mm down the leg takes branch 1's start with it — its ribs and spine stay one assembly, not a
+    tongue on its own with every rib floating — and a branch typed hoof first is the same branch, not a joint at the
+    hoof that hands the whole body to the leg."""
+    plan = build(EXAMPLES / "horse.stl", "curve", {**HORSE, "curve": HORSE_CURVE, "autofix": "off", "offset": {"J-1": 15},
+                                                    "branches": [BRANCHES[0][::-1]] + BRANCHES[1:]})
+    assert plan["counts"]["errors"] == 0, [(s["label"], s["errors"]) for s in plan["slices"] if s["errors"]] + plan["errors"]
+    assert plan["coverage"] >= 0.9
+    assert len([s for s in plan["slices"] if s["label"].startswith("R1-")]) >= 5
+
+
+def test_curve_branch_takes_its_limb_and_no_more(tmp_path):
+    """A box body along y with an arm straight out of its side and a leg down and out at a slant, a branch each.
+    The body keeps everything the branches' parts do not take: a rib far from both limbs is as big as with no
+    branches (past J alone, the arm took a 4 mm slab off every rib). The arm's spine lies flat, so the body ribs
+    cross it and hold it — square to the curve plane, it was parallel to them and held by nothing — and the leg's
+    slanted spine stops short of the body spine instead of crossing it unslotted."""
+    import trimesh
+    T = trimesh.util.concatenate([trimesh.creation.box([40, 200, 40]), trimesh.creation.box([80, 30, 30]).apply_translation([60, 0, 0]),
+                                  trimesh.creation.cylinder(12, segment=[[5, 60, -5], [60, 60, -75]])])
+    sh = -T.bounds.mean(0); T.apply_translation(sh); T.export(tmp_path / "t.stl")
+    base = {"plane": "yz", "count": 12, "spines": 1, "thickness": 3, "curve": [[-95, sh[2]], [95, sh[2]]], "autofix": "off", "shrinkwrap": 2}
+    area = lambda p: {s["label"]: sum(pc["area"] for pc in s["pieces"]) for s in p["slices"]}
+    bare = build(tmp_path / "t.stl", "curve", base)
+    # R2-1, the leg's rib at the joint, grazes the body's corner: on its plane it would meet K2 twice, which 2 mm either way clears
+    plan = build(tmp_path / "t.stl", "curve", {**base, "offset": {"R2-1": 2}, "branches": [[(np.add(q, sh)).tolist() for q in seg]
+                                                                    for seg in ([[15, 0, 0], [100, 0, 0]], [[14, 60, -15], [58, 60, -72]])]})
+    assert plan["counts"]["errors"] == 0 and not plan["errors"], [(s["label"], s["errors"]) for s in plan["slices"] if s["errors"]] + plan["errors"]
+    assert plan["coverage"] >= 0.9
+    for lab in ("R-1", "R-2", "R-3"):
+        assert abs(area(plan)[lab] - area(bare)[lab]) < 1, (lab, area(plan)[lab], area(bare)[lab])
+    by = {s["label"]: s for s in plan["slices"]}
+    assert abs(np.array(by["K1"]["M"])[:3, 2] @ [0, 0, 1]) > 0.99                          # the arm's spine lies flat
+    assert sum(x.startswith("R-") for x in by["K1"]["engages"]) >= 2 and sum(x.startswith("R-") for x in by["K2"]["engages"]) >= 2
+    K = np.array(by["K-1"]["M"]); side = (world_pts(by["K2"]) - K[:3, 3]) @ K[:3, 2]      # K2's outline against K-1's plane
+    assert (side > 3).all() or (side < -3).all(), (side.min(), side.max())
