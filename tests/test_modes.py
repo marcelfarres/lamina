@@ -274,3 +274,48 @@ def test_build_is_deterministic():
     p1 = build(EXAMPLES / "egg.stl", "interlocked", params); p1.pop("timing", None)
     p2 = build(EXAMPLES / "egg.stl", "interlocked", params); p2.pop("timing", None)
     assert json.dumps(p1, sort_keys=True) == json.dumps(p2, sort_keys=True)
+
+
+# the horse on the landing page: its body curve and a branch down each leg, from where it leaves the body to the hoof
+HORSE = {"size": [0, 300, 0], "thicken": 1, "round": 2, "thickness": 3, "slot_offset": 0.1, "plane": "yz", "count": 20, "spines": 1}
+HORSE_CURVE = [[-119, 11], [-89, 18], [-59, 23], [-14, 10], [16, 13], [50, 22], [76, 47], [91, 76], [106, 89], [136, 83]]
+BRANCHES = [[[-2, 46.6, -33], [-5.2, 64.5, -128]], [[40.5, 36.8, -33], [49, 25.8, -125]],
+            [[-2.8, -100.1, -11], [-5, -134.2, -125]], [[52, -83.1, -15], [54.9, -101, -125]]]
+# each leg's centreline, measured on the model: a leg bends, its branch is one straight line from body to hoof
+LEGS = [[[-2.0, 46.6, -33], [-2.3, 47.8, -61], [-3.7, 49.2, -81], [-3.6, 54.9, -101], [-5.2, 64.5, -128]],
+        [[40.5, 36.8, -33], [44.5, 30.7, -61], [47.1, 23.6, -81], [48.6, 19.9, -101], [49.0, 25.8, -125]],
+        [[-2.8, -100.1, -11], [-2.8, -120.4, -41], [-3.8, -133.5, -69], [-4.1, -139.7, -97], [-5.0, -134.2, -125]],
+        [[52.0, -83.1, -15], [50.7, -95.5, -45], [52.1, -104.1, -69], [52.9, -110.4, -97], [54.9, -101.0, -125]]]
+
+
+def test_curve_branches_hold_every_leg_of_the_horse():
+    """A branch per leg: its ribs square to the leg and a spine of its own down the middle of it, reaching back into
+    the body and slotted into the body ribs. Measured on the cut parts: every 2 mm along each leg's centreline lies
+    in a branch spine (within 6 mm of its plane, within 2 mm of its outline), each leg keeps its ribs, nothing is in
+    error and the model is still covered."""
+    from shapely.geometry import Point, Polygon
+    from shapely.ops import unary_union
+    plan = build(EXAMPLES / "horse.stl", "curve", {**HORSE, "curve": HORSE_CURVE, "branches": BRANCHES, "autofix": "add"})
+    assert plan["counts"]["errors"] == 0, [(s["label"], s["errors"]) for s in plan["slices"] if s["errors"]] + plan["errors"]
+    assert plan["coverage"] >= 0.9
+    spines = [(np.array(s["M"]), unary_union([Polygon(r[0], r[1:]) for pc in s["pieces"] for r in pc["kerfed"]]))
+              for s in plan["slices"] if s["label"][0] == "K" and s["label"][1:2].isdigit()]
+    for i, leg in enumerate(LEGS, 1):
+        C = np.array(leg)
+        X = np.concatenate([np.linspace(a, b, max(2, int(np.linalg.norm(b - a) // 2)), endpoint=False) for a, b in zip(C, C[1:])])
+        held = np.zeros(len(X), bool)
+        for M, g in spines:
+            L = (np.c_[X, np.ones(len(X))] @ np.linalg.inv(M).T)[:, :3]
+            held |= (np.abs(L[:, 2]) < 6) & np.array([g.distance(Point(x)) < 2 for x in L[:, :2]])
+        assert held.mean() >= 0.95, f"leg {i}: {held.mean():.0%} of it in a branch spine"
+        assert len([s for s in plan["slices"] if s["label"].startswith(f"R{i}-")]) >= 5
+    assert len(plan["axes3d"]) == 4 and {b["label"] for b in plan["bounds3d"]} >= {"J-1", "J-2", "J-3", "J-4"}
+
+
+def test_curve_branch_past_the_ribs_is_an_error():
+    """The landing page's shorter curve stops before the hind legs: the third branch's spine meets no body rib, so
+    nothing holds the leg on — said, not cut as a loose leg. The fourth starts further forward and its tongue
+    still reaches R-1."""
+    plan = build(EXAMPLES / "horse.stl", "curve", {**HORSE, "curve": [[-85, 22], [-30, 32], [25, 30], [55, 55], [90, 74]],
+                                                    "branches": BRANCHES, "autofix": "off"})
+    assert [e[:8] for e in plan["errors"]] == ["branch 3"], plan["errors"]

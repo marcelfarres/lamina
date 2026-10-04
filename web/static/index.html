@@ -114,7 +114,8 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
       the <b>green ring</b> tilts it and the <b>blue ring</b> rolls it, both about the part's own middle, so it turns
       where it stands (shift-drag and ctrl-drag still do the same two). Only the handles move it: a drag anywhere
       else, on the part too, turns the view</li>
-    <li>alt-click = add or remove a connection point, a curve point or a radial axis</li></ul>
+    <li>alt-click = add or remove a connection point, a curve point or a radial axis · shift+alt-click = a curve
+      branch out to that point (a leg, an arm, a tail)</li></ul>
   <h4>Dowels in a stack</h4>
   <ul><li><b>aligned</b> — the same points straight through every layer, so each dowel is one rod. Alt-click a slice to
       add a dowel there, alt-click one to remove it; each is listed under <b>dowels</b> with its x, y, to type exactly —
@@ -232,7 +233,8 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
       <dt>view</dt><dd>click the corner cube = flat view · fit view = frame the model again</dd>
       <dt>model</dt><dd>drag a coloured ring = turn it · click a part = select it, its handles are explained in the panel that opens</dd>
       <dt>alt-click</dt><dd>add or remove a dowel, a curve point or a radial axis</dd>
-      <dt>curve</dt><dd>drag a blue dot = move that point</dd>
+      <dt>curve</dt><dd>drag a blue dot = move that point · shift+alt-click a hoof, hand or tail tip = a branch out to it;
+        drag its ends to move it, alt-click it to remove it</dd>
       <dt>radial</dt><dd>drag the axis or its end = move it · click the plane between two lobes = move or tilt it like a slice</dd>
     </dl></details>
   </div>
@@ -420,7 +422,7 @@ function field(p){
         :`<span class="vec">${[...Array(n)].map((_,i)=>`<small>${lab[i]}</small>${num(id+'_'+i,(v||[])[i]||(p.name==='size'?null:0),p,`data-vec="${p.name}" data-i="${i}" ${p.name==='size'?`placeholder="${plan?+(+show(p,plan.bbox[i])).toPrecision(3):'auto'}"`:''}`)}`).join('')}</span>`}
   else if(p.type==='text')inp=`<input id="${id}" value="${esc(v)}">`;
   else if(p.type==='points')inp=`<div class="rows" id="${id}">${(v||[]).map((q,i)=>`<div class="r"><small>${i+1}</small><input type="number" step="any" value="${show(p,q[0])}" data-pt="${p.name}" data-i="${i}" data-j="0"><input type="number" step="any" value="${show(p,q[1])}" data-pt="${p.name}" data-i="${i}" data-j="1"><button class="small x" data-del="${p.name}" data-i="${i}">×</button></div>`).join('')}<div class="r"><button class="small" data-add="${p.name}">+ point</button><span class="hint">or alt-click in the 3D view</span></div></div>`;
-  else if(p.type==='lines3')inp=`<div class="rows" id="${id}">${(v||[]).length?`<div class="r hint"><small></small>${['x','y','z'].map(a=>`<span style="flex:1;text-align:center">${a} (${unit})</span>`).join('')}<span style="flex:0 0 24px"></span></div>`:''}${(v||[]).map((l,i)=>[0,1].map(e=>`<div class="r"><small>${e?'end':`${i+1} start`}</small>${[0,1,2].map(j=>`<input type="number" step="any" value="${show(p,l[e][j])}" data-ln="${p.name}" data-i="${i}" data-e="${e}" data-j="${j}" title="${e?'end':'start'} ${'xyz'[j]}">`).join('')}<span style="flex:0 0 24px">${e?'':`<button class="small x" data-del="${p.name}" data-i="${i}">×</button>`}</span></div>`).join('')).join('')}<div class="r"><button class="small" data-add="${p.name}">${p.name==='axes'?'+ split an axis':'+ line'}</button><span class="hint">${p.name==='axes'?'or alt-click the model for a parallel axis · drag them in the 3D view':'one straight dowel per line · or alt-click the model: a line up through that point'}</span></div></div>`;
+  else if(p.type==='lines3')inp=`<div class="rows" id="${id}">${(v||[]).length?`<div class="r hint"><small></small>${['x','y','z'].map(a=>`<span style="flex:1;text-align:center">${a} (${unit})</span>`).join('')}<span style="flex:0 0 24px"></span></div>`:''}${(v||[]).map((l,i)=>[0,1].map(e=>`<div class="r"><small>${e?'end':`${i+1} start`}</small>${[0,1,2].map(j=>`<input type="number" step="any" value="${show(p,l[e][j])}" data-ln="${p.name}" data-i="${i}" data-e="${e}" data-j="${j}" title="${e?'end':'start'} ${'xyz'[j]}">`).join('')}<span style="flex:0 0 24px">${e?'':`<button class="small x" data-del="${p.name}" data-i="${i}">×</button>`}</span></div>`).join('')).join('')}<div class="r"><button class="small" data-add="${p.name}">${{axes:'+ split an axis',branches:'+ branch'}[p.name]||'+ line'}</button><span class="hint">${{axes:'or alt-click the model for a parallel axis · drag them in the 3D view',branches:'or shift+alt-click a hoof, hand or tail tip · drag the ends in the 3D view · alt-click one to remove it'}[p.name]||'one straight dowel per line · or alt-click the model: a line up through that point'}</span></div></div>`;
   else if(p.type==='map'){const rows=Object.entries(v||{});if(selected&&!(selected in (v||{})))rows.push([selected,p.name==='thick'?state.thickness:0]);
     inp=`<div class="rows" id="${id}">${rows.map(([k,x])=>`<div class="r"><small>${esc(k)}</small><input type="number" step="any" value="${show(p,x)}" data-map="${p.name}" data-k="${esc(k)}">${k in (v||{})?`<button class="small x" data-del="${p.name}" data-i="${esc(k)}">×</button>`:'<span class="hint">default</span>'}</div>`).join('')||'<span class="hint">no overrides — select a part in the 3D view and use the sliders</span>'}</div>`}
   else if(p.type==='labels'||p.type==='chips')inp=`<div class="chips" id="${id}">${(v||[]).map((x,i)=>`<span class="chip">${p.type==='chips'?show(p,x):esc(x)}<b data-del="${p.name}" data-i="${i}">×</b></span>`).join('')}<input placeholder="${p.type==='chips'?'value ⏎':'label ⏎'}" data-chip="${p.name}"></div>`;
@@ -465,7 +467,10 @@ $('#tabs').addEventListener('click',e=>{
     // + on the axes table splits the axis you can already see: the list starts from the one the plan used, so it is
     // kept rather than replaced (a zero-length line would draw nothing and slice nothing)
     if(p.name==='axes')setVal('axes',splitAxis(axisList()));
-    else setVal(p.name,[...(state[p.name]||[]),p.type==='lines3'?newLine():[0,0]]);
+    else if(p.name==='branches'){   // a leg down from the middle of the curve to the bottom of the box
+      const i=PLANE_IDX[state.plane||'xz'][1],V=V3(plan.axes[i]),P=V3(plan.curve3d[plan.curve3d.length>>1]);
+      setVal('branches',[...state.branches||[],branchTo(P.addScaledVector(V,-plan.bbox[i]/2-P.dot(V)))])}
+    else setVal(p.name,[...(p.name==='curve'?curveList():state[p.name]||[]),p.type==='lines3'?newLine():[0,0]]);   // the curve grows from the one on screen
     renderFields()}
   else if(t.dataset.del){const p=P(t.dataset.del);if(p.type==='map'){const v={...state[p.name]};delete v[t.dataset.i];setVal(p.name,v)}else setVal(p.name,(state[p.name]||[]).filter((_,i)=>i!==+t.dataset.i));renderFields()}
 });
@@ -476,7 +481,7 @@ const memo={};   // per-technique parameter memory: switching away and back rest
 // part labels — or shape it (size, turn, modify form), so a new model clears them from the memory as well as from the
 // form (see newModel). An upload after the horse example used to keep its size 300, round 3 and thicken 1: a square
 // cube came back with 14 mm corners and its 15 mm hole closed to 3.5 mm.
-const MODEL_BOUND=['axes','curve','dowels','skip','offset','tilt','roll','thick','grow','pivot','center','extra_x','extra_y',
+const MODEL_BOUND=['axes','curve','branches','dowels','skip','offset','tilt','roll','thick','grow','pivot','center','extra_x','extra_y',
   'rotate','size','scale','shrinkwrap','hollow','thicken','round','smooth'];
 function setMode(name,keep=true){
   const prev=mode; mode=MODES.find(m=>m.name===name)||MODES[0]; location.hash=mode.name;
@@ -971,14 +976,26 @@ function keepPivot(){state.pivot=state.pivot||{};
   if(pivot3&&((state.tilt?.[selected]||0)||(state.roll?.[selected]||0)))state.pivot[selected]=rnd(pivot3);
   else delete state.pivot[selected]}
 function syncEdits(){renderFields()}
-// the radial axes as the form holds them (mm), falling back to the ones the plan used — so the default axis can be
+// the rods in the 3D view are radial's axes or curve's branches
+const lineParam=()=>mode.params.some(p=>p.name==='branches')?'branches':'axes';
+// the rods as the form holds them (mm), falling back to the ones the plan used — so the default axis can be
 // dragged before `axes` has ever been filled in
-const axisList=()=>((state.axes&&state.axes.length?state.axes:(plan&&plan.axes3d)||[]).map(l=>l.map(q=>q.map(v=>+(+v).toFixed(1)))));
+const axisList=()=>{const v=state[lineParam()];return (v&&v.length?v:(plan&&plan.axes3d)||[]).map(l=>l.map(q=>q.map(v=>+(+v).toFixed(1))))};
+// the curve's points as the form holds them, else the ones the plan drew, in-plane only (the plan's carry a third value)
+const curveList=()=>(state.curve&&state.curve.length?state.curve:(plan&&plan.curve_pts)||[]).map(x=>[x[0],x[1]]);
+// a branch out to P from the nearest point of the curve, its joint a third of the way out, inside the body — or, when
+// the line crosses air on the way (a leg splayed to the side of the curve), just past where it last enters the model,
+// inside the leg: a joint in the air between the legs holds nothing. The ghost's faces only meet a ray coming in.
+const branchTo=P=>{const c=V3(plan.curve3d.reduce((a,q)=>V3(q).distanceTo(P)<V3(a).distanceTo(P)?q:a)),L=c.distanceTo(P);
+  const hits=new THREE.Raycaster(c,P.clone().sub(c).normalize(),0,0.95*L).intersectObjects(ghost.children);
+  return [rnd(c.lerp(P,Math.max(.35,...hits.map(h=>h.distance/L+.05)))),rnd(P)]};
 const rnd=Q=>[+Q.x.toFixed(1),+Q.y.toFixed(1),+Q.z.toFixed(1)];
 // The plane the other axes share (all of them but `skipI`), or null when they leave it free: on one line, the plane
 // through that line and P; on one plane, that plane; already skew, or none, nothing. A dragged axis moves in it and
 // a new one is put on it, so the spine — the one sheet through every axis — survives whatever the mouse does.
+// Branches each have a spine of their own: nothing to keep.
 function sharedPlane(skipI,P){
+  if(lineParam()==='branches')return null;
   const pts=[]; (plan?plan.axes3d||[]:[]).forEach((seg,i)=>{if(i!==skipI)pts.push(V3(seg[0]),V3(seg[1]))});
   if(pts.length<2)return null;
   const tol=Math.max(...plan.bbox)*0.01, c=pts.reduce((a,p)=>a.add(p),new THREE.Vector3()).multiplyScalar(1/pts.length);
@@ -1018,7 +1035,7 @@ function newLine(){const a='xyz'.indexOf(state.axis||'z'),[b,c]=[(a+1)%3,(a+2)%3
   const at=f=>{const p=[0,0,0];p[u]=+(side*f*bb[u]).toFixed(1);return p};
   const layers=p=>new THREE.Raycaster(V3(p).setComponent(a,-bb[a]),up).intersectObjects(parts.children).length;
   return upLine([1/6,1/4,1/8,1/3,0.4].map(at).reduce((x,y)=>layers(y)>layers(x)?y:x))}
-function togglePoint(h){ // alt-click: dowel (stacked) in the clicked slice's plane, a curve control point in the curve plane, or a radial axis at the click
+function togglePoint(h,shift){ // alt-click: dowel (stacked) in the clicked slice's plane, a curve control point in the curve plane (shift: a branch out to the click), or a radial axis at the click
   const P=h.point, s=plan.slices.find(x=>x.label===h.object.userData.slice); if(!s)return;
   if(mode.params.some(p=>p.name==='lines')&&state.placement==='lines'){
     // a straight line through the click, the stack's whole height: a dowel exactly there. Alt-click on one removes
@@ -1032,9 +1049,11 @@ function togglePoint(h){ // alt-click: dowel (stacked) in the clicked slice's pl
     const L=P.clone().applyMatrix4(mat4(s.M).invert()), pt=[+L.x.toFixed(1),+L.y.toFixed(1)], d=state.dowel_d||6, list=state.dowels||[];
     const i=list.findIndex(([x,y])=>Math.hypot(x-pt[0],y-pt[1])<d); state.dowels=i>=0?list.filter((_,k)=>k!==i):[...list,pt];
     if(state.connect==='none')state.connect='tab'; state.placement='aligned';
+  }else if(mode.params.some(p=>p.name==='curve')&&shift){
+    state.branches=[...state.branches||[],branchTo(P)];
   }else if(mode.params.some(p=>p.name==='curve')){
     const idx=PLANE_IDX[state.plane||'xz'], Q=P.clone().sub(V3(plan.mid)), pt=idx.map(i=>+Q.dot(V3(plan.axes[i])).toFixed(1));
-    const list=(state.curve&&state.curve.length?state.curve:plan.curve_pts||[]).map(x=>[x[0],x[1]]), i=list.findIndex(([u,v])=>Math.hypot(u-pt[0],v-pt[1])<Math.max(...plan.bbox)*0.04);   // in-plane only: the plan's points carry a third value
+    const list=curveList(), i=list.findIndex(([u,v])=>Math.hypot(u-pt[0],v-pt[1])<Math.max(...plan.bbox)*0.04);
     if(i>=0)list.splice(i,1); else{list.push(pt);list.sort((a,b)=>a[0]-b[0])}   // the curve runs along the plane's first axis: a new point goes where its position says
     state.curve=list;
   }else if(mode.params.some(p=>p.name==='axes')){
@@ -1063,7 +1082,7 @@ renderer.domElement.addEventListener('pointerdown',ev=>{if(ev.button!==0)return;
     controls.enabled=false;renderer.domElement.setPointerCapture(ev.pointerId);return}
   if(h&&h.object.userData.cp!==undefined&&!ev.altKey){ // drag a curve point: the pointer's movement on screen, read into the curve's own two directions
     const idx=PLANE_IDX[state.plane||'xz'], i=h.object.userData.cp;
-    const list=(state.curve&&state.curve.length?state.curve:plan.curve_pts||[]).map(x=>[x[0],x[1]]);
+    const list=curveList();
     drag={mode:'curve',i,sphere:h.object,idx,list,pt:null,P0:h.object.position.clone(),p0:list[i]||[0,0],
       U:V3(plan.axes[idx[0]]),V:V3(plan.axes[idx[1]]),step:Math.max(...plan.bbox)/50};
     controls.enabled=false;renderer.domElement.setPointerCapture(ev.pointerId);return}
@@ -1075,7 +1094,7 @@ renderer.domElement.addEventListener('pointerdown',ev=>{if(ev.button!==0)return;
     controls.enabled=false;renderer.domElement.setPointerCapture(ev.pointerId);return}
   // Only a handle moves a part — or shift / ctrl on the part itself, which say so. A plain drag on a selected part
   // used to slide it too, so turning the view after a click moved a layer by accident (reported)
-  const m=h&&(h.object.userData.gizmo?parts.children.find(c=>c.userData.slice===selected):(ev.shiftKey||ev.ctrlKey)&&h.object);
+  const m=h&&(h.object.userData.gizmo?parts.children.find(c=>c.userData.slice===selected):(ev.shiftKey||ev.ctrlKey)&&!ev.altKey&&h.object);   // shift+alt is a click: a branch
   if(m&&selected&&m.userData.slice===selected){const o=m.userData.origin.clone().project(camera),n=m.userData.origin.clone().add(m.userData.normal).project(camera);
     const r=renderer.domElement.getBoundingClientRect(),dir=new THREE.Vector2((n.x-o.x)*r.width/2,-(n.y-o.y)*r.height/2);if(dir.length()<1e-6)dir.set(1,0);dir.normalize();
     const dist=camera.position.distanceTo(m.userData.origin),mmPerPx=2*dist*Math.tan(camera.fov*Math.PI/360)/r.height;
@@ -1086,7 +1105,7 @@ renderer.domElement.addEventListener('pointermove',ev=>{if(!drag)return;const dx
     for(const d of drag.ends){d.sphere.position.copy(d.start).add(drag.delta);if(drag.snap)drag.plane.projectPoint(d.sphere.position,d.sphere.position)}
     for(const rod of guides.children.filter(g=>g.userData.axline!==undefined)){const end=e=>guides.children.find(g=>g.userData.ax&&g.userData.ax.i===rod.userData.axline&&g.userData.ax.e===e).position;placeRod(rod,end(0),end(1))}   // the rods follow their ends
     const d0=drag.ends[0],q=d0.sphere.position,whole=drag.ends.length>1&&drag.ends.every(x=>x.i===d0.i);
-    status(`axis ${d0.i+1}${whole?'':d0.e?' end':' start'}: ${[q.x,q.y,q.z].map(inU).join(', ')} ${unit}`,'busy');dirty=true;return}
+    status(`${lineParam()==='axes'?'axis':'branch'} ${d0.i+1}${whole?'':d0.e?' end':' start'}: ${[q.x,q.y,q.z].map(inU).join(', ')} ${unit}`,'busy');dirty=true;return}
   if(drag.mode==='curve'){const [du,dv]=inPlane(drag.P0,drag.U,drag.V,dx,dy,drag.step);
     drag.pt=[+(drag.p0[0]+du).toFixed(1),+(drag.p0[1]+dv).toFixed(1)];
     drag.sphere.position.copy(drag.P0).addScaledVector(drag.U,du).addScaledVector(drag.V,dv);
@@ -1104,7 +1123,7 @@ renderer.domElement.addEventListener('pointerup',ev=>{
   if(drag&&drag.mode==='spin'){controls.enabled=true;const d=drag;drag=null;
     if(d.v!==null&&d.v!==d.base)commit(d.k,d.v); else applyExplode();return}
   if(drag&&drag.mode==='axis'){controls.enabled=true;const d=drag;drag=null;
-    if(d.delta&&d.delta.length()>0.05){const list=axisList();for(const x of d.ends){const q=x.start.clone().add(d.delta);if(d.snap)d.plane.projectPoint(q,q);list[x.i][x.e]=rnd(q)}state.axes=list;renderFields();slice()}return}
+    if(d.delta&&d.delta.length()>0.05){const list=axisList();for(const x of d.ends){const q=x.start.clone().add(d.delta);if(d.snap)d.plane.projectPoint(q,q);list[x.i][x.e]=rnd(q)}state[lineParam()]=list;renderFields();slice()}return}
   if(drag&&drag.mode==='curve'){controls.enabled=true;const d=drag;drag=null;
     if(d.pt){d.list[d.i]=d.pt;d.list.sort((a,b)=>a[0]-b[0]);state.curve=d.list;renderFields();slice()}return}   // a point dragged past its neighbour swaps places with it: the curve never folds back
   if(drag&&drag.mode==='ring'){controls.enabled=true;const d=drag;drag=null;for(const g of [parts,ghost,guides])g.quaternion.identity();dirty=true;
@@ -1113,11 +1132,11 @@ renderer.domElement.addEventListener('pointerup',ev=>{
     // a dragged offset lands on a round step of the unit on show (0.1 mm, 0.01 cm, 0.005 in), never on 0.4843 in
     if(Math.abs(d.delta)>0.05){const k=d.mode,cur=state[k]?.[selected]||0,st=niceStep(0.1*UNIT[unit]);setEdit(k,cur+(k==='offset'?toMM(Math.round(d.delta*UNIT[unit]/st)*st):Math.round(d.delta)))}else applyExplode();return}
   if(!down||Math.hypot(ev.clientX-down.x,ev.clientY-down.y)>10)return;const h=hit(ev);if(h&&(h.object.userData.gizmo||h.object.userData.ring!==undefined))return;
-  if(h&&(h.object.userData.ax!==undefined||h.object.userData.axline!==undefined)){if(ev.altKey){const list=axisList(),i=h.object.userData.ax?h.object.userData.ax.i:h.object.userData.axline;   // alt-click an axis or its end: drop that fan (the last one stays — a radial job has to turn about something)
-      if(list.length>1){list.splice(i,1);state.axes=list;renderFields();slice()}
+  if(h&&(h.object.userData.ax!==undefined||h.object.userData.axline!==undefined)){if(ev.altKey){const list=axisList(),i=h.object.userData.ax?h.object.userData.ax.i:h.object.userData.axline;   // alt-click an axis or its end: drop that fan (the last one stays — a radial job has to turn about something) or that branch
+      if(list.length>1||lineParam()==='branches'){list.splice(i,1);state[lineParam()]=list;renderFields();slice()}
       else status('the last axis stays — alt-click the model to add another first');}return}
-  if(h&&h.object.userData.cp!==undefined){if(ev.altKey){const list=(state.curve&&state.curve.length?state.curve:plan.curve_pts||[]).map(x=>[x[0],x[1]]);if(list.length>2){list.splice(h.object.userData.cp,1);state.curve=list;renderFields();slice()}}return}   // alt-click a dot: remove it (a curve keeps two)
-  if(h&&ev.altKey)togglePoint(h);else if(h)highlight(h.object);else deselect()});
+  if(h&&h.object.userData.cp!==undefined){if(ev.altKey){const list=curveList();if(list.length>2){list.splice(h.object.userData.cp,1);state.curve=list;renderFields();slice()}}return}   // alt-click a dot: remove it (a curve keeps two)
+  if(h&&ev.altKey)togglePoint(h,ev.shiftKey);else if(h)highlight(h.object);else deselect()});
 
 // ---------------------------------------------------------------- sheets + report
 const pieceToSlice=()=>{const m={};for(const s of plan.slices)for(const pc of s.pieces)m[pc.label]=s.label;return m};

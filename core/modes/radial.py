@@ -128,7 +128,8 @@ class Radial(Mode):
             flat.append(np.round([o - d * h, o + d * h], 1).tolist())
         return ("plane" if off < tol else "skew"), Vt[2], off, flat
 
-    def _bounds(self, ctx, axes):
+    @staticmethod
+    def _bounds(ctx, axes):
         """The flat plane between every pair of axes: through the middle of their closest points, facing from one
         axis's centre to the other's — the mitre between a snowman's balls, the plane across a dumbbell's neck.
         Axes side by side (their stretches overlap along the direction) face each other straight across instead, so

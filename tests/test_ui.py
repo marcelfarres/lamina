@@ -248,10 +248,17 @@ def test_the_tables_take_a_row(page):
     for m in ("curve", "radial"):
         page.click(f'#modes button[data-m="{m}"]')
         settle(page)
-        for btn in page.query_selector_all("#tabs [data-add]"):
-            btn.click()
+        before = plan(page)
+        names = page.eval_on_selector_all("#tabs [data-add]", "els => els.map(e => e.dataset.add)")
+        for name in names:       # by name: a click re-renders the form, so a button found before it is gone
+            page.click(f'#tabs [data-add="{name}"]')
             settle(page)
-        assert plan(page)["counts"]["parts"] > 0, m
+        p = plan(page)
+        assert p["counts"]["parts"] > 0, m
+        if m == "curve":         # the curve's + grows the curve on screen; the branch's hangs from its middle
+            assert {"curve", "branches"} <= set(names), names
+            assert len(p["params"]["curve"]) == len(before["curve_pts"]) + 1, p["params"]["curve"]
+            assert len(p["params"]["branches"]) == 1 and any(s["label"] == "K1" for s in p["slices"])
 
 
 @pytest.mark.timeout(600)
@@ -430,6 +437,41 @@ def test_a_model_a_few_degrees_off_square_is_squared_by_its_button(page):
     assert page.is_hidden("#square")
     assert [round(e) for e in plan(page)["bbox"]] == [180, 180, 180]   # square again: no tilted, taller box
     assert not page.errors, page.errors
+
+
+@pytest.mark.timeout(900)
+def test_a_curve_takes_a_branch_from_a_hoof(page):
+    """Shift+alt-click near a hoof of the horse in curve mode: a branch from the curve out to there, with ribs and a
+    spine of its own. Alt-click its rod and it is gone, parts and all."""
+    page.click('nav button[data-t="model"]')
+    page.select_option("#example", "horse")
+    settle(page)
+    page.click('nav button[data-t="technique"]')
+    page.click('#modes button[data-m="curve"]')
+    set_fields(page, [("p_plane", "yz"), ("p_count", 20)])
+    settle(page)
+    x, y = page.evaluate("""() => {   // the pixel whose point on a part is lowest: a hoof
+      const c = window.__t.canvas().getBoundingClientRect(); let best = null, z = Infinity;
+      for (let y = c.top + 20; y < c.bottom - 20; y += 6) for (let x = c.left + 20; x < c.right - 20; x += 6) {
+        const h = window.__t.hit({clientX: x, clientY: y});
+        if (h && h.object.userData.slice && h.point.z < z) { best = [x, y]; z = h.point.z } }
+      return best }""")
+    page.keyboard.down("Shift"); page.keyboard.down("Alt"); page.mouse.click(x, y)
+    page.keyboard.up("Alt"); page.keyboard.up("Shift")
+    settle(page)
+    p = plan(page)
+    branches = page.evaluate("() => window.__t.state().branches")
+    assert len(branches) == 1, branches
+    assert branches[0][1][2] < -0.35 * p["bbox"][2], branches          # its tip is down at the hoof
+    own = [s["label"] for s in p["slices"] if re.match(r"R1-|K1$", s["label"])]
+    assert "K1" in own and len(own) > 1, (own, branches, p["errors"])
+
+    a, b = p["axes3d"][0]
+    x, y = page.evaluate("p => window.__t.screen(p)", [(u + v) / 2 for u, v in zip(a, b)])
+    page.keyboard.down("Alt"); page.mouse.click(x, y); page.keyboard.up("Alt")
+    settle(page)
+    assert page.evaluate("() => window.__t.state().branches") == []
+    assert not [s["label"] for s in plan(page)["slices"] if re.match(r"R1-|K1$", s["label"])]
 
 
 ON_PART = """label => {
