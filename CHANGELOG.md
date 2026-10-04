@@ -4,10 +4,11 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ## 0.2.2
 
-What your model weighs, eleven more materials (PLA and PETG among them, to 3D-print the parts at full size), the
-model's name on every part, a button that squares up a tilted model, a desktop version that keeps itself up to date,
-an auto-fix that never deletes a piece of your model, and fixes for stacks that came out short, layers whose pieces were nested as one, folded holes too near the edge,
-and the browser version's one intermittent failure.
+What your model weighs, eleven more materials, PLA and PETG printed plate by plate at full size, a check that the
+material folds before a folded job is cut, the model's name on every part, a button that squares up a tilted model,
+radial lobes side by side or at right angles, a desktop version that keeps itself up to date, an auto-fix that never
+deletes a piece of your model, and fixes for stacks that came out short, parts off their sheet, layers whose pieces
+were nested as one, folded holes too near the edge, and the browser version's one intermittent failure.
 
 ### Printing
 
@@ -40,6 +41,12 @@ and the browser version's one intermittent failure.
   CAD export that came out tilted) cuts every straight edge as a staircase. The Model tab now says how far off it
   is, "sits 5° off square", with a **square it up** button right under the rotate controls. Nothing turns by
   itself: leave it if the tilt is on purpose.
+- **Radial lobes side by side or at right angles.** Three balls on a neck, an axis through each, used to cut the
+  spine into loose pieces, because a middle lobe's rings reached it through a neighbour's cap; their rings now go
+  down the neck, and only a lobe no ring can join says so. Two axes at right angles work when they share a plane:
+  the dumbbell now opens that way, across the lower ball and up the upper one.
+- **A new example, the wavy torus:** a ring rising and falling in three waves with a channel along it for an LED
+  tube, stacked in PETG for a 3D printer. The page now opens on the blob.
 
 ### Materials
 
@@ -136,7 +143,7 @@ and the browser version's one intermittent failure.
   minimum wall from the edge, so the checks warned "a hole sits closer than 2 mm to the outline", and the one-click
   fix changed the dowel size, which folded panels do not use. The holes keep the full wall now, strip ends are
   long enough for their end holes, and the fix, when it is needed, changes the hole size.
-- **Your own model starts from its own shape.** Uploading after an example (the horse, which the page opens on)
+- **Your own model starts from its own shape.** Uploading after an example (the horse, which the page opened on)
   kept that example's size, rounding and thickening, so Julia's square 100 mm cube came out 308 mm across with
   14 mm round corners and its 15 mm hole closed to 3.5 mm. An upload now starts with every Model setting at zero.
   The note after a remesh gives the voxel size and how much rounding and narrowing to expect, and the help for

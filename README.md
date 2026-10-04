@@ -353,7 +353,8 @@ sheets are always the same plan. Hover a parameter name for its help.
   hollow, thicken, round (drops features thinner than a radius) and smooth (Taubin passes for pointy vertices).
 - **Material, machine, sheet**: 21 materials — paper, card, cardboard, greyboard, plywood, MDF, basswood, balsa,
   acrylic, polypropylene, foam board, EVA foam, steel, stainless steel, aluminium, brass, copper, leather, fabric, and
-  PLA and PETG to 3D-print the parts at full size (whole layers for thicknesses, print beds for sheets). The
+  PLA and PETG to 3D-print the parts at full size (whole layers for thicknesses, print beds for sheets: picking one
+  ticks **3D printed**, the page counts plates and the Export tab offers one 3MF per plate instead of cut files). The
   material sets its stock thicknesses (sheet steel by Manufacturers' Standard Gauge and stainless by its own gauge
   table, copper by ounces per square foot, chipboard by points, plate, plywood, acrylic and model wood by fraction of
   an inch, each shown in mm and decimal inches), the sheet sizes it comes in (4 × 8 and 5 × 10 ft, A-series, balsa
@@ -407,8 +408,10 @@ Errors mean it will not work, warnings mean look at it. Part too small or too th
 thin bridge (erosion) · slots or holes sever the part · region floats (no slot, dowel or core holds it) · no crossing
 slice · not connected to the main assembly (region-level connectivity through slots, connectors and glued contact) ·
 plane misses material · does not fit the sheet (auto-split when `split` is on) · two slots overlap · hole too close
-to the outline · folded: joint shrunk or skipped for its triangle, listed by seam number · slot opens away from the
-insertion direction. Every message says what to do about it.
+to the outline · folded: joint shrunk or skipped for its triangle, listed by seam number · folded: the material does
+not fold at that thickness (plywood, MDF, acrylic, balsa, foam board, printed plastic, or card and metal past their
+limit), with a one-click switch to faces joined by ribs · slot opens away from the insertion direction · a boxy model
+a few degrees off square (the Model tab offers **square it up**). Every message says what to do about it.
 
 ## Tests
 
@@ -431,13 +434,12 @@ uv run pytest tests -n auto             # pipeline, nesting, checks, export, the
 uv run --with pytest-cov pytest --cov=core --cov=web --cov-report=term-missing   # coverage: 88 % of core + web
 uv run python tests/browser_env.py working-files/jobs   # the whole matrix without the compiled extras Pyodide lacks
 uv run --with playwright playwright install chromium
-LAMINA_UI=1 uv run --with playwright pytest tests/test_ui.py   # the app itself, driven like a person (11 min)
+LAMINA_UI=1 uv run --with playwright pytest tests/test_ui.py   # the app itself, driven like a person: every parameter, undo, no number cut off (20 min)
 python deploy/build_site.py
 LAMINA_E2E=1 uv run --with playwright pytest tests/test_e2e_site.py   # the built site, end to end, in Chromium
 uv run python tests/test_unfold.py      # folded-panel correctness: refold, area, seams, joints (a few minutes)
 uv run python tests/run_matrix.py       # regression matrix of model × mode × feature → working-files/matrix/contact.png
 uv run python -m core.testmodels examples/   # regenerate the synthetic example shapes
-LAMINA_UI=1 uv run --with playwright pytest tests/test_ui.py    # the app in a browser: every parameter, undo, no number cut off
 uv run --with playwright python scripts/media/record.py [scene …]   # re-record the landing-page stills and clips (needs node + ffmpeg)
 ```
 

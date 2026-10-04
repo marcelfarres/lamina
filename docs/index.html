@@ -194,7 +194,8 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
         <li><b>Material</b> — 21 of them, from paper, greyboard and EVA foam through plywood, basswood and acrylic to
             steel, stainless, brass and copper, each with the thicknesses it is sold in (gauges, fractions of an
             inch, ounces of copper), the sheet sizes, a density for the weight, and only the machines that can cut
-            it — and PLA and PETG to 3D-print the parts at full size, nested on your printer's bed. Not on the list?
+            it — and PLA and PETG to 3D-print the parts at full size, nested plate by plate on your printer's bed and
+            downloaded as one 3MF per plate. Not on the list?
             Keep your own, with its own density.</li>
         <li><b>Check and export</b> — physical checks with one-click fixes, then cut files, a solid, or a scaled
             3D-printable prototype.</li>
@@ -285,18 +286,19 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
   </article>
   <article class="tech">
     <video src="media/curve.mp4" poster="media/curve_poster.jpg" width="1100" height="825" muted loop playsinline controls preload="none"
-           aria-label="Ribs following a curve along a horse's back and up its neck, orbiting; then 8, 12 and 20 ribs, and the head control point moved down and back up"></video>
+           aria-label="Ribs following a curve along a horse's back and up its neck, orbiting; then 6 ribs, the head control point moved down and back up, 8 and 12 ribs"></video>
     <div>
       <h3>Curve — ribs</h3>
       <p>Ribs perpendicular to a curve you draw through the model, so they follow a bend instead of staying parallel:
       the vertebrae of an animal, the frames of a hull, the arch of a bridge. Spine slices in the curve's plane lock the
       ribs together. The turn between neighbouring ribs is limited so they never meet inside the model; the note tells
       you when a gentler curve or fewer ribs would keep them square to it.</p>
-      <p class="clip"><b>In the clip:</b> the horse with 20 ribs along a five-point curve that runs down the back and
+      <p class="clip"><b>In the clip:</b> the horse with 12 ribs along a five-point curve that runs down the back and
       climbs the neck to the head, locked by one spine that runs between the legs (the orange line and blue dots are
-      the curve — drag a dot to move it, alt-click the model to add one, alt-click a dot to remove it); then 8, 12 and
-      20 ribs, and the head control point pulled down and back up. Past twenty the ribs would cross inside the neck,
-      and a second spine would cross a leg and the body on one line — the checks say so.</p>
+      the curve — drag a dot to move it, alt-click the model to add one, alt-click a dot to remove it); then 6 ribs,
+      the head control point pulled down and back up, 8 and 12 ribs. Every count shown holds the whole horse. With
+      more ribs one catches a leg on its own, where the spine cannot reach, and a second spine would cross a leg and
+      the body on one line — the checks say so.</p>
       <p class="clip"><b>Parameters:</b> curve plane · control points · rib count or spacing along the curve · spines.</p>
     </div>
   </article>
@@ -309,9 +311,10 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
       the seams with any of thirteen joints — glue tabs for paper and card, laces and rivets for leather and cloth,
       strips for cardboard, slotted angle ribs for sheet metal. Panels grow until they would overlap themselves or
       run off the sheet. Works on closed shapes and on open surfaces such as a mask or a clothing pattern; separate
-      mode cuts every triangle alone for shapes with deep cavities.</p>
-      <p class="clip"><b>In the clip:</b> the cow at a 15 mm facet in 1 mm card, 19 panels with tabs; then laced, then
-      ribs, then tabs again, and a coarser 25 mm facet against the 15 mm one.</p>
+      mode cuts every triangle alone for shapes with deep cavities. A sheet too thick to fold, like plywood or
+      acrylic, is caught before it is cut: one click joins every face with ribs instead.</p>
+      <p class="clip"><b>In the clip:</b> the cow at a 15 mm facet in 1 mm card, 19 panels with tabs; then laced, a
+      coarser 25 mm facet, ribs at that facet, tabs again, and back to 15 mm.</p>
       <p class="clip"><b>Parameters:</b> facet size · growth strategy and faces per panel · joint · hole, inset,
       spacing and tab sizes · rib width and material · perforated folds · seam numbers on both panels.</p>
     </div>
