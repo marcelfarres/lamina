@@ -19,8 +19,9 @@ const ready = (async () => {
   py.FS.mkdirTree(APP + '/web/static');                            // app.py mounts it; the page itself is served by the site
   py.FS.mkdirTree(APP + '/working-files'); py.FS.mount(py.FS.filesystems.IDBFS, {}, APP + '/working-files');
   await new Promise((res, rej) => py.FS.syncfs(true, e => e ? rej(e) : res()));
-  // your own machine: nothing expires on its own, "clear my data" is the only delete
-  py.runPython(`import os, sys; os.environ['LAMINA_TTL_HOURS'] = '0'; sys.path.insert(0, ${JSON.stringify(APP)})`);
+  // your own machine: nothing expires on its own, "clear my data" is the only delete; jobs go under the working
+  // directory, so it is the app's, where the persistent working-files/ is mounted
+  py.runPython(`import os, sys; os.environ['LAMINA_TTL_HOURS'] = '0'; os.chdir(${JSON.stringify(APP)}); sys.path.insert(0, ${JSON.stringify(APP)})`);
   const handle = py.pyimport('web.browser').handle;
   // build() stages → the page's progress bar. An `artifact` is a file the build has finished with and the page can
   // show at once (the preview mesh): the worker is busy building, so it cannot answer a fetch for it — the bytes

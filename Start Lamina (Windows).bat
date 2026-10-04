@@ -1,6 +1,7 @@
 @echo off
-rem Double-click this to run Lamina on this computer. It fetches what it needs the first time (a few minutes),
-rem then opens http://localhost:8000 in your browser. Closing this window stops Lamina. Nothing leaves your machine.
+rem Double-click this to run Lamina on this computer. It fetches what it needs the first time (a few minutes) and a
+rem new version whenever one is released, then opens http://localhost:8000 in your browser. Closing this window
+rem stops Lamina. Nothing leaves your machine.
 title Lamina
 cd /d "%~dp0"
 setlocal enabledelayedexpansion
@@ -27,21 +28,16 @@ if errorlevel 1 (
 )
 
 echo Getting Lamina ready — the first time downloads Python and the libraries, so give it a few minutes.
-uv sync
-if errorlevel 1 (
-  echo.
-  echo That did not work. Copy the lines above into a bug report:
-  echo https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml
-  pause
-  exit /b 1
-)
+echo After that it only downloads something when a new version of Lamina is out.
+uv tool install --upgrade lamina3d
+if errorlevel 1 echo Could not check for a new version — starting the one already on this computer.
 
 echo.
 echo Lamina is starting at http://localhost:8000 — your browser will open in a moment.
 echo Leave this window open while you use it; close it to stop Lamina.
 echo.
-start "" cmd /c "timeout /t 6 >nul & start "" http://localhost:8000"
-uv run uvicorn web.app:app --port 8000
+uv tool run lamina3d
 echo.
-echo Lamina has stopped. If that was not you, the port may already be in use.
+echo Lamina has stopped. If that was not you and the lines above show an error, copy them into a bug report:
+echo https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml
 pause

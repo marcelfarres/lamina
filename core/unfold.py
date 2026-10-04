@@ -48,7 +48,7 @@ def rigid(la, lb, La, Lb):
 
 def cloud_dims(pts):
     """Side lengths of the smallest rotated rectangle around a point cloud (sorted)."""
-    return min_dims(shapely.MultiPoint(pts).oriented_envelope)
+    return min_dims(shapely.MultiPoint(pts))
 
 
 class Panel:

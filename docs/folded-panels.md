@@ -71,7 +71,7 @@ Ribs are built in a frame whose x is "into panel A along its surface", y is "int
 direction, so the arm directions are read straight from the 3D normals — reflex (concave) edges get an outward
 bracket automatically.
 
-## Tests (tests/test_unfold.py, working-files/smoke4.py)
+## Tests (tests/test_unfold.py)
 For cube, egg, torus, bowl (cavity), igea head (separate faces), Spot the cow (legs = undercuts), homer:
 - **refold**: every layout triangle is congruent to its 3D face and both faces of every fold share the edge in the
   layout (max deviation < 1e-3 mm) — the unfolding is rigid.
@@ -82,7 +82,7 @@ For cube, egg, torus, bowl (cavity), igea head (separate faces), Spot the cow (l
 - no two holes overlap on a 400-face head in separate mode; folded tabs add facets for the 3D view.
 - nothing "does not fit the sheet".
 
-Run: `uv run python tests/test_unfold.py`, `uv run python working-files/smoke4.py`.
+Run: `uv run python tests/test_unfold.py`.
 
 ## Roadmap for this technique
 1. Simulated annealing / tabu search over the spanning tree when `auto` still leaves many panels (Korpitsch, Zawallich).

@@ -119,11 +119,20 @@ the starter for your computer in the folder that appears:
 
 It asks once whether it may install [uv](https://docs.astral.sh/uv/) (a small tool that fetches Python and the
 libraries into your own user folder), downloads them — a few minutes, once — and opens
-<http://localhost:8000>. Leave the text window open while you work; closing it stops Lamina. There is no signed
+<http://localhost:8000>. Leave the text window open while you work; closing it stops Lamina. Every start checks for
+a new release and installs it ([Updating](#updating)). There is no signed
 `.dmg`/`.exe` installer: Apple and Microsoft both charge yearly for the signature a free tool would need, so the
 starters are the same convenience without it.
 
-**From a terminal** — Python 3.11 or newer and [uv](https://docs.astral.sh/uv/); everything else is installed for you:
+**From a terminal** — [uv](https://docs.astral.sh/uv/) fetches Python and everything else; the starters run exactly
+this:
+
+```bash
+uv tool install lamina3d     # "lamina3d[cad]" adds STEP / BREP import
+lamina3d                     # opens http://localhost:8000 (--port to change it)
+```
+
+**To work on Lamina itself**, from a clone:
 
 ```bash
 git clone https://github.com/marcelfarres/lamina.git
@@ -140,6 +149,21 @@ The image on GitHub Container Registry carries everything; the machine that runs
 docker run -d -p 8000:8000 -v lamina-jobs:/app/working-files ghcr.io/marcelfarres/lamina:latest
 ```
 
+### Updating
+
+The browser version is always the newest. A local copy moves only to a tagged release, whose package is installed
+and made to slice before it is published:
+
+| how you run it | how it updates |
+|---|---|
+| the double-click starter | by itself: every start runs `uv tool install --upgrade lamina3d`; offline it starts the version you have |
+| `uv tool install` | `uv tool upgrade lamina3d` |
+| Docker | `docker pull ghcr.io/marcelfarres/lamina:latest`, then start it again (`docker compose pull && docker compose up -d`) |
+| a clone | `git pull && uv sync` |
+
+The what's-new dialog opens by itself on the first start after an update. An older starter (one that says `uv sync` inside) never updates
+— download the ZIP once more and use the new one; your jobs are in the old folder's `working-files/`.
+
 **No server at all:** the same page runs its Python in a web worker (Pyodide) when nothing answers `api/`. That is
 the public demo, at [marcelfarres.github.io/lamina/app](https://marcelfarres.github.io/lamina/app/?ref=github-readme) and on
 [Hugging Face](https://marcelfarres-lamina.static.hf.space/app/index.html). [deploy/build_site.py](deploy/build_site.py)
@@ -155,7 +179,8 @@ the copy you self-host or run from Docker** — there is no script and no endpoi
 visits with GoatCounter (no cookies, no IP stored, so no consent banner) when the `COUNT_URL` repository variable is
 set: the landing page records the visit, the referrer, which link was clicked and which clips played, and the demo
 records that it was opened. What someone *does* in the demo — technique, whether the model came from the examples or
-their own computer, which formats they export — is sent only if they tick the box at the foot of its Model tab.
+their own computer, which formats they export — is sent while the box at the foot of its Model tab is ticked. It is
+ticked by default and unticking it switches this off for good on that browser.
 
 ### How long a slice takes
 
@@ -179,8 +204,8 @@ is `uv run`, the Docker image is the same):
 
 What costs time: the face count of the model after Modify Form (a fine `shrinkwrap` pitch on a big model makes a
 large mesh), the number of slices that cross each other (every crossing pair is a ray cast and an insertion check),
-and `smooth` passes. `uv run python working-files/time_head.py --browser head_igea` prints the seconds per stage
-for any example, with or without the compiled extras the browser build lacks. If a slice takes minutes in the
+and `smooth` passes. Every slice logs its seconds per stage to the browser console (`lamina timing`), and the
+local server also appends them to `working-files/timing.log`. If a slice takes minutes in the
 browser, it is a model well beyond these: run the local version, or reduce the model first (a coarser
 `shrinkwrap`, a decimated mesh).
 
@@ -197,7 +222,7 @@ stranger's 2 GB scan is not yours to hold. `WEB_CONCURRENCY` is how many slices 
 time (one uvicorn worker each, about 300 MB). Lamina still has no login of its own, so put it behind your reverse
 proxy's authentication if the server is reachable from the internet.
 
-The Model tab opens on a bundled example; [examples/](examples/README.md) holds 22 of them, and each opens on the
+The Model tab opens on a bundled example; [examples/](examples/README.md) holds 23 of them, and each opens on the
 technique and parameters that suit it ([examples/presets.json](examples/presets.json) — the shape standing the right
 way up, sliced without an error; a test keeps that true). The same pipeline runs headless, so it can be scripted:
 
@@ -233,8 +258,11 @@ Common to all: model `rotate` (three angles) and slicing `center`, per-slice `of
 Besides per-part checks (too small, too thin, severed by slots, holes near the outline, overlapping cuts), every plan
 is checked as an **assembly**: each region of each slice must reach the main body through a slot, a connector or
 glued contact; a head held only by slices that never touch the body is reported as a separate group. `autofix=add`
-(the default) first adds crossing slices through regions nothing holds, up to two rounds, then removes what still
-cannot work, and lists everything it did. Every remaining error and most warnings carry one-click fixes: add a slice
+(the default) holds regions nothing holds the way the technique holds things — crossing slices placed where their own
+section reaches the rest of the assembly, rings, spines — up to two rounds, and lists everything it did. It never
+deletes a piece of the model: what still cannot be held stays on the plan with its error. (Left out, and said so: a
+shaving a slot cuts off its own part and a speck where a slice only grazes the surface, both thinner than the minimum
+wall everywhere — too small to cut or handle.) Every remaining error and most warnings carry one-click fixes: add a slice
 through the region, move it, delete the group, round the model, change the notch ratio, split the part.
 
 A coverage figure says how much of the model's surface the parts represent, so a leg or an ear that no slice reaches
@@ -397,8 +425,9 @@ the quick run.
 
 ```bash
 uv run ruff check                       # lint (pyflakes, bugbear, bandit, pyupgrade); the test workflow runs it first
-uv run pytest tests                     # pipeline, nesting, checks, export, the web API, the browser build's code path,
-                                        # and every slider end / choice / toggle of every technique (tests/test_params.py)
+uv run pytest tests -n auto             # pipeline, nesting, checks, export, the web API, the browser build's code path,
+                                        # and every slider end / choice / toggle of every technique (tests/test_params.py);
+                                        # -n auto spreads it over every core: about 4 min on 12, 32 in one process
 uv run --with pytest-cov pytest --cov=core --cov=web --cov-report=term-missing   # coverage: 88 % of core + web
 uv run python tests/browser_env.py working-files/jobs   # the whole matrix without the compiled extras Pyodide lacks
 uv run --with playwright playwright install chromium
@@ -408,14 +437,19 @@ LAMINA_E2E=1 uv run --with playwright pytest tests/test_e2e_site.py   # the buil
 uv run python tests/test_unfold.py      # folded-panel correctness: refold, area, seams, joints (a few minutes)
 uv run python tests/run_matrix.py       # regression matrix of model × mode × feature → working-files/matrix/contact.png
 uv run python -m core.testmodels examples/   # regenerate the synthetic example shapes
+LAMINA_UI=1 uv run --with playwright pytest tests/test_ui.py    # the app in a browser: every parameter, undo, no number cut off
+uv run --with playwright python scripts/media/record.py [scene …]   # re-record the landing-page stills and clips (needs node + ffmpeg)
 ```
+
+The landing-page media are re-recorded on every release tag by `.github/workflows/media.yml` (or by hand from the
+Actions tab), and committed back to main, so they always show the version people download.
 
 ## Folder layout
 
 ```text
 core/        planner, modes, unfold, notch, checks, nest, split, export, solid
 web/         FastAPI app + single-page UI (vendored three.js)
-examples/    22 test models: 17 synthetic + a scanned head, three animals and the bunny (terms in examples/README.md)
+examples/    23 test models: 18 synthetic + a scanned head, three animals and the bunny (terms in examples/README.md)
 docs/        index.html + media/ (the GitHub Pages site), roadmap.md, folded-panels.md, original-slicer-reference.md
 tests/       pytest suite, test_ui.py (the app in a browser), test_unfold.py, run_matrix.py
 ```
@@ -425,13 +459,8 @@ tests/       pytest suite, test_ui.py (the app in a browser), test_unfold.py, ru
 [The landing page](https://marcelfarres.github.io/lamina/) is `docs/`, served by GitHub Pages from `main` — plain
 HTML with no build step, so any static server shows exactly what Pages will:
 
-LAMINA_UI=1 uv run --with playwright pytest tests/test_ui.py    # the app in a browser: every parameter, undo, no number cut off
-uv run --with playwright python scripts/media/record.py [scene …]   # re-record the landing-page stills and clips (needs node + ffmpeg)
 ```bash
 uv run python -m http.server 8080 --directory docs   # then open http://localhost:8080
-The landing-page media are re-recorded on every release tag by `.github/workflows/media.yml` (or by hand from the
-Actions tab), and committed back to main, so they always show the version people download.
-
 ```
 
 The `.md` files next to it (`roadmap.md`, `folded-panels.md`) are read on GitHub rather than through the page.

@@ -35,7 +35,7 @@ class Stacked(Mode):
         Param("dowel_shape", "choice", "round", "Dowel hole shape (round, square, pencil = hexagon, cross, horizontal / vertical slot)", choices=["round", "square", "pencil", "cross", "hslot", "vslot"], show_if=("connect", "dowel")),
         Param("placement", "choice", "aligned", "aligned = the same points through the whole stack, so each dowel is one straight rod (every island that persists gets its own); to move one or add your own, alt-click a slice in the 3D view or type it under dowels · random = new points for every pair of slices, spread as far apart as that pair allows, so no two layers share a hole · lines = straight dowels you draw yourself, start → end, holes wherever they cross between two slices", choices=["aligned", "random", "lines"], show_if=("connect", ["dowel", "tab"])),
         Param("n_points", "int", 2, "Connection points per pair of slices (per island)", 1, 20, 1, show_if=("placement", ["aligned", "random"])),
-        Param("dowels", "points", [], "Your own dowels, each straight through every layer it fits (x, y in the slice plane, 0, 0 = the middle of the model); empty = automatic. Alt-click a slice in the 3D view to add one there or remove the one you click; type its x, y here to move it", unit="mm", show_if=("placement", "aligned")),
+        Param("dowels", "points", [], "Your own dowels, on top of the automatic ones (n_points), each straight through every layer it fits (x, y in the slice plane, 0, 0 = the middle of the model). Alt-click a slice in the 3D view to add one there or remove the one you click; type its x, y here to move it", unit="mm", show_if=("placement", "aligned")),
         Param("lines", "lines3", [], "Each line is one straight dowel through the stack: a start and an end point in "
               "the model's own x, y, z (0, 0, 0 is the middle of the model). Every pair of slices the line passes through "
               "gets a hole where it crosses between them, so a slanted line steps across the layers. + line draws one up "
@@ -160,8 +160,10 @@ class Stacked(Mode):
         each keeping a full wall of material from every hole already cut in slice a (`taken`)."""
         p = ctx.p
         # Two holes need `min_feature` of material between their edges, the same wall this job asks for everywhere
-        # else — so their centres are a diameter plus that wall apart. Closer and they cut into one another.
-        clearance = d + p["min_feature"]
+        # else — so their centres are two of the hole's reach (the cut, with its slot offset) plus that wall apart.
+        # Any less and connect's `fits` turns the point down: points spread as far apart as they go land right on
+        # this limit, so a smaller one here lost the horse's random dowels a layer at a time.
+        clearance = 2 * margin - p["min_feature"]
         raw = a.raw.intersection(b.raw)
         overlap = raw.buffer(-margin)
         # An island is somewhere this connector really fits: the hole and the wall around it. Hollowing a model turns
@@ -185,7 +187,14 @@ class Stacked(Mode):
             fixed = [q for q in list(p["dowels"]) + self.common_points(ctx, margin) if overlap.contains(Point(q))]
             clear = lambda q, pts: all(np.hypot(q[0] - r[0], q[1] - r[1]) > clearance for r in pts)   # noqa: E731
             for isl in islands:
-                held = lambda pts: len(pts) >= want and dowel_leverage(isl, pts) <= LEVERAGE_OK   # noqa: E731
+                # held is the piece's hold, not the overlap's: an ear's overlap is a sliver of the ear, and two dowels
+                # holding the sliver dropped the third rod the ear itself needed (1.37 where the check promised 0.9)
+                piece = max(as_multi(a.raw).geoms, key=lambda g: g.intersection(isl).area)
+                lev = lambda pts: dowel_leverage(piece, pts)                                    # noqa: E731
+                # dowels someone placed come on top of the n_points asked for: counted in, one typed into a horse's
+                # ear stood in for one of its two and the ear came out held 1.56 where the check promised 1.2
+                need = want + sum(isl.contains(Point(q)) for q in p["dowels"])
+                held = lambda pts: len(pts) >= need and lev(pts) <= LEVERAGE_OK                 # noqa: E731
                 mine = [q for q in fixed if isl.contains(Point(q))]
                 # One point is a hinge: a piece pinned once still turns about it, which is exactly what a glued stack
                 # does while it dries. Two locate it. An island the common points miss (an ear) gets its own, and one
@@ -211,12 +220,11 @@ class Stacked(Mode):
                     fresh = self.spread(isl, want, apart=2.5 * d, clear=here, by=clearance)
                     topped = list(mine)
                     for q in fresh:
-                        if len(topped) < want and clear(q, topped):
+                        if len(topped) < need and clear(q, topped):
                             topped.append(q)
                     own = [q for q in p["dowels"] if isl.contains(Point(q))]
                     own += [q for q in fresh if clear(q, own)]
-                    mine = min((mine, topped, own), key=lambda pts: (dowel_leverage(isl, pts) > LEVERAGE_OK,
-                                                                     -min(len(pts), want), dowel_leverage(isl, pts)))
+                    mine = min((mine, topped, own), key=lambda pts: (lev(pts) > LEVERAGE_OK, -min(len(pts), need), lev(pts)))
                 out += mine
         elif p["placement"] == "random":
             rng = np.random.default_rng(1000 + i)
@@ -252,82 +260,146 @@ class Stacked(Mode):
                     q = P0[:2] + (P1[:2] - P0[:2]) * u
                     if overlap.contains(Point(q)):
                         out.append((float(q[0]), float(q[1])))
-        # Last word, whatever placed them: two holes closer together than their own width run into each other and
-        # come out as one ragged opening (the reported 6 mm dowels arriving as 8 and 9 mm blobs). A point that sits
-        # exactly where one already is, is the same aligned point coming round again — that one is cut once and kept.
-        keep, near = [], [tuple(q) for q in taken]
-        for q in out:
-            gaps = [np.hypot(q[0] - r[0], q[1] - r[1]) for r in near]
-            if all(g > clearance or g < 0.01 for g in gaps):
-                keep.append(q); near.append(tuple(q))
-        return keep
+        return out      # whether each one really fits, against the cuts already made, is connect's `fits`
 
     def connect(self, ctx, slices):
-        p = ctx.p; t = p["thickness"]; gap = p["space"]; d = p["dowel_d"]
+        p = ctx.p; t = p["thickness"]; gap = p["space"]; d = p["dowel_d"]; mf = p["min_feature"]
+        tab = p["connect"] == "tab"
         # keep the hole's real reach from the outline, not d/2: a square's corner sits at 0.71 d, a slot's end at 0.75 d
-        margin = hole_reach(d + p["slot_offset"], p["dowel_shape"]) + p["min_feature"]
+        margin = hole_reach(d + p["slot_offset"], p["dowel_shape"]) + mf
         rod = [[round(x, 3), round(y, 3)] for x, y in dowel((0, 0), d, p["dowel_shape"]).exterior.coords[:-1]]   # the rod's section, for the 3D view
         ctx._stack = slices
         extra, k, skipped = [], 0, 0
+        tab_w, sw = (d if gap == 0 else d * 0.6), t + p["slot_offset"]    # a tab's width along its slot, the slot's width
+        reach = math.hypot(tab_w, sw) / 2 if tab else margin - mf          # how far a cut reaches from its centre, any way it turns
 
-        def add_cut(sl, geom, x, y, ang, tag, other, pt):   # a slice touches two pairs: the same aligned point must be cut once
-            key = (round(x, 2), round(y, 2), ang)
-            keys = sl.__dict__.setdefault("_cutkeys", set())
-            if key not in keys:
-                keys.add(key); sl.cuts.append(geom); sl.engages.append(tag)
+        def cut(x, y, ang):
+            """What one connector cuts into a slice at its local (x, y): the dowel's hole, or the slot a tab goes into."""
+            if not tab:
+                return dowel((x, y), d + p["slot_offset"], p["dowel_shape"])
+            dx, dy = np.cos(np.radians(ang)) * tab_w / 2, np.sin(np.radians(ang)) * tab_w / 2
+            return rect_along((x - dx, y - dy), (x + dx, y + dy), sw)
+
+        def fits(sl, g, key):
+            """A full wall from the outline and from every other cut in the slice: two cuts closer than that run into
+            each other and come out as one ragged opening (the reported 6 mm dowels arriving as 8 and 9 mm blobs).
+            The same aligned dowel coming round again is the hole already there; a slot is not, it holds one tab."""
+            cuts = sl.__dict__.setdefault("_cutkeys", {})
+            if key in cuts:
+                return not tab
+            inner = sl.__dict__.setdefault("_inner", sl.raw.buffer(-mf))
+            return inner.contains(g) and all(g.distance(c) >= mf for c in cuts.values())
+
+        def add_cut(sl, geom, key, other, pt):   # a slice touches two pairs: the same aligned point is cut once
+            if key not in sl._cutkeys:
+                sl._cutkeys[key] = geom; sl.cuts.append(geom); sl.engages.append("tab" if tab else "dowel")
             sl.links.append((other, geom, pt))
+
+        def place(a, b, i, j, x, y):
+            """Connector j of pair i at the first spot by (x, y) that fits both slices: that spot, or None. A dowel is a
+            straight rod and goes exactly there. A slot holds one tab, so consecutive pairs step theirs sideways (the
+            spacer below a slice and the one above sit side by side); the other side, then the other direction, then
+            no step are tried before the point is given up. The fit is tested on the cut itself — tested on a round
+            hole at the unstepped point, every second pair of an aligned stack lost all its spacers to the slots of
+            the pair before, and the layers they held were cut off as floating."""
+            nonlocal k
+            if tab:
+                ang = {"x": 0.0, "y": 90.0, "alternate": 90.0 * (j % 2)}[p["spacer_dir"]]
+                step = d * 1.2 * (1 if i % 2 else -1)
+                angs = (ang, 90.0 - ang) if p["spacer_dir"] == "alternate" else (ang,)
+                tries = [(A, s) for A in angs for s in (step, -step)] + [(A, 0.0) for A in angs]
+            else:
+                tries = [(0.0, 0.0)]
+            for ang, s in tries:
+                dx, dy = np.cos(np.radians(ang)), np.sin(np.radians(ang))
+                xa, ya = x + dx * s, y + dy * s
+                xb, yb = to_local(b.M, [(a.M @ np.array([xa, ya, 0, 1]))[:3]])[0]
+                ka, kb = (round(xa, 2), round(ya, 2), ang), (round(xb, 2), round(yb, 2), ang)
+                ga, gb = cut(xa, ya, ang), cut(xb, yb, ang)
+                if fits(a, ga, ka) and fits(b, gb, kb):
+                    break
+            else:
+                return None
+            spacing = float(np.dot(b.M[:3, 3] - a.M[:3, 3], a.M[:3, 2]))
+            pt = tuple((a.M @ np.array([xa, ya, spacing / 2, 1]))[:3])           # world point in the gap: the connection's identity
+            add_cut(a, ga, ka, b.label, pt); add_cut(b, gb, kb, a.label, pt)
+            if not tab:
+                ctx.rods.append([list((a.M @ np.array([xa, ya, -t / 2, 1]))[:3]), list((a.M @ np.array([xa, ya, spacing + t / 2, 1]))[:3]), d,
+                                 rod, list(a.M[:3, 0])])
+                return xa, ya
+            # one flat piece across the gap: a peg when space = 0, a spacer (body + a tab each end) otherwise
+            k += 1
+            M = frame_xy(np.array(pt), a.M[:3, :3] @ np.array([dx, dy, 0]), a.M[:3, 2])   # piece plane: spacer direction × stack normal
+            L = spacing + t                                                     # from the far side of a to the far side of b
+            body = Polygon([(-d / 2, -gap / 2), (d / 2, -gap / 2), (d / 2, gap / 2), (-d / 2, gap / 2)]) if gap > 0 else None
+            tabs = Polygon([(-tab_w / 2, -L / 2), (tab_w / 2, -L / 2), (tab_w / 2, L / 2), (-tab_w / 2, L / 2)])
+            sl = Slice(f"P-{k}", "P", M, t)
+            sl.raw = as_multi(unary_union([body, tabs]) if body is not None else tabs)
+            sl.pair = i
+            extra.append(sl)
+            return xa, ya
+
         bare, rooms = 0, []
+        want = max(1, p["n_points"])
         for i, (a, b) in enumerate(zip(slices, slices[1:])):
-            # what slice a already carries, for every placement: an aligned point repeats exactly and is kept, one
-            # that merely lands near an existing hole is not
-            taken = [(x, y) for x, y, *_ in getattr(a, "_cutkeys", ())]
+            # what slice a already carries, for every placement: an aligned point repeats exactly and is kept
+            taken = [(x, y) for x, y, *_ in a.__dict__.setdefault("_cutkeys", {})]
             pts = self.points_for_pair(ctx, a, b, i, d, margin, taken)
-            if not pts:      # nothing this size fits here: remember the biggest hole these two layers would take
+            got = [q for q in (place(a, b, i, j, x, y) for j, (x, y) in enumerate(pts)) if q]
+            skipped += len(pts) - len(got)
+            # Every island the two share is held, by as many connectors as were asked for, whatever the placer chose
+            # for it: one it gave fewer (crowded out by the cuts already in a, or points skipped) is topped up. Left
+            # empty, the check finds it floating and auto-fix cuts it off; left with one, it turns on it. Where a
+            # connector's centre can go is worked out exactly — a wall in from both outlines and from every cut
+            # already there, plus the connector's own reach — so a small layer with room for one finds it; its most
+            # inward spot is taken first, then each as far from the others as the room allows. No room at all, and
+            # the check says what size would fit. Lines are the connectors someone drew; nothing is added to those.
+            for isl in [] if p["placement"] == "lines" else as_multi(a.raw.intersection(b.raw)).geoms:
+                have = [q for q in got if isl.contains(Point(q))]
+                # As many as asked for on top of any typed in, and for dowels, on past that while the piece is not
+                # held and the next spot holds it better (at most as many again): a dowel typed into a bunny's ear
+                # made the count, and the ear's tip lost the dowel the count used to bring it — 1.37 for 0.9 promised.
+                piece = max(as_multi(a.raw).geoms, key=lambda g: g.intersection(isl).area)
+                on = lambda: [(x, y) for x, y, _ in a._cutkeys if piece.contains(Point(x, y))]   # noqa: E731
+                loose = lambda: not tab and dowel_leverage(piece, on()) > LEVERAGE_OK            # noqa: E731
+                need = want + (sum(isl.contains(Point(q)) for q in p["dowels"]) if p["placement"] == "aligned" else 0)
+                if len(have) >= need and not loose():
+                    continue
+                room = inside = isl.buffer(-(mf + reach))
+                near = [c for s in (a, b) for c in s.__dict__.get("_cutkeys", {}).values() if c.distance(isl) < mf + reach]
+                if near and not room.is_empty:
+                    room = room.difference(unary_union(near).buffer(mf + reach))
+                # a dowel from the pair below can carry on up through this pair: its hole in a is already there
+                q = [] if tab else [(x, y) for x, y, _ in a._cutkeys if inside.contains(Point(x, y))
+                                    and all(np.hypot(x - m[0], y - m[1]) > 0.01 for m in have)]
+                if not room.is_empty:
+                    parts = sorted(as_multi(room).geoms, key=lambda g: -g.area)
+                    x0, y0, x1, y1 = room.bounds; h = max(d / 4, math.sqrt(room.area) / 20)
+                    grid = np.stack(np.meshgrid(np.arange(x0, x1, h), np.arange(y0, y1, h)), -1).reshape(-1, 2)
+                    q += [shapely.maximum_inscribed_circle(g, 0.1).coords[0] for g in parts]   # each room's middle first
+                    q += [tuple(c) for c in grid[shapely.contains_xy(room, grid[:, 0], grid[:, 1])]]
+                def far(q, ms):                                        # farthest from the connectors in ms first
+                    q.sort(key=lambda pt: -min(np.hypot(pt[0] - m[0], pt[1] - m[1]) for m in ms))
+                if have:
+                    far(q, have)                                       # a second connector goes far from the first
+                mine = []
+                while q and (len(have) + len(mine) < need or len(mine) < want and loose()
+                             and dowel_leverage(piece, on() + [q[0]]) < dowel_leverage(piece, on())):
+                    s = place(a, b, i, len(got) + len(mine), *q.pop(0))
+                    if s:
+                        mine.append(s); far(q, have + mine)
+                got += mine
+            if not got:      # nothing this size fits here: remember the biggest hole these two layers would take
                 bare += 1
                 both = a.raw.intersection(b.raw)
                 if not both.is_empty:
                     rooms.append(max(shapely.maximum_inscribed_circle(g, 0.5).length * 2 for g in as_multi(both).geoms))
-            for j, (x, y) in enumerate(pts):
-                # A tab slot belongs to one spacer: the slot angle depends on the point only, and consecutive pairs
-                # step their point sideways, so the spacer below and the spacer above a slice sit next to each
-                # other instead of crossing in the same slot.
-                ang = {"x": 0.0, "y": 90.0, "alternate": 90.0 * (j % 2)}[p["spacer_dir"]]
-                dx, dy = np.cos(np.radians(ang)), np.sin(np.radians(ang))
-                if p["connect"] == "tab":
-                    step = d * 1.2 * (1 if i % 2 else -1)
-                    x, y = x + dx * step, y + dy * step
-                w = (a.M @ np.array([x, y, 0, 1]))[:3]; bx, by = to_local(b.M, [w])[0]
-                spacing = float(np.dot(b.M[:3, 3] - a.M[:3, 3], a.M[:3, 2]))
-                pt = tuple((a.M @ np.array([x, y, spacing / 2, 1]))[:3])           # world point in the gap: the connection's identity
-                if p["connect"] == "dowel":
-                    add_cut(a, dowel((x, y), d + p["slot_offset"], p["dowel_shape"]), x, y, 0, "dowel", b.label, pt)
-                    add_cut(b, dowel((bx, by), d + p["slot_offset"], p["dowel_shape"]), bx, by, 0, "dowel", a.label, pt)
-                    ctx.rods.append([list((a.M @ np.array([x, y, -t / 2, 1]))[:3]), list((a.M @ np.array([x, y, spacing + t / 2, 1]))[:3]), d,
-                                     rod, list(a.M[:3, 0])])
-                    continue
-                # tab connector: slots in both slices + one flat piece (peg when space = 0, spacer otherwise)
-                tab_w = d if gap == 0 else d * 0.6
-                sw = t + p["slot_offset"]
-                sa = rect_along((x - dx * tab_w / 2, y - dy * tab_w / 2), (x + dx * tab_w / 2, y + dy * tab_w / 2), sw)
-                sb = rect_along((bx - dx * tab_w / 2, by - dy * tab_w / 2), (bx + dx * tab_w / 2, by + dy * tab_w / 2), sw)
-                if not (a.raw.buffer(-p["min_feature"]).contains(sa) and b.raw.buffer(-p["min_feature"]).contains(sb)):
-                    skipped += 1; continue
-                add_cut(a, sa, x, y, ang, "tab", b.label, pt); add_cut(b, sb, bx, by, ang, "tab", a.label, pt)
-                k += 1
-                o = (a.M @ np.array([x, y, spacing / 2, 1]))[:3]
-                M = frame_xy(o, a.M[:3, :3] @ np.array([dx, dy, 0]), a.M[:3, 2])   # piece plane: spacer direction × stack normal
-                L = spacing + t                                                     # from the far side of a to the far side of b
-                body = Polygon([(-d / 2, -gap / 2), (d / 2, -gap / 2), (d / 2, gap / 2), (-d / 2, gap / 2)]) if gap > 0 else None
-                tabs = Polygon([(-tab_w / 2, -L / 2), (tab_w / 2, -L / 2), (tab_w / 2, L / 2), (-tab_w / 2, L / 2)])
-                sl = Slice(f"P-{k}", "P", M, t)
-                sl.raw = as_multi(unary_union([body, tabs]) if body is not None else tabs)
-                sl.pair = i
-                extra.append(sl)
         # These two go in the plan's notes, not on a slice: check_plan clears every slice's warnings before it runs,
         # so a message a mode leaves there never reaches anyone.
         said = []
         if skipped:
-            said.append(f"{skipped} connection point(s) skipped — the slot would cross the outline: move the points inward (alt-click) or reduce dowel_d")
+            said.append(f"{skipped} connection point(s) skipped — no spot there keeps a {mf:g} mm wall from the outline and "
+                        "from the other connectors: move the points inward (alt-click) or reduce dowel_d")
         if bare and p["placement"] == "lines":
             # Here nothing was short of room: the lines put no point there. Offering a smaller dowel sent people
             # looking for a size problem that did not exist.

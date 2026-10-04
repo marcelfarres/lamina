@@ -183,6 +183,25 @@ def test_proto_set_says_which_parts_had_no_room_for_a_label(tmp_path):
     assert all(pc["label"] in readme for sl in plan["slices"] for pc in sl["pieces"])
 
 
+def test_a_printed_job_comes_out_as_one_plate_per_bed(tmp_path):
+    """A printed job (PLA, PETG) was nested on the printer's bed, so each sheet is a plate: plate-1.3mf … plate-N.3mf,
+    each holding that sheet's parts and fitting the bed — not one plate.3mf with every sheet stacked into a strip no
+    printer takes. The cut files' titles say plate, not sheet."""
+    bed = [256, 256]
+    plan = build(EXAMPLES / "egg.stl", "stacked", {"printed": True, "sheet": bed, "thickness": 3, "autofix": "off"})
+    assert plan["sheets"] > 1
+    names = {f.name for f in proto_set(plan, tmp_path, scale=1.0)}
+    assert "plate.3mf" not in names and {f"plate-{i + 1}.3mf" for i in range(plan["sheets"])} <= names
+    on = {i: {pc["label"] for sl in plan["slices"] for pc in sl["pieces"] if pc["place"][0] == i} for i in range(plan["sheets"])}
+    for i in range(plan["sheets"]):
+        scene = trimesh.load(tmp_path / f"plate-{i + 1}.3mf")
+        assert set(scene.geometry) == on[i]                                     # that plate's parts, all of them
+        lo, hi = scene.bounds
+        assert (hi - lo)[:2].max() <= max(bed) + 1e-6 and lo[:2].min() >= -1e-6, (i, lo, hi)
+    export(plan, tmp_path / "cut", fmts=("svg",))
+    assert "plate 1/" in next((tmp_path / "cut").rglob("*.svg")).read_text(encoding="utf-8")
+
+
 def test_fit_test_is_the_jobs_joints_at_five_offsets_on_a_small_stand_in(tmp_path):
     """Before printing the model, five small assemblies with its joints: the job's own slot offset in the middle and
     two steps either way, every radial half-slice kept (that is what makes the real one tight), rings cut to two,

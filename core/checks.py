@@ -5,7 +5,7 @@ import re
 
 import numpy as np
 import shapely
-from shapely.geometry import MultiPolygon, Point, Polygon
+from shapely.geometry import Point, Polygon
 from shapely import affinity
 
 from .geometry import dowel_leverage, hole_reach
@@ -16,14 +16,18 @@ LEVERAGE_WARN = 1.5    # placement aims for 0.8 (geometry.LEVERAGE_OK); past thi
 
 
 def min_dims(poly):
-    """Side lengths of the minimum rotated bounding rectangle (w, h), sorted."""
-    r = poly.minimum_rotated_rectangle
-    if r.geom_type != "Polygon":
-        return 0.0, 0.0
-    c = list(r.exterior.coords)
-    a = ((c[0][0] - c[1][0]) ** 2 + (c[0][1] - c[1][1]) ** 2) ** 0.5
-    b = ((c[1][0] - c[2][0]) ** 2 + (c[1][1] - c[2][1]) ** 2) ** 0.5
-    return tuple(sorted((a, b)))
+    """Side lengths of the minimum rotated bounding rectangle (w, h), sorted: the hull measured across each of its own
+    edge directions, keeping the smallest box. Not GEOS's minimum_rotated_rectangle, which comes back as a flat line
+    when the hull has several points on one straight edge (slot corners on a slanted side do that) — a 120 × 660 mm
+    part measured 0.0 × 125, failed as "too thin" and was never split to fit the sheet."""
+    hull = poly.convex_hull
+    if hull.geom_type != "Polygon":                        # a point or a line: no width
+        return 0.0, float(hull.length)
+    h = np.asarray(hull.exterior.coords)
+    e = np.diff(h, axis=0); e = e[np.hypot(*e.T) > 1e-12]; e /= np.hypot(*e.T)[:, None]
+    w, t = np.ptp(h @ e.T, axis=0), np.ptp(h @ np.c_[-e[:, 1], e[:, 0]].T, axis=0)
+    k = int(np.argmin(w * t))
+    return tuple(sorted((float(w[k]), float(t[k]))))
 
 
 def check_slice(sl, p):
@@ -257,58 +261,13 @@ def check_assembly(slices, p):
                             f"add crossing slices / connection points through it, or delete it")
 
 
-def autofix(slices, p):
-    """Remove what cannot work: slices nothing crosses, regions nothing holds, held-family parts below the minimum size.
-    A whole layer of a stack is never removed — take it out and the model has a gap through it — but one island of
-    that layer is: the tip of an ear that touches nothing would fall off the finished piece anyway. So is a layer
-    at either end of the stack whose neighbour is held: that shortens the model, it does not cut it in two.
-    Returns notes describing what was removed; check_plan must run again afterwards."""
-    notes, keep = [], []
-    stack = [s for s in slices if s.group == "S"]
-
-    def tip(sl):
-        """An end layer whose neighbour is held (the horse's ear tips): taking it off makes the model one layer
-        shorter, not two pieces."""
-        if len(stack) < 2 or sl not in (stack[0], stack[-1]):
-            return False
-        nb = stack[1] if sl is stack[0] else stack[-2]
-        return not any("floats" in e or "not connected" in e for e in nb.errors)
-
-    for sl in slices:
-        regions = list(sl.profile.geoms)
-        drop = set()
-        for e in sl.errors:
-            if "no crossing slice" in e or "not connected to the main assembly" in e:
-                if e.startswith("region"):
-                    drop |= {int(e.split()[1]) - 1}
-                elif sl.group != "S":
-                    drop = set(range(len(regions)))
-            if e.startswith("part too small") or e.startswith("part too thin") or e.startswith("part thinner"):
-                drop = set(range(len(regions)))
-            for i in range(len(regions)):
-                if e.startswith(f"region {i + 1} ") and ("floats" in e or "too small" in e or "too thin" in e or "thinner" in e):
-                    drop.add(i)
-        if not drop:
-            keep.append(sl); continue
-        left = [r for i, r in enumerate(regions) if i not in drop]
-        why = "nothing holds it" if any("float" in e or "no crossing" in e or "not connected" in e for e in sl.errors) else "below the minimum size"
-        if not left and sl.group == "S" and why == "nothing holds it" and not tip(sl):
-            # Every island of the layer is unheld, so it is the layer that floats, not an ear of it. Island by island
-            # that used to add up to the whole layer: a gapped stack with no connector through it (placement = lines
-            # before any line is drawn) lost 11 of the horse's 20 layers. It stays, and its error says what to join.
-            keep.append(sl)
-        elif left:
-            sl.profile = MultiPolygon(left); sl.raw = MultiPolygon([r for r in sl.raw.geoms if any(r.intersects(x) for x in left)]) or sl.raw
-            notes.append(f"auto-fix: removed {len(drop)} region(s) of {sl.label} ({why})")
-            keep.append(sl)
-        else:
-            notes.append(f"auto-fix: removed slice {sl.label} ({why})")
-    return keep, notes
-
-
 def crossing_suggestions(slices, ctx, mode):
-    """Parameter changes that would add a crossing slice through every floating / disconnected region (autofix = add)."""
+    """Parameter changes that would add a crossing slice through every floating / disconnected region (autofix = add):
+    the technique's own `hold` when it has one, else its crossing_fix through each region's middle."""
     from .geometry import to_world
+    sets = mode.hold(slices, ctx)
+    if sets is not None:
+        return sets
     sets = []
     for sl in slices:
         for e in sl.errors:
