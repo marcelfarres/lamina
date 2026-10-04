@@ -2,11 +2,15 @@
 Every message says what is wrong AND what to do about it; `suggest_fixes` turns the common ones into one-click options."""
 from __future__ import annotations
 import numpy as np
-from shapely.geometry import MultiPolygon, Point
+import shapely
+from shapely.geometry import MultiPolygon, Point, Polygon
 from shapely import affinity
+
+from .geometry import dowel_leverage
 
 HELD_GROUPS = ("X", "Y", "R", "C")     # regions in these groups must be held by a slot / dowel / the core
 STRUCTURAL = ("X", "Y", "R", "C", "S")  # take part in the assembly-connectivity check (panels, pegs, strips, ribs do not)
+LEVERAGE_WARN = 1.5    # placement aims for 0.8 (geometry.LEVERAGE_OK); past this a piece's far edge visibly wanders
 
 
 def min_dims(poly):
@@ -54,6 +58,16 @@ def check_slice(sl, p):
                 sl.errors.append(f"{tag} floats — nothing holds it across the gap: add a connection point inside it (alt-click), use a smaller dowel, or set the gap to 0 and glue it")
             elif not held:
                 sl.warnings.append(f"{tag} is a separate island — glued to its neighbours only (no dowel / peg through it); add a connection point inside it if it must be rigid")
+        # spread: two dowels bunched in the middle of a big piece locate it, but let its edge swing (reported: a 200 mm
+        # layer of a sphere held by two dowels 46 mm apart). One connector is a hinge someone asked for (n_points 1).
+        if sl.group == "S":
+            outline = Polygon(reg.exterior)
+            pts = [(c.centroid.x, c.centroid.y) for c in sl.cuts if outline.contains(c.centroid)]
+            lev = dowel_leverage(reg, pts)
+            if len(pts) > 1 and lev > LEVERAGE_WARN:
+                sl.warnings.append(f"{tag} ({reg.area / 100:.0f} cm², {2 * shapely.minimum_bounding_radius(reg):.0f} mm across) is held by "
+                                   f"{len(pts)} connectors bunched together — its far edge can shift {lev:.1f}× the play in their holes: "
+                                   f"raise n_points, or alt-click a dowel near its edge")
     if sl.group in ("X", "Y") and not sl.engages:
         sl.errors.append("no crossing slice — this slice touches nothing: add a slice of the other family through it, move it toward the centre, or delete it")
     # hole wall check: a closed cut (hole, slot, dowel) must leave at least min_feature of material to the outline

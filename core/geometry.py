@@ -193,6 +193,24 @@ def dowel(c, d, shape="round") -> Polygon:
     return circle(c, d)
 
 
+LEVERAGE_OK = 0.8          # dowels that hold a piece: its far edge moves less than the play in their holes. 1.0 let
+                           # rods carried up from a smaller layer stand in for three around the edge of a disc (0.69)
+
+
+def dowel_leverage(piece, pts) -> float:
+    """How well the dowels through a piece hold it: the farthest the piece reaches from their middle, over the widest
+    spacing between two of them. The play in the holes lets the piece turn by about play / spacing, which its far edge
+    feels × that reach — so this is how many times the holes' play the far edge can shift. Two dowels 46 mm apart in
+    the middle of a 200 mm disc: 2.2. The same two near its edges: 0.55; three around near the edge: 0.64. One dowel
+    is a hinge: inf. (The farthest point of a polygon from a point is one of its vertices, so the exterior is exact.)"""
+    q = np.asarray(pts, float).reshape(-1, 2)
+    if len(q) < 2:
+        return math.inf
+    spacing = np.linalg.norm(q[:, None] - q[None], axis=2).max()
+    reach = np.linalg.norm(np.asarray(piece.exterior.coords) - q.mean(0), axis=1).max()
+    return float(reach / spacing)
+
+
 def poly_coords(mp: MultiPolygon) -> list:
     """[[exterior, hole, hole...], ...] as plain lists for JSON (bulk coordinate extraction: panels have 100s of holes)."""
     import shapely

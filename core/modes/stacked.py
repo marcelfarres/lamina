@@ -7,7 +7,7 @@ from shapely.geometry import Polygon, Point
 from shapely.ops import unary_union
 from . import Mode, Param, register
 from ..model import Slice
-from ..geometry import dowel, rect_along, as_multi, section_polygons, frame_xy, to_local
+from ..geometry import dowel, dowel_leverage, LEVERAGE_OK, rect_along, as_multi, section_polygons, frame_xy, to_local
 
 CONNECT_HELP = ("dowel = round/square rods through holes (drawn in the 3D view), the default: glue alone leaves every layer free to "
                 "slide while it dries, and two dowels through a piece hold it where it belongs · tab = flat pieces cut from the sheet: "
@@ -98,23 +98,45 @@ class Stacked(Mode):
         their own width merge into one, which locates nothing (a cone's apex used to give two 6 mm dowels 4 mm
         apart). `clear` are holes already cut in this slice, to stay `by` away from: where a tapering model makes a
         dowel move inward, its replacement must not land in the wall of the one above it — so the line across the
-        region is tried as well as the line along it. A region that takes neither gets nothing."""
+        region is tried as well as the line along it. A region that takes neither gets nothing.
+        Points around the region go in as well — evenly along its outline, pulled in toward the middle until they
+        fit — and where the line does not hold it, the set that holds it best wins (dowel_leverage). On a line alone
+        a bumpy layer only took two points pulled in near its middle, and three on a line left a disc held along one
+        diameter."""
         x0, y0, x1, y1 = region.bounds; cx, cy = (x0 + x1) / 2, (y0 + y1) / 2; w, h = x1 - x0, y1 - y0
 
         def ok(pts):
-            return (all(region.contains(Point(q)) for q in pts)
+            return (min((np.hypot(q[0] - r[0], q[1] - r[1]) for q in pts for r in pts if q is not r), default=apart) >= apart
+                    and all(region.contains(Point(q)) for q in pts)
                     and all(np.hypot(q[0] - r[0], q[1] - r[1]) > by for q in pts for r in clear))
 
         if n > 1:
+            sets = []
             for span, along_x in sorted([(w, True), (h, False)], reverse=True):
                 for k in (0.45, 0.38, 0.3, 0.22, 0.15):
-                    if span * 2 * k < apart:
-                        break
                     pts = [(cx + span * t, cy) if along_x else (cx, cy + span * t) for t in np.linspace(-k, k, n)]
                     if ok(pts):
-                        return pts
-        c = region.representative_point()
-        return [(c.x, c.y)] if ok([(c.x, c.y)]) else []
+                        sets.append(pts); break
+            c = region.centroid
+            for start in np.arange(4) / (4 * n):          # ponytail: 4 starting angles; a finer search if one misses
+                edge = np.array([region.exterior.interpolate(start + i / n, normalized=True).coords[0] for i in range(n)])
+                for k in (0.9, 0.75, 0.6, 0.45):
+                    pts = [(float(x), float(y)) for x, y in (c.x, c.y) + k * (edge - (c.x, c.y))]
+                    if ok(pts):
+                        sets.append(pts); break
+            # the line first, as it always was where it holds: moving holes that already hold crowds the next pair
+            # (the hollowed bunny's second layer lost its dowels to two moved out into its ring)
+            good = [pts for pts in sets if dowel_leverage(region, pts) <= LEVERAGE_OK]
+            if sets:
+                return good[0] if good else min(sets, key=lambda pts: dowel_leverage(region, pts))
+        # one point: the region's own, or where that lands in the wall of a hole already cut, the spot around the
+        # region farthest from those holes (a hollowed bunny's crumb of a layer lost its only dowel this way)
+        c, m = region.representative_point(), region.centroid
+        if ok([(c.x, c.y)]):
+            return [(c.x, c.y)]
+        edge = [region.exterior.interpolate(t, normalized=True) for t in np.arange(16) / 16]
+        fits = [q for q in ((m.x + k * (e.x - m.x), m.y + k * (e.y - m.y)) for e in edge for k in (0.8, 0.5)) if ok([q])]
+        return [max(fits, key=lambda q: min((np.hypot(q[0] - r[0], q[1] - r[1]) for r in clear), default=0))] if fits else []
 
     def common_points(self, ctx, margin):
         """The same points through the whole stack: n_points per island of the region common to every slice (cached)."""
@@ -152,7 +174,9 @@ class Stacked(Mode):
         want = max(1, p["n_points"])
         if p["placement"] == "aligned":
             fixed = [q for q in list(p["dowels"]) + self.common_points(ctx, margin) if overlap.contains(Point(q))]
+            clear = lambda q, pts: all(np.hypot(q[0] - r[0], q[1] - r[1]) > clearance for r in pts)   # noqa: E731
             for isl in islands:
+                held = lambda pts: len(pts) >= want and dowel_leverage(isl, pts) <= LEVERAGE_OK   # noqa: E731
                 mine = [q for q in fixed if isl.contains(Point(q))]
                 # One point is a hinge: a piece pinned once still turns about it, which is exactly what a glued stack
                 # does while it dries. Two locate it. An island the common points miss (an ear) gets its own, and one
@@ -161,18 +185,27 @@ class Stacked(Mode):
                 # the rod carries on through it. Choosing a fresh spread every pair walks the points inward a few
                 # millimetres a layer on anything tapered — close enough to the hole above to merge with it, which is
                 # how a cone came out with holes 5 mm apart and half its layers with no dowel at all.
-                for q in taken if len(mine) < want else []:
-                    if len(mine) >= want:
+                # Enough of them is not only a count: the shared points sit in the region common to every layer — on a
+                # sphere, the smallest one — so a 200 mm piece in the middle was held by two dowels 46 mm apart
+                # (reported). Rods carry on farthest out first; a piece they still do not hold is offered them topped up
+                # from its own spread toward its edge, or that spread whole beside the dowels typed in (topping one rod
+                # up left the blob's foot lopsided, 2.2) — the count first, then whichever holds it better.
+                c = isl.centroid
+                for q in sorted(taken, key=lambda q: -np.hypot(q[0] - c.x, q[1] - c.y)):
+                    if held(mine):
                         break
-                    if isl.contains(Point(q)) and all(np.hypot(q[0] - r[0], q[1] - r[1]) > clearance for r in mine):
+                    if isl.contains(Point(q)) and clear(q, mine):
                         mine.append(q)
-                if len(mine) < want:
+                if not held(mine):
                     here = [q for q in taken if isl.buffer(clearance).contains(Point(q))]
-                    for q in self.spread(isl, want, apart=2.5 * d, clear=here, by=clearance):
-                        if len(mine) >= want:
-                            break
-                        if all(np.hypot(q[0] - r[0], q[1] - r[1]) > clearance for r in mine):
-                            mine.append(q)
+                    fresh = self.spread(isl, want, apart=2.5 * d, clear=here, by=clearance)
+                    topped = list(mine)
+                    for q in fresh:
+                        if len(topped) < want and clear(q, topped):
+                            topped.append(q)
+                    own = [q for q in p["dowels"] if isl.contains(Point(q))]
+                    own += [q for q in fresh if clear(q, own)]
+                    mine = min((mine, topped, own), key=lambda pts: (-min(len(pts), want), dowel_leverage(isl, pts)))
                 out += mine
         elif p["placement"] == "random":
             rng = np.random.default_rng(1000 + i)

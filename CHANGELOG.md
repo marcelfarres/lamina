@@ -11,6 +11,14 @@ What changed in each release. The GitHub release for a version is this section, 
   is, "sits 5° off square", with a **square it up** button right under the rotate controls. Nothing turns by
   itself: leave it if the tilt is on purpose.
 
+### Technique
+
+- **Dowels hold a big layer from near its edge.** Aligned dowels were placed in the part every layer shares, so on
+  a round model the widest layers in the middle hung on two dowels close together at the centre, free to swing a
+  little at the rim. A layer those shared dowels do not hold now gets its own, out toward its edge; with three or
+  more they go round the layer instead of along a line. The Checks tab says when a layer is still held by
+  connectors bunched together, with its size and how much its far edge can shift.
+
 ### Gallery
 
 - **Show what you made.** The landing page has a gallery of things cut with Lamina, and a **send me a photo** link
