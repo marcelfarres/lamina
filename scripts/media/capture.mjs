@@ -123,11 +123,11 @@ S.hero = async () => {        // radial head, face forward: also the model tab a
     await tab("export"); await set("pr_size", 280); await sleep(400); await shot("export");   // 280 mm prototype: fits the H2C bed
     await tab("technique");
 };
-S.stacked = async () => {     // horse in layers with a gap, square dowels at random points; bigger so the dowels fit the legs
-    await example("horse"); await mode("stacked"); await tab("technique");
-    await params({ axis: "z", size: [0, 300, 0], connect: "dowel", dowel_shape: "square", placement: "random", space: 6, dowel_d: 3, n_points: 2, round: 3, thicken: 1 }); await heal();
+S.stacked = async () => {     // the rearing horse statue in side profiles across its width, a gap between, square dowels at random points
+    await example("horse_statue"); await mode("stacked"); await tab("technique");   // layered up its height, the body over the slanted hind legs is held by nothing
+    await params({ axis: "y", size: [0, 0, 260], connect: "dowel", dowel_shape: "square", placement: "random", space: 3, dowel_d: 3, n_points: 2, round: 3, thicken: 1 }); await heal();
     await view(-55, 14, 1.05, 1.0); await project("stacked");      // assembled, never exploded: a clip must show the finished object
-    await techClip("stacked", -55, 14, 1.0, [["no gap", () => set("space", 0)], ["gap 12", () => set("space", 12)], ["gap 6", () => set("space", 6)]]);
+    await techClip("stacked", -55, 14, 1.0, [["gap 1.5", () => set("space", 1.5)], ["gap 9", () => set("space", 9)], ["gap 3", () => set("space", 3)]]);   // glued (no gap) leaves thin-wall warnings
 };
 S.interlocked = async () => {  // the torus: every vertical line meets the tube once, so the egg-crate assembles; the head's ears never let it
     await example("torus"); await mode("interlocked"); await tab("technique");

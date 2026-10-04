@@ -399,12 +399,12 @@ def test_a_new_model_does_not_inherit_the_last_one_s_geometry(page):
     assert len(used) == 1, used                              # one axis…
     assert abs(used[0][0][0]) < 1e-6 and abs(used[0][0][1]) < 1e-6, used   # …through the middle of the model
 
-    # Bug 004: an upload kept the last example's model settings — the horse's size 300, round 3, thicken 1 — and a
+    # Bug 004: an upload kept the last example's model settings — the horse's size 300, round 2, thicken 1 — and a
     # plain cube came back with rounded corners and a hole closed up. An upload starts from the model as drawn.
     page.click('nav button[data-t="model"]')
     page.select_option("#example", "horse")
     settle(page)
-    assert page.evaluate("() => window.__t.state().round") == 3   # the preset this is about, really applied
+    assert page.evaluate("() => window.__t.state().round") == 2   # the preset this is about, really applied
     page.set_input_files("#file", str(ROOT / "examples" / "cube.stl"))
     settle(page)
     got = page.evaluate("() => { const s = window.__t.state(); return [s.size, s.round, s.thicken] }")
@@ -450,9 +450,10 @@ def test_a_curve_takes_a_branch_from_a_hoof(page):
     settle(page)
     page.click('nav button[data-t="technique"]')
     page.click('#modes button[data-m="curve"]')
+    page.evaluate("() => window.__t.applyFix({branches: [], curve: []})")   # the horse opens with its four legs placed
     set_fields(page, [("p_plane", "yz"), ("p_count", 20)])
     settle(page)
-    hooves = page.evaluate("""() => {   // the lowest part points, one pixel per hoof (clustered in world x / y)
+    hooves =page.evaluate("""() => {   // the lowest part points, one pixel per hoof (clustered in world x / y)
       const c = window.__t.canvas().getBoundingClientRect(), pts = [], bb = window.__t.plan().bbox;
       for (let y = c.top + 10; y < c.bottom - 10; y += 5) for (let x = c.left + 10; x < c.right - 10; x += 5) {
         const h = window.__t.hit({clientX: x, clientY: y});

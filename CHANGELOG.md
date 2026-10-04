@@ -15,6 +15,13 @@ What changed in each release. The GitHub release for a version is this section, 
 - **Body ribs turn further**, because the legs no longer count toward how far the material reaches.
 - **The curve's points are a table in the form.** Typing in the old box sent a number and the slice failed.
 
+### Examples
+
+- **The horse opens in Curve**, with its curve from tail to muzzle and a branch down each leg: 55 parts, no errors.
+- **A new horse for stacked slices**: `horse_statue`, a porcelain horse rearing on a round base (CC0, from Poly
+  Haven). It opens as side profiles across its width with a 3 mm gap on square dowels: 22 parts, no errors, no
+  warnings. Layered up its height, the body over its slanted hind legs would rest on nothing.
+
 ## 0.2.2
 
 What your model weighs, eleven more materials (PLA and PETG among them, to 3D-print the parts at full size), the

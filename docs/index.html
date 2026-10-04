@@ -216,7 +216,7 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
   <!-- one technique per row: the clip orbits the result, then changes the parameters that matter for it -->
   <article class="tech">
     <video src="media/stacked.mp4" poster="media/stacked_poster.jpg" width="1100" height="825" muted loop playsinline controls preload="none"
-           aria-label="A horse in stacked slices, orbiting; then the gap between the layers set to none, 12 mm and 6 mm, held by square dowels"></video>
+           aria-label="A rearing horse statue in stacked side profiles, orbiting; then the gap between the layers set to 1.5 mm, 9 mm and 3 mm, held by square dowels"></video>
     <div>
       <h3>Stacked slices</h3>
       <p>Parallel sections along one axis, touching or with an empty space between them — the topographic look. Hold
@@ -225,9 +225,11 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
       slices, or follow 3D lines you draw; alt-click a slice to place one by hand. The outline can also follow the
       surface across the slice's thickness, which is what Autodesk's Slicer called 3D Slices — cut it, then sand down
       to the shape.</p>
-      <p class="clip"><b>In the clip:</b> a 300 mm horse in 3 mm cardboard, 28 layers with a 6 mm gap on 3 mm square
-      dowels at random points; then the gap set to none, 12 mm and back to 6 mm. Every dowel keeps a 2 mm wall to the
-      outline, so the legs hold.</p>
+      <p class="clip"><b>In the clip:</b> a 260 mm porcelain horse rearing on its base (the bundled
+      <b>horse_statue</b>), in 3 mm cardboard: side profiles across its width with a 3 mm gap, on 3 mm square dowels at
+      random points; then the gap set to 1.5 mm, 9 mm and back to 3 mm. Across the width, each layer is a whole side
+      view of the horse; layered up its height instead, the body would sit over the slanted hind legs with nothing to
+      hold it. Every dowel keeps a 2 mm wall to the outline.</p>
       <p class="clip"><b>Parameters:</b> axis · spacing or count · gap · outline mid / outer / inner · connector
       type, size and hole shape · placement · points per island · per-slice offset, tilt, roll and thickness.</p>
     </div>
@@ -297,7 +299,8 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
       then stands on legs that are held, not sliced across by ribs meant for its back, and the body ribs can turn
       further, because the legs no longer count toward how far the material reaches. Shift+alt-click a hoof to add a
       branch, drag its ends to move it, alt-click it to remove it. A branch that starts past the body's ribs would hang
-      loose, so Lamina says so and tells you where to move it.</p>
+      loose, so Lamina says so and tells you where to move it. The bundled <b>horse</b> opens this way: its curve from
+      tail to muzzle and a branch down each leg.</p>
       <p class="clip"><b>In the clip:</b> the horse with 20 ribs along a ten-point curve that runs down the back and
       climbs the neck to the head, locked by one spine, and a branch down each leg — 55 parts and no errors (the orange
       line and blue dots are the curve — drag a dot to move it, alt-click the model to add one, alt-click a dot to
@@ -596,9 +599,10 @@ uv sync
 uv run uvicorn web.app:app --reload --port 8000
 # then open http://localhost:8000</code></pre>
   <p class="sub">The Model tab opens on a bundled example, and the
-  <a href="https://github.com/marcelfarres/lamina/tree/main/examples">examples folder</a> holds 23 in all — geometric
+  <a href="https://github.com/marcelfarres/lamina/tree/main/examples">examples folder</a> holds 24 in all — geometric
   shapes, a scanned head and animals; the dumbbell and the snowman open with a radial axis per ball and a spine
-  through them all.
+  through them all, the horse with its ribs along a curve and a branch down each leg, and the horse statue in
+  stacked side profiles.
   The same pipeline runs headless, so it can be scripted or put in a build:</p>
   <pre tabindex="0"><code>uv run python -m core.plan examples/egg.stl --mode interlocked --set nx=5 ny=4 --out out/egg
 uv run python -m core.export out/egg.json --out out/egg_cut --fmt svg dxf pdf --labels
