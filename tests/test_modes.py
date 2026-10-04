@@ -274,3 +274,20 @@ def test_build_is_deterministic():
     p1 = build(EXAMPLES / "egg.stl", "interlocked", params); p1.pop("timing", None)
     p2 = build(EXAMPLES / "egg.stl", "interlocked", params); p2.pop("timing", None)
     assert json.dumps(p1, sort_keys=True) == json.dumps(p2, sort_keys=True)
+
+
+def test_folded_panels_in_a_material_that_does_not_fold_say_so_and_offer_ribs():
+    """Asked for: folded panels took 3 mm plywood without a word, though plywood cracks along a score where cardboard
+    folds. Fold lines (or tabs that fold over the seam) in a material too thick to fold are an error, with a fix that
+    folds nothing: every face its own panel, joined by ribs. A material of your own is checked as its base kind."""
+    job = {"thickness": 3, "joint": "tab", "facet": 15, "autofix": "off"}
+    fold_err = lambda plan: [e for e in plan["errors"] if "fold(s) in" in e]         # noqa: E731
+    ply = build(EXAMPLES / "cube.stl", "folded", {**job, "material": "plywood"})
+    assert fold_err(ply) and "does not fold" in fold_err(ply)[0], ply["errors"]
+    fix = ply["fixes"][0]["options"][0]["set"]
+    assert fix["separate"] is True and fix["joint"] == "rib" and fix["facet"] > job["facet"]   # 15 mm: 1995 faces, over the cap
+    fixed = build(EXAMPLES / "cube.stl", "folded", {**job, "material": "plywood", **fix})
+    assert not fixed["errors"], fixed["errors"]                                      # the fix leads to no other error
+    assert not fold_err(build(EXAMPLES / "cube.stl", "folded", {**job, "material": "cardboard"}))
+    mine = build(EXAMPLES / "cube.stl", "folded", {**job, "material": "my birch ply", "material_kind": "plywood"})
+    assert fold_err(mine) and "plywood" in fold_err(mine)[0]
