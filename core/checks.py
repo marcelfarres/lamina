@@ -1,6 +1,7 @@
 """Physical-world checks on the finished 2D geometry. Errors = will not work; warnings = look at it.
 Every message says what is wrong AND what to do about it; `suggest_fixes` turns the common ones into one-click options."""
 from __future__ import annotations
+import math
 import re
 
 import numpy as np
@@ -44,14 +45,16 @@ def check_slice(sl, p):
         tag = f"region {i + 1}" if len(regions) > 1 else "part"
         small, large = min_dims(reg)
         glued_island = sl.group == "S" and len(regions) > 1        # stacked islands (ears, horns) are kept: glue them carefully
+        # a stacked spacer or peg is drawn at the connector's size: the model's thickness and rounding never reach it
+        spacer = "it is drawn at the connector's size: use a bigger dowel_d" if sl.group == "P" else None
         if large < mp:
             (sl.warnings if glued_island else sl.errors).append(f"{tag} too small ({small:.1f}×{large:.1f} mm < {mp} mm) — {'a tiny glued island: fiddly to handle, round / thicken the model to merge it' if glued_island else 'too small to cut and handle: delete it, enlarge the model, or lower min_part'}")
         elif small < mf:
-            (sl.warnings if glued_island else sl.errors).append(f"{tag} too thin ({small:.1f} mm < {mf} mm) — it would break: thicken / round the model, use thicker material, or delete it")
+            (sl.warnings if glued_island else sl.errors).append(f"{tag} too thin ({small:.1f} mm < {mf} mm) — it would break: {spacer or 'thicken / round the model, use thicker material, or delete it'}")
         # thin necks: erode by half the min feature; anything that vanishes or fragments is fragile
         eroded = reg.buffer(-mf / 2)
         if eroded.is_empty:
-            (sl.warnings if glued_island else sl.errors).append(f"{tag} thinner than {mf} mm everywhere — it would break: thicken / round the model or lower min_feature")
+            (sl.warnings if glued_island else sl.errors).append(f"{tag} thinner than {mf} mm everywhere — it would break: {spacer or 'thicken / round the model or lower min_feature'}")
         elif eroded.geom_type == "MultiPolygon" and len(eroded.geoms) > 1:
             sl.warnings.append(f"{tag} has a bridge thinner than {mf} mm (splits into {len(eroded.geoms)} pieces when eroded) — fragile: thicken / round the model, "
                                f"move the slice (offset), or accept and handle with care")
@@ -332,6 +335,12 @@ def suggest_fixes(slices, p, ctx, mode):
                     opts.append({"title": "notch ratio 0.35", "set": {"notch_ratio": 0.35}})
                     opts.append({"title": "notch ratio 0.65", "set": {"notch_ratio": 0.65}})
                 opts += delete(sl.label)
+            elif sl.group == "P" and ("too small" in e or "too thin" in e or "thinner than" in e):
+                # a tab spacer is 0.6 of the connector wide (a peg, with no gap, all of it): the size whose narrowest
+                # part keeps the wall, to the next half millimetre. Growing it alone would no longer fit its slots.
+                d = math.ceil(2 * (p["min_feature"] / (0.6 if p.get("space", 0) > 0 else 1) + 1)) / 2
+                if d > p.get("dowel_d", 6):
+                    opts.append({"title": f"bigger connectors ({d:g} mm)", "set": {"dowel_d": d}})
             elif "too small" in e or "too thin" in e or "thinner than" in e:
                 opts.append({"title": f"grow {sl.label}'s outline {p['min_feature'] / 2:g} mm (bridges become ≥ {p['min_feature']:g} mm)", "set": {"grow": {sl.label: p["min_feature"] / 2}}})
                 opts += delete(sl.label)
