@@ -23,10 +23,18 @@ from core.plan import build, MODES, CAD_SUFFIXES
 from core.export import export, svg_doc, items_for_sheet, sheet_title
 from core.solid import assembled
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent
-JOBS = ROOT / "working-files" / "jobs"
+HERE = pathlib.Path(__file__).resolve().parent
+# Jobs go under the folder Lamina is started from: the repo, /app in Docker and the browser, the starter's own folder.
+JOBS = pathlib.Path("working-files", "jobs").resolve()
 JOBS.mkdir(parents=True, exist_ok=True)
-EXAMPLES = ROOT / "examples"
+
+
+def bundled(name):
+    """examples/ and CHANGELOG.md sit beside web/ in the repo; the installed package (uvx lamina3d) carries them inside web/."""
+    return HERE / name if (HERE / name).exists() else HERE.parent / name
+
+
+EXAMPLES = bundled("examples")
 MESH_SUFFIXES = {".stl", ".obj", ".3mf", ".ply", ".off", ".glb", ".gltf"} | CAD_SUFFIXES
 CLIENT_ID = re.compile(r"[A-Za-z0-9_-]{16,64}")  # long enough that nobody guesses somebody else's
 JOB_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")  # no dots: these two build every path under jobs/
@@ -136,19 +144,19 @@ async def refuse_oversize_bodies(request, call_next):
 
 
 app.mount("/jobs", StaticFiles(directory=JOBS), name="jobs")
-app.mount("/static", StaticFiles(directory=ROOT / "web" / "static"), name="static")
+app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 
 
 @app.get("/")
 def index():
-    return FileResponse(ROOT / "web" / "static" / "index.html")
+    return FileResponse(HERE / "static" / "index.html")
 
 
 @app.get("/changelog.md")
 def changelog():
     """What's new, read from the one CHANGELOG.md in the repo — the published build copies it here too, so the
     dialog fetches the same relative path whichever way Lamina is being run."""
-    return FileResponse(ROOT / "CHANGELOG.md", media_type="text/markdown")
+    return FileResponse(bundled("CHANGELOG.md"), media_type="text/markdown")
 
 
 @app.get("/api/modes")
@@ -232,7 +240,7 @@ def slice_model(client: str = Form(...), mode: str = Form(...), params: str = Fo
     # the session belongs to the client, not to the server: what this tab sliced last, so its refresh resumes it
     session = {"mode": mode, "params": prm, "job": job, "example": example or (job[3:] if job.startswith("ex_") else ""), "memo": json.loads(memo or "{}")}
     (cd / "session.json").write_text(json.dumps(session))
-    with open(ROOT / "working-files" / "timing.log", "a") as f:  # one server-side log, outside the served jobs tree
+    with open(JOBS.parent / "timing.log", "a") as f:  # one server-side log, outside the served jobs tree
         stages = " ".join(f"{k.split(' ')[0]}={v:.1f}" for k, v in plan["timing"].items() if v >= 0.05)
         f.write(f"{time.strftime('%H:%M:%S')} {mode:12s} {mpath.name:16s} {plan['counts']['parts']:4d} parts {took:6.2f} s  {stages}{'  params=' + json.dumps(prm)[:300] if took > 5 else ''}\n")
     ghost = f"/jobs/{client}/{job}/model.stl?v={int((jd / 'model.stl').stat().st_mtime_ns // 1_000_000)}"  # new URL whenever the processed model changed
@@ -416,3 +424,14 @@ def job_stl(client: str, job: str, part: str = ""):
     data = assembled(plan, part or None).export(file_type="stl")
     name = f"{file_base(jd, plan)}_{plan['mode']}_{part or 'assembled'}.stl"
     return Response(data, media_type="model/stl", headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+def main():
+    """`lamina3d` — what the starters and `uvx lamina3d` run: this app on this computer, with the browser opened on it.
+    If the port is taken it is most likely Lamina started earlier, so the browser still lands on something useful."""
+    import argparse, uvicorn, webbrowser
+    ap = argparse.ArgumentParser(prog="lamina3d", description="Lamina on this computer, at http://localhost:PORT")
+    ap.add_argument("--port", type=int, default=8000)
+    port = ap.parse_args().port
+    threading.Timer(1, webbrowser.open, [f"http://localhost:{port}"]).start()
+    uvicorn.run(app, port=port)

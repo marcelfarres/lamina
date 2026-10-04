@@ -125,9 +125,12 @@ S.hero = async () => {        // radial head, face forward: also the model tab a
 };
 S.stacked = async () => {     // the rearing horse statue in side profiles across its width, a gap between, square dowels at random points
     await example("horse_statue"); await mode("stacked"); await tab("technique");   // layered up its height, the body over the slanted hind legs is held by nothing
-    await params({ axis: "y", size: [0, 0, 260], connect: "dowel", dowel_shape: "square", placement: "random", space: 3, dowel_d: 3, n_points: 2, round: 3, thicken: 1 }); await heal();
+    // the stack 1 mm off centre: where a layer only grazes the surface it leaves a speck no dowel can reach, and
+    // this position leaves none (the preset); the steps change the hole's shape, which keeps every piece held
+    await params({ axis: "y", size: [0, 0, 260], center: [0, 1, 0], connect: "dowel", dowel_shape: "square", placement: "random", space: 4, dowel_d: 2, n_points: 2, round: 3, thicken: 1 }); await heal();
     await view(-55, 14, 1.05, 1.0); await project("stacked");      // assembled, never exploded: a clip must show the finished object
-    await techClip("stacked", -55, 14, 1.0, [["gap 1.5", () => set("space", 1.5)], ["gap 9", () => set("space", 9)], ["gap 3", () => set("space", 3)]]);   // glued (no gap) leaves thin-wall warnings
+    await techClip("stacked", -55, 14, 1.0, [["round holes", () => set("dowel_shape", "round")], ["hexagon", () => set("dowel_shape", "hexagon")],
+        ["cross", () => set("dowel_shape", "cross")], ["square", () => set("dowel_shape", "square")]]);
 };
 S.interlocked = async () => {  // the torus: every vertical line meets the tube once, so the egg-crate assembles; the head's ears never let it
     await example("torus"); await mode("interlocked"); await tab("technique");
@@ -191,8 +194,9 @@ S.folded = async () => {      // the cow mesh is y-up: rotate x 90° stands it u
     await params({ rotate: [90, 0, 0], joint: "tab", facet: 15, strategy: "area", thickness: 1 });
     await fix({ grow: { "P-1": 1, "P-6": 1 } }); await heal();
     await view(-60, 18, 0.85); await project("folded");
-    await techClip("folded", -60, 18, 0.9, [["laced", () => set("joint", "laced")], ["rib", () => set("joint", "rib")], ["tab", () => set("joint", "tab")],
-        ["facet 25", () => set("facet", 25)], ["facet 15", () => set("facet", 15)]]);
+    // the rib joint at 25 mm triangles: at 15 one seam is too short for a rib you can handle (auto-fix used to delete it)
+    await techClip("folded", -60, 18, 0.9, [["laced", () => set("joint", "laced")], ["facet 25", () => set("facet", 25)], ["rib", () => set("joint", "rib")],
+        ["tab", () => set("joint", "tab")], ["facet 15", () => set("facet", 15)]]);
 };
 S.rib = async () => {         // rib closeup: a pyramid keeps every face, so five long ribs at real fold angles, and nothing else in the frame
     await example("pyramid"); await mode("folded"); await tab("technique");
@@ -240,10 +244,13 @@ S.square = async () => {      // a cube left 8° off square cuts every straight 
     await params({ axis: "z", connect: "dowel", placement: "aligned", rotate: [8, 0, 0] });
     console.log("  square: tilted", await verdict(), await js("JSON.stringify(window.__t.plan().square)"));
     await view(-55, 16, 1.0);
+    // the Model tab's rotate rings would hide the stepped edges the clip is about; every slice draws them anew
+    const noRings = () => js("window.__t.axes().filter(o => o.geometry?.type === 'TorusGeometry').forEach(o => o.visible = false)");
     const d = await js("window.__t.camera.position.length()"); let az = -55;
+    await noRings();
     await clip("square", 56, async i => {
         await cam(az += 0.8, 16, d);
-        if (i === 24) { await js("document.querySelector('#square button').click()"); await settle(); }
+        if (i === 24) { await js("document.querySelector('#square button').click()"); await settle(); await noRings(); }
         else await sleep(60);
     });
     await project("square");

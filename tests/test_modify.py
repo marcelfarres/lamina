@@ -10,7 +10,7 @@ import shapely
 import trimesh
 from shapely.geometry import Point
 
-from core.geometry import section_polygons, unripple
+from core.geometry import dowel_leverage, section_polygons, unripple
 from core.plan import MODES, build, coerce_params, load_mesh
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -273,6 +273,26 @@ def test_a_stack_with_nothing_joining_its_layers_keeps_every_layer():
     assert "line" in note and "set dowel_d" not in note, note
 
 
+@pytest.mark.parametrize("model", ["egg", "dumbbell", "torus"])
+def test_aligned_tab_spacers_hold_every_layer_without_overlapping(model):
+    """Reported on the wavy torus (aligned, tab spacers, 5 mm gap): "removed 1 region(s) of Z-1 (nothing holds it)"
+    and "Z-2: two slots / holes overlap each other". The fit was tested on a round hole at the point before the tab
+    stepped sideways, and against the other holes' centres, not their slots: every second pair of the egg's 19
+    layers lost all its spacers (17 layers "not connected"), and spacers that did fit cut into each other. Every pair
+    of layers is now joined, by its own spacer, and every slot keeps a full wall from every other."""
+    job = {"axis": "z", "space": 5, "connect": "tab", "placement": "aligned", "n_points": 2, "thickness": 3,
+           "slot_offset": 0.2, "min_feature": 2.0}
+    on = build(EXAMPLES / f"{model}.stl", "stacked", job)
+    off = build(EXAMPLES / f"{model}.stl", "stacked", {**job, "autofix": "off"})
+    assert not [n for n in on["notes"] if "auto-fix" in n]
+    said = [f"{s['label']}: {e}" for s in off["slices"] for e in s["errors"] + s["warnings"]]
+    assert not said, said[:3]
+    # where each spacer stands: the middle of the gap it bridges, from its placed frame (z up the stack)
+    zs = sorted(s["M"][2][3] for s in off["slices"] if s["group"] == "S")
+    held = collections.Counter(int(np.searchsorted(zs, s["M"][2][3])) for s in off["slices"] if s["group"] == "P")
+    assert sorted(held) == list(range(1, len(zs))), f"gaps with no spacer: {sorted(set(range(1, len(zs))) - set(held))}"
+
+
 def test_random_dowels_spread_across_the_layer():
     """Reported: with random placement "the dowels are not evenly spaced and some areas are not supported". The first
     candidates that kept clear of each other were taken, often both at one end of a layer: the far end of the horse's
@@ -282,16 +302,83 @@ def test_random_dowels_spread_across_the_layer():
            "distribution": "count", "count": 20, "autofix": "off"}
     plan = build(EXAMPLES / "horse.stl", "stacked", job)
     mesh = load_mesh(EXAMPLES / "horse.stl", coerce_params(MODES["stacked"], job), [], "stacked")
-    reach = []
-    for z, pts in dowels_by_level(plan).items():
+    reach, levels = [], dowels_by_level(plan)
+    for z, pts in levels.items():
         M = np.eye(4); M[2, 3] = z + job["thickness"] / 2     # a rod starts half a thickness below its slice's plane
         body = max(section_polygons(mesh, M).geoms, key=lambda g: g.area)
+        pts = [q for q in pts if body.contains(Point(q))]
+        if len(pts) < 2:        # a leg with room for one dowel only: nothing there to spread
+            continue
         edge = np.asarray(body.exterior.coords)
         far = np.linalg.norm(edge[:, None] - np.asarray(pts)[None], axis=2).min(1).max()
         x0, y0, x1, y1 = body.bounds
         reach.append(far / max(x1 - x0, y1 - y0))
-    assert len(reach) >= 10, f"only {len(reach)} pairs got dowels"      # 11: the leg layers take no 6 mm dowel
+    assert len(levels) >= 14, f"only {len(levels)} pairs got dowels"   # 14: three pairs of legs take one each
+    assert len(reach) >= 10, f"only {len(reach)} pairs have dowels to spread"
     assert max(reach) < 0.7, f"a layer's far end is {max(reach):.2f} of its width from any dowel (was 0.91)"
+
+
+@pytest.mark.parametrize("n", [2, 3])
+def test_aligned_dowels_hold_a_big_piece_from_near_its_edge(n):
+    """Reported: with aligned dowels "big pieces are only supported in the center". The shared points fit the layer
+    common to the whole stack — a 200 mm sphere's smallest — so its 200 mm middle was held by dowels 46 mm apart: the
+    play in their holes let its edge shift 2.2× as much (dowel_leverage). Now such a piece gets its own toward its
+    edge; three go around it, not along a line. Measured per layer on the section, with every rod through it."""
+    job = {"size": [0, 0, 200], "connect": "dowel", "placement": "aligned", "n_points": n, "dowel_d": 6,
+           "thickness": 6, "distribution": "count", "count": 20, "autofix": "off"}
+    plan = build(EXAMPLES / "sphere.stl", "stacked", job)
+    mesh = load_mesh(EXAMPLES / "sphere.stl", coerce_params(MODES["stacked"], job), [], "stacked")
+    below, worst = [], 0.0
+    for z, pts in sorted(dowels_by_level(plan).items()):
+        pts, below = pts + below, pts               # a layer carries the rods from the one below and to the one above
+        M = np.eye(4); M[2, 3] = z + job["thickness"] / 2
+        body = max(section_polygons(mesh, M).geoms, key=lambda g: g.area)
+        worst = max(worst, dowel_leverage(body, pts))
+        if n == 3 and shapely.minimum_bounding_radius(body) > 90:      # the middle: not all on one line
+            q = np.asarray(pts) - np.mean(pts, axis=0)
+            assert np.linalg.svd(q, compute_uv=False)[1] > 20, f"z={z}: three dowels on a line"
+    assert worst <= 1.0, f"a layer's far edge shifts {worst:.2f}× the play in its holes (was 2.2)"
+    assert not [w for s in plan["slices"] for w in s["warnings"] if "bunched" in w]
+
+    # two lines drawn 20 mm apart up the middle: the check says so, with the piece's size
+    lines = [[[x, 0, -110], [x, 0, 110]] for x in (-10, 10)]
+    drawn = build(EXAMPLES / "sphere.stl", "stacked", {**job, "placement": "lines", "lines": lines})
+    said = [w for s in drawn["slices"] for w in s["warnings"] if "bunched" in w]
+    assert said and "mm across" in said[0], said
+
+
+def test_a_bunched_piece_is_offered_the_dowel_that_holds_it():
+    """The spread warning names one more dowel, and taking it has to hold the piece. A layer of the horse's ear comes
+    out held 2.8 by two dowels close together. The spot is chosen where a rod is cut through a neighbour as well
+    (chosen in the piece alone, no rod reached it), and the dowel taken comes on top of the n_points asked for:
+    counted in, it stood in for one of the two and the ear came out 1.56 where 1.2 was promised. Measured on the
+    section, with every rod through the layer. Pieces too small for two of these dowels to sit farther apart are not
+    flagged at all (the pyramid's tip)."""
+    job = {"connect": "dowel"}
+    plan = build(EXAMPLES / "horse.stl", "stacked", job)
+    label, w, fix = next((s["label"], f["error"], f["options"][0]) for s in plan["slices"] for f in s["fixes"]
+                         if "bunched together" in f["error"])
+    promised = float(re.search(r"brings that to ([\d.]+)×", w).group(1))
+    x, y = fix["set"]["dowels"][-1]
+
+    after = build(EXAMPLES / "horse.stl", "stacked", {**job, **fix["set"]})
+    mesh = load_mesh(EXAMPLES / "horse.stl", coerce_params(MODES["stacked"], {**job, **fix["set"]}), [], "stacked")
+    sl = next(s for s in after["slices"] if s["label"] == label)
+    M = np.asarray(sl["M"]); inv = np.linalg.inv(M)
+    piece = next(g for g in section_polygons(mesh, M).geoms if g.buffer(1).contains(Point(x, y)))
+    through = [(inv @ [*a[:3], 1])[:2] for a, b, *_ in after["rods"]
+               if min(a[2], b[2]) <= M[2, 3] <= max(a[2], b[2]) and piece.contains(Point(*(inv @ [*a[:3], 1])[:2]))]
+    held = dowel_leverage(piece, through)
+    assert held <= promised + 0.05, f"{label} promised {promised}× with a dowel at ({x}, {y}), got {held:.2f}×"
+    assert not [w for w in sl["warnings"] if "bunched" in w], sl["warnings"]
+    assert not [w for s in build(EXAMPLES / "pyramid.stl", "stacked", job)["slices"] for w in s["warnings"] if "bunched" in w]
+
+    # the bunny's thin 220 mm rings take a dowel only at a bulge: nothing to add, so it says what the wall lacks
+    thin = [w for s in build(EXAMPLES / "bunny.stl", "stacked", job)["slices"] for w in s["warnings"]
+            if "no dowel fits farther out" in w]
+    assert thin, "a thin ring held 11.5× says nothing"
+    wall, need = map(float, re.search(r"wall is about ([\d.]+) mm, a [\d.]+ mm dowel needs ([\d.]+) mm", thin[0]).groups())
+    assert wall < need, thin[0]
 
 
 def test_a_wall_too_thin_for_the_dowel_says_so():

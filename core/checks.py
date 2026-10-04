@@ -1,12 +1,18 @@
 """Physical-world checks on the finished 2D geometry. Errors = will not work; warnings = look at it.
 Every message says what is wrong AND what to do about it; `suggest_fixes` turns the common ones into one-click options."""
 from __future__ import annotations
+import re
+
 import numpy as np
-from shapely.geometry import MultiPolygon, Point
+import shapely
+from shapely.geometry import Point, Polygon
 from shapely import affinity
+
+from .geometry import dowel_leverage, hole_reach
 
 HELD_GROUPS = ("X", "Y", "R", "C")     # regions in these groups must be held by a slot / dowel / the core
 STRUCTURAL = ("X", "Y", "R", "C", "S")  # take part in the assembly-connectivity check (panels, pegs, strips, ribs do not)
+LEVERAGE_WARN = 1.5    # placement aims for 0.8 (geometry.LEVERAGE_OK); past this a piece's far edge visibly wanders
 
 
 def min_dims(poly):
@@ -58,6 +64,40 @@ def check_slice(sl, p):
                 sl.errors.append(f"{tag} floats — nothing holds it across the gap: add a connection point inside it (alt-click), use a smaller dowel, or set the gap to 0 and glue it")
             elif not held:
                 sl.warnings.append(f"{tag} is a separate island — glued to its neighbours only (no dowel / peg through it); add a connection point inside it if it must be rigid")
+        # spread: two dowels bunched in the middle of a big piece locate it, but let its edge swing (reported: a 200 mm
+        # layer of a sphere held by two dowels 46 mm apart). One connector is a hinge someone asked for (n_points 1).
+        # Said only with the dowel that cures it: a piece too small for two of these dowels to sit farther apart (a
+        # horse's 25 mm hoof, held 1.6) has nothing better to be offered, and every smaller dowel only moved the flag.
+        if sl.group == "S" and p.get("connect") == "dowel":
+            outline = Polygon(reg.exterior)
+            pts = [(c.centroid.x, c.centroid.y) for c in sl.cuts if outline.contains(c.centroid)]
+            lev = dowel_leverage(reg, pts)
+            if len(pts) > 1 and lev > LEVERAGE_WARN:
+                d = p["dowel_d"] + p["slot_offset"]
+                # where the placer can cut a rod through this piece and a neighbour, a hair inside (spots are rounded)
+                room = shapely.union_all(getattr(sl, "dowel_room", [])).intersection(reg).buffer(-0.2)
+                spots = [tuple(q) for q in shapely.get_coordinates(room)
+                         if min(np.hypot(q[0] - r[0], q[1] - r[1]) for r in pts) > d + mf]
+                best = min(spots, key=lambda q: dowel_leverage(reg, pts + [q]), default=None)
+                # the piece before its holes: a thin ring (a hollowed bunny's 5 mm wall) is wide enough for a dowel and
+                # its walls only at a bulge or two. Long enough to matter too: five of those widths across, or it is a
+                # small piece (a horse's 12 mm-wide hoof is narrow as well, and no wall would spread its dowels)
+                body = max(sl.raw.geoms, key=lambda g: g.intersection(reg).area)
+                need = 2 * (hole_reach(d, p["dowel_shape"]) + mf)
+                across = 2 * shapely.minimum_bounding_radius(reg)
+                said = f"{tag} ({reg.area / 100:.0f} cm², {across:.0f} mm across) is held by " \
+                       f"{len(pts)} dowels bunched together — its far edge can shift {lev:.1f}× the play in their holes"
+                if best and dowel_leverage(reg, pts + [best]) <= LEVERAGE_WARN:
+                    sl.warnings.append(
+                        f"{said}. It needs one more, nearer its edge: a dowel at ({best[0]:.1f}, {best[1]:.1f}) brings that to "
+                        f"{dowel_leverage(reg, pts + [best]):.1f}× "
+                        + {"aligned": "(alt-click there, or the fix below)", "lines": "(alt-click there for a line up through it)"}
+                        .get(p.get("placement"), "(set placement to aligned to place your own)"))
+                elif across >= 5 * need and body.buffer(-need / 2).area < 0.1 * body.area:
+                    sl.warnings.append(
+                        f"{said}, and no dowel fits farther out: its wall is about {2 * body.area / body.length:.0f} mm, a "
+                        f"{p['dowel_d']:g} mm dowel needs {need:.0f} mm with its walls — a thicker wall (less hollow, or "
+                        f"thicken the model), or accept it and line this layer up by eye")
     if sl.group in ("X", "Y") and not sl.engages:
         sl.errors.append("no crossing slice — this slice touches nothing: add a slice of the other family through it, move it toward the centre, or delete it")
     # hole wall check: a closed cut (hole, slot, dowel) must leave at least min_feature of material to the outline
@@ -221,58 +261,13 @@ def check_assembly(slices, p):
                             f"add crossing slices / connection points through it, or delete it")
 
 
-def autofix(slices, p):
-    """Remove what cannot work: slices nothing crosses, regions nothing holds, held-family parts below the minimum size.
-    A whole layer of a stack is never removed — take it out and the model has a gap through it — but one island of
-    that layer is: the tip of an ear that touches nothing would fall off the finished piece anyway. So is a layer
-    at either end of the stack whose neighbour is held: that shortens the model, it does not cut it in two.
-    Returns notes describing what was removed; check_plan must run again afterwards."""
-    notes, keep = [], []
-    stack = [s for s in slices if s.group == "S"]
-
-    def tip(sl):
-        """An end layer whose neighbour is held (the horse's ear tips): taking it off makes the model one layer
-        shorter, not two pieces."""
-        if len(stack) < 2 or sl not in (stack[0], stack[-1]):
-            return False
-        nb = stack[1] if sl is stack[0] else stack[-2]
-        return not any("floats" in e or "not connected" in e for e in nb.errors)
-
-    for sl in slices:
-        regions = list(sl.profile.geoms)
-        drop = set()
-        for e in sl.errors:
-            if "no crossing slice" in e or "not connected to the main assembly" in e:
-                if e.startswith("region"):
-                    drop |= {int(e.split()[1]) - 1}
-                elif sl.group != "S":
-                    drop = set(range(len(regions)))
-            if e.startswith("part too small") or e.startswith("part too thin") or e.startswith("part thinner"):
-                drop = set(range(len(regions)))
-            for i in range(len(regions)):
-                if e.startswith(f"region {i + 1} ") and ("floats" in e or "too small" in e or "too thin" in e or "thinner" in e):
-                    drop.add(i)
-        if not drop:
-            keep.append(sl); continue
-        left = [r for i, r in enumerate(regions) if i not in drop]
-        why = "nothing holds it" if any("float" in e or "no crossing" in e or "not connected" in e for e in sl.errors) else "below the minimum size"
-        if not left and sl.group == "S" and why == "nothing holds it" and not tip(sl):
-            # Every island of the layer is unheld, so it is the layer that floats, not an ear of it. Island by island
-            # that used to add up to the whole layer: a gapped stack with no connector through it (placement = lines
-            # before any line is drawn) lost 11 of the horse's 20 layers. It stays, and its error says what to join.
-            keep.append(sl)
-        elif left:
-            sl.profile = MultiPolygon(left); sl.raw = MultiPolygon([r for r in sl.raw.geoms if any(r.intersects(x) for x in left)]) or sl.raw
-            notes.append(f"auto-fix: removed {len(drop)} region(s) of {sl.label} ({why})")
-            keep.append(sl)
-        else:
-            notes.append(f"auto-fix: removed slice {sl.label} ({why})")
-    return keep, notes
-
-
 def crossing_suggestions(slices, ctx, mode):
-    """Parameter changes that would add a crossing slice through every floating / disconnected region (autofix = add)."""
+    """Parameter changes that would add a crossing slice through every floating / disconnected region (autofix = add):
+    the technique's own `hold` when it has one, else its crossing_fix through each region's middle."""
     from .geometry import to_world
+    sets = mode.hold(slices, ctx)
+    if sets is not None:
+        return sets
     sets = []
     for sl in slices:
         for e in sl.errors:
@@ -363,6 +358,9 @@ def suggest_fixes(slices, p, ctx, mode):
                 key, d = ("hole_d", p.get("hole_d", 2.5)) if mode.name == "folded" else ("dowel_d", p.get("dowel_d", 6))
                 small = round(max(0.5 if key == "hole_d" else 2.0, d * 0.6), 1)
                 opts = [{"title": f"smaller {'holes' if key == 'hole_d' else 'connectors'} ({small:g} mm)", "set": {key: small}}]
+            elif "bunched together" in w and "a dowel at (" in w and p.get("placement") == "aligned":
+                x, y = map(float, re.search(r"a dowel at \(([-\d.]+), ([-\d.]+)\)", w).groups())
+                opts = [{"title": f"add a dowel at ({x:g}, {y:g})", "set": {"dowels": [*map(list, p["dowels"]), [x, y]]}}]
             elif "skipped" in w and "connection point" in w:
                 opts = [{"title": f"smaller connectors ({max(2.0, p.get('dowel_d', 6) * 0.6):g} mm)", "set": {"dowel_d": round(max(2.0, p.get("dowel_d", 6) * 0.6), 1)}},
                         {"title": "fewer connection points", "set": {"n_points": max(1, int(p.get("n_points", 2)) - 1)}}]

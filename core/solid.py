@@ -171,11 +171,12 @@ def proto_plan(plan, scale, min_thick, offset=None):
     return build(plan["model"], plan["mode"], p), "; ".join(notes)
 
 
-def _plate(plan, scene, scale, labels, font, min_thick, dx=0.0, tag=None):
+def _plate(plan, scene, scale, labels, font, min_thick, dx=0.0, tag=None, plates=None):
     """Every part of the plan flat in the scene as the nester laid it out (turned as it was nested, sheets stacked in
     y, `dx` along x), each its own named object. `tag` replaces the engraved text and prefixes the names (the fit
-    test engraves its offset). Yields (piece, mesh at the origin, mesh as placed, whether it got its label)."""
-    sheet_h = plan["sheet"][1] + 20
+    test engraves its offset). `plates`, a dict, takes a scene per sheet instead, each sheet at the origin: a printed
+    job's sheet is one build plate. Yields (piece, mesh at the origin, mesh as placed, whether it got its label)."""
+    sheet_h = 0 if plates is not None else plan["sheet"][1] + 20
     for sl in plan["slices"]:
         for pc in sl["pieces"]:
             m, labeled = proto_part({**pc, "label": tag or pc["label"]}, sl["thickness"], scale, labels, font, min_thick)
@@ -183,7 +184,7 @@ def _plate(plan, scene, scale, labels, font, min_thick, dx=0.0, tag=None):
             q = m.copy(); q.apply_transform(trimesh.transformations.rotation_matrix(np.radians(rot), [0, 0, 1]))
             q.apply_translation([dx + x * scale - q.bounds[0][0], (y + si * sheet_h) * scale - q.bounds[0][1], 0])
             name = f"{tag} {pc['label']}" if tag else pc["label"]
-            scene.add_geometry(q, node_name=name, geom_name=name)
+            (scene if plates is None else plates.setdefault(si, trimesh.Scene())).add_geometry(q, node_name=name, geom_name=name)
             yield pc, m, q, labeled
 
 
@@ -204,18 +205,23 @@ def proto_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2
 
     The plate is a 3MF scene rather than one concatenated STL because a slicer treats each <object> / <build><item>
     as a separate body: OrcaSlicer and PrusaSlicer can then move, copy and arrange the parts individually.
+
+    A printed job at full size (`printed`, scale 1) was nested on the printer's bed: each sheet is one plate, so it
+    gets plate-1.3mf, plate-2.3mf … each laid out as nested, instead of every sheet stacked into one plate no bed holds.
     """
     out_dir = pathlib.Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
     files, unlabeled = [], []
     scene = trimesh.Scene()
-    for pc, m, _, labeled in _plate(plan, scene, scale, labels, font, min_thick):
+    plates = {} if plan["params"].get("printed") and abs(scale - 1) < 1e-9 else None
+    for pc, m, _, labeled in _plate(plan, scene, scale, labels, font, min_thick, plates=plates):
         if not labeled:
             unlabeled.append(pc["label"])
         f = out_dir / f"{pc['label']}.stl"; m.export(f); files.append(f)
-    if plate and len(scene.geometry):
-        f = out_dir / "plate.3mf"
-        f.write_bytes(scene.export(file_type="3mf"))
-        files.append(f)
+    for name, sc in ([("plate", scene)] if plates is None else [(f"plate-{si + 1}", plates[si]) for si in sorted(plates)]):
+        if plate and len(sc.geometry):
+            f = out_dir / f"{name}.3mf"
+            f.write_bytes(sc.export(file_type="3mf"))
+            files.append(f)
     lines = [note] if note else []
     if unlabeled:
         lines.append(_unlabeled_note(unlabeled, font))

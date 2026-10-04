@@ -453,17 +453,19 @@ def test_a_curve_takes_a_branch_from_a_hoof(page):
     page.evaluate("() => window.__t.applyFix({branches: [], curve: []})")   # the horse opens with its four legs placed
     set_fields(page, [("p_plane", "yz"), ("p_count", 20)])
     settle(page)
-    hooves =page.evaluate("""() => {   // the lowest part points, one pixel per hoof (clustered in world x / y)
-      const c = window.__t.canvas().getBoundingClientRect(), pts = [], bb = window.__t.plan().bbox;
+    # looked for again after every branch: a branch lets the body ribs turn further, so the leg piece of a body rib
+    # that was under a hoof can move away
+    hoof = """() => {   // a pixel on the lowest part point of a leg with no branch yet
+      const c = window.__t.canvas().getBoundingClientRect(), pts = [], bb = window.__t.plan().bbox, r = 0.08 * Math.max(...bb);
+      const tips = (window.__t.state().branches || []).map(b => b[1]);
       for (let y = c.top + 10; y < c.bottom - 10; y += 5) for (let x = c.left + 10; x < c.right - 10; x += 5) {
         const h = window.__t.hit({clientX: x, clientY: y});
         if (h && h.object.userData.slice) pts.push([x, y, h.point.x, h.point.y, h.point.z]) }
-      const z0 = Math.min(...pts.map(p => p[4])), out = [];
-      for (const p of pts.filter(p => p[4] < z0 + 0.06 * bb[2]).sort((a, b) => a[4] - b[4]))
-        if (!out.some(q => Math.hypot(q[2] - p[2], q[3] - p[3]) < 0.08 * Math.max(...bb))) out.push(p);
-      return out }""")[:2]
-    assert len(hooves) == 2, hooves
-    for x, y, *_ in hooves:
+      const z0 = Math.min(...pts.map(p => p[4]));
+      return pts.filter(p => p[4] < z0 + 0.06 * bb[2] && !tips.some(t => Math.hypot(t[0] - p[2], t[1] - p[3]) < r))
+        .sort((a, b) => a[4] - b[4])[0] }"""
+    for _ in range(2):
+        x, y, *_ = page.evaluate(hoof)
         page.keyboard.down("Shift"); page.keyboard.down("Alt"); page.mouse.click(x, y)
         page.keyboard.up("Alt"); page.keyboard.up("Shift")
         settle(page)
@@ -740,7 +742,10 @@ def test_the_export_tab_weighs_the_parts(page):
     assert len(p["rods"]) == 2 * 3, p["rods"]                            # two points × three pairs of slices
     n = p["slices"][0]["M"]; z = sorted(sum(s["M"][i][3] * n[i][2] for i in range(3)) for s in p["slices"])
     rod = (z[-1] - z[0]) + 1.897                                         # outer face to outer face
-    mass = 2 * rod * math.pi * 3 ** 2 * 7.85 / 1000                      # 6 mm dowels, in grams
+    sec = p["rods"][0][3]                                                # the rod's section as cut: a 96-gon, not π r²
+    area = abs(sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(sec, sec[1:] + sec[:1]))) / 2
+    assert abs(area - math.pi * 3 ** 2) < 0.01 * math.pi * 3 ** 2, area  # 6 mm dowels
+    mass = 2 * rod * area * 7.85 / 1000                                  # in grams
     assert "2 dowel(s)" in weight() and f"{mass:.3g} g" in weight(), (mass, weight())
     # assembled = parts + dowels, the parts now 8 holes lighter: 6 mm dowels + the fiber laser's 0.15 mm slot offset
     holes = 8 * math.pi * 3.075 ** 2 * 1.897 * 7.85 / 1000

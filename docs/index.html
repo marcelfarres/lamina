@@ -216,7 +216,7 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
   <!-- one technique per row: the clip orbits the result, then changes the parameters that matter for it -->
   <article class="tech">
     <video src="media/stacked.mp4" poster="media/stacked_poster.jpg" width="1100" height="825" muted loop playsinline controls preload="none"
-           aria-label="A rearing horse statue in stacked side profiles, orbiting; then the gap between the layers set to 1.5 mm, 9 mm and 3 mm, held by square dowels"></video>
+           aria-label="A rearing horse statue in stacked side profiles with a gap between them, orbiting; then its dowel holes round, hexagonal, cross-shaped and square"></video>
     <div>
       <h3>Stacked slices</h3>
       <p>Parallel sections along one axis, touching or with an empty space between them — the topographic look. Hold
@@ -226,10 +226,10 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
       surface across the slice's thickness, which is what Autodesk's Slicer called 3D Slices — cut it, then sand down
       to the shape.</p>
       <p class="clip"><b>In the clip:</b> a 260 mm porcelain horse rearing on its base (the bundled
-      <b>horse_statue</b>), in 3 mm cardboard: side profiles across its width with a 3 mm gap, on 3 mm square dowels at
-      random points; then the gap set to 1.5 mm, 9 mm and back to 3 mm. Across the width, each layer is a whole side
-      view of the horse; layered up its height instead, the body would sit over the slanted hind legs with nothing to
-      hold it. Every dowel keeps a 2 mm wall to the outline.</p>
+      <b>horse_statue</b>), in 3 mm cardboard: side profiles across its width with a 4 mm gap, on 2 mm dowels at random
+      points; then the holes round, hexagonal, cross-shaped and back to square. Across the width, each layer is a whole
+      side view of the horse; layered up its height instead, the body would sit over the slanted hind legs with nothing
+      to hold it. Every dowel keeps a 2 mm wall to the outline.</p>
       <p class="clip"><b>Parameters:</b> axis · spacing or count · gap · outline mid / outer / inner · connector
       type, size and hole shape · placement · points per island · per-slice offset, tilt, roll and thickness.</p>
     </div>
@@ -421,8 +421,9 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
   and what to do about it, and most carry buttons that apply the change.</p>
   <figure>
     <img src="media/checks.jpg" width="2000" height="963" loading="lazy" decoding="async" alt="The checks tab listing errors with one-click fix buttons">
-    <figcaption>Errors mean it will not work, warnings mean look at it. Auto-fix can add crossing slices where
-    regions float, then remove what still cannot work, and it lists everything it did.</figcaption>
+    <figcaption>Errors mean it will not work, warnings mean look at it. Auto-fix adds crossing slices, rings or
+    spines where pieces float, and lists everything it did. It never deletes a piece of your model: what nothing can
+    hold stays, with its error and the fixes to click.</figcaption>
   </figure>
   <div class="grid g3" style="margin-top:22px">
     <div><h3>Held together</h3><p class="sub">Each region must reach the main body through a slot, a connector or
@@ -570,6 +571,8 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
       <code>y</code>. It then downloads them, which takes a few minutes and happens only once.</li>
     <li style="margin:6px 0">Your browser opens at <code>http://localhost:8000</code> and Lamina is running on your
       machine. Leave the text window open while you work; closing it stops Lamina. Next time it starts in seconds.</li>
+    <li style="margin:6px 0"><b>Updates come by themselves:</b> each start checks for a new version of Lamina and
+      fetches it when there is one. Offline, it starts the one you have.</li>
   </ol>
   <p class="sub" style="margin-top:12px"><b>If macOS refuses to open the file</b> ("cannot be opened because it is
   from an unidentified developer"): right-click it → <b>Open</b> → <b>Open</b>. That is macOS asking whether you
@@ -587,23 +590,23 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
   proxy's authentication before it faces the internet.</p>
   <pre tabindex="0"><code>docker run -d -p 8000:8000 -v lamina-jobs:/app/working-files ghcr.io/marcelfarres/lamina:latest</code></pre>
   <p class="sub"><a href="https://github.com/marcelfarres/lamina/blob/main/docker-compose.yml">docker-compose.yml</a>
-  is the same thing as a stack for Portainer, Dockge or Komodo.</p>
+  is the same thing as a stack for Portainer, Dockge or Komodo. To update: <code>docker pull
+  ghcr.io/marcelfarres/lamina:latest</code> and start it again (<code>docker compose pull &amp;&amp; docker compose up
+  -d</code>).</p>
 
   <h3 style="margin-top:26px">From a terminal</h3>
-  <p class="sub">If you have Python and <a href="https://docs.astral.sh/uv/">uv</a> already, the starters are only
-  wrapping these:</p>
-  <pre tabindex="0"><code># add --extra cad to uv sync for STEP and BREP import
-git clone https://github.com/marcelfarres/lamina.git
-cd lamina
-uv sync
-uv run uvicorn web.app:app --reload --port 8000
-# then open http://localhost:8000</code></pre>
+  <p class="sub">If you have <a href="https://docs.astral.sh/uv/">uv</a> already, the starters are only wrapping
+  these:</p>
+  <pre tabindex="0"><code>uv tool install lamina3d     # "lamina3d[cad]" adds STEP and BREP import
+lamina3d                     # opens http://localhost:8000
+uv tool upgrade lamina3d     # when a new version is out</code></pre>
   <p class="sub">The Model tab opens on a bundled example, and the
   <a href="https://github.com/marcelfarres/lamina/tree/main/examples">examples folder</a> holds 24 in all — geometric
   shapes, a scanned head and animals; the dumbbell and the snowman open with a radial axis per ball and a spine
   through them all, the horse with its ribs along a curve and a branch down each leg, and the horse statue in
   stacked side profiles.
-  The same pipeline runs headless, so it can be scripted or put in a build:</p>
+  From a clone of the repository (<code>git clone https://github.com/marcelfarres/lamina.git</code>, then
+  <code>uv sync</code>) the same pipeline runs headless, so it can be scripted or put in a build:</p>
   <pre tabindex="0"><code>uv run python -m core.plan examples/egg.stl --mode interlocked --set nx=5 ny=4 --out out/egg
 uv run python -m core.export out/egg.json --out out/egg_cut --fmt svg dxf pdf --labels
 uv run python -m core.solid out/egg.json --proto out/egg_proto --scale 0.4 --labels groove

@@ -19,15 +19,23 @@ What changed in each release. The GitHub release for a version is this section, 
 
 - **The horse opens in Curve**, with its curve from tail to muzzle and a branch down each leg: 55 parts, no errors.
 - **A new horse for stacked slices**: `horse_statue`, a porcelain horse rearing on a round base (CC0, from Poly
-  Haven). It opens as side profiles across its width with a 3 mm gap on square dowels: 22 parts, no errors, no
-  warnings. Layered up its height, the body over its slanted hind legs would rest on nothing.
+  Haven). It opens as side profiles across its width with a 4 mm gap on 2 mm square dowels: 39 parts, no errors,
+  no warnings. Layered up its height, the body over its slanted hind legs would rest on nothing.
 
 ## 0.2.2
 
 What your model weighs, eleven more materials (PLA and PETG among them, to 3D-print the parts at full size), the
-model's name on every part, a button that squares up a tilted model, a desktop version that keeps itself up to date,
-and fixes for stacks that came out short, layers whose pieces were nested as one, folded holes too near the edge,
+model's name on every part, a button that squares up a tilted model, dowels that hold a big layer from near its
+edge, a desktop version that keeps itself up to date,
+an auto-fix that never deletes a piece of your model, and fixes for stacks that came out short, layers whose pieces were nested as one, folded holes too near the edge,
 and the browser version's one intermittent failure.
+
+### Printing
+
+- **A printed job is plates, not sheets.** Picking PLA or PETG ticks **3D printed** on the Sheet & fit tab: the sheet
+  size is the printer's bed, the page counts plates, and the Export tab offers the print plates (one 3MF per bed,
+  at full size, with the job's own slot offset) instead of cut files nothing would cut. Untick it to get the cut
+  files anyway.
 
 ### Weight
 
@@ -45,6 +53,19 @@ and the browser version's one intermittent failure.
   CAD export that came out tilted) cuts every straight edge as a staircase. The Model tab now says how far off it
   is, "sits 5° off square", with a **square it up** button right under the rotate controls. Nothing turns by
   itself: leave it if the tilt is on purpose.
+
+### Technique
+
+- **Dowels hold a big layer from near its edge.** Aligned dowels were placed in the part every layer shares, so on
+  a round model the widest layers in the middle hung on two dowels close together at the centre, free to swing a
+  little at the rim. A layer those shared dowels do not hold now gets its own, out toward its edge; with three or
+  more they go round the layer instead of along a line, and asking for more dowels never leaves a layer worse
+  held. Where a layer is still held by dowels bunched together, the Checks tab says so — its size, how much its
+  far edge can shift — and names the one more dowel that would hold it, with a button to add it. Where no dowel
+  fits farther out because the wall is too thin (a hollowed model's ring), it says how thick the wall is and how
+  much the dowel needs. Small pieces, where two dowels this size cannot sit any farther apart, are left in peace.
+- **A dowel you add comes on top of the automatic ones.** One alt-clicked or typed under dowels used to stand in for
+  one of the `n_points` per layer, so the layer could end up held no better. Now it is added to them.
 
 ### Materials
 
@@ -96,6 +117,20 @@ and the browser version's one intermittent failure.
   under the downloads on the Export tab opens the same dialog as a bug report: a prefilled email (no account
   needed) or a GitHub issue form you drag the photos into. With your OK it goes up, credited the way you ask. Or
   post it on Instagram or X with **#applamina**.
+
+### Auto-fix
+
+- **Auto-fix never deletes a piece of your model.** It used to add crossing slices and then remove whatever still
+  floated: on a tube sliced 6 × 5 that was 71 % of the model, and on the horse the whole top layer with its ear tips.
+  Now what nothing can hold stays on the plan with its error and the fixes to click, deleting among them if that is
+  what you want. The only things left out, and the report says so, are slivers thinner than the minimum wall
+  everywhere: shavings a slot cuts off its own part, and specks where a slice only grazes the surface.
+- **Interlocked slices are held where it counts.** A crossing slice through the middle of a loose piece used to be just
+  as loose there. Auto-fix now places it where its own cut reaches the rest of the model: the tube and the torus are
+  held whole, and on thirteen hard cases the errors left went from 281 to 92 (all of them now kept and shown, where
+  before they were deleted).
+- The **remove** choice of auto-fix is gone: **add** holds what it can, **off** only reports. A project saved with
+  remove opens with off.
 
 ### Usage counting
 
@@ -161,8 +196,17 @@ and the browser version's one intermittent failure.
   ends of the wavy torus, was one part: its pieces were nested as one group with the empty space between them, and
   only one carried a label. Each piece is now a part of its own, labelled `Z-1-1`, `Z-1-2` …, and nested on its own:
   the wavy torus goes from 14 sheets to 8.
+- **Aligned tab spacers hold every layer.** With tab connectors and aligned placement, every second pair of layers
+  could end up with no spacer at all: the automatic fixes then removed the pieces nothing held, and spacers that did
+  fit could cut into each other ("two slots / holes overlap"). Each spacer is now placed where its slot really fits
+  both layers, with a full wall from every other cut, and a piece the regular points miss gets spacers of its own.
+  On ten example shapes the errors went from 319 to 6, all at the tip of a cone too small for a 6 mm connector.
+- **Every part lands on its sheet.** A part that filled a sheet almost exactly, like a big folded panel, could be
+  placed hundreds of millimetres off the sheet, and jobs of more than 150 parts let the last part along the edges
+  run a millimetre or two into the sheet margin, and now and then two parts were nested on top of each other. Every
+  part is placed inside the margin and clear of the others now.
 
-Verified by 604 tests, plus 25 driving the app in a real browser and one slicing the published build end to end.
+Verified by 612 tests, plus 25 driving the app in a real browser and one slicing the published build end to end.
 
 ## 0.2.1
 

@@ -64,6 +64,42 @@ def test_placed_parts_fit_sheet_and_dont_overlap(monkeypatch, many):
                 assert overlap < 1e-6, f"pieces {i} and {j} on sheet {sheet_index} overlap by {overlap}"
 
 
+@pytest.mark.parametrize(("model", "mode", "params", "many"), [
+    ("tube", "folded", {"thickness": 1, "kerf": 0.15}, None),
+    ("bowl", "stacked", {"sheet": [200, 150], "kerf": 0.15}, None)],      # 164 parts: the rectangle packer
+    ids=["sheet_sized_panel", "rect_path_full_sheet"])
+def test_every_part_lands_inside_the_sheet_margin(monkeypatch, model, mode, params, many):
+    """Found by the validation sweep: 1271 parts in 181 jobs outside the margin. A folded panel that fills the
+    sheet so exactly that the gap tips it over (586 × 390 mm on 600 × 400) was placed by its unturned corner and
+    landed 485 mm off the sheet; the rectangle packer centred each part in a rectangle one gap bigger, so every part
+    along the far edges ran half a gap into the margin."""
+    if many is not None:
+        monkeypatch.setattr(nest, "MANY", many)
+    plan = build(EXAMPLES / f"{model}.stl", mode, params)
+    sw, sh = plan["sheet"]; m = plan["params"]["sheet_margin"]
+    for i in range(plan["sheets"]):
+        for poly in placed_polygons(plan, i):
+            x0, y0, x1, y1 = poly.bounds
+            assert x0 >= m - 1e-6 and y0 >= m - 1e-6 and x1 <= sw - m + 1e-6 and y1 <= sh - m + 1e-6, \
+                f"sheet {i}: ({x0:.1f},{y0:.1f})-({x1:.1f},{y1:.1f}) outside the {m:g} mm margin of {sw:g} × {sh:g}"
+
+
+@pytest.mark.parametrize(("model", "mode", "params"), [
+    ("pyramid", "interlocked", {"autofix": "off"}),
+    ("pyramid", "radial", {"spine": 1}),
+    ("cube", "radial", {"rotate": [30, 20, 0]})])
+def test_no_two_parts_are_nested_on_top_of_each_other(model, mode, params):
+    """Found by the validation sweep: parts overlapping on the sheet by up to 773 mm². A no-fit polygon was traced
+    from the piece's lowest vertex while its edges were sorted by angle, and an edge horizontal to within rounding
+    sorted first: every no-fit polygon of that part came out shifted by the edge, and spots inside them read as free."""
+    plan = build(EXAMPLES / f"{model}.stl", mode, {"thickness": 3, "slot_offset": 0.2, "kerf": 0.15, **params})
+    for i in range(plan["sheets"]):
+        polys = placed_polygons(plan, i)
+        for a in range(len(polys)):
+            for b in range(a + 1, len(polys)):
+                assert polys[a].intersection(polys[b]).area < 1e-6, f"sheet {i}: {a} over {b}"
+
+
 def test_a_part_too_big_for_the_sheet_keeps_its_sheet_to_itself():
     """A model far bigger than the sheet, split off: whatever cannot be cut small enough overhangs its sheet, but it
     may never be nested over — the reported "parts overlap each other and run off the page" was a part placed
@@ -138,3 +174,20 @@ def test_all_parts_are_placed_somewhere(monkeypatch):
     plan = build(model, mode, params)
     placed = [pc for sl in plan["slices"] for pc in sl["pieces"] if pc["place"] is not None]
     assert len(placed) == plan["counts"]["parts"]
+
+
+def test_a_layer_in_separate_islands_is_cut_as_separate_parts(tmp_path):
+    """Two blocks 300 mm apart: every layer falls apart into two islands. Each island is its own part, labelled and
+    nested on its own, so both fit a 200 mm sheet. As one part per layer they spanned 350 mm, fitted no sheet, and
+    the lobes of a real model's layer kept the empty space between them on the sheet with one label for all."""
+    import trimesh
+    far = trimesh.creation.box((50, 50, 30)); far.apply_translation((300, 0, 0))
+    trimesh.util.concatenate([trimesh.creation.box((50, 50, 30)), far]).export(tmp_path / "two.stl")
+    plan = build(tmp_path / "two.stl", "stacked", {"distribution": "count", "count": 3, "sheet": [200, 200], "split": False, "autofix": "off"})
+    for sl in plan["slices"]:                       # (two loose blocks are rightly "not connected"; what matters: they fit)
+        assert not [e for e in sl["errors"] if "does not fit" in e], sl["errors"]
+        assert sorted(pc["label"] for pc in sl["pieces"]) == [f"{sl['label']}-1", f"{sl['label']}-2"]
+        for pc in sl["pieces"]:
+            assert pc["label_pos"], pc["label"]                                  # every island carries its own label
+            x0, y0, x1, y1 = Polygon(pc["placed"][0][0]).bounds
+            assert x1 - x0 < 60 and y1 - y0 < 60, (pc["label"], x1 - x0, y1 - y0)   # one 50 mm block, not both
