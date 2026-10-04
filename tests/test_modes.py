@@ -374,3 +374,23 @@ def test_curve_branch_takes_its_limb_and_no_more(tmp_path):
     assert sum(x.startswith("R-") for x in by["K1"]["engages"]) >= 2 and sum(x.startswith("R-") for x in by["K2"]["engages"]) >= 2
     K = np.array(by["K-1"]["M"]); side = (world_pts(by["K2"]) - K[:3, 3]) @ K[:3, 2]      # K2's outline against K-1's plane
     assert (side > 3).all() or (side < -3).all(), (side.min(), side.max())
+
+
+@pytest.mark.parametrize("model", ["cow", "tube"])
+def test_autofix_adds_interlocked_slices_a_full_wall_from_the_others(model):
+    """Found by the validation sweep: auto-fix added interlocked slices 1.6 mm from a slice of their own family (two
+    3 mm sheets in one place), then, once it learned to keep apart, still 4.5 mm away: 1.3 mm of material between
+    their slots in every crossing slice. Each added slice now keeps the thickness, the slot offset and the minimum wall
+    from every other slice of its family."""
+    job = {"thickness": 3, "slot_offset": 0.2, "min_feature": 2.0, "kerf": 0.15}
+    plan = build(EXAMPLES / f"{model}.stl", "interlocked", job)
+    need = job["thickness"] + job["slot_offset"] + job["min_feature"]
+    mid, added = np.array(plan["mid"]), 0
+    for fam, key in (("X", "extra_x"), ("Y", "extra_y")):
+        Ms = [np.array(s["M"]) for s in plan["slices"] if s["group"] == fam]
+        d = sorted(float((M[:3, 3] - mid) @ Ms[0][:3, 2]) for M in Ms)
+        for x in plan["params_used"].get(key, []):
+            added += 1
+            gaps = [abs(q - x) for q in d if abs(q - x) > 1e-3]
+            assert min(gaps) >= need - 0.05, f"{fam} slice added at {x} mm, {min(gaps):.1f} mm from another"
+    assert added, "this model needs auto-fix's slices; the test means nothing without them"

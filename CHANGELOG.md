@@ -218,6 +218,9 @@ too near the edge, and the browser version's one intermittent failure.
   placed hundreds of millimetres off the sheet, and jobs of more than 150 parts let the last part along the edges
   run a millimetre or two into the sheet margin, and now and then two parts were nested on top of each other. Every
   part is placed inside the margin and clear of the others now.
+- **Interlocked slices added by the automatic fixes keep a full wall from the others.** A slice added to hold a loose
+  piece could land 4.5 mm from another of its family in 3 mm material, leaving 1.3 mm between their slots in every
+  slice they cross. Each one now keeps the material's thickness, the slot offset and the minimum wall away.
 
 Verified by 632 tests, plus 27 driving the app in a real browser and one slicing the published build end to end.
 

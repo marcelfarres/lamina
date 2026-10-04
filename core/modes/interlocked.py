@@ -65,6 +65,10 @@ class Interlocked(Mode):
         the slice through the region's middle, as before. Returns the parameter changes, one per group."""
         up, a1, a2, e1, e2, eu = self.axes(ctx)
         t, mid = ctx.p["thickness"], ctx.mid
+        # A new slice keeps a full wall from every slice of its family: their slots in each crossing slice are the
+        # material plus the slot offset wide, and need `min_feature` of material between them. 1 mm over the
+        # thickness left the cow's added slices 4.5 mm apart, 1.3 mm of wall between their slots.
+        apart = t + ctx.p["slot_offset"] + ctx.p["min_feature"]
         xy = [s for s in slices if s.group in ("X", "Y")]
         by = {s.label: s for s in xy}
         loose = {}                                       # (slice, region) → its group's key
@@ -101,7 +105,7 @@ class Interlocked(Mode):
                 lo, hi = span.min() + t / 2, span.max() - t / 2
                 cands = np.linspace(lo, hi, max(2, min(40, int((hi - lo) / max(0.5, t / 2)) + 1))) if hi > lo else [s0]
                 for s in sorted(cands, key=lambda s: abs(s - s0)):
-                    if any(abs(s - q) < t + 1.0 for q in taken[new]):
+                    if any(abs(s - q) < apart for q in taken[new]):
                         continue
                     score = self._joins(ctx, [x for x in xy if x.group == sl.group], (lb, r), e, float(s), eu, loose, find)
                     if score and (best is None or score[0] > best[0]):
@@ -118,7 +122,7 @@ class Interlocked(Mode):
                 lb, r = regs[0]; sl = by[lb]; rp = sl.profile.geoms[r].representative_point()
                 new, k = ("Y", "extra_y") if sl.group == "X" else ("X", "extra_x")
                 s = float((to_world(sl.M, [(rp.x, rp.y)])[0] - mid) @ (e2 if new == "Y" else e1))
-                if any(abs(s - q) < t + 1.0 for q in taken[new]):
+                if any(abs(s - q) < apart for q in taken[new]):
                     continue
             taken[new].append(s)
             sets.append({k: list(ctx.p[k]) + [round(s, 1)]})
