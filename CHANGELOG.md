@@ -231,7 +231,7 @@ too near the edge, and the browser version's one intermittent failure.
   piece could land 4.5 mm from another of its family in 3 mm material, leaving 1.3 mm between their slots in every
   slice they cross. Each one now keeps the material's thickness, the slot offset and the minimum wall away.
 
-Verified by 634 tests, plus 27 driving the app in a real browser and one slicing the published build end to end.
+Verified by 635 tests, plus 29 driving the app in a real browser and one slicing the published build end to end.
 
 ## 0.2.1
 
