@@ -161,7 +161,7 @@ and the browser version's one intermittent failure.
   both layers, with a full wall from every other cut, and a piece the regular points miss gets spacers of its own.
   On ten example shapes the errors went from 319 to 6, all at the tip of a cone too small for a 6 mm connector.
 
-Verified by 604 tests, plus 25 driving the app in a real browser and one slicing the published build end to end.
+Verified by 607 tests, plus 25 driving the app in a real browser and one slicing the published build end to end.
 
 ## 0.2.1
 
