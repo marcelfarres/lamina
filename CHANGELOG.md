@@ -118,7 +118,7 @@ too near the edge, and the browser version's one intermittent failure.
 
 ### Docker
 
-- **The Docker image runs on Debian 13** with uv 0.12.22. The Debian 12 base it was built on is no longer updated.
+- **The Docker image runs on Debian 13** with uv 0.12.23. The Debian 12 base it was built on is no longer updated.
   Nothing changes in how you run it, and it slices the bunny exactly as the desktop version does.
 - **Dependencies are kept up to date.** The Python packages, the Docker base image and the GitHub Actions are
   checked every week, a new release is only taken once it is a week old, and every image is built before an update
