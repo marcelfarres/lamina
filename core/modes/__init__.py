@@ -78,6 +78,9 @@ COMMON: list[Param] = [
     P("units", "choice", "mm", "Units for the DXF export and for the numbers in this form", choices=["mm", "cm", "in"], group="sheet"),
     P("thickness", "number", 1.5, "Material thickness (mm). Paper 0.3 mm, card 1 mm, cardboard 3 mm, steel 1–2 mm, plywood 3–6 mm", 0.05, 100, 0.05, group="sheet", unit="mm"),
     P("sheet", "vec2", [600, 400], "Sheet size width, height (mm)", 10, 5000, 1, group="sheet", unit="mm"),
+    P("printed", "bool", False, "3D printed, not cut: each sheet is one build plate (the sheet size is the printer's bed), "
+      "and the print set on the Export tab comes out as one 3MF per plate at full size instead of cut files. Picking PLA "
+      "or PETG ticks it", group="sheet"),
     P("sheet_margin", "number", 5, "Keep-out from the sheet edge (mm)", 0, 100, 0.5, group="sheet", unit="mm"),
     P("gap", "number", 3, "Gap between parts on the sheet (mm)", 0, 50, 0.5, group="sheet", unit="mm"),
     P("labels", "bool", True, "Engrave part labels beside each part, with a leader line to the part (LABEL layer)", group="sheet"),

@@ -9,6 +9,13 @@ model's name on every part, a button that squares up a tilted model, a desktop v
 an auto-fix that never deletes a piece of your model, and fixes for stacks that came out short, layers whose pieces were nested as one, folded holes too near the edge,
 and the browser version's one intermittent failure.
 
+### Printing
+
+- **A printed job is plates, not sheets.** Picking PLA or PETG ticks **3D printed** on the Sheet & fit tab: the sheet
+  size is the printer's bed, the page counts plates, and the Export tab offers the print plates (one 3MF per bed,
+  at full size, with the job's own slot offset) instead of cut files nothing would cut. Untick it to get the cut
+  files anyway.
+
 ### Weight
 
 - **The Export tab weighs the job.** The parts as cut (holes and slots taken out, each at its own thickness), the
