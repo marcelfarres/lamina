@@ -43,11 +43,11 @@ const set = async (name, v) => {
 const BASE = { rotate: [0, 0, 0], size: [0, 0, 0], round: 0, thicken: 0, shrinkwrap: 0, smooth: 0, thickness: 3, autofix: "add" };
 const params = async p => {
     // every per-slice edit and every slice autofix added: none of it belongs to the next scene or sweep state
-    await js("Object.assign(window.__t.state(),{grow:{},offset:{},tilt:{},roll:{},thick:{},skip:[],extra_x:[],extra_y:[],dowels:[],axes:[]})");   // axes: the snowman's preset has three; a scene asks for its own
+    await js("Object.assign(window.__t.state(),{grow:{},offset:{},tilt:{},roll:{},thick:{},skip:[],extra_x:[],extra_y:[],dowels:[],axes:[],branches:[]})");   // axes: the snowman's preset has three; a scene asks for its own
     for (const [k, v] of Object.entries({ ...BASE, ...p })) await set(k, v);
     await settle();
 };
-// what the fix buttons do (grow an outline, move a slice) and the curve control points, applied as the app applies them
+// what the fix buttons do (grow an outline, move a slice) and the curve's points and branches, applied as the app applies them
 const fix = async set => { await js(`window.__t.applyFix(${JSON.stringify(set)})`); await settle(); };
 // whatever warning is left on screen, take the app's own first offer for it (grow the outline, move the slice),
 // one at a time, as a user would: the project file then carries those fixes too
@@ -123,11 +123,14 @@ S.hero = async () => {        // radial head, face forward: also the model tab a
     await tab("export"); await set("pr_size", 280); await sleep(400); await shot("export");   // 280 mm prototype: fits the H2C bed
     await tab("technique");
 };
-S.stacked = async () => {     // horse in layers with a gap, square dowels at random points; bigger so the dowels fit the legs
-    await example("horse"); await mode("stacked"); await tab("technique");
-    await params({ axis: "z", size: [0, 300, 0], connect: "dowel", dowel_shape: "square", placement: "random", space: 6, dowel_d: 3, n_points: 2, round: 3, thicken: 1 }); await heal();
+S.stacked = async () => {     // the rearing horse statue in side profiles across its width, a gap between, square dowels at random points
+    await example("horse_statue"); await mode("stacked"); await tab("technique");   // layered up its height, the body over the slanted hind legs is held by nothing
+    // the stack 1 mm off centre: where a layer only grazes the surface it leaves a speck no dowel can reach, and
+    // this position leaves none (the preset); the steps change the hole's shape, which keeps every piece held
+    await params({ axis: "y", size: [0, 0, 260], center: [0, 1, 0], connect: "dowel", dowel_shape: "square", placement: "random", space: 4, dowel_d: 2, n_points: 2, round: 3, thicken: 1 }); await heal();
     await view(-55, 14, 1.05, 1.0); await project("stacked");      // assembled, never exploded: a clip must show the finished object
-    await techClip("stacked", -55, 14, 1.0, [["no gap", () => set("space", 0)], ["gap 12", () => set("space", 12)], ["gap 6", () => set("space", 6)]]);
+    await techClip("stacked", -55, 14, 1.0, [["round holes", () => set("dowel_shape", "round")], ["hexagon", () => set("dowel_shape", "hexagon")],
+        ["cross", () => set("dowel_shape", "cross")], ["square", () => set("dowel_shape", "square")]]);
 };
 S.interlocked = async () => {  // the torus: every vertical line meets the tube once, so the egg-crate assembles; the head's ears never let it
     await example("torus"); await mode("interlocked"); await tab("technique");
@@ -174,15 +177,17 @@ S.lobes = async () => {       // the plane between two lobes is a part: select i
 };
 S.curve = async () => {       // the horse is long along y; the curve follows the back and climbs the neck to the head
     await example("horse"); await mode("curve"); await tab("technique");
-    // One spine, centred on the body, passes between the legs; a second would cross a leg and the body on one line,
-    // which no slot can assemble. So only rib counts that never catch a leg on its own are shown: 6 (either head
-    // point), 8 and 12 ribs hold every piece. 20 ribs did look clean only because auto-fix used to delete the legs.
-    await params({ plane: "yz", count: 12, spines: 1, round: 2 });
-    const CURVE = [[-85, 22], [-30, 32], [25, 30], [55, 55], [90, 74]];
-    await fix({ curve: CURVE });
+    // 20 ribs on one body spine, and a branch down each leg: ribs square to the leg and a spine of its own that slots
+    // into the body ribs, so no body rib cuts across a leg. Points in mm for the horse 300 mm long, as on the landing
+    // settings. The head goes up, not down: down, the head ribs cross (the legs no longer hold back the turn limit)
+    await params({ plane: "yz", count: 20, spines: 1, round: 2, size: [0, 300, 0], thicken: 1 });
+    const CURVE = [[-119, 11], [-89, 18], [-59, 23], [-14, 10], [16, 13], [50, 22], [76, 47], [91, 76], [106, 89], [136, 83]];
+    const BRANCHES = [[[-2, 46.6, -33], [-5.2, 64.5, -128]], [[40.5, 36.8, -33], [49, 25.8, -125]],
+        [[-2.8, -100.1, -11], [-5, -134.2, -125]], [[52, -83.1, -15], [54.9, -101, -125]]];
+    await fix({ curve: CURVE, branches: BRANCHES }); await heal();
     await view(-70, 16, 0.9, 1.0); await project("curve");
-    await techClip("curve", -70, 16, 0.9, [["6 ribs", () => set("count", 6)], ["head point down", () => fix({ curve: [...CURVE.slice(0, 4), [90, 55]] })],
-        ["head point up", () => fix({ curve: CURVE })], ["8 ribs", () => set("count", 8)], ["12 ribs", () => set("count", 12)]]);
+    await techClip("curve", -70, 16, 0.9, [["8 ribs", () => set("count", 8)], ["12 ribs", () => set("count", 12)], ["20 ribs", () => set("count", 20)],
+        ["head point up", () => fix({ curve: [...CURVE.slice(0, -1), [136, 92]] })], ["head point back", () => fix({ curve: CURVE })]]);
 };
 S.folded = async () => {      // the cow mesh is y-up: rotate x 90° stands it up
     await example("cow"); await mode("folded"); await tab("technique");

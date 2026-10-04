@@ -248,10 +248,17 @@ def test_the_tables_take_a_row(page):
     for m in ("curve", "radial"):
         page.click(f'#modes button[data-m="{m}"]')
         settle(page)
-        for btn in page.query_selector_all("#tabs [data-add]"):
-            btn.click()
+        before = plan(page)
+        names = page.eval_on_selector_all("#tabs [data-add]", "els => els.map(e => e.dataset.add)")
+        for name in names:       # by name: a click re-renders the form, so a button found before it is gone
+            page.click(f'#tabs [data-add="{name}"]')
             settle(page)
-        assert plan(page)["counts"]["parts"] > 0, m
+        p = plan(page)
+        assert p["counts"]["parts"] > 0, m
+        if m == "curve":         # the curve's + grows the curve on screen; the branch's hangs below it
+            assert {"curve", "branches"} <= set(names), names
+            assert len(p["params"]["curve"]) == len(before["curve_pts"]) + 1, p["params"]["curve"]
+            assert len(p["params"]["branches"]) == 1 and any(s["label"] == "K1" for s in p["slices"])
 
 
 @pytest.mark.timeout(600)
@@ -392,12 +399,12 @@ def test_a_new_model_does_not_inherit_the_last_one_s_geometry(page):
     assert len(used) == 1, used                              # one axis…
     assert abs(used[0][0][0]) < 1e-6 and abs(used[0][0][1]) < 1e-6, used   # …through the middle of the model
 
-    # Bug 004: an upload kept the last example's model settings — the horse's size 300, round 3, thicken 1 — and a
+    # Bug 004: an upload kept the last example's model settings — the horse's size 300, round 2, thicken 1 — and a
     # plain cube came back with rounded corners and a hole closed up. An upload starts from the model as drawn.
     page.click('nav button[data-t="model"]')
     page.select_option("#example", "horse")
     settle(page)
-    assert page.evaluate("() => window.__t.state().round") == 3   # the preset this is about, really applied
+    assert page.evaluate("() => window.__t.state().round") == 2   # the preset this is about, really applied
     page.set_input_files("#file", str(ROOT / "examples" / "cube.stl"))
     settle(page)
     got = page.evaluate("() => { const s = window.__t.state(); return [s.size, s.round, s.thicken] }")
@@ -430,6 +437,66 @@ def test_a_model_a_few_degrees_off_square_is_squared_by_its_button(page):
     assert page.is_hidden("#square")
     assert [round(e) for e in plan(page)["bbox"]] == [180, 180, 180]   # square again: no tilted, taller box
     assert not page.errors, page.errors
+
+
+@pytest.mark.timeout(900)
+def test_a_curve_takes_a_branch_from_a_hoof(page):
+    """Shift+alt-click each hoof of the horse in view, in curve mode: a branch from the curve out to it, every one
+    with ribs and a spine of its own (a joint in the air between splayed legs held nothing). Alt-click on a joint
+    plane reaches the leg behind it. Alt-click branch 1's rod and it is gone, parts and all, and the edit made for
+    branch 2's joint stays with that leg, now branch 1."""
+    page.click('nav button[data-t="model"]')
+    page.select_option("#example", "horse")
+    settle(page)
+    page.click('nav button[data-t="technique"]')
+    page.click('#modes button[data-m="curve"]')
+    page.evaluate("() => window.__t.applyFix({branches: [], curve: []})")   # the horse opens with its four legs placed
+    set_fields(page, [("p_plane", "yz"), ("p_count", 20)])
+    settle(page)
+    # looked for again after every branch: a branch lets the body ribs turn further, so the leg piece of a body rib
+    # that was under a hoof can move away
+    hoof = """() => {   // a pixel on the lowest part point of a leg with no branch yet
+      const c = window.__t.canvas().getBoundingClientRect(), pts = [], bb = window.__t.plan().bbox, r = 0.08 * Math.max(...bb);
+      const tips = (window.__t.state().branches || []).map(b => b[1]);
+      for (let y = c.top + 10; y < c.bottom - 10; y += 5) for (let x = c.left + 10; x < c.right - 10; x += 5) {
+        const h = window.__t.hit({clientX: x, clientY: y});
+        if (h && h.object.userData.slice) pts.push([x, y, h.point.x, h.point.y, h.point.z]) }
+      const z0 = Math.min(...pts.map(p => p[4]));
+      return pts.filter(p => p[4] < z0 + 0.06 * bb[2] && !tips.some(t => Math.hypot(t[0] - p[2], t[1] - p[3]) < r))
+        .sort((a, b) => a[4] - b[4])[0] }"""
+    for _ in range(2):
+        x, y, *_ = page.evaluate(hoof)
+        page.keyboard.down("Shift"); page.keyboard.down("Alt"); page.mouse.click(x, y)
+        page.keyboard.up("Alt"); page.keyboard.up("Shift")
+        settle(page)
+    p = plan(page)
+    branches = page.evaluate("() => window.__t.state().branches")
+    assert len(branches) == 2 and not p["errors"], (branches, p["errors"])
+    for i, (_, tip) in enumerate(branches, 1):
+        assert tip[2] < -0.35 * p["bbox"][2], branches                   # its tip is down at the hoof
+        own = [s["label"] for s in p["slices"] if re.match(rf"R{i}-|K{i}$", s["label"])]
+        assert f"K{i}" in own and len(own) >= 4, (i, own, branches)
+
+    curve = page.evaluate("() => window.__t.state().curve")
+    x, y = page.evaluate("""() => {   // a pixel on a joint plane with a part behind it
+      const c = window.__t.canvas().getBoundingClientRect(), B = window.__t.parts().filter(m => m.userData.group === 'B');
+      const at = (x, y) => window.__t.hit({clientX: x, clientY: y});
+      for (let y = c.top + 10; y < c.bottom - 10; y += 4) for (let x = c.left + 10; x < c.right - 10; x += 4) {
+        if (at(x, y)?.object.userData.group !== 'B') continue;
+        B.forEach(m => m.visible = false); const h = at(x, y); B.forEach(m => m.visible = true);
+        if (h?.object.userData.slice) return [x, y] } }""")
+    page.keyboard.down("Alt"); page.mouse.click(x, y); page.keyboard.up("Alt")
+    settle(page)
+    assert page.evaluate("() => window.__t.state().curve") != curve      # a curve point at the leg, not a dead click
+
+    page.evaluate("() => { window.__t.state().offset = {'J-2': 4} }")
+    a, b = branches[0]
+    x, y = page.evaluate("p => window.__t.screen(p)", [(u + v) / 2 for u, v in zip(a, b)])
+    page.keyboard.down("Alt"); page.mouse.click(x, y); page.keyboard.up("Alt")
+    settle(page)
+    assert page.evaluate("() => window.__t.state().branches") == branches[1:]
+    assert page.evaluate("() => window.__t.state().offset") == {"J-1": 4}
+    assert not [s["label"] for s in plan(page)["slices"] if re.match(r"R2-|K2$", s["label"])]
 
 
 ON_PART = """label => {
@@ -493,13 +560,16 @@ def test_stacked_with_aligned_dowels_finishes_on_a_box_with_a_hole(page, tmp_pat
 def test_the_dowel_the_spread_check_offers_lands_where_it_says(page):
     """A layer held by dowels bunched together is told on the Checks tab, under its own label, which dowel would hold
     it, with a button. The button adds that dowel to the ones typed in (the Technique tab's dowels), a rod appears
-    through that layer at that spot in the 3D view, and the warning goes. The horse as its example opens (random
-    3 mm square dowels, a 6 mm gap), set to aligned: the button is for dowels straight through the stack."""
+    through that layer at that spot in the 3D view, and the warning goes. The horse stacked as its example used to
+    open (random 3 mm square dowels, a 6 mm gap), set to aligned: the button is for dowels straight through the stack."""
     page.click('nav button[data-t="model"]')
     page.select_option("#example", "horse")
     settle(page)
     page.click('nav button[data-t="technique"]')
     page.click('#modes button[data-m="stacked"]')
+    settle(page)
+    page.evaluate("""() => window.__t.applyFix({axis: 'z', size: [0, 300, 0], connect: 'dowel', dowel_shape: 'square', placement: 'random',
+                                                space: 6, dowel_d: 3, n_points: 2, round: 3, thicken: 1, margin: 6})""")
     settle(page)
     set_fields(page, [("p_placement", "aligned")])
     settle(page)
