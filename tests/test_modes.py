@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 import trimesh
 
+from core.modes.folded import JOINTS
 from core.plan import build
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -254,6 +255,16 @@ def test_folded_holes_keep_the_wall_the_check_asks_for(joint):
     plan = build(EXAMPLES / "wedge.stl", "folded", {"thickness": 1, "facet": 0, "joint": joint, "autofix": "off"})
     assert not [w for s in plan["slices"] for w in s["warnings"] if "closer than" in w]
     assert sum(1 for s in plan["slices"] if s["group"] == "F" for _ in s["pieces"]) >= 1
+
+
+@pytest.mark.parametrize("joint", JOINTS)
+def test_folded_tabs_stay_on_their_panel(joint):
+    """Found by the release's media run on Linux: the ticked joint's ticks touch the panel only along its edge, and
+    rounding put their base a hair outside it, so each tick came off as a 5 × 6 mm piece of its own (9 errors on the
+    landing page's 90 mm cube; none on Windows). Every joint's tabs are one piece with the net."""
+    plan = build(EXAMPLES / "cube.stl", "folded", {"size": [90, 0, 0], "joint": joint, "facet": 0, "inset": 6, "spacing": 30,
+                                                   "thickness": 1, "autofix": "off"})
+    assert plan["counts"]["errors"] == 0, [e for s in plan["slices"] for e in s["errors"]][:3]
 
 
 def test_one_sheet_nests_everything_on_one_strip():

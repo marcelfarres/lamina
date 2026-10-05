@@ -14,7 +14,7 @@ on:
         default: ""
 
 permissions:
-  contents: write            # commits the refreshed docs/media back to main
+  contents: write            # commits the refreshed docs/media back to the branch it recorded
 
 concurrency:
   group: media
@@ -24,10 +24,14 @@ jobs:
   record:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      # a tag push records main, where the site deploys from; a run by hand records the branch it was started on — a
+      # release branch before its tag, so a scene that ends on errors on Linux stops the release instead of following it
+      BRANCH: ${{ github.event_name == 'push' && 'main' || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main          # a tag push checks out the tag; the media belong on main, where the site deploys from
+          ref: ${{ env.BRANCH }}
       - uses: astral-sh/setup-uv@v5
       - uses: actions/setup-node@v4
         with:
@@ -43,4 +47,4 @@ jobs:
           git add docs/media
           if git diff --cached --quiet; then echo "media unchanged"; exit 0; fi
           git commit -m "Landing-page media recorded from ${GITHUB_REF_NAME}"
-          git push origin HEAD:main
+          git push origin "HEAD:$BRANCH"

@@ -199,7 +199,7 @@ def test_a_printed_job_comes_out_as_one_plate_per_bed(tmp_path):
         lo, hi = scene.bounds
         assert (hi - lo)[:2].max() <= max(bed) + 1e-6 and lo[:2].min() >= -1e-6, (i, lo, hi)
     export(plan, tmp_path / "cut", fmts=("svg",))
-    assert "plate 1/" in next((tmp_path / "cut").rglob("*.svg")).read_text(encoding="utf-8")
+    assert "plate 1/" in next((tmp_path / "cut").glob("* sheet1.svg")).read_text(encoding="utf-8")   # by name: Linux lists a folder unsorted
 
 
 def test_fit_test_is_the_jobs_joints_at_five_offsets_on_a_small_stand_in(tmp_path):

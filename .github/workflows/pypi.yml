@@ -33,6 +33,7 @@ jobs:
           uv tool install dist/*.whl
           mkdir run && cd run
           BROWSER=true uv tool run lamina3d --port 8000 &
+          trap "kill $!" EXIT   # left running, it holds uv's cache lock: setup-uv's cleanup then waits 5 min and fails the run
           for i in $(seq 60); do curl -sf localhost:8000/api/modes >/dev/null && break; sleep 1; done
           curl -sf localhost:8000/changelog.md | grep -q "^## ${GITHUB_REF_NAME#v}$"
           curl -sf localhost:8000/ | grep -q "<title>"
