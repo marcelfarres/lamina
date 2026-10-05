@@ -53,6 +53,9 @@ lint.ignore = ["S101", "S603", "S607", "S110",      # asserts and subprocess cal
 pythonpath = ["."]          # the tests import core/ from the repo root
 testpaths = ["tests"]
 timeout = 180               # a hang is a failure, not a wait: pytest-timeout stops the run and prints where it was
+# scikit-image 0.26's marching cubes (the remesh in modify form) sets an array's shape, which NumPy 2.5 deprecated: its
+# code, not ours, and users never see it. Only that message from that module; drop this once scikit-image fixes it.
+filterwarnings = ["ignore:Setting the shape on a NumPy array:DeprecationWarning:skimage.measure._marching_cubes_lewiner"]
 
 # The PyPI package (.github/workflows/pypi.yml publishes it on every release tag): web/ carries the examples and the
 # changelog, so an installed copy finds them where web/app.py's bundled() looks.
