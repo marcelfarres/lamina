@@ -510,6 +510,14 @@ ON_PART = """label => {
 }"""
 
 
+def still(page):
+    """Wait until the view stops gliding after a drag (damping eases it a step per frame): five frames in a row with
+    the camera where it was. A fixed wait ran out mid-glide on the CI runner's few frames a second, and the next press
+    landed on the layer beside the one the test had picked."""
+    page.evaluate("""async () => { const k = () => window.__t.camera.position.toArray().map(v => v.toFixed(4)).join();
+      for (let same = 0, last = k(); same < 5;) { await new Promise(r => requestAnimationFrame(r)); const now = k(); same = now === last ? same + 1 : 0; last = now } }""")
+
+
 @pytest.mark.timeout(600)
 def test_a_report_is_gathered_while_the_slicer_is_stuck(page):
     """Reported: "compiling report froze, unless I reloaded the page", during a slice that never finished. In the
@@ -626,7 +634,7 @@ def test_only_a_handle_moves_a_part(page):
         page.mouse.move(x, y); page.mouse.down(); page.mouse.move(x + 60, y + 40, steps=8); page.mouse.up()
         if mod:
             page.keyboard.up(mod)
-        page.wait_for_timeout(600)
+        still(page)
         settle(page)
         return page.evaluate("l => [(window.__t.state().offset || {})[l] || 0, (window.__t.state().tilt || {})[l] || 0]", label)
 
