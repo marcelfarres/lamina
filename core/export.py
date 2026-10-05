@@ -147,6 +147,15 @@ def thick_tag(plan, mm):
     return f" {mm * UNIT[u]:.3g}{u}"
 
 
+def design_name(plan):
+    """<project or model>_v<rev>: what every file of a job is named after, the zip it comes in and each file in it, so
+    the cut files of two designs unzipped into one folder never mix (sheet1.svg of one over sheet1.svg of the other).
+    One word: the spaces in a file name separate part, material, thickness and quantity."""
+    p = plan["params"]
+    stem = "".join(c if c.isalnum() or c in "-_." else "_" for c in str(p.get("project") or p.get("model_name") or "")).strip("_.")
+    return f"{stem or 'model'}_v{p.get('rev') or '1.0'}"
+
+
 def mat_tag(plan):
     """The stock in a file name, when the job says what it is: a file that leaves for a machine should name what it is
     cut from. It is one word, joined by dashes ("stainless-steel"), because the spaces separate part, material,
@@ -350,6 +359,7 @@ def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, bor
     out_dir = pathlib.Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
     font = font or plan["params"].get("font", 4.0); units = units or plan["params"].get("units", "mm")
     names = plan.get("codes") or {}                 # puzzle mode: engraved codes instead of positions
+    design = design_name(plan)                      # before every file name: two designs' files never mix
     written = []
 
     def size_of(it):
@@ -360,7 +370,7 @@ def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, bor
 
     def write(stem, items, w, h, border_, fmts=fmts, title=""):
         for fmt in fmts:
-            f = out_dir / f"{stem}.{fmt}"
+            f = out_dir / f"{design} {stem}.{fmt}"
             if fmt == "svg": f.write_text(svg_doc(items, w, h, labels, border_, font, units, title), encoding="utf-8")
             elif fmt == "dxf": dxf_doc(items, labels, (w, h) if border_ else None, font, units).saveas(f)
             elif fmt == "eps": f.write_text(eps_doc(items, w, h, labels, border_, font), encoding="latin-1")
@@ -372,7 +382,7 @@ def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, bor
             cpc, cnote, _, _ = scale_check_piece(plan)
             stem = "scale-check" + mat_tag(plan) + " x1"
             it, w, h = item_for_piece(cpc, cnote); write(stem, [it], w, h, False)
-            rows.append((stem, 1, size_of(it), cnote))
+            rows.append((f"{design} {stem}", 1, size_of(it), cnote))
         thick = {pc["label"]: sl["thickness"] for sl in plan["slices"] for pc in sl["pieces"]}
         for pc, note, labels, flips in identical_groups(plan):
             n = len(labels); t = thick[pc["label"]]
@@ -383,11 +393,11 @@ def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, bor
                                       tag=plan.get("label_tag", ""))
             write(stem, [it], w, h, False)
             also = "also " + ", ".join(names.get(l, l) for l in labels[1:]) if n > 1 else note
-            rows.append((stem, n, size_of(it), "; ".join(x for x in [also, "turn over " + ", ".join(names.get(l, l) for l in flips) if flips else ""] if x)))
+            rows.append((f"{design} {stem}", n, size_of(it), "; ".join(x for x in [also, "turn over " + ", ".join(names.get(l, l) for l in flips) if flips else ""] if x)))
         # one row per file: how many to cut, and each part's width × height as it lies in its file (what to check
         # against the stock, and the way to tell two parts apart that look alike)
         fw = max(len(s) for s, *_ in rows) + 2; sw = max(len(z) for _, _, z, _ in rows) + 2
-        f = out_dir / "cut-list.txt"
+        f = out_dir / f"{design} cut-list.txt"
         f.write_text(f"{'file':<{fw}}qty  {f'size ({units})':<{sw}}notes\n"
                      + "".join(f"{s:<{fw}}{n:3d}  {z:<{sw}}{t}".rstrip() + "\n" for s, n, z, t in rows), encoding="utf-8")
         written.append(f)
@@ -398,9 +408,9 @@ def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, bor
             write(f"sheet{si + 1}{mat_tag(plan)}{thick_tag(plan, sheet_thickness(plan, si))}", items, W, H, border,
                   [x for x in fmts if x != "pdf"], sheet_title(plan, si) if labels else "")
         if "pdf" in fmts:                           # one multi-page PDF for all sheets
-            f = out_dir / "sheets.pdf"; pdf_doc(f, pages, labels, border, font); written.append(f)
+            f = out_dir / f"{design} sheets.pdf"; pdf_doc(f, pages, labels, border, font); written.append(f)
     if key:
-        f = out_dir / "assembly-key.txt"; f.write_text(key_text(plan), encoding="utf-8"); written.append(f)
+        f = out_dir / f"{design} assembly-key.txt"; f.write_text(key_text(plan), encoding="utf-8"); written.append(f)
     return written
 
 

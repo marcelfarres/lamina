@@ -132,6 +132,9 @@ uv tool install lamina3d     # "lamina3d[cad]" adds STEP / BREP import
 lamina3d                     # opens http://localhost:8000 (--port to change it)
 ```
 
+If the shell says `lamina3d` is not found, uv's tool folder is not on your PATH yet: run `uv tool update-shell` and
+open a new terminal, or start it with `uv tool run lamina3d`.
+
 **To work on Lamina itself**, from a clone:
 
 ```bash
@@ -296,13 +299,14 @@ does not slip through. It carries the most signal for stacked and folded work; d
 - **Cut files**: SVG and DXF in mm / cm / in, multi-page PDF, EPS per sheet, or one file per piece, each with or
   without the red label layer (one switch for every file). Layers follow Slicer's Cut Layout: OUTER blue, INNER green
   (slots, holes), SCORE yellow (folds: solid mountain, dashed valley, dotted perforate), LABEL red (labels, leaders,
-  seam numbers, sheet border). Files are named `<project or model>_v<revision>_<technique>_…`, so exports of
-  different models never collide.
+  seam numbers, sheet border). The zip is named `<project or model>_v<revision>_<technique>_…`, and so is every file
+  in it: they all start with the design, `egg_v1.0 sheet1 plywood.svg`, so the cut files of two designs unzipped
+  into one folder never collide or mix.
 - **Identical pieces once**: in per-piece mode a shape that occurs several times is exported one time, with the
-  quantity last in the file name and on the label. A per-piece file is named part, material, thickness, quantity, in
-  that order and separated by spaces, and it always ends in its quantity, `x1` included (`Z-1 plywood x4.svg`,
-  `Z-2 plywood x1.svg`); a `cut-list.txt` says which parts each file covers and gives each part's width × height in
-  your units.
+  quantity last in the file name and on the label. A per-piece file is named design, part, material, thickness,
+  quantity, in that order and separated by spaces, and it always ends in its quantity, `x1` included
+  (`egg_v1.0 Z-1 plywood x4.svg`, `egg_v1.0 Z-2 plywood x1.svg`); a `cut-list.txt` says which parts each file
+  covers and gives each part's width × height in your units.
 - **The model's name on every part**: each engraved label starts with it (`bunny Z-3`), so parts of two models cut
   together are never mixed up. The project's name when it has one, else the model's file name; room for it is kept
   when the parts are nested, and `label_model` turns it off.

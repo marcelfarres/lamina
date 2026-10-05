@@ -20,7 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
 from core import plan as plan_module
 from core.plan import build, MODES, CAD_SUFFIXES
-from core.export import export, svg_doc, items_for_sheet, sheet_title
+from core.export import design_name, export, svg_doc, items_for_sheet, sheet_title
 from core.solid import assembled
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -76,15 +76,6 @@ def model_name(jd):
     """The model's own file name: kept in name.txt for uploads (the copy itself is renamed), else the example's."""
     src = pathlib.Path((jd / "source.txt").read_text())
     return (jd / "name.txt").read_text().strip() if (jd / "name.txt").exists() else src.name
-
-
-def file_base(jd, plan):
-    """<project or model>_v<rev> for download names: the project name when there is one, otherwise the model's file
-    name, so files from different models never collide."""
-    p = plan["params"]
-    stem = p.get("project") or pathlib.Path(model_name(jd)).stem or "model"
-    stem = "".join(c if c.isalnum() or c in "-_." else "_" for c in stem).strip("_.") or "model"
-    return f"{stem}_v{p.get('rev') or '1.0'}"
 
 
 app = FastAPI(title="Lamina")
@@ -299,7 +290,7 @@ def project_file(client: str, jd: pathlib.Path, plan: dict) -> tuple[str, str]:
     if not example and (jd / "source.txt").exists():
         src = pathlib.Path((jd / "source.txt").read_text())
         proj["model"] = {"name": model_name(jd), "b64": base64.b64encode(src.read_bytes()).decode()}
-    return f"{file_base(jd, plan)}.lamina.json", json.dumps(proj)
+    return f"{design_name(plan)}.lamina.json", json.dumps(proj)
 
 
 @app.get("/api/job/{client}/{job}/export")
@@ -320,7 +311,7 @@ def job_export(client: str, job: str, fmt: str = "svg,dxf", labels: int = 1, per
             z.writestr(*project_file(client, jd, plan))
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
-    name = f"{file_base(jd, plan)}_{plan['mode']}_{'pieces' if per_piece else 'sheets'}_{'-'.join(fmts)}{'' if labels else '_plain'}.zip"
+    name = f"{design_name(plan)}_{plan['mode']}_{'pieces' if per_piece else 'sheets'}_{'-'.join(fmts)}{'' if labels else '_plain'}.zip"
     return Response(buf.getvalue(), media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
@@ -361,7 +352,7 @@ def job_proto(client: str, job: str, scale: float = 1.0, size: float = 0.0, labe
                 z.write(f, f.name)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
-    return Response(buf.getvalue(), media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{file_base(jd, plan)}_{plan["mode"]}_proto_x{scale:.3g}.zip"'})
+    return Response(buf.getvalue(), media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{design_name(plan)}_{plan["mode"]}_proto_x{scale:.3g}.zip"'})
 
 
 @app.get("/api/job/{client}/{job}/fit")
@@ -386,7 +377,7 @@ def job_fit(client: str, job: str, scale: float = 1.0, size: float = 0.0, labels
                 z.write(f, f.name)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
-    return Response(buf.getvalue(), media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{file_base(jd, plan)}_{plan["mode"]}_printfit_x{scale:.3g}.zip"'})
+    return Response(buf.getvalue(), media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{design_name(plan)}_{plan["mode"]}_printfit_x{scale:.3g}.zip"'})
 
 
 @app.get("/api/job/{client}/{job}/fitcut")
@@ -410,7 +401,7 @@ def job_fitcut(client: str, job: str, fmt: str = "svg,dxf", labels: int = 1, ste
                 z.write(f, f.relative_to(tmp).as_posix())
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
-    return Response(buf.getvalue(), media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{file_base(jd, plan)}_{plan["mode"]}_fit_{"-".join(fmts)}.zip"'})
+    return Response(buf.getvalue(), media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{design_name(plan)}_{plan["mode"]}_fit_{"-".join(fmts)}.zip"'})
 
 
 @app.get("/api/job/{client}/{job}/stl")
@@ -422,7 +413,7 @@ def job_stl(client: str, job: str, part: str = ""):
     if part and part not in {pc["label"] for sl in plan["slices"] for pc in sl["pieces"]}:  # a label of the plan, or nothing: it names the file too
         raise HTTPException(404, "no such part")
     data = assembled(plan, part or None).export(file_type="stl")
-    name = f"{file_base(jd, plan)}_{plan['mode']}_{part or 'assembled'}.stl"
+    name = f"{design_name(plan)}_{plan['mode']}_{part or 'assembled'}.stl"
     return Response(data, media_type="model/stl", headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
