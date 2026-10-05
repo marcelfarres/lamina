@@ -6,6 +6,11 @@ What changed in each release. The GitHub release for a version is this section, 
 
 A fix for 0.2.2, found the day it came out. If you have 0.2.2, update to this one.
 
+### Changed
+
+- **What's new covers everything you missed.** The notes that open by themselves after an update now show every
+  version since the one you last used, not only the newest. Coming from 0.2.1, you see 0.2.2's notes as well as these.
+
 ### Fixed
 
 - **The ticked joint keeps its ticks.** On some computers, Linux and the Docker version among them, a folded net with
