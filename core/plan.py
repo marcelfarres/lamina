@@ -366,6 +366,7 @@ def shed_slivers(raw, prof, cuts, mf, mp):
 def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     mode = MODES[mode_name]
     p = coerce_params(mode, raw_params)
+    p["model_name"] = p["model_name"] or pathlib.Path(model_path).stem   # the server sets the uploaded name; the CLI has the path
     notes = []
     _run.__init__()
     mesh = load_mesh(model_path, p, notes, mode_name)

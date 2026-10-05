@@ -99,8 +99,12 @@ too near the edge, and the browser version's one intermittent failure.
   even though both have a Z-3. It is the project's name when you have given one, otherwise the model's file name.
   The room for it is kept when the parts are nested; **label model** on the Sheet & fit tab turns it off.
 - **The cut list gives each part's size**, width × height as it lies in its file, in your units.
-- **A material of several words is one word** in a file name: `Z-1 stainless-steel x4.svg`. The spaces always
-  separate part, material, thickness and quantity.
+- **Every file is named after its design.** Each file in a download starts with the name the zip has, the project's
+  or the model's with its revision: `egg_v1.0 sheet1 plywood.svg`, `egg_v1.0 Z-1 plywood x4.svg`,
+  `egg_v1.0 cut-list.txt`. The cut files of two designs unzipped into one folder no longer overwrite or mix with
+  each other.
+- **A material of several words is one word** in a file name: `egg_v1.0 Z-1 stainless-steel x4.svg`. The spaces
+  always separate design, part, material, thickness and quantity.
 
 ### 3D view
 

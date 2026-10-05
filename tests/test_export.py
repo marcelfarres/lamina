@@ -9,7 +9,7 @@ import ezdxf
 import trimesh
 from lxml import etree
 
-from core.export import export
+from core.export import design_name, export
 from core.plan import build
 from core.solid import assembled, proto_set
 
@@ -38,7 +38,7 @@ def test_svg_layers_and_entity_counts_stacked(tmp_path):
     export(plan, tmp_path, fmts=("svg",), labels=True)
     exp = sheet0_expected_counts(plan)
 
-    tree = etree.parse(str(tmp_path / "sheet1.svg"))
+    tree = etree.parse(str(tmp_path / f"{design_name(plan)} sheet1.svg"))
     outer_g = tree.xpath('//svg:g[@id="OUTER"]', namespaces=SVG_NS)[0]
     inner_g = tree.xpath('//svg:g[@id="INNER"]', namespaces=SVG_NS)[0]
     assert len(outer_g.xpath('.//svg:path', namespaces=SVG_NS)) == exp["outer"]
@@ -54,7 +54,7 @@ def test_svg_score_and_label_counts_folded(tmp_path):
     exp = sheet0_expected_counts(plan)
     assert exp["score"] > 0  # folded panels have fold lines — this plan should actually exercise SCORE
 
-    tree = etree.parse(str(tmp_path / "sheet1.svg"))
+    tree = etree.parse(str(tmp_path / f"{design_name(plan)} sheet1.svg"))
     score_g = tree.xpath('//svg:g[@id="SCORE"]', namespaces=SVG_NS)[0]
     label_g = tree.xpath('//svg:g[@id="LABEL"]', namespaces=SVG_NS)[0]
     assert len(score_g.xpath('.//svg:path', namespaces=SVG_NS)) == exp["score"]
@@ -67,7 +67,7 @@ def test_dxf_reloads_with_same_layers_and_matching_entity_counts(tmp_path):
     export(plan, tmp_path, fmts=("dxf",), labels=True)
     exp = sheet0_expected_counts(plan)
 
-    doc = ezdxf.readfile(str(tmp_path / "sheet1.dxf"))
+    doc = ezdxf.readfile(str(tmp_path / f"{design_name(plan)} sheet1.dxf"))
     assert sorted(l.dxf.name for l in doc.layers if l.dxf.name in ("OUTER", "INNER", "SCORE", "LABEL")) == [
         "INNER", "LABEL", "OUTER", "SCORE",
     ]
@@ -83,7 +83,7 @@ def test_a_project_name_is_text_in_the_svg_not_markup(tmp_path):
     markup must arrive as text (a crafted project attached to a bug report would otherwise run in the reader's app)."""
     plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 3, "autofix": "off", "project": '</text><img src=x onerror="alert(1)">'})
     export(plan, tmp_path, fmts=("svg",), labels=True)
-    tree = etree.parse(str(tmp_path / "sheet1.svg"))                          # still well-formed…
+    tree = etree.parse(str(tmp_path / f"{design_name(plan)} sheet1.svg"))                          # still well-formed…
     assert not tree.xpath("//*[local-name()='img']")                          # …and the tag is not an element
     assert '<img' in "".join(tree.xpath('//svg:g[@id="LABEL"]/svg:text/text()', namespaces=SVG_NS))   # but text
 
@@ -93,12 +93,12 @@ def test_assembly_key_explains_the_labels_and_lists_every_part(tmp_path):
     sits. It is written only when asked for, so the fit-test folders stay clean."""
     plan = build(EXAMPLES / "cylinder.stl", "radial", {"count": 5, "ring_count": 3, "autofix": "off"})
     export(plan, tmp_path, fmts=("svg",), labels=True, key=True)
-    key = (tmp_path / "assembly-key.txt").read_text(encoding="utf-8")
+    key = (tmp_path / f"{design_name(plan)} assembly-key.txt").read_text(encoding="utf-8")
     assert plan["legend"].split(" · ")[0] in key
     assert all(pc["label"] in key for sl in plan["slices"] for pc in sl["pieces"])
 
     export(plan, tmp_path / "plain", fmts=("svg",), labels=True)
-    assert not (tmp_path / "plain" / "assembly-key.txt").exists()
+    assert not (tmp_path / "plain" / f"{design_name(plan)} assembly-key.txt").exists()
 
 
 def test_puzzle_mode_engraves_codes_and_the_key_is_the_way_back(tmp_path):
@@ -110,12 +110,12 @@ def test_puzzle_mode_engraves_codes_and_the_key_is_the_way_back(tmp_path):
     assert set(codes) == {pc["label"] for sl in plan["slices"] for pc in sl["pieces"]}
 
     export(plan, tmp_path, fmts=("svg",), labels=True, key=True)
-    sheets = "".join(f.read_text(encoding="utf-8") for f in sorted(tmp_path.glob("sheet*.svg")))
+    sheets = "".join(f.read_text(encoding="utf-8") for f in sorted(tmp_path.glob("* sheet*.svg")))
     for label, code in codes.items():
         assert f">egg {code}<" in sheets                  # engraved: the model's name and the code
         assert f" {label}<" not in sheets                 # never where the part goes
         assert f'data-label="{label}"' in sheets          # the sheet ↔ 3D selection is unchanged
-    key = (tmp_path / "assembly-key.txt").read_text(encoding="utf-8")
+    key = (tmp_path / f"{design_name(plan)} assembly-key.txt").read_text(encoding="utf-8")
     assert all(code in key and label in key for label, code in codes.items())
     assert build(EXAMPLES / "egg.stl", "stacked", params)["codes"] == codes   # same job, same codes as yesterday
 
@@ -125,14 +125,14 @@ def test_per_piece_files_in_puzzle_mode_are_named_after_the_code(tmp_path):
     plan = build(EXAMPLES / "egg.stl", "stacked",
                  {"distribution": "count", "count": 4, "label_style": "code", "autofix": "off"})
     export(plan, tmp_path, fmts=("svg",), labels=True, per_piece=True)
-    stems = {f.stem.split(" ")[0] for f in tmp_path.glob("*.svg")} - {"scale-check"}
+    stems = {f.stem.split(" ")[1] for f in tmp_path.glob("*.svg")} - {"scale-check"}
     assert stems and stems <= set(plan["codes"].values())
 
 
 def test_pdf_has_one_page_per_sheet(tmp_path):
     plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 3, "autofix": "off"})
     export(plan, tmp_path, fmts=("pdf",), labels=True)
-    data = (tmp_path / "sheets.pdf").read_bytes()
+    data = (tmp_path / f"{design_name(plan)} sheets.pdf").read_bytes()
     assert data.startswith(b"%PDF") and plan["sheets"] >= 1
     assert len(re.findall(rb"/Type\s*/Page\b", data)) == plan["sheets"]          # \b keeps the /Pages tree object out
 
@@ -145,7 +145,7 @@ def test_the_command_lines_run_the_same_pipeline(tmp_path, capsys):
     plan_main([str(EXAMPLES / "egg.stl"), "--mode", "interlocked", "--set", "nx=3", "ny=3", "thickness=3", "--out", str(tmp_path / "egg")])
     assert capsys.readouterr().out.startswith("interlocked: 6 slices")
     export_main([str(tmp_path / "egg.json"), "--out", str(tmp_path / "cut"), "--fmt", "svg", "eps", "--per-piece", "--labels"])
-    assert (tmp_path / "cut" / "cut-list.txt").exists() and list((tmp_path / "cut").glob("*.eps"))
+    assert list((tmp_path / "cut").glob("egg_v1.0 cut-list.txt")) and list((tmp_path / "cut").glob("*.eps"))
     solid_main([str(tmp_path / "egg.json"), "--proto", str(tmp_path / "proto"), "--scale", "0.2"])
     assert "re-planned" in capsys.readouterr().out and (tmp_path / "proto" / "plate.3mf").exists()
     plan_main([str(EXAMPLES / "egg.stl"), "--mode", "folded", "--list-params"])
@@ -247,3 +247,18 @@ def test_proto_set_3mf_reloads_with_one_named_geometry_per_part(tmp_path):
     assert len(scene.geometry) == plan["counts"]["parts"]
     expected_labels = {pc["label"] for sl in plan["slices"] for pc in sl["pieces"]}
     assert set(scene.geometry.keys()) == expected_labels
+
+
+def test_every_file_carries_the_design_name_so_two_designs_never_mix(tmp_path):
+    """Asked for: two designs unzipped into one folder overwrote each other's sheet1.svg and cut-list.txt, and a
+    part's file said nothing of whose part it was. Every file of a job starts with the design's name, the one its zip
+    is named after: the project's when it has one, else the model's, and its revision."""
+    cube = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 3, "autofix": "off"})
+    egg = build(EXAMPLES / "egg.stl", "stacked", {"distribution": "count", "count": 3, "autofix": "off", "project": "my egg", "rev": "2.1"})
+    for per_piece in (False, True):
+        out = tmp_path / str(per_piece)
+        a = export(cube, out, fmts=("svg", "dxf", "pdf"), labels=True, per_piece=per_piece, key=True)
+        b = export(egg, out, fmts=("svg", "dxf", "pdf"), labels=True, per_piece=per_piece, key=True)
+        assert all(f.name.startswith("cube_v1.0 ") for f in a), [f.name for f in a]
+        assert all(f.name.startswith("my_egg_v2.1 ") for f in b), [f.name for f in b]
+        assert len({f.name for f in a} | {f.name for f in b}) == len(a) + len(b) == len(list(out.iterdir()))
