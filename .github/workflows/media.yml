@@ -29,11 +29,11 @@ jobs:
       # release branch before its tag, so a scene that ends on errors on Linux stops the release instead of following it
       BRANCH: ${{ github.event_name == 'push' && 'main' || github.ref_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ env.BRANCH }}
-      - uses: astral-sh/setup-uv@v5
-      - uses: actions/setup-node@v4
+      - uses: astral-sh/setup-uv@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"   # capture.mjs uses the built-in WebSocket
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
