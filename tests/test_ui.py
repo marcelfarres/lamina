@@ -886,17 +886,24 @@ def test_what_is_new_shows_itself_once_when_the_version_changes(page, server):
         settle(page)
         page.wait_for_timeout(600)                       # the notes are fetched after the page is up
 
-    latest = page.evaluate("async () => (await (await fetch('changelog.md')).text()).split(/^## +/m)[1].split('\\n')[0].trim()")
-    assert latest, "the app could not read CHANGELOG.md"
+    versions = page.evaluate("async () => (await (await fetch('changelog.md')).text()).split(/^## +/m).slice(1).map(p => p.split('\\n')[0].trim())")
+    latest = versions[0]
+    assert len(versions) > 3, "the app could not read CHANGELOG.md"
+    heads = lambda: page.eval_on_selector_all("#news_body h5", "els => els.map(e => e.textContent.replace('Version ', ''))")
 
     reload_with(None)                                    # never seen Lamina: nothing is new, so nothing opens
     assert not page.locator("#newsdlg[open]").count(), "a first-time visitor was shown release notes"
     assert page.evaluate("() => JSON.parse(localStorage.getItem('slicer_seen_version'))") == latest
 
-    reload_with("0.0.1")                                 # last seen an older version: shown once
+    # last seen two versions back (0.2.1, with 0.2.2 and its next-day fix 0.2.3 out since): both, newest first — the
+    # fix must not hide the release it fixed
+    reload_with(versions[2])
     assert page.locator("#newsdlg[open]").count(), "a new version did not announce itself"
-    body = page.text_content("#news_body")
-    assert latest in page.text_content("#news_title") and len(body) > 200, (page.text_content("#news_title"), body[:80])
+    assert heads() == versions[:2] and len(page.text_content("#news_body")) > 200, heads()
+    page.click("#news_go")
+
+    reload_with("0.0.1")                                 # a version no longer listed: every version
+    assert heads() == versions, heads()
     page.click("#news_go")
 
     page.goto(server + "/")                              # and not again on the next visit
