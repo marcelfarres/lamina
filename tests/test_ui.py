@@ -990,21 +990,24 @@ def test_every_control_does_what_it_says_and_every_download_holds_the_plan(page,
     # -- every download: fetched as the link has it, opened, and held against the plan
     page.click('nav button[data-t="export"]')
     p = plan(page); labels = {pc["label"] for s in p["slices"] for pc in s["pieces"]}
+    from core.export import design_name
+    design = design_name(p)                              # every file in a zip is named after the design, as the zip is
     links = {a["t"]: a["h"] for a in page.eval_on_selector_all("#dl a", "as => as.map(a => ({t: a.textContent, h: a.getAttribute('href')}))")}
     get = lambda href: page.request.get(f"{server}/{href}")
     z = zip_of(get(links["sheets SVG + DXF"]).body())
     svgs = [n for n in z.namelist() if n.endswith(".svg")]
-    assert svgs and any(n.endswith(".dxf") for n in z.namelist()) and "assembly-key.txt" in z.namelist()
+    assert svgs and any(n.endswith(".dxf") for n in z.namelist()) and f"{design} assembly-key.txt" in z.namelist()
+    assert all(n.startswith(f"{design} ") or n == f"{design}.lamina.json" for n in z.namelist()), z.namelist()
     drawn = {el.get("data-label") for n in svgs for el in ET.fromstring(z.read(n)).iter() if el.get("data-label")}   # noqa: S314 — our own server's SVG
     assert labels <= drawn, f"parts in the plan but on no sheet: {sorted(labels - drawn)[:5]}"
-    key = z.read("assembly-key.txt").decode()
+    key = z.read(f"{design} assembly-key.txt").decode()
     assert all(lb in key for lb in labels), "the assembly key misses parts"
     pdf = zip_of(get(links["sheets PDF (one page per sheet)"]).body())       # zipped, with the key and the project file
     assert [pdf.read(n)[:4] for n in pdf.namelist() if n.endswith(".pdf")] == [b"%PDF"]
     eps = zip_of(get(links["sheets EPS"]).body())
     assert all(eps.read(n)[:4] == b"%!PS" for n in eps.namelist() if n.endswith(".eps"))
     pieces = zip_of(get(links["one file per piece SVG + DXF"]).body())
-    assert "cut-list.txt" in pieces.namelist() and len([n for n in pieces.namelist() if n.endswith(".svg")]) >= 2
+    assert f"{design} cut-list.txt" in pieces.namelist() and len([n for n in pieces.namelist() if n.endswith(".svg")]) >= 2
     stl = get(links["assembled STL"]).body()
     assert len(stl) == 84 + 50 * int.from_bytes(stl[80:84], "little") and int.from_bytes(stl[80:84], "little") > 100, "the STL is not whole"
     one = get(links["assembled STL"] + "?part=" + sorted(labels)[0]).body()     # one part alone, as the parts table offers it
@@ -1015,7 +1018,7 @@ def test_every_control_does_what_it_says_and_every_download_holds_the_plan(page,
     page.uncheck("#x_key"); page.uncheck("#x_labels")
     href = page.eval_on_selector("#dl a", "a => a.getAttribute('href')")
     assert "key=0" in href and "labels=0" in href
-    assert "assembly-key.txt" not in zip_of(get(href).body()).namelist()
+    assert not any(n.endswith("assembly-key.txt") for n in zip_of(get(href).body()).namelist())
     page.check("#x_key"); page.check("#x_labels")
 
     # -- prototyping: the fields reach the request, and the zips hold a plate
