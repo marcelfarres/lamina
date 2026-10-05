@@ -578,8 +578,14 @@ def test_the_dowel_the_spread_check_offers_lands_where_it_says(page):
     assert offered.count(), [w for s in plan(page)["slices"] for w in s["warnings"] if "bunched" in w]
     msg = offered.first
     label, text = msg.get_attribute("data-s"), msg.text_content()
-    x, y = map(float, re.search(r"a dowel at \(([-\d.]+), ([-\d.]+)\)", text).groups())
+    x, y = map(float, re.search(r"a dowel at \(([-\d.]+) mm, ([-\d.]+) mm\)", text).groups())
     assert plan(page)["params"]["dowels"] == []
+    # in inches the spot is in inches too, the message and its button (it stayed in mm without a unit after it)
+    page.select_option("#unit", "in")
+    for t in (offered.first.text_content(), offered.first.locator(".fix").first.text_content()):
+        spot = re.search(r"a dowel at \(([^)]*)\)", t).group(1)
+        assert spot.count(" in") == 2 and "mm" not in spot, spot
+    page.select_option("#unit", "mm")
 
     msg.locator(".fix").first.click()
     settle(page)
