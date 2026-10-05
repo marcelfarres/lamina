@@ -545,8 +545,8 @@ addEventListener('keydown',e=>{
 
 // What's new. CHANGELOG.md is the one copy — the server serves it and the published build copies it beside the
 // page, so the same relative path works either way, and its first `## x.y.z` heading *is* the version: nothing to
-// bump in two places. The dialog opens itself once when that version is not the one this browser last saw, and the
-// header button opens the whole list, newest first. A browser that has never seen Lamina is not shown it: for them
+// bump in two places. The dialog opens itself once when that version is not the one this browser last saw, with every
+// version since that one, and the header button opens the whole list, newest first. A browser that has never seen Lamina is not shown it: for them
 // none of it is new.
 const MDESC={'&':'&amp;','<':'&lt;','>':'&gt;'};
 const md2html=s=>s.replace(/[&<>]/g,c=>MDESC[c])
@@ -566,10 +566,10 @@ async function news(){
   }
   return NEWS;
 }
-async function showNews(all){
-  const vs=await news(); if(!vs.length)return;
-  $('#news_title').textContent=all?'What’s new':`What’s new in ${vs[0].v}`;
-  $('#news_body').innerHTML=(all?vs:vs.slice(0,1)).map(s=>(all?`<h5>Version ${s.v}</h5>`:'')+md2html(s.body)).join('');
+async function showNews(n){                              // the n newest versions (the header button: all of them)
+  const vs=(await news()).slice(0,n); if(!vs.length)return;
+  $('#news_title').textContent=vs.length>1?'What’s new':`What’s new in ${vs[0].v}`;
+  $('#news_body').innerHTML=vs.map(s=>(vs.length>1?`<h5>Version ${s.v}</h5>`:'')+md2html(s.body)).join('');
   if(!$('#newsdlg').open)$('#newsdlg').showModal();
   $('#newsdlg').scrollTop=0;                             // focus lands on OK, which would otherwise open it at the end
 }
@@ -577,7 +577,10 @@ async function whatsNew(){
   try{
     const vs=await news(); if(!vs.length)return;
     const seen=ls('slicer_seen_version',null); lsSet('slicer_seen_version',vs[0].v);
-    if(seen&&seen!==vs[0].v)showNews(false);
+    // every version since the one this browser last saw, not only the newest: a fix that came out a day later must
+    // not hide the release it fixed. A version no longer in the list shows them all
+    const i=vs.findIndex(s=>s.v===seen);
+    if(seen&&i!==0)showNews(i<0?vs.length:i);
   }catch(e){}                                            // no changelog beside the page: the button still works
 }
 
@@ -1359,7 +1362,7 @@ async function init(){
   $('#origsize').onclick=()=>{state.scale=1;state.size=[0,0,0];state.rotate=[0,0,0];state.up_axis='z';renderFields();fitted=false;slice()};
   $('#undo').onclick=()=>step(undos,redos); $('#redo').onclick=()=>step(redos,undos);
   $('#helpbtn').onclick=()=>$('#helpdlg').showModal(); $('#help_go').onclick=()=>$('#helpdlg').close();
-  $('#newsbtn').onclick=()=>showNews(true); $('#news_go').onclick=()=>$('#newsdlg').close();
+  $('#newsbtn').onclick=()=>showNews(Infinity); $('#news_go').onclick=()=>$('#newsdlg').close();
   whatsNew();
   $('#oops_go').onclick=()=>oops.close('go'); $('#oops_no').onclick=()=>oops.close('');
   $('#clear').onclick=async()=>{if(!confirm('Delete everything this tab has sliced — uploaded models, cut files and the session? Presets are kept.'))return;await fetch(`api/session?client=${CLIENT}`,{method:'DELETE'});location.reload()};
