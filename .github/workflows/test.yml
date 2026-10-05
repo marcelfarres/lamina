@@ -14,8 +14,8 @@ jobs:
   pytest:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
       - run: uv sync --frozen
       - run: uv run ruff check
       - run: uv run pytest tests -q -n auto     # every core (pytest-xdist): 32 min in one process, 4 on 12 cores
@@ -25,8 +25,8 @@ jobs:
   ui:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
       - run: uv sync --frozen
       - run: uv run --with playwright playwright install --with-deps chromium
       - run: uv run --with playwright pytest tests/test_ui.py -q
