@@ -15,9 +15,26 @@ jobs:
     environment: pypi
     permissions:
       contents: read
+      actions: read        # the check below reads this repo's earlier runs
       id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # every commit, so earlier runs' commits can be compared with the tag
+      # PyPI never takes a version twice, so nothing reaches it that GitHub's Linux runners have not passed: a green
+      # test run and a green hand-run media recording (the release branch, before its tag) on this very code, the
+      # recorded media aside. 0.2.2 went out tested on Windows only and shipped a Linux-only bug (fixed in 0.2.3)
+      - name: this code passed the Linux tests and the media recording
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          green() {
+            for sha in $(gh run list --workflow "$1" --event "$2" --status success -L 100 --json headSha --jq '.[].headSha'); do
+              git cat-file -e "$sha^{commit}" 2>/dev/null && git diff --quiet "$sha" HEAD -- . ':!docs/media' && return 0
+            done
+            echo "::error title=Not released::no green $1 run on this code — push the release branch and run /lamina-predeploy first"; return 1
+          }
+          green test.yml push && green media.yml workflow_dispatch
       - uses: astral-sh/setup-uv@v5
       - name: the tag is the version in pyproject.toml
         run: grep -q "^version = \"${GITHUB_REF_NAME#v}\"" pyproject.toml
