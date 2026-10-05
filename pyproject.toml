@@ -1,6 +1,6 @@
 [project]
 name = "lamina3d"           # "lamina" on PyPI is somebody else's
-version = "0.2.2"
+version = "0.2.3"
 readme = "README.md"
 license = "AGPL-3.0-or-later"
 description = "Lamina: turns 3D models into flat cut parts (stacked, interlocked, radial, ribbed, folded panels) for paper, cardboard and sheet metal"

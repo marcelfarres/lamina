@@ -164,7 +164,9 @@ class Folded(Mode):
             if sl.reduced:
                 sl.warnings.append(f"{sl.reduced} joint(s) made smaller than asked to fit their triangle — fine for paper, check strength for metal")
             if sl.additions:
-                sl.raw = as_multi(unary_union([sl.raw, *sl.additions]).buffer(0))
+                # a tab's base lies on the panel's edge only to rounding: a hair outside and it stays a piece of its own
+                # (the ticked joint's ticks came off on Linux, not on Windows). Closing by 1 µm joins them, no edge moves
+                sl.raw = as_multi(unary_union([sl.raw, *sl.additions]).buffer(1e-3, join_style="mitre").buffer(-1e-3, join_style="mitre"))
             tree = STRtree(sl.cuts) if sl.cuts else None
             sl.facets = []
             for f in sl.pn.faces:

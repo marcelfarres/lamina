@@ -510,6 +510,14 @@ ON_PART = """label => {
 }"""
 
 
+def still(page):
+    """Wait until the view stops gliding after a drag (damping eases it a step per frame): five frames in a row with
+    the camera where it was. A fixed wait ran out mid-glide on the CI runner's few frames a second, and the next press
+    landed on the layer beside the one the test had picked."""
+    page.evaluate("""async () => { const k = () => window.__t.camera.position.toArray().map(v => v.toFixed(4)).join();
+      for (let same = 0, last = k(); same < 5;) { await new Promise(r => requestAnimationFrame(r)); const now = k(); same = now === last ? same + 1 : 0; last = now } }""")
+
+
 @pytest.mark.timeout(600)
 def test_a_report_is_gathered_while_the_slicer_is_stuck(page):
     """Reported: "compiling report froze, unless I reloaded the page", during a slice that never finished. In the
@@ -626,7 +634,7 @@ def test_only_a_handle_moves_a_part(page):
         page.mouse.move(x, y); page.mouse.down(); page.mouse.move(x + 60, y + 40, steps=8); page.mouse.up()
         if mod:
             page.keyboard.up(mod)
-        page.wait_for_timeout(600)
+        still(page)
         settle(page)
         return page.evaluate("l => [(window.__t.state().offset || {})[l] || 0, (window.__t.state().tilt || {})[l] || 0]", label)
 
@@ -886,17 +894,24 @@ def test_what_is_new_shows_itself_once_when_the_version_changes(page, server):
         settle(page)
         page.wait_for_timeout(600)                       # the notes are fetched after the page is up
 
-    latest = page.evaluate("async () => (await (await fetch('changelog.md')).text()).split(/^## +/m)[1].split('\\n')[0].trim()")
-    assert latest, "the app could not read CHANGELOG.md"
+    versions = page.evaluate("async () => (await (await fetch('changelog.md')).text()).split(/^## +/m).slice(1).map(p => p.split('\\n')[0].trim())")
+    latest = versions[0]
+    assert len(versions) > 3, "the app could not read CHANGELOG.md"
+    heads = lambda: page.eval_on_selector_all("#news_body h5", "els => els.map(e => e.textContent.replace('Version ', ''))")
 
     reload_with(None)                                    # never seen Lamina: nothing is new, so nothing opens
     assert not page.locator("#newsdlg[open]").count(), "a first-time visitor was shown release notes"
     assert page.evaluate("() => JSON.parse(localStorage.getItem('slicer_seen_version'))") == latest
 
-    reload_with("0.0.1")                                 # last seen an older version: shown once
+    # last seen two versions back (0.2.1, with 0.2.2 and its next-day fix 0.2.3 out since): both, newest first — the
+    # fix must not hide the release it fixed
+    reload_with(versions[2])
     assert page.locator("#newsdlg[open]").count(), "a new version did not announce itself"
-    body = page.text_content("#news_body")
-    assert latest in page.text_content("#news_title") and len(body) > 200, (page.text_content("#news_title"), body[:80])
+    assert heads() == versions[:2] and len(page.text_content("#news_body")) > 200, heads()
+    page.click("#news_go")
+
+    reload_with("0.0.1")                                 # a version no longer listed: every version
+    assert heads() == versions, heads()
     page.click("#news_go")
 
     page.goto(server + "/")                              # and not again on the next visit
@@ -1078,9 +1093,13 @@ def test_a_drag_while_a_slice_runs_turns_the_view_not_the_model(page):
     box = page.locator("#v3d canvas").first.bounding_box()
     cx, cy = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
     page.select_option("#example", "horse_statue")
+    drags = 0
     for _ in range(6):                                   # across the middle, where the red ring runs edge-on
         page.wait_for_timeout(250)
-        page.mouse.move(cx, cy); page.mouse.down(); page.mouse.move(cx + 120, cy + 30, steps=8); page.mouse.up()
+        if page.locator("#busy").is_hidden():            # sliced: the rings are the statue's own now, and grabbing one turns it
+            break
+        page.mouse.move(cx, cy); page.mouse.down(); page.mouse.move(cx + 120, cy + 30, steps=8); page.mouse.up(); drags += 1
     settle(page)
+    assert drags                                         # at least one drag landed while it sliced (a fast machine may finish first)
     assert page.evaluate("() => window.__t.state().rotate") == [0, 0, 0]
     assert plan(page)["counts"]["errors"] == 0
