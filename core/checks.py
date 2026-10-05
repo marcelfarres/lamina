@@ -92,7 +92,7 @@ def check_slice(sl, p):
                        f"{len(pts)} dowels bunched together — its far edge can shift {lev:.1f}× the play in their holes"
                 if best and dowel_leverage(reg, pts + [best]) <= LEVERAGE_WARN:
                     sl.warnings.append(
-                        f"{said}. It needs one more, nearer its edge: a dowel at ({best[0]:.1f}, {best[1]:.1f}) brings that to "
+                        f"{said}. It needs one more, nearer its edge: a dowel at ({best[0]:.1f} mm, {best[1]:.1f} mm) brings that to "
                         f"{dowel_leverage(reg, pts + [best]):.1f}× "
                         + {"aligned": "(alt-click there, or the fix below)", "lines": "(alt-click there for a line up through it)"}
                         .get(p.get("placement"), "(set placement to aligned to place your own)"))
@@ -368,8 +368,9 @@ def suggest_fixes(slices, p, ctx, mode):
                 small = round(max(0.5 if key == "hole_d" else 2.0, d * 0.6), 1)
                 opts = [{"title": f"smaller {'holes' if key == 'hole_d' else 'connectors'} ({small:g} mm)", "set": {key: small}}]
             elif "bunched together" in w and "a dowel at (" in w and p.get("placement") == "aligned":
-                x, y = map(float, re.search(r"a dowel at \(([-\d.]+), ([-\d.]+)\)", w).groups())
-                opts = [{"title": f"add a dowel at ({x:g}, {y:g})", "set": {"dowels": [*map(list, p["dowels"]), [x, y]]}}]
+                # each coordinate with its mm, so the page's units switch turns the spot into inches with the rest
+                x, y = map(float, re.search(r"a dowel at \(([-\d.]+) mm, ([-\d.]+) mm\)", w).groups())
+                opts = [{"title": f"add a dowel at ({x:g} mm, {y:g} mm)", "set": {"dowels": [*map(list, p["dowels"]), [x, y]]}}]
             elif "skipped" in w and "connection point" in w:
                 opts = [{"title": f"smaller connectors ({max(2.0, p.get('dowel_d', 6) * 0.6):g} mm)", "set": {"dowel_d": round(max(2.0, p.get("dowel_d", 6) * 0.6), 1)}},
                         {"title": "fewer connection points", "set": {"n_points": max(1, int(p.get("n_points", 2)) - 1)}}]

@@ -150,8 +150,6 @@ What makes more models buildable comes first; polish and speed after.
      `tests/test_modify.py::test_a_bunched_piece_is_offered_the_dowel_that_holds_it` and
      `tests/test_ui.py::test_the_dowel_the_spread_check_offers_lands_where_it_says` are the cases to keep passing,
      plus a hole count for the hoof.
-   - **The spot is given in mm in inch mode.** "a dowel at (x, y)" has no unit after it, so the units switch leaves
-     it in mm while the rest of the message turns to inches.
    - **Tab connectors are not measured.** `connect=tab` uses the same placement, but the spread check only looks at
      dowels; pegs and spacers bunched in the middle of a big layer are not said.
    - **A thin ring is warned about, not helped.** A hollowed layer about 6 mm wide (the bunny's) holds a 6 mm dowel
