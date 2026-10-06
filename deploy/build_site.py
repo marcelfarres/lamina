@@ -9,6 +9,10 @@ shutil.copytree(ROOT / "docs", site)
 app = site / "app"
 shutil.copytree(ROOT / "web" / "static", app / "static")
 shutil.move(app / "static" / "index.html", app / "index.html")        # app/index.html + app/static/… = the server's layout
+# Bing Webmaster Tools ownership of /lamina/app/, added here rather than in web/static so self-hosted copies carry no
+# one's verification tag (the landing page has its own, beside Google's, in docs/index.html)
+(app / "index.html").write_text((app / "index.html").read_text(encoding="utf-8").replace(
+    "</head>", '<meta name="msvalidate.01" content="F8EC4D714F52ECD10BD892D51E98CFD2"></head>', 1), encoding="utf-8")
 shutil.copy(ROOT / "CHANGELOG.md", app / "changelog.md")              # what's new, beside the page that fetches it
 py = app / "static" / "py"; py.mkdir()
 
