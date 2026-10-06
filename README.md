@@ -11,7 +11,7 @@
 
 **Turn a 3D model into flat parts you can cut, and check that they go back together.**
 
-Lamina is a free replacement for Autodesk's discontinued *Slicer for Fusion 360*. Load a model, pick a construction
+Lamina is a free replacement for Autodesk's discontinued *Slicer for Fusion 360* (and *123D Make* before it). Load a model, pick a construction
 technique, and it computes every part, checks the assembly as a physical object (and fixes or explains what does
 not work), nests the parts on your sheets and exports cut files for a laser, CNC router, plasma table or vinyl
 cutter. It runs on your own machine; your models never leave it.
@@ -38,7 +38,7 @@ the stills below are the same scenes.
 |---|---|
 | [![Stacked: parallel slices with dowels](docs/media/stacked_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Stacked** — parallel sections, touching or spaced, held by dowels, pegs or spacers | [![Interlocked: two slotted families forming an egg-crate](docs/media/interlocked_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Interlocked** — two slotted families, egg-crate |
 | [![Radial: half-slices fanned around an axis with locking rings](docs/media/radial_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Radial** — half-slices around an axis, locked by rings | [![Curve: ribs following a curve through the model](docs/media/curve_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Curve** — ribs that follow a bend, not the grid |
-| [![Folded: a surface unfolded into flat panels with score lines](docs/media/folded_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#folded)<br>**Folded** — the surface unfolded flat, with 13 joint types | [![A cube net cut with the tongue joint](docs/media/joint_tongue.png)](https://marcelfarres.github.io/lamina/?ref=github-readme#folded)<br>**Thirteen joints** — seam, tab, gear, tongue, puzzle, laced… |
+| [![Folded: a surface unfolded into flat panels with score lines](docs/media/folded_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#folded)<br>**Folded** — the surface unfolded flat, papercraft nets as Pepakura makes them, with 13 joint types | [![A cube net cut with the tongue joint](docs/media/joint_tongue.png)](https://marcelfarres.github.io/lamina/?ref=github-readme#folded)<br>**Thirteen joints** — seam, tab, gear, tongue, puzzle, laced… |
 | [![Radial with an axis through each ball of a dumbbell, at right angles to each other, and the plane between them at the neck](docs/media/axes_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Radial, an axis per lobe** — a fan per ball, one spine through all of them | [![The plane between two lobes of the snowman selected and tilted](docs/media/lobes_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#editing)<br>**Where lobes meet** — a plane you select, move and tilt like any slice |
 
 ## What it checks, and what you get
@@ -64,7 +64,7 @@ I hope it is useful to you too. If you make something with it, share it — **sh
 tab or the landing page sends a photo by email (or the
 [gallery issue form](https://github.com/marcelfarres/lamina/issues/new?template=made.yml)), and with your OK it
 goes in the [gallery](https://marcelfarres.github.io/lamina/#made), credited as you like. Or post it on Instagram
-or X with **#applamina**.
+or X with **#lamina3d**.
 
 **About how it was made.** A large part of this code was written with AI assistance, directed and reviewed by
 me. I am conscious of what that costs, in energy and in its wider effects on people and nature, and I try to use
@@ -296,9 +296,9 @@ does not slip through. It carries the most signal for stacked and folded work; d
   you give up — and the key is the only way back. Leave it out of the zip and the puzzle stays a puzzle.
 - **An assembly video**: the steps slider played and recorded off the 3D view as a `.webm`, made in the page itself —
   nothing uploaded, nothing rendered twice.
-- **Cut files**: SVG and DXF in mm / cm / in, multi-page PDF, EPS per sheet, or one file per piece, each with or
-  without the red label layer (one switch for every file). Layers follow Slicer's Cut Layout: OUTER blue, INNER green
-  (slots, holes), SCORE yellow (folds: solid mountain, dashed valley, dotted perforate), LABEL red (labels, leaders,
+- **Cut files**: SVG (opens directly in LightBurn, the Glowforge app and xTool Creative Space) and DXF in mm / cm /
+  in, multi-page PDF, EPS per sheet, or one file per piece, each with or without the red label layer (one switch for
+  every file). Layers follow Slicer's Cut Layout: OUTER blue, INNER green (slots, holes), SCORE yellow (folds: solid mountain, dashed valley, dotted perforate), LABEL red (labels, leaders,
   seam numbers, sheet border). The zip is named `<project or model>_v<revision>_<technique>_…`, and so is every file
   in it: they all start with the design, `egg_v1.0 sheet1 plywood.svg`, so the cut files of two designs unzipped
   into one folder never collide or mix.

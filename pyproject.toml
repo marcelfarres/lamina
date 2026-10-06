@@ -3,8 +3,24 @@ name = "lamina3d"           # "lamina" on PyPI is somebody else's
 version = "0.2.3"
 readme = "README.md"
 license = "AGPL-3.0-or-later"
-description = "Lamina: turns 3D models into flat cut parts (stacked, interlocked, radial, ribbed, folded panels) for paper, cardboard and sheet metal"
+description = "Lamina: free Slicer for Fusion 360 alternative. Turns 3D models into flat cut parts (stacked, interlocked, radial, ribbed, folded panels) for laser, CNC, plasma and vinyl cutters"
 requires-python = ">=3.11"
+# PyPI search and libraries.io match on these; they name what people type, including the tools Lamina replaces.
+# No License :: classifier: the `license` expression above replaces it (PEP 639).
+keywords = ["laser cutting", "cnc", "plasma cutting", "slicer for fusion 360", "123d make", "papercraft", "pepakura",
+            "unfold", "sliceforms", "stl", "dxf", "svg", "nesting", "sculpture"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Web Environment",
+    "Framework :: FastAPI",
+    "Intended Audience :: End Users/Desktop",
+    "Intended Audience :: Manufacturing",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Artistic Software",
+    "Topic :: Multimedia :: Graphics :: 3D Modeling",
+    "Topic :: Scientific/Engineering",
+]
 dependencies = [
     "trimesh>=4.4",
     "manifold3d",
@@ -30,6 +46,9 @@ lamina3d = "web.app:main"   # uvx lamina3d — what the starters run
 [project.urls]
 Homepage = "https://marcelfarres.github.io/lamina/"
 Source = "https://github.com/marcelfarres/lamina"
+"Try it in your browser" = "https://marcelfarres.github.io/lamina/app/?ref=pypi"
+Changelog = "https://github.com/marcelfarres/lamina/blob/main/CHANGELOG.md"
+Issues = "https://github.com/marcelfarres/lamina/issues"
 
 [project.optional-dependencies]
 cad = ["cadquery"]          # STEP / IGES / BREP import:  uv sync --extra cad

@@ -14,6 +14,8 @@
      so tagged visits land on one "/lamina/" row instead of one row per label, while the ref itself still counts
      as the campaign source. -->
 <link rel="canonical" href="https://marcelfarres.github.io/lamina/">
+<!-- Google Search Console ownership for the URL-prefix property https://marcelfarres.github.io/lamina/ -->
+<meta name="google-site-verification" content="ruqDRYg1OzvlfoIXHaRR6cjcqRctra0worQanHFDEAo">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap">
 <meta property="og:type" content="website">
@@ -27,7 +29,8 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://marcelfarres.github.io/lamina/media/hero.jpg">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Lamina",
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Lamina","alternateName":"lamina3d",
+"sameAs":["https://github.com/marcelfarres/lamina","https://pypi.org/project/lamina3d/"],
 "applicationCategory":"DesignApplication","operatingSystem":"Windows, macOS, Linux, Web",
 "url":"https://marcelfarres.github.io/lamina/",
 "description":"Free and open-source replacement for Autodesk's discontinued Slicer for Fusion 360: turns a 3D model into flat parts for a laser, CNC router, plasma table or vinyl cutter.",
@@ -146,7 +149,7 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
   metal — then checks that the result actually holds together, and hands you the cut files for a laser, a CNC router,
   a plasma table or a vinyl cutter.</p>
   <p class="sub" style="margin:0 0 10px">A free replacement for Autodesk's discontinued <em>Slicer for Fusion 360</em>
-  — every construction technique of the original, plus sheet-metal ribs, connecting strips and per-slice edits it
+  (and <em>123D Make</em> before it) — every construction technique of the original, plus sheet-metal ribs, connecting strips and per-slice edits it
   never had. Runs on your own machine; your models never leave it.</p>
   <p class="sub" style="margin:0 0 22px"><b>A quick word about the word “slicer”</b>, because it trips almost everyone
   up: this is not the 3D-printing kind. Lamina works out the flat pieces — layers, stacked slices, egg-crate slots,
@@ -316,7 +319,7 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
            aria-label="A cow unfolded into folded panels, orbiting; then joined with laces, with ribs and with tabs, and at a coarser and a finer facet"></video>
     <div>
       <h3>Folded panels</h3>
-      <p>The surface simplified to the facet size you choose, unfolded into flat panels with score lines, and joined at
+      <p>Papercraft nets, as Pepakura makes them, and more: the surface simplified to the facet size you choose, unfolded into flat panels with score lines, and joined at
       the seams with any of thirteen joints — glue tabs for paper and card, laces and rivets for leather and cloth,
       strips for cardboard, slotted angle ribs for sheet metal. Panels grow until they would overlap themselves or
       run off the sheet. Works on closed shapes and on open surfaces such as a mask or a clothing pattern; separate
@@ -460,7 +463,8 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
     <div>
       <ul class="clean">
         <li><b>SVG and DXF</b> with separate layers for outer cuts, inner cuts, score lines and labels, with or
-            without the labels, in millimetres, centimetres or inches.</li>
+            without the labels, in millimetres, centimetres or inches. The SVG opens directly in LightBurn, the
+            Glowforge app and xTool Creative Space.</li>
         <li><b>PDF</b> as one page per sheet, and <b>EPS</b> per sheet.</li>
         <li><b>One file per piece</b> when your cutter wants them separately — identical pieces once, named design,
             part, material, thickness and quantity (<code>egg_v1.0 R-1a plywood x2.svg</code>), and a cut list with
@@ -504,7 +508,7 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
   <p class="sub">What people have cut with it. Made something yourself?
   <a data-feedback="made" href="https://github.com/marcelfarres/lamina/issues/new?template=made.yml">Send a photo</a>
   — by email, no account needed — and it goes up here, credited the way you ask. Or post it on Instagram or X with
-  <b>#applamina</b>; I look there too, and ask before adding anything.</p>
+  <b>#lamina3d</b>; I look there too, and ask before adding anything.</p>
   <div class="grid g3" id="gallery"></div>
 </div></section>
 
