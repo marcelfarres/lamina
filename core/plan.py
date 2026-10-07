@@ -239,10 +239,41 @@ def coverage(mesh, slices, r, lat=3.0):
     return float(covered.mean())
 
 
+MESH_PARAMS = ("up_axis", "rotate", "size", "scale", "shrinkwrap", "hollow", "thicken", "round", "smooth")   # all _prepare reads
+_last = None   # [key, mesh, notes, preview]: the model as last prepared, and its preview once made
+
+
 def load_mesh(path, params, notes=None, mode=""):
-    notes = [] if notes is None else notes
+    """The model as every later stage sees it. The last one is kept: a new project name, a sheet, a thickness reslices
+    without loading and remeshing it again (a second or more of every slice, many more in the browser).
+    ponytail: one model kept, so two server clients take turns missing it; key it per client if that ever shows."""
+    global _last
     path = pathlib.Path(path)
     progress("loading the model", 0.02)
+    st = path.stat()
+    key = (str(path.resolve()), st.st_size, st.st_mtime_ns, mode == "folded", repr([params.get(k) for k in MESH_PARAMS]))
+    hit = _last                                     # read once: another request thread may replace it meanwhile
+    if not hit or hit[0] != key:
+        said = []
+        hit = _last = [key, _prepare(path, params, said, mode), said, None]
+    if notes is not None:
+        notes.extend(hit[2])
+    mesh = hit[1].copy()
+    mesh.metadata["lamina_key"] = key              # which prepared model it is a copy of, for preview()
+    return mesh
+
+
+def preview(mesh):
+    """The 30k-face copy the 3D view shows, made once per prepared model: 7 s of every slice in the browser."""
+    hit = _last
+    if not hit or hit[0] != mesh.metadata.get("lamina_key"):
+        return decimate(mesh, 30000)
+    if hit[3] is None:
+        hit[3] = decimate(mesh, 30000)
+    return hit[3]
+
+
+def _prepare(path, params, notes, mode):
     mesh = load_cad(path) if path.suffix.lower() in CAD_SUFFIXES else trimesh.load(path, force="mesh")
     if params["up_axis"] != "z":
         src = "xyz".index(params["up_axis"])
@@ -373,7 +404,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     square = square_up(mesh, p["rotate"])          # offered on the Model tab, beside rotate
     if mesh_out:                                    # processed model for the browser's ghost view (decimated)
         progress("preparing the preview model", 0.18)
-        ghost = decimate(mesh, 30000)
+        ghost = preview(mesh)
         ghost.export(mesh_out)
         ready(mesh_out, 0.19)                       # the 3D view can show the model now: it does not wait for the slices
     sheet0 = list(p["sheet"])

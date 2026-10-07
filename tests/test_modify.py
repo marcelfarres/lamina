@@ -402,3 +402,20 @@ def test_a_wall_too_thin_for_the_dowel_says_so():
     after = build(EXAMPLES / "bunny.stl", "stacked", {**job, "dowel_d": d})
     assert len(after["rods"]) > len(plan["rods"]), f"following the advice ({d} mm) placed no more dowels"
     assert not [n for n in after["notes"] if "no connector" in n], "advice followed, layers still unconnected"
+
+
+def test_a_new_name_reslices_without_remeshing(tmp_path):
+    """Changing the project name (or anything that does not shape the model) reuses the model as prepared and its
+    preview: no second remesh, the same parts and notes. Changing a modify-form value remeshes again (reported: a name
+    took a full re-mesh)."""
+    job = {"distribution": "count", "count": 6, "connect": "none", "autofix": "off", "round": 3}
+    a = build(EXAMPLES / "egg.stl", "stacked", {**job, "project": "first"}, mesh_out=tmp_path / "a.stl")
+    b = build(EXAMPLES / "egg.stl", "stacked", {**job, "project": "second"}, mesh_out=tmp_path / "b.stl")
+    c = build(EXAMPLES / "egg.stl", "stacked", {**job, "project": "second", "round": 4})
+    assert "modify form: remeshing" in a["timing"] and "modify form: remeshing" not in b["timing"]
+    assert (tmp_path / "a.stl").read_bytes() == (tmp_path / "b.stl").read_bytes()
+    assert b["timing"]["preparing the preview model"] < a["timing"]["preparing the preview model"] / 3
+    assert a["notes"] == b["notes"] and a["bbox"] == b["bbox"] and a["coverage"] == b["coverage"]
+    assert [s["extents"] for s in a["slices"]] == [s["extents"] for s in b["slices"]]
+    assert b["label_tag"] == "second"
+    assert "modify form: remeshing" in c["timing"] and c["bbox"] != b["bbox"]

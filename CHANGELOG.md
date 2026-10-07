@@ -2,6 +2,20 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.2.4
+
+### Fixed
+
+- **A new change stops the slice before it.** In the browser version, moving a slider or changing a value while a
+  slice was running queued a whole slice for every step, and the result for the value you ended on came last: four
+  quick moves on the horse took almost two minutes to show the last one, and now take under one. Picking another
+  example mid-slice also showed the old model's preview for a while, as if the new one had not loaded; it now goes
+  straight to the new one. The local version already stopped the old slice, and still does.
+- **Renaming the project no longer re-prepares the model.** A new name, sheet, thickness or anything else that does not
+  change the model's shape reuses the model and its 3D preview as already prepared, so the remesh, the smoothing and
+  the preview are not done again. On the head example in the browser a new name takes 9.5 s instead of 20 s, and a
+  second or two less on your own computer.
+
 ## 0.2.3
 
 A fix for 0.2.2, found the day it came out. If you have 0.2.2, update to this one.
