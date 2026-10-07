@@ -4,29 +4,57 @@
 (() => {
   const real = window.fetch.bind(window);
   const isApi = u => /(^|\/)(api|jobs)\//.test(u);
-  let mode = null, worker = null, nextId = 0; const waiting = new Map();
+  // The worker gets one request at a time: Python cannot be interrupted mid-slice, so a slice posted behind another
+  // ran to its end — four slider moves were four whole slices, the last value a minute and a half late, and a new
+  // example waited for the old one to finish. Now a newer slice drops the waiting ones, and the one still running is
+  // raced: a spare worker starts loading Python (~20 s even cached) and whichever comes first, the old slice ending
+  // or the spare being ready, is where the newest slice runs. The other one is terminated. Nothing is posted before
+  // Python is ready: until then a newer slice simply takes the waiting one's place.
+  let mode = null, worker = null, spare = null, running = null, ready = false; const queue = [];
+  const REPLACED = {status: 409, headers: {'content-type': 'application/json'}, body: new TextEncoder().encode('{"detail":"a newer slice of this page replaced this one"}')};
   const box = () => document.getElementById('pyload') || Object.assign(document.body.appendChild(document.createElement('div')),
     {id: 'pyload', style: 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#232429;color:#e6e6e3;border:1px solid #4f8cff;border-radius:6px;padding:8px 14px;font:13px system-ui,sans-serif;z-index:99;max-width:80vw'});
-  function start() {
-    worker = new Worker('static/browser-worker.js', {type: 'module'});
-    worker.onmessage = e => {
+  function spawn() {
+    const w = new Worker('static/browser-worker.js', {type: 'module'});
+    w.onmessage = e => {
       const m = e.data;
+      if (w !== worker && w !== spare) return;                          // one already terminated
+      if (w === spare) {                                                // ready first: the replaced slice stops here
+        if (m.failed) { w.terminate(); spare = null }                   // the next replacement tries again
+        if (m.progress !== '') return;
+        if (running?.stale) { worker.terminate(); running.res(REPLACED); running = null; worker = w } else w.terminate();
+        spare = null; pump(); return;
+      }
       // a slice under way; a mesh riding along is one the build has finished with, shown before the rest of it
       if (m.frac !== undefined) {
+        if (running.stale) return;                                      // replaced: its stages and its mesh are not the page's
         if (m.model instanceof Uint8Array) m.model = URL.createObjectURL(new Blob([m.model]));
         window.dispatchEvent(new CustomEvent('lamina-progress', {detail: m}));
         return;
       }
-      if (m.progress !== undefined) { m.progress ? box().textContent = m.progress : box().remove(); return }       // Python loading
-      const w = waiting.get(m.id); waiting.delete(m.id); w(m);
+      if (m.progress !== undefined) {                                   // Python loading
+        if (m.progress) box().textContent = m.progress; else { box().remove(); ready = true; pump() }
+        return;
+      }
+      running.res(m); running = null; pump();
     };
+    return w;
+  }
+  function pump() {
+    if (running || !ready || !queue.length) return;
+    running = queue.shift(); worker.postMessage(running.msg);
   }
   async function viaWorker(url, opts = {}) {
-    if (!worker) start();
-    const u = new URL(url, location.href), id = nextId++;
-    const msg = {id, method: (opts.method || 'GET').toUpperCase(), path: u.pathname.replace(/^.*\/(api|jobs)\//, '$1/'), query: u.search.slice(1), form: null};
+    worker ??= spawn();
+    const u = new URL(url, location.href);
+    const msg = {method: (opts.method || 'GET').toUpperCase(), path: u.pathname.replace(/^.*\/(api|jobs)\//, '$1/'), query: u.search.slice(1), form: null};
     if (opts.body instanceof FormData) { msg.form = []; for (const [k, v] of opts.body) msg.form.push(v instanceof File ? [k, v.name, new Uint8Array(await v.arrayBuffer())] : [k, v]) }
-    const r = await new Promise(res => { waiting.set(id, res); worker.postMessage(msg) });
+    const slice = msg.path === 'api/slice';
+    if (slice) {                                                        // only the newest slice matters to the page
+      for (const q of queue.filter(q => q.slice)) { queue.splice(queue.indexOf(q), 1); q.res(REPLACED) }
+      if (running?.slice) { running.stale = true; spare ??= spawn() }
+    }
+    const r = await new Promise(res => { queue.push({msg, res, slice}); pump() });
     return new Response(r.body, {status: r.status, headers: r.headers});
   }
   window.fetch = async (url, opts) => {

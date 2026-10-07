@@ -34,7 +34,7 @@ const ready = (async () => {
   py.runPython('import core.plan; core.plan.report = report');
   say('');
   return {py, handle};
-})().catch(err => { say('Python could not be loaded — ' + err); throw err });
+})().catch(err => { postMessage({progress: 'Python could not be loaded — ' + err, failed: true}); throw err });
 
 onmessage = async e => {
   const {py, handle} = await ready, m = e.data;
@@ -48,13 +48,13 @@ onmessage = async e => {
     let body = raw; if (!(raw instanceof Uint8Array)) { const b = raw.getBuffer(); body = b.data.slice(); b.release(); raw.destroy() }
     r.destroy();
     if (m.method !== 'GET') py.FS.syncfs(false, () => {});
-    postMessage({id: m.id, status, headers, body});
+    postMessage({status, headers, body});
     // A plan is a graph with back-references — every piece names its slice, every slice holds its pieces — so it
     // only goes when the cyclic collector runs. Left to itself that is not before the next slice asks for its own
     // arrays, and a heap under that much pressure stops giving GEOS numbers it can work with: slicing the same
     // model a fourth way returned "orientationIndex encountered NaN". One collection per request costs milliseconds.
     py.runPython('import gc; gc.collect()');
   } catch (err) {
-    postMessage({id: m.id, status: 500, headers: {'content-type': 'application/json'}, body: new TextEncoder().encode(JSON.stringify({detail: String(err)}))});
+    postMessage({status: 500, headers: {'content-type': 'application/json'}, body: new TextEncoder().encode(JSON.stringify({detail: String(err)}))});
   }
 };
