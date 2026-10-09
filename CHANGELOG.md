@@ -11,6 +11,9 @@ when an example loads, and a model with a hole in it slices.
 
 ### Changed
 
+- **On a phone, Lamina says it is made for a computer.** The first time it opens on a phone, a short note says that
+  editing in the 3D view wants a mouse and a wide screen, and suggests a computer. It runs on anyway, with the panel
+  above the 3D view so the page fits the screen.
 - **The machine settings explain themselves.** Machine & cut compensation now comes in three parts, kerf, slot fit and
   inside corners, each with a line saying what it does and whether it always applies: only the kerf is switched on and
   off by "compensate kerf", while the slot offset and the corner relief always apply. Every setting has a plain name

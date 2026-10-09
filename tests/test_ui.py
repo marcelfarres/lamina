@@ -1163,3 +1163,22 @@ def test_the_wheel_zooms_back_out(page, server):
         assert abs(dist() / start - 1) < 0.01, (start, dist())
     finally:
         pg.close()
+
+
+def test_a_phone_is_told_once_that_lamina_is_made_for_a_computer(page, server):
+    """A phone gets the whole app and, once, a notice that it is made for a computer. A computer never sees it (every
+    other test here runs on one, and the notice would sit over the page)."""
+    assert not page.locator("#oops[open]").count()
+    ctx = page.context.browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True,
+        user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1")
+    pg = ctx.new_page(); pg.errors = []; pg.on("pageerror", lambda e: pg.errors.append(str(e)))
+    try:
+        pg.goto(server + "/"); pg.wait_for_selector("#oops[open]", timeout=60_000)
+        assert pg.text_content("#oops_title") == "Lamina is made for a computer"
+        assert pg.text_content("#oops_go") == "Continue on this phone"
+        pg.click("#oops_go"); assert not pg.locator("#oops[open]").count()
+        pg.reload(); pg.wait_for_timeout(3000)
+        assert not pg.locator("#oops[open]").count(), "told twice"
+        assert not pg.errors, pg.errors
+    finally:
+        ctx.close()

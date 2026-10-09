@@ -80,6 +80,10 @@ h2 button.reset{float:right;text-transform:none;letter-spacing:0;font-size:11px;
 .dl{display:flex;flex-wrap:wrap;gap:6px}.dl.rows{flex-direction:column}.dl .r{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin-bottom:4px}.dl a{padding:6px 10px;border:1px solid var(--line);border-radius:4px;text-decoration:none;color:var(--ink);font-size:12px;background:var(--panel2)}.dl a:hover{border-color:var(--acc)}
 table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 6px;border-bottom:1px solid var(--line);text-align:left}tr.bad td{color:var(--err)}tr:hover td{background:var(--panel2);cursor:pointer}
 dialog{width:min(620px,92vw);border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);padding:22px;font:14px/1.55 Inter,system-ui,sans-serif}
+/* A phone: the header wraps and the panel sits over the 3D view. Left unwrapped, the header's buttons made the page
+   1560 px wide on a 390 px screen, and the phone notice was centred in that, off the edge of what the phone shows */
+@media (max-width:760px){header{height:auto;flex-wrap:wrap;padding:6px 10px;row-gap:6px}main{grid-template-columns:1fr;height:auto}
+  aside{border-right:0;border-bottom:1px solid var(--line)}.view{height:75vh}}
 dialog::backdrop{background:#000b}dialog h3{margin:0 0 8px;font-size:18px}dialog a{color:var(--acc)}
 dialog .row{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
 dialog button{padding:8px 15px;border-radius:6px;border:1px solid var(--line);background:var(--panel2);color:inherit;font:inherit;cursor:pointer}
@@ -593,6 +597,15 @@ async function whatsNew(){
     const i=vs.findIndex(s=>s.v===seen);
     if(seen&&i!==0)showNews(i<0?vs.length:i);
   }catch(e){}                                            // no changelog beside the page: the button still works
+}
+// A phone gets the whole app and, once, a word that it is made for a computer: the 3D view's editing wants a mouse and
+// the panels a wide screen. The browser's own flag where it has one, else the user agent's; a tablet is not a phone.
+function phoneNotice(){
+  const phone=navigator.userAgentData?.mobile??/iPhone|iPod|Android.+Mobile|Windows Phone/i.test(navigator.userAgent);
+  if(!phone||ls('slicer_phone_told',false))return;
+  try{lsSet('slicer_phone_told',true)}catch(e){}         // a private window may refuse it: then it says so each visit
+  popup('Lamina is made for a computer','',`<p>It runs on a phone, but editing in the 3D view wants a mouse (drag, shift-drag,
+    right-drag) and the panels a wide screen. For the best experience, open this page on a computer.</p>`,'Continue on this phone');
 }
 
 // presets: manufacturing (sheet+fit params), materials, sheets — builtin + user (this browser)
@@ -1397,6 +1410,7 @@ async function init(){
   $('#newsbtn').onclick=()=>showNews(Infinity); $('#news_go').onclick=()=>$('#newsdlg').close();
   whatsNew();
   $('#oops_go').onclick=()=>oops.close('go'); $('#oops_no').onclick=()=>oops.close('');
+  phoneNotice();
   $('#clear').onclick=async()=>{if(!confirm('Delete everything this tab has sliced — uploaded models, cut files and the session? Presets are kept.'))return;await fetch(`api/session?client=${CLIENT}`,{method:'DELETE'});location.reload()};
   $('#psave2').onclick=saveProject; $('#popen').onclick=()=>$('#pfile').click(); $('#pfile').onchange=e=>{if(e.target.files[0])openProject(e.target.files[0]);e.target.value=''};
   $('#pname').oninput=e=>{state.project=e.target.value;schedule()}; $('#pminor').onclick=()=>bump(false); $('#pmajor').onclick=()=>bump(true);
