@@ -16,6 +16,9 @@ yours, instead of waiting behind it, and renaming a project no longer prepares t
   are for.
 - **The Export tab goes step by step.** First the fit test (cut it first, and how to read it), then the parts, then
   building it. Every download now says what it is for: which laser software or CAM opens it, or what else to use it for.
+- **Nesting is faster on your own computer.** Laying the parts out on the sheets now tries each part's four turns side
+  by side, about twice as fast on a big model (the bowl's nesting went from 5.0 s to 2.1 s); the layout is exactly the
+  same. The browser version lays them out as before.
 - **Rounding, thickening and hollowing are quicker.** Preparing a model this way, or remeshing one that does not
   close, takes up to a third less time: the bunny's rounding went from 1.4 s to 0.9 s.
 - **Share your build with #lamina3d.** The note that invites you to share a photo of your build now names #lamina3d,

@@ -13,6 +13,8 @@ percent of sheet) and its merging of shared cut lines.
 """
 from __future__ import annotations
 import math
+import sys
+from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 import shapely
 from shapely import affinity
@@ -23,7 +25,15 @@ from shapely.strtree import STRtree
 from .geometry import as_multi
 
 ROTS = (0, 90, 180, 270)
-CELL = 2.0          # mm: the raster of a sheet that says which parts cannot fit it (Sheet.room)
+# A part's rotations on one sheet are independent, and their no-fit union, the costliest call of a slice, runs in GEOS
+# with the GIL let go: side by side it was 2.0–2.7× faster (cow_spot, bunny, bowl). The browser build has no threads.
+each = map if sys.platform == "emscripten" else ThreadPoolExecutor(len(ROTS), thread_name_prefix="nest").map
+
+
+def _bounds(pts):
+    """x0, y0, x1, y1 of a point array."""
+    return (*pts.min(0), *pts.max(0))
+CELL = 2.0       # mm: the raster of a sheet that says which parts cannot fit it (Sheet.room)
 PIECES = 16         # convex pieces a placed part may cost the no-fit polygons; past that it is its hull (see _convex_pieces)
 TOL = 0.5           # mm: the nesting outline is grown by this and simplified by this, so the parts never come closer
                     # than the gap and rarely more than the gap plus TOL
@@ -295,10 +305,9 @@ def _nest(pieces, sheet, gap, margin, kerf=0.0, label_h=0.0, font=4.0, tag=""):
                 sh = Sheet(W, H, margin); sheets.append(sh)
             if not sh.room(disc):
                 continue
-            for r in ROTS:
-                pts = np.concatenate(turned[r])
-                bounds = (*pts.min(0), *pts.max(0))
-                xy = sh.spot(hull[r], bounds)
+            box_of = {r: _bounds(np.concatenate(turned[r])) for r in ROTS}
+            for r, xy in zip(ROTS, each(lambda r: sh.spot(hull[r], box_of[r]), ROTS)):   # side by side, scored in order
+                bounds = box_of[r]
                 if xy is None:
                     continue
                 score = (xy[1] + bounds[3], xy[0] + bounds[2])    # lowest top, then leftmost right edge
