@@ -11,7 +11,7 @@ import trimesh
 from shapely.geometry import Point
 
 from core.geometry import dowel_leverage, section_polygons, unripple
-from core.plan import MODES, build, coerce_params, load_mesh
+from core.plan import MODES, build, coerce_params, load_mesh, preview
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 EXAMPLES = ROOT / "examples"
@@ -411,10 +411,12 @@ def test_a_new_name_reslices_without_remeshing(tmp_path):
     job = {"distribution": "count", "count": 6, "connect": "none", "autofix": "off", "round": 3}
     a = build(EXAMPLES / "egg.stl", "stacked", {**job, "project": "first"}, mesh_out=tmp_path / "a.stl")
     b = build(EXAMPLES / "egg.stl", "stacked", {**job, "project": "second"}, mesh_out=tmp_path / "b.stl")
+    p = coerce_params(MODES["stacked"], {**job, "project": "third"})
+    shown = preview(load_mesh(EXAMPLES / "egg.stl", p, [], "stacked"))   # not decimated again (no timing: CI is slow)
+    assert preview(load_mesh(EXAMPLES / "egg.stl", p, [], "stacked")) is shown
     c = build(EXAMPLES / "egg.stl", "stacked", {**job, "project": "second", "round": 4})
     assert "modify form: remeshing" in a["timing"] and "modify form: remeshing" not in b["timing"]
     assert (tmp_path / "a.stl").read_bytes() == (tmp_path / "b.stl").read_bytes()
-    assert b["timing"]["preparing the preview model"] < a["timing"]["preparing the preview model"] / 3
     assert a["notes"] == b["notes"] and a["bbox"] == b["bbox"] and a["coverage"] == b["coverage"]
     assert [s["extents"] for s in a["slices"]] == [s["extents"] for s in b["slices"]]
     assert b["label_tag"] == "second"
