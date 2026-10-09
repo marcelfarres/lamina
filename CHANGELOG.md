@@ -4,6 +4,14 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ## 0.2.4
 
+Quicker to work with in the browser: a change you make while a model is slicing now stops that slice and starts
+yours, instead of waiting behind it, and renaming a project no longer prepares the model all over again.
+
+### Changed
+
+- **Share your build with #lamina3d.** The note that invites you to share a photo of your build now names #lamina3d,
+  the one name Lamina uses everywhere (it said #applamina).
+
 ### Fixed
 
 - **A new change stops the slice before it.** In the browser version, moving a slider or changing a value while a

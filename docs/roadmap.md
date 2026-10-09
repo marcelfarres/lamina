@@ -132,8 +132,12 @@ What makes more models buildable comes first; polish and speed after.
    14 → 21 % usage), the same sheets elsewhere; nesting time within 1.5× on every case (bunny 2.5 → 3.3 s, cow 3.4 →
    5.6 s) once parts with more than 16 pieces are nested by their hull.
 5. **Speed**: the browser now runs within about 2× of the local version (README → How long a slice takes) and shows
-   its progress per stage. Next: cache the section polygons of a slice frame between parameter changes that do not
-   move the slices (slot width, notch ratio, sheet), so a fit tweak on a scan answers in a second.
+   its progress per stage. Since 0.2.4 the prepared model and its preview are reused between changes that do not
+   shape the model, and a new change stops the slice before it (in the browser by racing a fresh worker against it).
+   Next: a fresh browser worker takes ~20 s even cached, 12 s of it installing Lamina's packages through micropip on
+   every start; shipping them so the start skips that would shorten both a cancel and every first load. Then cache
+   the section polygons of a slice frame between parameter changes that do not move the slices (slot width, notch
+   ratio, sheet), so a fit tweak on a scan answers in a second.
 6. **Touch**: the 3D view's drag / shift-drag / ctrl-drag editing has no touch equivalent; a tablet at the laser is
    a common place to use it.
 7. **Stacked dowels, after 0.2.2's spread check:**
