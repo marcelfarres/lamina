@@ -28,6 +28,10 @@ when an example loads, and a model with a hole in it slices.
 
 ### Fixed
 
+- **Zooming with the wheel behaves.** With the browser zoomed below 100 %, one turn of the wheel put the view right on
+  the model's centre and it could not zoom back out; a fast spin or a touchpad flick dived straight into the model. Each
+  notch now zooms by the same small step on any screen, toward what is under the pointer, and the view stops short of
+  the model's surface and never loses the model zooming out.
 - **What's new keeps its lists.** On a copy of Lamina cloned on Windows, these notes ran a whole version together as
   one paragraph, every point inline. Each point is on its own line again.
 - **Your machine's kerf and slot offset stay put.** Opening the app, or picking another example, set the kerf and the

@@ -733,6 +733,15 @@ const view=$('#v3d'), renderer=new THREE.WebGLRenderer({antialias:true}); render
 const scene=new THREE.Scene(); scene.background=new THREE.Color(0x141517);
 const camera=new THREE.PerspectiveCamera(40,1,1,100000); camera.position.set(300,-400,250); camera.up.set(0,0,1);
 const controls=new OrbitControls(camera,renderer.domElement); controls.enableDamping=true;
+controls.zoomToCursor=true;   // the wheel zooms toward what is under the pointer, as a CAD program does, not into the model's middle
+// One wheel event is one notch at most. A free-spinning wheel, a touchpad fling or Windows' "lines per notch" sends
+// deltas of a thousand and more: five of them put the camera 1.5 mm from the model's centre, inside it and past the
+// clipping plane, a hundred notches from the way back (reported). Firefox counts in lines: made pixels first.
+view.addEventListener('wheel',e=>{if(e.target!==renderer.domElement||e.lamina)return;
+  const px=e.deltaY*[1,33,800][e.deltaMode],y=Math.max(-100,Math.min(100,px)); if(y===e.deltaY)return;
+  e.stopPropagation();e.preventDefault();
+  const w=new WheelEvent('wheel',{deltaY:y,clientX:e.clientX,clientY:e.clientY,ctrlKey:e.ctrlKey,metaKey:e.metaKey,shiftKey:e.shiftKey,bubbles:true,cancelable:true});
+  w.lamina=true;renderer.domElement.dispatchEvent(w)},{capture:true,passive:false});
 scene.add(new THREE.HemisphereLight(0xffffff,0x334455,1.1)); const dl=new THREE.DirectionalLight(0xffffff,1.2); dl.position.set(1,-1,2); scene.add(dl);
 const parts=new THREE.Group(), ghost=new THREE.Group(), guides=new THREE.Group(), gizmo=new THREE.Group(), axes=new THREE.Group(), rings=new THREE.Group(); scene.add(parts,ghost,guides,gizmo,axes,rings);
 rings.visible=true;   // turn rings belong to the Model tab; showTab() hides them elsewhere
@@ -857,7 +866,10 @@ function mergeGeos(geos){
   const ngs=geos.map(g=>g.index?g.toNonIndexed():g),n=ngs.reduce((a,g)=>a+g.attributes.position.array.length,0),pos=new Float32Array(n),nor=new Float32Array(n);let o=0;
   for(const g of ngs){pos.set(g.attributes.position.array,o);nor.set(g.attributes.normal.array,o);o+=g.attributes.position.array.length}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('normal',new THREE.BufferAttribute(nor,3));return g}
-function fitView(){const b=new THREE.Box3().setFromObject(parts.children.length?parts:ghost);if(b.isEmpty())return;const c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3()).length();controls.target.copy(c);camera.position.copy(c).add(new THREE.Vector3(.7,-1,.6).normalize().multiplyScalar(s*1.5));camera.near=s/100;camera.far=s*20;camera.updateProjectionMatrix()}
+function fitView(){const b=new THREE.Box3().setFromObject(parts.children.length?parts:ghost);if(b.isEmpty())return;const c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3()).length();controls.target.copy(c);camera.position.copy(c).add(new THREE.Vector3(.7,-1,.6).normalize().multiplyScalar(s*1.5));
+  // close enough to read a slot, never onto the point it turns about (from 0 no zoom ever comes back), never so far the
+  // model is lost; the clipping planes outside both, so nothing is cut away at either end
+  controls.minDistance=s/40;controls.maxDistance=s*8;camera.near=s/200;camera.far=s*20;camera.updateProjectionMatrix()}
 function applyExplode(){const e=+$('#explode').value,k=+$('#steps').value;for(const m of parts.children){if(m.userData.group==='B')continue;m.position.copy(m.userData.origin).multiplyScalar(e-1);m.visible=m.userData.i<k}
   const s=selected&&parts.children.find(c=>c.userData.slice===selected); if(s)drawGizmo(s);   // the handles ride with the part
   dirty=true}
@@ -1504,7 +1516,7 @@ window.laminaFeedback?.({bug:async withModel=>{
   sheets:ls('slicer_sheets',[]).filter(s=>!s[2]||s[2]===fam()).map(([n,s])=>[n,s]),units:state.units},null,1)})});
 
 // test and capture hook (tests/test_ui.py, scripts/media/capture.mjs)
-window.__t={parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>plan,job:()=>job,
+window.__t={target:()=>controls.target,parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>plan,job:()=>job,
   ghost:()=>ghost.children,ghostUrl:()=>ghostUrl,pivot:()=>pivot3&&rnd(pivot3),
   screen:p=>{const q=new THREE.Vector3(p[0],p[1],p[2]).project(camera),r=renderer.domElement.getBoundingClientRect();
     return [r.left+(q.x+1)/2*r.width,r.top+(1-q.y)/2*r.height]},   // world point → the pixel to click, for drag tests
