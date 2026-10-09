@@ -23,6 +23,8 @@ yours, instead of waiting behind it, and renaming a project no longer prepares t
 
 ### Fixed
 
+- **What's new keeps its lists.** On a copy of Lamina cloned on Windows, these notes ran a whole version together as
+  one paragraph, every point inline. Each point is on its own line again.
 - **Your machine's kerf and slot offset stay put.** Opening the app, or picking another example, set the kerf and the
   slot offset to 0 while the machine list still named your machine, so the parts were cut with no fit allowance at all.
   They now keep your machine's values, or the ones you set after a fit test, until you pick another machine. An example
