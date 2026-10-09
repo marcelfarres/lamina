@@ -9,6 +9,13 @@ yours, instead of waiting behind it, and renaming a project no longer prepares t
 
 ### Changed
 
+- **The machine settings explain themselves.** Machine & cut compensation now comes in three parts, kerf, slot fit and
+  inside corners, each with a line saying what it does and whether it always applies: only the kerf is switched on and
+  off by "compensate kerf", while the slot offset and the corner relief always apply. Every setting has a plain name
+  and says when to change it, with typical values and how to measure them, and the corner relief choices say what they
+  are for.
+- **The Export tab goes step by step.** First the fit test (cut it first, and how to read it), then the parts, then
+  building it. Every download now says what it is for: which laser software or CAM opens it, or what else to use it for.
 - **Rounding, thickening and hollowing are quicker.** Preparing a model this way, or remeshing one that does not
   close, takes up to a third less time: the bunny's rounding went from 1.4 s to 0.9 s.
 - **Share your build with #lamina3d.** The note that invites you to share a photo of your build now names #lamina3d,
