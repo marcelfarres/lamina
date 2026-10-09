@@ -4,8 +4,10 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ## 0.2.4
 
-Quicker to work with in the browser: a change you make while a model is slicing now stops that slice and starts
-yours, instead of waiting behind it, and renaming a project no longer prepares the model all over again.
+Clearer and quicker. Machine & cut compensation and the Export tab now explain themselves, step by step. A change you
+make while a model is slicing stops that slice instead of waiting behind it, and nesting, remeshing and renaming all
+take less time. Two fixes matter for the parts themselves: your machine's kerf and slot offset no longer drop to 0
+when an example loads, and a model with a hole in it slices.
 
 ### Changed
 
