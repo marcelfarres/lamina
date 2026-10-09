@@ -134,10 +134,21 @@ What makes more models buildable comes first; polish and speed after.
 5. **Speed**: the browser now runs within about 2× of the local version (README → How long a slice takes) and shows
    its progress per stage. Since 0.2.4 the prepared model and its preview are reused between changes that do not
    shape the model, and a new change stops the slice before it (in the browser by racing a fresh worker against it).
-   Next: a fresh browser worker takes ~20 s even cached, 12 s of it installing Lamina's packages through micropip on
-   every start; shipping them so the start skips that would shorten both a cancel and every first load. Then cache
-   the section polygons of a slice frame between parameter changes that do not move the slices (slot width, notch
-   ratio, sheet), so a fit tweak on a scan answers in a second.
+   Where the time goes (2026-10-09, every preset, `working-files/internal/tools/perf/benchmark.py`): nesting 32 %,
+   placing slices and slots 25 %, checks 14 %, remeshing 11 %, loading 8 %. By caller (`perf/attribute.py`): the
+   biggest single cost is `nest.spot`'s union of no-fit polygons, 9–29 % of a slice (cow_spot 29 %, bowl 22 %, horse
+   20 %), rebuilt over every placed piece for every part, rotation and sheet tried; then ray casting for slots
+   (`line_segments_in_mesh`, up to 27 % on horse, one ray per call). Tried and dropped: a snap grid on that union
+   (2–4× slower, parts moved), trimesh's all-at-once plane cuts (no faster), the browser's sphere broad phase
+   natively (60 % slower on the head). Next, in order:
+   - **Nesting**: keep the no-fit union per sheet and rotation from one part to the next where the moving part is
+     the same shape (identical parts come in runs), or search the free region bottom-up in bands and stop at the
+     first one with room. Either is an algorithm change: measure sheets and usage with `perf/nest_compare.py`.
+   - **Rays**: cast a slot's rays in one call (trimesh takes many at once) instead of one call per ray.
+   - **Browser start**: a fresh worker takes ~20 s even cached, 12 s of it installing Lamina's packages through
+     micropip on every start; shipping them so the start skips that would shorten both a cancel and every first load.
+   - Cache the section polygons of a slice frame between parameter changes that do not move the slices (slot width,
+     notch ratio, sheet), so a fit tweak on a scan answers in a second.
 6. **Touch**: the 3D view's drag / shift-drag / ctrl-drag editing has no touch equivalent; a tablet at the laser is
    a common place to use it.
 7. **Stacked dowels, after 0.2.2's spread check:**

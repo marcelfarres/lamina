@@ -9,6 +9,8 @@ yours, instead of waiting behind it, and renaming a project no longer prepares t
 
 ### Changed
 
+- **Rounding, thickening and hollowing are quicker.** Preparing a model this way, or remeshing one that does not
+  close, takes up to a third less time: the bunny's rounding went from 1.4 s to 0.9 s.
 - **Share your build with #lamina3d.** The note that invites you to share a photo of your build now names #lamina3d,
   the one name Lamina uses everywhere (it said #applamina).
 
