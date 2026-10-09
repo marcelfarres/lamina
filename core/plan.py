@@ -108,6 +108,18 @@ def rasterize(seg, shape):
     return np.cumsum(count, axis=0) % 2 == 1
 
 
+def close_ends(odd):
+    """Segments that close the open ends of a layer's cut: each odd end joined to the nearest one left. A loop with one
+    gap gets the chord across it. Linking the segments into chains first (trimesh's load_path) came back empty at the
+    rim of a scan's hole, where three segments meet at an end, and the slice failed."""
+    odd, out = list(odd), []
+    while odd:
+        a = odd.pop()
+        b = odd.pop(int(np.argmin([np.hypot(*(q - a)) for q in odd])))
+        out.append([a, b])
+    return np.array(out).reshape(-1, 2, 2)
+
+
 def voxelize_solid(mesh, pitch):
     """Occupancy grid of the solid at `pitch` — the matrix and the world position of its [0, 0, 0] voxel. The mesh is
     cut at every layer and the cut rasterised, so the grid is solid from the start. trimesh's own voxeliser splits
@@ -124,11 +136,10 @@ def voxelize_solid(mesh, pitch):
         seg = mesh_plane(mesh, [0, 0, 1], [0, 0, (lo[2] + k - 0.5) * pitch])
         if not len(seg):
             continue
-        seg = seg[:, :, :2] / pitch - lo[:2] + 0.5
-        _, ends = np.unique(np.round(seg.reshape(-1, 2), 4), axis=0, return_counts=True)
+        seg = np.round(seg[:, :, :2] / pitch - lo[:2] + 0.5, 4)
+        pts, ends = np.unique(seg.reshape(-1, 2), axis=0, return_counts=True)
         if (ends % 2).any():                  # an end where an odd number of segments meet: a loop is open (a hole in a
-            chains = trimesh.load_path(seg).discrete   # scan) — link the segments into chains and close each straight across
-            seg = np.concatenate([np.stack([ch, np.roll(ch, -1, 0)], 1) for ch in chains])
+            seg = np.concatenate([seg, close_ends(pts[ends % 2 == 1])])   # scan) — close it straight across
         c[:, :, k] = rasterize(seg, n[:2] + 1)
     m = c[:-1] | c[1:]; m = m[:, :-1] | m[:, 1:]; m = m[:, :, :-1] | m[:, :, 1:]
     return ndimage.binary_fill_holes(m), lo * pitch     # a cavity — a scan's inner surface, a duplicated shell — is solid, as before

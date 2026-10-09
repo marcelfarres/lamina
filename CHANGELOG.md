@@ -14,6 +14,9 @@ yours, instead of waiting behind it, and renaming a project no longer prepares t
 
 ### Fixed
 
+- **A model with a hole in it slices.** A mesh open somewhere, as scans often are at their base, could fail to slice
+  with "need at least one array to concatenate". It is now filled into the solid it encloses, the hole closed straight
+  across, as was always meant.
 - **A new change stops the slice before it.** In the browser version, moving a slider or changing a value while a
   slice was running queued a whole slice for every step, and the result for the value you ended on came last: four
   quick moves on the horse took almost two minutes to show the last one, and now take under one. Picking another
