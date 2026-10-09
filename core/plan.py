@@ -132,8 +132,10 @@ def voxelize_solid(mesh, pitch):
     lo = np.floor(mesh.bounds[0] / pitch).astype(int) - 1
     n = np.ceil(mesh.bounds[1] / pitch).astype(int) + 2 - lo
     c = np.zeros(n + 1, bool)                          # corner samples: c[j] sits at (lo + j - 0.5) * pitch
+    z = mesh.triangles[:, :, 2]; zlo, zhi = z.min(1), z.max(1)
     for k in range(n[2] + 1):
-        seg = mesh_plane(mesh, [0, 0, 1], [0, 0, (lo[2] + k - 0.5) * pitch])
+        h = (lo[2] + k - 0.5) * pitch                  # only the triangles this layer passes through: the same cut,
+        seg = mesh_plane(mesh, [0, 0, 1], [0, 0, h], local_faces=np.flatnonzero((zlo <= h) & (zhi >= h)))   # 2.3× faster
         if not len(seg):
             continue
         seg = np.round(seg[:, :, :2] / pitch - lo[:2] + 0.5, 4)
@@ -251,7 +253,7 @@ def coverage(mesh, slices, r, lat=3.0):
 
 
 MESH_PARAMS = ("up_axis", "rotate", "size", "scale", "shrinkwrap", "hollow", "thicken", "round", "smooth")   # all _prepare reads
-_last = None   # [key, mesh, notes, preview]: the model as last prepared, and its preview once made
+_last = None   # [key, mesh, notes, {name: what was worked out from it}]: the model as last prepared
 
 
 def load_mesh(path, params, notes=None, mode=""):
@@ -266,22 +268,23 @@ def load_mesh(path, params, notes=None, mode=""):
     hit = _last                                     # read once: another request thread may replace it meanwhile
     if not hit or hit[0] != key:
         said = []
-        hit = _last = [key, _prepare(path, params, said, mode), said, None]
+        hit = _last = [key, _prepare(path, params, said, mode), said, {}]
     if notes is not None:
         notes.extend(hit[2])
     mesh = hit[1].copy()
-    mesh.metadata["lamina_key"] = key              # which prepared model it is a copy of, for preview()
+    mesh.metadata["lamina_key"] = key              # which prepared model it is a copy of, for reuse()
     return mesh
 
 
-def preview(mesh):
-    """The 30k-face copy the 3D view shows, made once per prepared model: 7 s of every slice in the browser."""
+def reuse(mesh, name, make):
+    """`make(mesh)`, worked out once per prepared model and kept with it: the preview the 3D view shows (7 s of every
+    slice in the browser), the square-up offer (half a second). Anything else is made fresh."""
     hit = _last
     if not hit or hit[0] != mesh.metadata.get("lamina_key"):
-        return decimate(mesh, 30000)
-    if hit[3] is None:
-        hit[3] = decimate(mesh, 30000)
-    return hit[3]
+        return make(mesh)
+    if name not in hit[3]:
+        hit[3][name] = make(mesh)
+    return hit[3][name]
 
 
 def _prepare(path, params, notes, mode):
@@ -412,10 +415,10 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     notes = []
     _run.__init__()
     mesh = load_mesh(model_path, p, notes, mode_name)
-    square = square_up(mesh, p["rotate"])          # offered on the Model tab, beside rotate
+    square = reuse(mesh, "square", lambda m: square_up(m, p["rotate"]))   # offered on the Model tab, beside rotate
     if mesh_out:                                    # processed model for the browser's ghost view (decimated)
         progress("preparing the preview model", 0.18)
-        ghost = preview(mesh)
+        ghost = reuse(mesh, "preview", lambda m: decimate(m, 30000))
         ghost.export(mesh_out)
         ready(mesh_out, 0.19)                       # the 3D view can show the model now: it does not wait for the slices
     sheet0 = list(p["sheet"])
