@@ -1013,7 +1013,7 @@ def test_every_control_does_what_it_says_and_every_download_holds_the_plan(page,
     p = plan(page); labels = {pc["label"] for s in p["slices"] for pc in s["pieces"]}
     from core.export import design_name
     design = design_name(p)                              # every file in a zip is named after the design, as the zip is
-    links = {a["t"]: a["h"] for a in page.eval_on_selector_all("#dl a", "as => as.map(a => ({t: a.textContent, h: a.getAttribute('href')}))")}
+    links = {a["t"]: a["h"] for a in page.eval_on_selector_all("#dl a, #dlfit a", "as => as.map(a => ({t: a.textContent, h: a.getAttribute('href')}))")}
     get = lambda href: page.request.get(f"{server}/{href}")
     z = zip_of(get(links["sheets SVG + DXF"]).body())
     svgs = [n for n in z.namelist() if n.endswith(".svg")]
