@@ -1013,7 +1013,7 @@ def test_every_control_does_what_it_says_and_every_download_holds_the_plan(page,
     p = plan(page); labels = {pc["label"] for s in p["slices"] for pc in s["pieces"]}
     from core.export import design_name
     design = design_name(p)                              # every file in a zip is named after the design, as the zip is
-    links = {a["t"]: a["h"] for a in page.eval_on_selector_all("#dl a", "as => as.map(a => ({t: a.textContent, h: a.getAttribute('href')}))")}
+    links = {a["t"]: a["h"] for a in page.eval_on_selector_all("#dl a, #dlfit a", "as => as.map(a => ({t: a.textContent, h: a.getAttribute('href')}))")}
     get = lambda href: page.request.get(f"{server}/{href}")
     z = zip_of(get(links["sheets SVG + DXF"]).body())
     svgs = [n for n in z.namelist() if n.endswith(".svg")]
@@ -1103,3 +1103,82 @@ def test_a_drag_while_a_slice_runs_turns_the_view_not_the_model(page):
     assert drags                                         # at least one drag landed while it sliced (a fast machine may finish first)
     assert page.evaluate("() => window.__t.state().rotate") == [0, 0, 0]
     assert plan(page)["counts"]["errors"] == 0
+
+
+def test_an_example_keeps_the_machine_s_values(page):
+    """The machine's kerf and slot fit are not the model's. Pick a machine, tune its slot offset as a fit test would,
+    open another example: the machine and the tuned offset stay, and the slice is cut with them. An example that names
+    its own machine brings that machine's values. Reset with everything else, the machine kept its name but sliced at
+    slot offset 0 (reported)."""
+    st = lambda: page.evaluate("() => { const s = window.__t.state(); return [s.machine, s.slot_offset, window.__t.plan().params.slot_offset] }")
+    page.click('nav button[data-t="sheet"]')
+    page.select_option("#machine", "hand"); settle(page)
+    assert st() == ["hand", 0.1, 0.1]                         # the machine's own values, applied
+    page.fill("#p_slot_offset", "0.23"); page.press("#p_slot_offset", "Enter"); settle(page)
+    page.click('nav button[data-t="model"]')
+    page.select_option("#example", "torus"); settle(page)
+    assert st() == ["hand", 0.23, 0.23]                       # still yours, and sliced with it
+    page.select_option("#example", "wavy_torus"); settle(page)   # names its machine: a PETG print on the H2C
+    assert st() == ["bambu_h2c", 0.2, 0.2]
+
+
+def test_the_notes_keep_their_lists_from_a_windows_checkout(page, server):
+    """A Windows checkout serves CHANGELOG.md with CRLF line endings: a blank line is then \r\n\r\n, and the dialog
+    showed a whole version as one paragraph with its bullets inline (reported). Served that way, every bullet of the
+    newest version is a list item of its own."""
+    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").replace("\r\n", "\n")
+    newest = text.split("\n## ")[1]
+    bullets = sum(line.startswith("- ") for line in newest.splitlines())
+    second = text.split("\n## ")[2].split("\n")[0].strip()
+    page.route("**/changelog.md", lambda r: r.fulfill(body=text.replace("\n", "\r\n"), content_type="text/markdown"))
+    try:
+        page.evaluate("v => localStorage.setItem('slicer_seen_version', JSON.stringify(v))", second)
+        page.goto(server + "/"); settle(page); page.wait_for_timeout(600)
+        assert page.locator("#newsdlg[open]").count(), "the newest version did not announce itself"
+        items = page.eval_on_selector_all("#news_body li", "els => els.map(e => e.textContent)")
+        assert len(items) == bullets > 3, items
+        assert not any(" - **" in t or "\n" in t for t in items)          # no bullet run into another
+        page.click("#news_go")
+    finally:
+        page.unroute("**/changelog.md")
+
+
+def test_the_wheel_zooms_back_out(page, server):
+    """Wheel in, wheel out the same notches: the camera is back where it was. At a pixel ratio under 1 (a browser
+    zoomed out) one notch put the camera on the point it turns about and zooming out made it NaN; a fast flick sent
+    deltas of a thousand and more and dived into the model, past the clipping plane (reported). A flick is one notch
+    now, and the camera stops short of the point it turns about."""
+    pg = page.context.browser.new_page(viewport={"width": 1500, "height": 950}, device_scale_factor=0.9)
+    pg.errors = []; pg.on("pageerror", lambda e: pg.errors.append(str(e)))
+    try:
+        pg.goto(server + "/"); settle(pg)
+        box = pg.locator("#v3d canvas").first.bounding_box()
+        pg.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        dist = lambda: pg.evaluate("() => window.__t.camera.position.distanceTo(window.__t.target())")
+        start = dist()
+        for dy in [-100] * 10 + [-3000] + [100] * 10 + [3000]:      # ten notches and a flick in, the same out
+            pg.mouse.wheel(0, dy); pg.wait_for_timeout(60)
+            d = dist(); assert d == d and d > start / 200, d                # never NaN, never onto the target
+        pg.wait_for_timeout(400)
+        assert abs(dist() / start - 1) < 0.01, (start, dist())
+    finally:
+        pg.close()
+
+
+def test_a_phone_is_told_once_that_lamina_is_made_for_a_computer(page, server):
+    """A phone gets the whole app and, once, a notice that it is made for a computer. A computer never sees it (every
+    other test here runs on one, and the notice would sit over the page)."""
+    assert not page.locator("#oops[open]").count()
+    ctx = page.context.browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True,
+        user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1")
+    pg = ctx.new_page(); pg.errors = []; pg.on("pageerror", lambda e: pg.errors.append(str(e)))
+    try:
+        pg.goto(server + "/"); pg.wait_for_selector("#oops[open]", timeout=60_000)
+        assert pg.text_content("#oops_title") == "Lamina is made for a computer"
+        assert pg.text_content("#oops_go") == "Continue on this phone"
+        pg.click("#oops_go"); assert not pg.locator("#oops[open]").count()
+        pg.reload(); pg.wait_for_timeout(3000)
+        assert not pg.locator("#oops[open]").count(), "told twice"
+        assert not pg.errors, pg.errors
+    finally:
+        ctx.close()

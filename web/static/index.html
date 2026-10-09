@@ -31,7 +31,7 @@ input,select,button{font:inherit}input,select{width:100%;padding:4px 6px;border:
 .rows{display:flex;flex-direction:column;gap:3px}.rows .r{display:flex;gap:3px;align-items:center}.rows .r input{min-width:0}.rows .r small{color:var(--muted);min-width:44px}
 button.small{padding:3px 8px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:4px;cursor:pointer;font-size:12px;white-space:nowrap}button.small:hover{border-color:var(--acc)}button.small:disabled{opacity:.35;cursor:default;border-color:var(--line)}button.x{padding:2px 6px;color:var(--muted)}
 .chips{display:flex;flex-wrap:wrap;gap:4px;align-items:center}.chip{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:1px 8px;font-size:12px}.chip b{cursor:pointer;color:var(--muted);margin-left:4px}.chips input{width:70px;padding:2px 6px}
-.hint{color:var(--muted);font-size:11px}
+.hint{color:var(--muted);font-size:11px}h3.sub{font-size:12px;font-weight:600;margin:12px 0 1px;color:var(--ink)}p.hint.sub{margin:0 0 4px}
 .bar select{padding:1px 4px;width:auto}
 .modes{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}.modes button{padding:6px 9px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:4px;cursor:pointer;font-size:12px}.modes button.on{background:var(--acc);border-color:var(--acc);color:#fff}
 .desc{color:var(--muted);font-size:12px;margin:0 0 10px}
@@ -77,9 +77,13 @@ button.small{padding:3px 8px;border:1px solid var(--line);background:var(--panel
 .sl input[type=number]::-webkit-inner-spin-button,.sl input[type=number]::-webkit-outer-spin-button,#sel input[type=number]::-webkit-inner-spin-button,#sel input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 h2 button.reset{float:right;text-transform:none;letter-spacing:0;font-size:11px;padding:1px 7px;margin-top:-3px}
 #view{display:flex;flex-direction:column}#view.only3d #lower{display:none}#view.only3d #v3d{flex:1 1 auto}#view.only2d #v3d{display:none}#view.only2d #lower{flex:1}
-.dl{display:flex;flex-wrap:wrap;gap:6px}.dl a{padding:6px 10px;border:1px solid var(--line);border-radius:4px;text-decoration:none;color:var(--ink);font-size:12px;background:var(--panel2)}.dl a:hover{border-color:var(--acc)}
+.dl{display:flex;flex-wrap:wrap;gap:6px}.dl.rows{flex-direction:column}.dl .r{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin-bottom:4px}.dl a{padding:6px 10px;border:1px solid var(--line);border-radius:4px;text-decoration:none;color:var(--ink);font-size:12px;background:var(--panel2)}.dl a:hover{border-color:var(--acc)}
 table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 6px;border-bottom:1px solid var(--line);text-align:left}tr.bad td{color:var(--err)}tr:hover td{background:var(--panel2);cursor:pointer}
 dialog{width:min(620px,92vw);border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);padding:22px;font:14px/1.55 Inter,system-ui,sans-serif}
+/* A phone: the header wraps and the panel sits over the 3D view. Left unwrapped, the header's buttons made the page
+   1560 px wide on a 390 px screen, and the phone notice was centred in that, off the edge of what the phone shows */
+@media (max-width:760px){header{height:auto;flex-wrap:wrap;padding:6px 10px;row-gap:6px}main{grid-template-columns:1fr;height:auto}
+  aside{border-right:0;border-bottom:1px solid var(--line)}.view{height:75vh}}
 dialog::backdrop{background:#000b}dialog h3{margin:0 0 8px;font-size:18px}dialog a{color:var(--acc)}
 dialog .row{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
 dialog button{padding:8px 15px;border-radius:6px;border:1px solid var(--line);background:var(--panel2);color:inherit;font:inherit;cursor:pointer}
@@ -193,17 +197,24 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
       <div class="f"><span class="k" data-tip="Stock sizes this material comes in, plus the beds of the machine in use. + saves the current size for this material, − deletes the selected one. Turn on `one sheet` below to ignore the height and nest everything on one strip">sheet preset</span><span class="vec"><select id="sheetpreset"></select><button id="sadd" class="small">+</button><button id="sdel" class="small">−</button></span></div>
       <div id="g-sheet"></div>
       <h2>Machine &amp; cut compensation</h2>
-      <div class="f"><span class="k" data-tip="Your machine, or the process it uses. Kerf, slot offset and corner relief belong to the machine, not the material: picking one fills the fields below, which stay editable, and a machine listed by name also sets its bed as the sheet. A * means the bed size is the manufacturer's published figure and the kerf is a good guess for that class of machine — not measured on your material. Cut the fit test (Export tab) once and correct the two numbers. Not on the list? Set kerf, slot offset and sheet size, then + keeps them as a machine of your own under its name, − deletes it, and share sends it in to get on the list">machine</span><span class="vec"><select id="machine"></select><button id="kadd" class="small" title="keep the kerf, slot offset, relief, tool and sheet size as a machine of your own, under a name">+</button><button id="kdel" class="small" title="delete the selected machine of yours">−</button><button class="small" data-feedback="machine" title="Share this machine — its name, kerf, slot offset, corner relief, tool diameter and bed, nothing else — so it ships with Lamina for the next person who owns one. Opens a prefilled email or GitHub issue for you to send">share</button></span></div>
+      <div class="f"><span class="k" data-tip="Your machine, or the kind of machine. Picking one fills the kerf, slot fit and inside corners below with typical values for it (they stay yours to change), and a machine listed by name also sets its bed as the sheet. A * means the bed is the maker's published size and the values are typical for that kind of machine, not measured on your material: cut the fit test (Export tab, step 1) and set the slot offset it shows. Not on the list? Set the values and the sheet size, then + keeps them as a machine of your own under its name, − deletes it, and share sends it in to get on the list">machine</span><span class="vec"><select id="machine"></select><button id="kadd" class="small" title="keep the kerf, slot offset, relief, tool and sheet size as a machine of your own, under a name">+</button><button id="kdel" class="small" title="delete the selected machine of yours">−</button><button class="small" data-feedback="machine" title="Share this machine — its name, kerf, slot offset, corner relief, tool diameter and bed, nothing else — so it ships with Lamina for the next person who owns one. Opens a prefilled email or GitHub issue for you to send">share</button></span></div>
       <div id="g-fit"></div>
     </section>
     <section data-tab="checks"><h2>Physical checks <button class="small reset" data-reset="checks">reset tab</button></h2><div id="g-checks"></div><h2>Report</h2><div id="report"></div></section>
     <section data-tab="export"><h2>Weight</h2><div id="weight"></div>
-      <h2>Downloads</h2>
+      <!-- Three steps, in the order they happen: the fit test decides the slot offset the parts are then cut with. -->
+      <h2 class="cutonly">1 · Fit test — cut this first</h2>
+      <p class="hint cutonly" style="margin:0 0 6px">Five small joints from this job, each cut with a different slot offset and marked with it: yours, and one and two steps either side. Cut them from the same sheet on the same machine as the parts and push each one together. The loosest that slides in without forcing and still holds is your slot offset: set it on Sheet &amp; fit, under Slot fit, and the parts below come out with it. A few minutes and a scrap, against a sheet of parts that will not go together.</p>
+      <div class="f cutonly"><span class="k" data-tip="How far apart the five offsets are: 0.1 mm gives yours −0.2, −0.1, 0, +0.1 and +0.2. Use 0.05 to fine-tune once you are close. This test is at 1:1 on your real material and machine, so it is the one that predicts the model's fit; the print fit test under Prototyping tunes a 3D print only (a clearance is a length, not a ratio)">joint step (mm)</span><input type="number" id="pr_step" data-len data-mm="0.1" data-min="0.01" data-step="0.05"></div>
+      <div class="dl rows cutonly" id="dlfit"></div>
+      <h2 id="dl_title">2 · The parts</h2>
       <div class="f cutonly"><span class="k" data-tip="Include the red LABEL layer (part names, leader lines, seam numbers, sheet border) in the cut files. Off = cuts and score lines only">labels in files</span><input type="checkbox" id="x_labels" checked></div>
       <div class="f"><span class="k" data-tip="assembly-key.txt in the zip: what the labels mean, every part with where its centre sits and what it slots onto, in the order the 3D view builds them. In puzzle mode it is also the only way from an engraved code back to a part — untick it and the puzzle stays a puzzle (the file can always be downloaded later)">assembly key</span><input type="checkbox" id="x_key" checked></div>
       <div class="hint" id="legend" style="margin:2px 0 8px"></div>
-      <div class="f cutonly"><span class="k" data-tip="Step between the five slot offsets of a fit test: yours −2, −1, 0, +1, +2 steps. A fit test is five small assemblies with this job's joints — same thickness, connectors and the counts that make the assembly tight (every radial half-slice) — each part marked with its offset. The loosest that slides together without forcing and still holds is the offset to set. The cut-file test below is at 1:1 on your real material and machine and is the one that predicts the model's fit; the print test under Prototyping dials in the print only — a clearance is a length, not a ratio">fit step (mm)</span><input type="number" id="pr_step" data-len data-mm="0.1" data-min="0.01" data-step="0.05"></div>
-      <div class="dl" id="dl"></div>
+      <div class="dl rows" id="dl"></div>
+      <h2>3 · Build it</h2>
+      <p class="hint" style="margin:0 0 6px">assembly-key.txt in the zip says where every part goes, and the steps slider over the 3D view shows the order. Record it to keep beside you as you build:</p>
+      <div class="dl"><a href="#" id="vid_go">record the assembly video (webm) — the steps slider played and saved</a></div>
       <!-- Here, not on the Model tab: the people who just downloaded the cut files are the ones about to make it. -->
       <p class="hint" style="margin:10px 0 4px">Once it is cut and built, please
         <a data-feedback="made" href="https://github.com/marcelfarres/lamina/issues/new?template=made.yml" target="_blank" rel="noopener">send me a photo</a>
@@ -219,8 +230,6 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
       <div class="hint" id="pr_hint" style="margin:2px 0 8px"></div>
       <div class="dl"><a href="#" id="pr_go">download prototype set (plate.3mf for OrcaSlicer + one STL per part)</a></div>
       <div class="dl"><a href="#" id="fit_go">download print fit test (5 print slot offsets around yours, at the scale above)</a></div>
-      <h2>Assembly</h2>
-      <div class="dl"><a href="#" id="vid_go">record the assembly video (webm) — the steps slider played and saved</a></div>
       <h2>Parts</h2><div id="parts"></div></section>
   </div>
 </aside>
@@ -413,7 +422,7 @@ const num=(id,v,p,extra='')=>{const b=bounds(p);return `<input type="number" id=
 const slider=(id,v,p,extra='')=>{const b=bounds(p);return `<span class="sl"><input type="range" id="${id}_r" value="${show(p,v)}" min="${b.min}" max="${b.max}" step="${b.step||'any'}" data-for="${id}" ${extra}>${num(id,v,p,extra)}</span>`};
 function field(p){
   const id='p_'+p.name, v=state[p.name], u=isLen(p)?` (${unit})`:p.unit==='deg'?' (°)':''; let inp;
-  if(p.type==='choice')inp=`<select id="${id}">${p.choices.map(c=>`<option ${c==v?'selected':''}>${c}</option>`).join('')}</select>`;
+  if(p.type==='choice')inp=`<select id="${id}">${p.choices.map(c=>`<option value="${esc(c)}" ${c==v?'selected':''}>${esc(p.choice_labels?.[c]||c)}</option>`).join('')}</select>`;
   else if(p.type==='bool')inp=`<input type="checkbox" id="${id}" ${v?'checked':''}>`;
   else if(p.type==='vec2'||p.type==='vec3'){const n=p.type==='vec2'?2:3,lab=p.name==='sheet'?['w','h']:['x','y','z'],sl=p.unit==='deg';
     inp=sl?`<div class="rows">${[...Array(n)].map((_,i)=>`<div class="r"><small>${lab[i]}</small>${slider(id+'_'+i,(v||[])[i]||0,p,`data-vec="${p.name}" data-i="${i}"`)}</div>`).join('')}</div>`
@@ -427,11 +436,15 @@ function field(p){
     inp=`<div class="rows" id="${id}">${rows.map(([k,x])=>`<div class="r"><small>${esc(k)}</small><input type="number" step="any" value="${show(p,x)}" data-map="${p.name}" data-k="${esc(k)}">${k in (v||{})?`<button class="small x" data-del="${p.name}" data-i="${esc(k)}">×</button>`:'<span class="hint">default</span>'}</div>`).join('')||'<span class="hint">no overrides — select a part in the 3D view and use the sliders</span>'}</div>`}
   else if(p.type==='labels'||p.type==='chips')inp=`<div class="chips" id="${id}">${(v||[]).map((x,i)=>`<span class="chip">${p.type==='chips'?show(p,x):esc(x)}<b data-del="${p.name}" data-i="${i}">×</b></span>`).join('')}<input placeholder="${p.type==='chips'?'value ⏎':'label ⏎'}" data-chip="${p.name}"></div>`;
   else inp=(p.min!=null&&p.max!=null)?slider(id,v,p):num(id,v,p);
-  return `<div class="f${p.type==='lines3'?' wide':''}" data-p="${p.name}" ${p.show_if?`data-show="${p.show_if[0]}:${[].concat(p.show_if[1]).join('|')}"`:''}><span class="k" data-tip="${p.help.replace(/"/g,'&quot;')}">${nice(p.name)}${u}</span>${inp}</div>`;
+  return `<div class="f${p.type==='lines3'?' wide':''}" data-p="${p.name}" ${p.show_if?`data-show="${p.show_if[0]}:${[].concat(p.show_if[1]).join('|')}"`:''}><span class="k" data-tip="${p.help.replace(/"/g,'&quot;')}">${p.label||nice(p.name)}${u}</span>${inp}</div>`;
 }
+// a group's fields, with a heading where the section changes: "Title — the line under it", the line always on show, so
+// what a switch governs is read, not hovered for (only the kerf follows "compensate kerf"; the slot fit always applies)
+const fields=ps=>{let s='';return ps.map(p=>{if(!p.section||p.section===s)return field(p);s=p.section;const [t,line]=s.split(' — ');
+  return `<h3 class="sub">${esc(t)}</h3>${line?`<p class="hint sub">${esc(line)}</p>`:''}${field(p)}`}).join('')};
 function renderFields(){
-  const com=mode.common, byG=g=>com.filter(p=>p.group===g).map(field).join(''); syncProject();
-  $('#g-model').innerHTML=byG('model'); $('#g-technique').innerHTML=mode.params.map(field).join('')+byG('technique'); $('#g-slices').innerHTML=byG('slices');
+  const com=mode.common, byG=g=>fields(com.filter(p=>p.group===g)); syncProject();
+  $('#g-model').innerHTML=byG('model'); $('#g-technique').innerHTML=fields(mode.params)+byG('technique'); $('#g-slices').innerHTML=byG('slices');
   $('#g-sheet').innerHTML=byG('sheet'); $('#g-fit').innerHTML=byG('fit'); $('#g-checks').innerHTML=byG('checks');
   applyShowIf(); syncPresetSelects();
 }
@@ -549,7 +562,9 @@ addEventListener('keydown',e=>{
 // version since that one, and the header button opens the whole list, newest first. A browser that has never seen Lamina is not shown it: for them
 // none of it is new.
 const MDESC={'&':'&amp;','<':'&lt;','>':'&gt;'};
-const md2html=s=>s.replace(/[&<>]/g,c=>MDESC[c])
+// a Windows checkout serves CHANGELOG.md with CRLF: a blank line is then \r\n\r\n, nothing split on /\n{2,}/, and a whole
+// version came out as one paragraph with its - bullets inline (reported). The line endings are made one first
+const md2html=s=>s.replace(/\r\n?/g,'\n').replace(/[&<>]/g,c=>MDESC[c])
   .replace(/^### +(.+)$/gm,'\n<h4>$1</h4>\n')
   .replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/(?<!\*)\*([^*]+)\*/g,'<i>$1</i>')
   .split(/\n{2,}/).map(b=>{
@@ -582,6 +597,15 @@ async function whatsNew(){
     const i=vs.findIndex(s=>s.v===seen);
     if(seen&&i!==0)showNews(i<0?vs.length:i);
   }catch(e){}                                            // no changelog beside the page: the button still works
+}
+// A phone gets the whole app and, once, a word that it is made for a computer: the 3D view's editing wants a mouse and
+// the panels a wide screen. The browser's own flag where it has one, else the user agent's; a tablet is not a phone.
+function phoneNotice(){
+  const phone=navigator.userAgentData?.mobile??/iPhone|iPod|Android.+Mobile|Windows Phone/i.test(navigator.userAgent);
+  if(!phone||ls('slicer_phone_told',false))return;
+  try{lsSet('slicer_phone_told',true)}catch(e){}         // a private window may refuse it: then it says so each visit
+  popup('Lamina is made for a computer','',`<p>It runs on a phone, but editing in the 3D view wants a mouse (drag, shift-drag,
+    right-drag) and the panels a wide screen. For the best experience, open this page on a computer.</p>`,'Continue on this phone');
 }
 
 // presets: manufacturing (sheet+fit params), materials, sheets — builtin + user (this browser)
@@ -722,6 +746,15 @@ const view=$('#v3d'), renderer=new THREE.WebGLRenderer({antialias:true}); render
 const scene=new THREE.Scene(); scene.background=new THREE.Color(0x141517);
 const camera=new THREE.PerspectiveCamera(40,1,1,100000); camera.position.set(300,-400,250); camera.up.set(0,0,1);
 const controls=new OrbitControls(camera,renderer.domElement); controls.enableDamping=true;
+controls.zoomToCursor=true;   // the wheel zooms toward what is under the pointer, as a CAD program does, not into the model's middle
+// One wheel event is one notch at most. A free-spinning wheel, a touchpad fling or Windows' "lines per notch" sends
+// deltas of a thousand and more: five of them put the camera 1.5 mm from the model's centre, inside it and past the
+// clipping plane, a hundred notches from the way back (reported). Firefox counts in lines: made pixels first.
+view.addEventListener('wheel',e=>{if(e.target!==renderer.domElement||e.lamina)return;
+  const px=e.deltaY*[1,33,800][e.deltaMode],y=Math.max(-100,Math.min(100,px)); if(y===e.deltaY)return;
+  e.stopPropagation();e.preventDefault();
+  const w=new WheelEvent('wheel',{deltaY:y,clientX:e.clientX,clientY:e.clientY,ctrlKey:e.ctrlKey,metaKey:e.metaKey,shiftKey:e.shiftKey,bubbles:true,cancelable:true});
+  w.lamina=true;renderer.domElement.dispatchEvent(w)},{capture:true,passive:false});
 scene.add(new THREE.HemisphereLight(0xffffff,0x334455,1.1)); const dl=new THREE.DirectionalLight(0xffffff,1.2); dl.position.set(1,-1,2); scene.add(dl);
 const parts=new THREE.Group(), ghost=new THREE.Group(), guides=new THREE.Group(), gizmo=new THREE.Group(), axes=new THREE.Group(), rings=new THREE.Group(); scene.add(parts,ghost,guides,gizmo,axes,rings);
 rings.visible=true;   // turn rings belong to the Model tab; showTab() hides them elsewhere
@@ -846,7 +879,10 @@ function mergeGeos(geos){
   const ngs=geos.map(g=>g.index?g.toNonIndexed():g),n=ngs.reduce((a,g)=>a+g.attributes.position.array.length,0),pos=new Float32Array(n),nor=new Float32Array(n);let o=0;
   for(const g of ngs){pos.set(g.attributes.position.array,o);nor.set(g.attributes.normal.array,o);o+=g.attributes.position.array.length}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('normal',new THREE.BufferAttribute(nor,3));return g}
-function fitView(){const b=new THREE.Box3().setFromObject(parts.children.length?parts:ghost);if(b.isEmpty())return;const c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3()).length();controls.target.copy(c);camera.position.copy(c).add(new THREE.Vector3(.7,-1,.6).normalize().multiplyScalar(s*1.5));camera.near=s/100;camera.far=s*20;camera.updateProjectionMatrix()}
+function fitView(){const b=new THREE.Box3().setFromObject(parts.children.length?parts:ghost);if(b.isEmpty())return;const c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3()).length();controls.target.copy(c);camera.position.copy(c).add(new THREE.Vector3(.7,-1,.6).normalize().multiplyScalar(s*1.5));
+  // close enough to read a slot, never onto the point it turns about (from 0 no zoom ever comes back), never so far the
+  // model is lost; the clipping planes outside both, so nothing is cut away at either end
+  controls.minDistance=s/40;controls.maxDistance=s*8;camera.near=s/200;camera.far=s*20;camera.updateProjectionMatrix()}
 function applyExplode(){const e=+$('#explode').value,k=+$('#steps').value;for(const m of parts.children){if(m.userData.group==='B')continue;m.position.copy(m.userData.origin).multiplyScalar(e-1);m.visible=m.userData.i<k}
   const s=selected&&parts.children.find(c=>c.userData.slice===selected); if(s)drawGizmo(s);   // the handles ride with the part
   dirty=true}
@@ -1222,10 +1258,19 @@ function renderDownloads(){ // the labels checkbox applies to every cut file; th
   $('#pr_title').textContent=state.printed?'Print plates':'Prototyping (3D print)';
   $('#pr_go').textContent=state.printed?`download print plates (plate-1.3mf … plate-${plan.sheets}.3mf, one per bed, + one STL per part)`
     :'download prototype set (plate.3mf for OrcaSlicer + one STL per part)';
-  if(state.printed){$('#dl').innerHTML=[['assembled STL',`${b}/stl`],['plan.json',`jobs/${CLIENT}/${job}/plan.json`]].map(([t,u])=>`<a href="${u}">${t}</a>`).join('');return}
-  $('#dl').innerHTML=[['sheets SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}${U}`],['sheets PDF (one page per sheet)',`${b}/export?fmt=pdf&labels=${L}&key=${K}${U}`],['sheets EPS',`${b}/export?fmt=eps&labels=${L}&key=${K}${U}`],
-    ['one file per piece SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&per_piece=1${U}`],['assembled STL',`${b}/stl`],['plan.json',`jobs/${CLIENT}/${job}/plan.json`],
-    ['fit test SVG + DXF (5 slot offsets around yours, cut at 1:1 first)',`${b}/fitcut?fmt=svg,dxf&labels=${L}&step=${step}${U}`],['fit test PDF',`${b}/fitcut?fmt=pdf&labels=${L}&step=${step}${U}`]].map(([t,u])=>`<a href="${u}">${t}</a>`).join('');
+  // every file says what it is for: eight buttons in a row left the reader to know which program wants which format
+  const rows=r=>r.map(([t,u,use])=>`<div class="r"><a href="${u}">${t}</a>${use?`<span class="hint">${use}</span>`:''}</div>`).join('');
+  const more=[['assembled STL',`${b}/stl`,'the whole model built from its parts, as one 3D file: to look at it or render it in another program'],
+    ['plan.json',`jobs/${CLIENT}/${job}/plan.json`,'everything Lamina worked out, for scripts and other tools']];
+  $('#dl_title').textContent=state.printed?'The parts':'2 · The parts';
+  if(state.printed){$('#dl').innerHTML=rows(more);return}
+  $('#dlfit').innerHTML=rows([['fit test SVG + DXF',`${b}/fitcut?fmt=svg,dxf&labels=${L}&step=${step}${U}`],['fit test PDF',`${b}/fitcut?fmt=pdf&labels=${L}&step=${step}${U}`]]);
+  $('#dl').innerHTML=rows([
+    ['sheets SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}${U}`,'the usual one, a zip with one file per sheet: laser software opens the SVGs (LightBurn, xTool Creative Space, Glowforge), CAM the DXFs (Fusion, VCarve, SheetCAM)'],
+    ['sheets PDF (one page per sheet)',`${b}/export?fmt=pdf&labels=${L}&key=${K}${U}`,'print it at 100 % to cut by hand or check the sizes; Glowforge and LightBurn open it too'],
+    ['sheets EPS',`${b}/export?fmt=eps&labels=${L}&key=${K}${U}`,'for CorelDRAW, Illustrator and laser drivers that ask for EPS'],
+    ['one file per piece SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&per_piece=1${U}`,'every part on its own, not nested: to nest them yourself (Deepnest, your laser software) or cut them one at a time'],
+    ...more]);
 }
 function renderReport(){
   const c=plan.counts,p=plan;
@@ -1365,6 +1410,7 @@ async function init(){
   $('#newsbtn').onclick=()=>showNews(Infinity); $('#news_go').onclick=()=>$('#newsdlg').close();
   whatsNew();
   $('#oops_go').onclick=()=>oops.close('go'); $('#oops_no').onclick=()=>oops.close('');
+  phoneNotice();
   $('#clear').onclick=async()=>{if(!confirm('Delete everything this tab has sliced — uploaded models, cut files and the session? Presets are kept.'))return;await fetch(`api/session?client=${CLIENT}`,{method:'DELETE'});location.reload()};
   $('#psave2').onclick=saveProject; $('#popen').onclick=()=>$('#pfile').click(); $('#pfile').onchange=e=>{if(e.target.files[0])openProject(e.target.files[0]);e.target.value=''};
   $('#pname').oninput=e=>{state.project=e.target.value;schedule()}; $('#pminor').onclick=()=>bump(false); $('#pmajor').onclick=()=>bump(true);
@@ -1387,11 +1433,17 @@ async function init(){
   // material or a machine picks it as the selects would (its look, its compensation, its bed as the sheet); the caller
   // slices straight after, so the select's own delayed slice is dropped. Every other technique starts from its defaults
   // too: the memory kept the last example's preset, so the horse switched to stacked after the statue came back with
-  // the statue's 2 mm square dowels on axis y, and its tab spacers were all "thinner than 2 mm" (reported)
+  // the statue's 2 mm square dowels on axis y, and its tab spacers were all "thinner than 2 mm" (reported).
+  // The machine's kerf, slot fit and corners are not the model's: they stay as they were (the machine's, or what a fit
+  // test gave you) while the machine does, and become the new machine's when an example or its material picks another.
+  // Reset with everything else, the machine kept its name and lost its values: co2 sliced at slot offset 0 (reported)
   const applyPreset=()=>{const pr=PRESETS[$('#example').value];if(!pr)return;
+    const FIT=[...new Set(MODES.flatMap(m=>m.common).filter(p=>p.group==='fit').map(p=>p.name))];
+    const was=state.machine, fit=Object.fromEntries(FIT.filter(k=>!(k in pr.params)).map(k=>[k,structuredClone(state[k])]));   // what the preset names, it sets
     setMode(pr.mode,false);for(const k of Object.keys(memo))delete memo[k];Object.assign(state,{rotate:[0,0,0],size:[0,0,0],scale:1,round:0,thicken:0,shrinkwrap:0,smooth:0,hollow:0,space:0},structuredClone(pr.params));
     if(pr.params.material)$('#material').onchange({target:{value:pr.params.material}});
-    if(pr.params.machine)applyMachine(pr.params.machine);
+    const m=state.material||'cardboard', next=pr.params.machine||(machineOf(was)?.cuts.includes(kind(m))?was:matOf(m).machine);
+    if(next===was)Object.assign(state,fit); else applyMachine(next);
     clearTimeout(timer);renderFields()};
   // the file box lets go of the upload too: left holding it, choosing that same file again fires no change and loads nothing
   $('#example').onchange=()=>{pendingFile=null;$('#file').value='';newModel();applyPreset();countUse('model','example');fresh='loaded example '+$('#example').value;slice()};
@@ -1478,7 +1530,7 @@ window.laminaFeedback?.({bug:async withModel=>{
   sheets:ls('slicer_sheets',[]).filter(s=>!s[2]||s[2]===fam()).map(([n,s])=>[n,s]),units:state.units},null,1)})});
 
 // test and capture hook (tests/test_ui.py, scripts/media/capture.mjs)
-window.__t={parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>plan,job:()=>job,
+window.__t={target:()=>controls.target,parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>plan,job:()=>job,
   ghost:()=>ghost.children,ghostUrl:()=>ghostUrl,pivot:()=>pivot3&&rnd(pivot3),
   screen:p=>{const q=new THREE.Vector3(p[0],p[1],p[2]).project(camera),r=renderer.domElement.getBoundingClientRect();
     return [r.left+(q.x+1)/2*r.width,r.top+(1-q.y)/2*r.height]},   // world point → the pixel to click, for drag tests

@@ -3,7 +3,7 @@
     uv run python -m core.plan examples/egg.stl --mode interlocked --set nx=5 ny=4 thickness=3 --out working-files/egg
 """
 from __future__ import annotations
-import argparse, json, math, pathlib, threading, time
+import argparse, json, math, os, pathlib, shutil, threading, time
 import numpy as np
 import trimesh
 from shapely import affinity
@@ -108,6 +108,18 @@ def rasterize(seg, shape):
     return np.cumsum(count, axis=0) % 2 == 1
 
 
+def close_ends(odd):
+    """Segments that close the open ends of a layer's cut: each odd end joined to the nearest one left. A loop with one
+    gap gets the chord across it. Linking the segments into chains first (trimesh's load_path) came back empty at the
+    rim of a scan's hole, where three segments meet at an end, and the slice failed."""
+    odd, out = list(odd), []
+    while odd:
+        a = odd.pop()
+        b = odd.pop(int(np.argmin([np.hypot(*(q - a)) for q in odd])))
+        out.append([a, b])
+    return np.array(out).reshape(-1, 2, 2)
+
+
 def voxelize_solid(mesh, pitch):
     """Occupancy grid of the solid at `pitch` — the matrix and the world position of its [0, 0, 0] voxel. The mesh is
     cut at every layer and the cut rasterised, so the grid is solid from the start. trimesh's own voxeliser splits
@@ -120,15 +132,16 @@ def voxelize_solid(mesh, pitch):
     lo = np.floor(mesh.bounds[0] / pitch).astype(int) - 1
     n = np.ceil(mesh.bounds[1] / pitch).astype(int) + 2 - lo
     c = np.zeros(n + 1, bool)                          # corner samples: c[j] sits at (lo + j - 0.5) * pitch
+    z = mesh.triangles[:, :, 2]; zlo, zhi = z.min(1), z.max(1)
     for k in range(n[2] + 1):
-        seg = mesh_plane(mesh, [0, 0, 1], [0, 0, (lo[2] + k - 0.5) * pitch])
+        h = (lo[2] + k - 0.5) * pitch                  # only the triangles this layer passes through: the same cut,
+        seg = mesh_plane(mesh, [0, 0, 1], [0, 0, h], local_faces=np.flatnonzero((zlo <= h) & (zhi >= h)))   # 2.3× faster
         if not len(seg):
             continue
-        seg = seg[:, :, :2] / pitch - lo[:2] + 0.5
-        _, ends = np.unique(np.round(seg.reshape(-1, 2), 4), axis=0, return_counts=True)
+        seg = np.round(seg[:, :, :2] / pitch - lo[:2] + 0.5, 4)
+        pts, ends = np.unique(seg.reshape(-1, 2), axis=0, return_counts=True)
         if (ends % 2).any():                  # an end where an odd number of segments meet: a loop is open (a hole in a
-            chains = trimesh.load_path(seg).discrete   # scan) — link the segments into chains and close each straight across
-            seg = np.concatenate([np.stack([ch, np.roll(ch, -1, 0)], 1) for ch in chains])
+            seg = np.concatenate([seg, close_ends(pts[ends % 2 == 1])])   # scan) — close it straight across
         c[:, :, k] = rasterize(seg, n[:2] + 1)
     m = c[:-1] | c[1:]; m = m[:, :-1] | m[:, 1:]; m = m[:, :, :-1] | m[:, :, 1:]
     return ndimage.binary_fill_holes(m), lo * pitch     # a cavity — a scan's inner surface, a duplicated shell — is solid, as before
@@ -240,7 +253,7 @@ def coverage(mesh, slices, r, lat=3.0):
 
 
 MESH_PARAMS = ("up_axis", "rotate", "size", "scale", "shrinkwrap", "hollow", "thicken", "round", "smooth")   # all _prepare reads
-_last = None   # [key, mesh, notes, preview]: the model as last prepared, and its preview once made
+_last = None   # [key, mesh, notes, {name: what was worked out from it}]: the model as last prepared
 
 
 def load_mesh(path, params, notes=None, mode=""):
@@ -255,22 +268,23 @@ def load_mesh(path, params, notes=None, mode=""):
     hit = _last                                     # read once: another request thread may replace it meanwhile
     if not hit or hit[0] != key:
         said = []
-        hit = _last = [key, _prepare(path, params, said, mode), said, None]
+        hit = _last = [key, _prepare(path, params, said, mode), said, {}]
     if notes is not None:
         notes.extend(hit[2])
     mesh = hit[1].copy()
-    mesh.metadata["lamina_key"] = key              # which prepared model it is a copy of, for preview()
+    mesh.metadata["lamina_key"] = key              # which prepared model it is a copy of, for reuse()
     return mesh
 
 
-def preview(mesh):
-    """The 30k-face copy the 3D view shows, made once per prepared model: 7 s of every slice in the browser."""
+def reuse(mesh, name, make):
+    """`make(mesh)`, worked out once per prepared model and kept with it: the preview the 3D view shows (7 s of every
+    slice in the browser), the square-up offer (half a second). Anything else is made fresh."""
     hit = _last
     if not hit or hit[0] != mesh.metadata.get("lamina_key"):
-        return decimate(mesh, 30000)
-    if hit[3] is None:
-        hit[3] = decimate(mesh, 30000)
-    return hit[3]
+        return make(mesh)
+    if name not in hit[3]:
+        hit[3][name] = make(mesh)
+    return hit[3][name]
 
 
 def _prepare(path, params, notes, mode):
@@ -401,12 +415,20 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     notes = []
     _run.__init__()
     mesh = load_mesh(model_path, p, notes, mode_name)
-    square = square_up(mesh, p["rotate"])          # offered on the Model tab, beside rotate
+    square = reuse(mesh, "square", lambda m: square_up(m, p["rotate"]))   # offered on the Model tab, beside rotate
     if mesh_out:                                    # processed model for the browser's ghost view (decimated)
         progress("preparing the preview model", 0.18)
-        ghost = preview(mesh)
-        ghost.export(mesh_out)
-        ready(mesh_out, 0.19)                       # the 3D view can show the model now: it does not wait for the slices
+        ghost = reuse(mesh, "preview", lambda m: decimate(m, 30000))
+        # beside it, then swapped in: the page may still be downloading the last one, and rewritten in place it got a
+        # file cut short (Linux CI: "network error" in the 3D view's loader). Windows refuses the swap while the file
+        # is being read: then in place, as before
+        tmp = pathlib.Path(mesh_out).with_suffix(f".{threading.get_ident()}.stl")
+        ghost.export(tmp)
+        try:
+            os.replace(tmp, mesh_out)
+        except PermissionError:
+            shutil.copyfile(tmp, mesh_out); tmp.unlink()
+        ready(mesh_out, 0.19)                     # the 3D view can show the model now: it does not wait for the slices
     sheet0 = list(p["sheet"])
     if p["one_sheet"]:                              # one strip as wide as the sheet, as long as it needs: nest against a huge height
         p["sheet"] = [sheet0[0], ONE_SHEET_H]

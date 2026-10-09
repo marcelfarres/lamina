@@ -39,6 +39,9 @@ class Param:
     group: str = "technique"  # UI tab: model | technique | sheet | fit | checks | slices
     unit: str = ""            # "mm" → converted to the UI unit (cm / in); "deg"
     show_if: tuple | None = None   # (other param name, value or list of values) → field only shown when it matches
+    label: str = ""           # what the form calls it; "" = the name with spaces
+    section: str = ""         # a heading within its group, "Title — the line under it": shown where the section changes
+    choice_labels: dict = field(default_factory=dict)   # choice value → what the list shows; the value itself is what is stored
 
     def coerce(self, v):
         if v is None or v == "":
@@ -92,16 +95,43 @@ COMMON: list[Param] = [
       "code = a short code that gives nothing away, for a puzzle: the app, the Parts list and the 3D view still show the real "
       "labels, and assembly-key.txt in the export maps code → part. Leave that file out of the zip and the puzzle stays a puzzle",
       choices=["position", "code"], group="sheet", show_if=("labels", True)),
-    P("compensate", "bool", False, "Apply the kerf compensation below to the cut files. Leave it off when the machine's own software compensates for its kerf, or the parts come out compensated twice", group="fit"),
-    P("kerf", "number", 0.0, "Cut compensation: beam/plasma kerf width (mm). Outer edges grow, holes and slots shrink by kerf/2", 0, 5, 0.01, group="fit", unit="mm", show_if=("compensate", True)),
-    # -- fit
-    P("slot_offset", "number", 0.0, "Added to every slot width (mm): + looser, − press fit (Slicer: Slot Offset)", -2, 2, 0.01, group="fit", unit="mm"),
-    P("notch_ratio", "number", 0.5, "Where the two slot families meet along a crossing: 0.5 = half/half, 0.7 = first family takes 70 %", 0.05, 0.95, 0.05, group="fit"),
-    P("notch_factor", "number", 0.0, "Flare the slot mouth: extra width at the opening as a fraction of the slot width (0 = none)", 0, 2, 0.05, group="fit"),
-    P("notch_angle", "number", 45, "Flare angle (deg)", 10, 80, 5, group="fit", unit="deg", advanced=True),
-    P("relief", "choice", "square", "Inner-corner relief for routed/plasma cuts (a round tool cannot cut a sharp inside corner)", choices=["square", "dogbone", "tbone_h", "tbone_v"], group="fit"),
-    P("tool_d", "number", 0.0, "Tool diameter for the relief (mm); 0 = none", 0, 20, 0.1, group="fit", unit="mm"),
-    P("margin", "number", 0, "Stacked / by-distance: keep the stack this far inside the model's end faces (mm), 0 = the stack is as tall as the model · Curve: keep the rib's ends this far in, 0 = one thickness", 0, 50, 0.1, group="fit", unit="mm", advanced=True),
+    # -- fit: three things that are easy to take for one. Only the kerf is switched by `compensate`; the slot fit and the
+    # corners always apply, and the form says so in each section's line (reported: "if compensate is off, it feels like
+    # none of the parameters below apply")
+    P("compensate", "bool", False, "Off (the default): the files are drawn at the parts' exact size. Right when your laser or "
+      "CAM software applies its own kerf offset (LightBurn's kerf offset, a CAM tool path's offset), and for a knife or a "
+      "printer, which have none. On: Lamina grows every outline and shrinks every hole and slot by half the kerf below, so "
+      "the parts come out true from a machine that cuts on the line. Never both, or the parts shrink twice. Only the kerf "
+      "depends on this: slot offset and corner relief always apply", group="fit", label="compensate kerf",
+      section="Kerf — the width the beam or bit burns away. Only the kerf is switched on and off here: slot fit and corners always apply"),
+    P("kerf", "number", 0.0, "How wide the cut is (mm): what the beam, plasma or bit removes. Measure it: cut a 20 mm square, "
+      "measure it, kerf = 20 − what you measured. Typical: CO2 laser 0.1–0.2, diode 0.1–0.15, fiber 0.2, plasma 1–2, a CNC "
+      "router about its bit's diameter. Each edge moves by half of it", 0, 5, 0.01, group="fit", unit="mm",
+      show_if=("compensate", True), label="kerf"),
+    P("slot_offset", "number", 0.0, "How much wider than the material every slot, hole and socket is cut (mm): + looser, − "
+      "tighter, a press fit. Sheet is rarely its nominal thickness (3 mm plywood is often 2.7–3.2), so cut the fit test "
+      "first (Export tab, step 1) and set the offset of the joint that slides together snug. It is the one number that "
+      "decides whether the model holds (Slicer for Fusion 360: Slot Offset)", -2, 2, 0.01, group="fit", unit="mm",
+      label="slot offset (fit)", section="Slot fit — how snug the joints are. Always applied"),
+    P("notch_ratio", "number", 0.5, "Where two crossing slices meet: each gets a slot to that point. 0.5 = each cut half way, "
+      "the usual; 0.7 = the first family's slot goes 70 % of the way and the other's 30 %. Move it when one family's slots "
+      "leave a part too thin", 0.05, 0.95, 0.05, group="fit", label="slot depth split"),
+    P("notch_factor", "number", 0.0, "Open each slot's mouth into a funnel, so parts find their slot as you push them together: "
+      "the extra width at the opening, as a fraction of the slot's width. 0 = straight slots, the cleanest look; 0.2–0.5 "
+      "helps with stiff material and many crossings", 0, 2, 0.05, group="fit", label="slot mouth flare"),
+    P("notch_angle", "number", 45, "How steep that funnel is (deg), when the mouth is flared", 10, 80, 5, group="fit", unit="deg",
+      advanced=True, label="flare angle"),
+    P("relief", "choice", "square", "A round bit cannot cut a sharp inside corner: it leaves a curve the size of the bit, and "
+      "the part that slots in stops short of the bottom. A relief cuts a little more at each inside corner so it seats. "
+      "None suits lasers, knives and printers, whose corners are sharp. Dogbone notches into the corner diagonally, the "
+      "usual one; T-bone along or across puts the notch along the slot or across it, hidden from one side. Needs the "
+      "tool diameter", choices=["square", "dogbone", "tbone_h", "tbone_v"], group="fit", label="inside-corner relief",
+      choice_labels={"square": "none (laser, knife, printer)", "dogbone": "dogbone", "tbone_h": "T-bone along the slot",
+                     "tbone_v": "T-bone across the slot"},
+      section="Inside corners — for a CNC router or plasma. Always applied"),
+    P("tool_d", "number", 0.0, "The bit's diameter (mm), for the relief above: each notch is this wide. 0 = no relief, "
+      "whatever is picked above", 0, 20, 0.1, group="fit", unit="mm", label="bit diameter"),
+    P("margin", "number", 0, "Stacked / by-distance: keep the stack this far inside the model's end faces (mm), 0 = the stack is as tall as the model · Curve: keep the rib's ends this far in, 0 = one thickness", 0, 50, 0.1, group="technique", unit="mm", advanced=True, label="end margin"),
     # -- slicing frame + per-slice edits (also driven by the 3D view)
     P("center", "vec3", [0, 0, 0], "Move the slicing centre / axis (mm) away from the model's bounding-box centre", -5000, 5000, 1, group="technique", unit="mm"),
     P("skip", "labels", [], "Deleted slices (3D view: select → delete). Crossing slices get no slot for them", group="slices"),

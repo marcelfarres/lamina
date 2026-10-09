@@ -4,8 +4,46 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ## 0.2.4
 
+Clearer and quicker. Machine & cut compensation and the Export tab now explain themselves, step by step. A change you
+make while a model is slicing stops that slice instead of waiting behind it, and nesting, remeshing and renaming all
+take less time. Two fixes matter for the parts themselves: your machine's kerf and slot offset no longer drop to 0
+when an example loads, and a model with a hole in it slices.
+
+### Changed
+
+- **On a phone, Lamina says it is made for a computer.** The first time it opens on a phone, a short note says that
+  editing in the 3D view wants a mouse and a wide screen, and suggests a computer. It runs on anyway, with the panel
+  above the 3D view so the page fits the screen.
+- **The machine settings explain themselves.** Machine & cut compensation now comes in three parts, kerf, slot fit and
+  inside corners, each with a line saying what it does and whether it always applies: only the kerf is switched on and
+  off by "compensate kerf", while the slot offset and the corner relief always apply. Every setting has a plain name
+  and says when to change it, with typical values and how to measure them, and the corner relief choices say what they
+  are for.
+- **The Export tab goes step by step.** First the fit test (cut it first, and how to read it), then the parts, then
+  building it. Every download now says what it is for: which laser software or CAM opens it, or what else to use it for.
+- **Nesting is faster on your own computer.** Laying the parts out on the sheets now tries each part's four turns side
+  by side, about twice as fast on a big model (the bowl's nesting went from 5.0 s to 2.1 s); the layout is exactly the
+  same. The browser version lays them out as before.
+- **Rounding, thickening and hollowing are quicker.** Preparing a model this way, or remeshing one that does not
+  close, takes up to a third less time: the bunny's rounding went from 1.4 s to 0.9 s.
+- **Share your build with #lamina3d.** The note that invites you to share a photo of your build now names #lamina3d,
+  the one name Lamina uses everywhere (it said #applamina).
+
 ### Fixed
 
+- **Zooming with the wheel behaves.** With the browser zoomed below 100 %, one turn of the wheel put the view right on
+  the model's centre and it could not zoom back out; a fast spin or a touchpad flick dived straight into the model. Each
+  notch now zooms by the same small step on any screen, toward what is under the pointer, and the view stops short of
+  the model's surface and never loses the model zooming out.
+- **What's new keeps its lists.** On a copy of Lamina cloned on Windows, these notes ran a whole version together as
+  one paragraph, every point inline. Each point is on its own line again.
+- **Your machine's kerf and slot offset stay put.** Opening the app, or picking another example, set the kerf and the
+  slot offset to 0 while the machine list still named your machine, so the parts were cut with no fit allowance at all.
+  They now keep your machine's values, or the ones you set after a fit test, until you pick another machine. An example
+  that comes with its own machine brings that machine's values.
+- **A model with a hole in it slices.** A mesh open somewhere, as scans often are at their base, could fail to slice
+  with "need at least one array to concatenate". It is now filled into the solid it encloses, the hole closed straight
+  across, as was always meant.
 - **A new change stops the slice before it.** In the browser version, moving a slider or changing a value while a
   slice was running queued a whole slice for every step, and the result for the value you ended on came last: four
   quick moves on the horse took almost two minutes to show the last one, and now take under one. Picking another

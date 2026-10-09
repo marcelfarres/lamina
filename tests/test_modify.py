@@ -1,6 +1,7 @@
 """Modify form and connector placement keep to what was asked: a small thicken stays small, a square dowel keeps
 its wall."""
 import collections
+import os
 import pathlib
 import re
 
@@ -11,7 +12,7 @@ import trimesh
 from shapely.geometry import Point
 
 from core.geometry import dowel_leverage, section_polygons, unripple
-from core.plan import MODES, build, coerce_params, load_mesh, preview
+from core.plan import MODES, build, coerce_params, load_mesh, reuse
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 EXAMPLES = ROOT / "examples"
@@ -404,6 +405,20 @@ def test_a_wall_too_thin_for_the_dowel_says_so():
     assert not [n for n in after["notes"] if "no connector" in n], "advice followed, layers still unconnected"
 
 
+def test_a_scan_with_a_hole_slices(tmp_path):
+    """A mesh open at one end (the egg with its top 15 % gone, as a scan often is) is remeshed into the solid it
+    encloses, the hole closed straight across: as wide as the egg, as tall as what is left of it. At the rim of the hole
+    three cut segments met at an end and the slice failed ("need at least one array to concatenate")."""
+    egg = trimesh.load(EXAMPLES / "egg.stl", force="mesh")
+    top = egg.bounds[1][2] - 0.15 * egg.extents[2]
+    egg.update_faces(egg.triangles_center[:, 2] <= top)
+    egg.export(tmp_path / "open.stl")
+    plan = build(tmp_path / "open.stl", "stacked", {"distribution": "count", "count": 8, "connect": "none", "autofix": "off"})
+    assert abs(plan["bbox"][0] - 180) < 2.5 and abs(plan["bbox"][1] - 120) < 2.5           # the egg is 180 × 120 × 150
+    assert abs(plan["bbox"][2] - (top - egg.bounds[0][2])) < 2.5                          # 127.5 left of its 150
+    assert plan["counts"]["parts"] == 8 and plan["counts"]["errors"] == 0
+
+
 def test_a_new_name_reslices_without_remeshing(tmp_path):
     """Changing the project name (or anything that does not shape the model) reuses the model as prepared and its
     preview: no second remesh, the same parts and notes. Changing a modify-form value remeshes again (reported: a name
@@ -412,8 +427,8 @@ def test_a_new_name_reslices_without_remeshing(tmp_path):
     a = build(EXAMPLES / "egg.stl", "stacked", {**job, "project": "first"}, mesh_out=tmp_path / "a.stl")
     b = build(EXAMPLES / "egg.stl", "stacked", {**job, "project": "second"}, mesh_out=tmp_path / "b.stl")
     p = coerce_params(MODES["stacked"], {**job, "project": "third"})
-    shown = preview(load_mesh(EXAMPLES / "egg.stl", p, [], "stacked"))   # not decimated again (no timing: CI is slow)
-    assert preview(load_mesh(EXAMPLES / "egg.stl", p, [], "stacked")) is shown
+    m, again = load_mesh(EXAMPLES / "egg.stl", p, [], "stacked"), lambda _: pytest.fail("worked out again")
+    reuse(m, "preview", again); reuse(m, "square", again)      # the builds kept both (no timing: CI is slow)
     c = build(EXAMPLES / "egg.stl", "stacked", {**job, "project": "second", "round": 4})
     assert "modify form: remeshing" in a["timing"] and "modify form: remeshing" not in b["timing"]
     assert (tmp_path / "a.stl").read_bytes() == (tmp_path / "b.stl").read_bytes()
@@ -421,3 +436,19 @@ def test_a_new_name_reslices_without_remeshing(tmp_path):
     assert [s["extents"] for s in a["slices"]] == [s["extents"] for s in b["slices"]]
     assert b["label_tag"] == "second"
     assert "modify form: remeshing" in c["timing"] and c["bbox"] != b["bbox"]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows refuses to swap a file someone is reading: there it is written in place")
+def test_a_preview_being_downloaded_is_never_cut_short(tmp_path):
+    """The page may still be downloading the last preview when the next slice writes its own. Rewritten in place, the
+    download got a file cut short ("network error" in the 3D view, Linux CI). Swapped in whole, the download in progress
+    reads the whole old file and the next one finds the whole new one."""
+    out = tmp_path / "model.stl"
+    job = {"distribution": "count", "count": 4, "connect": "none", "autofix": "off"}
+    build(EXAMPLES / "egg.stl", "stacked", {**job, "round": 3}, mesh_out=out)
+    size = out.stat().st_size
+    with open(out, "rb") as reading:                      # a download that has the file open
+        build(EXAMPLES / "egg.stl", "stacked", {**job, "round": 6}, mesh_out=out)
+        assert len(reading.read()) == size                 # the old preview, whole
+    data = out.read_bytes()
+    assert len(data) == 84 + 50 * int.from_bytes(data[80:84], "little") != size   # the new one, whole, and new
