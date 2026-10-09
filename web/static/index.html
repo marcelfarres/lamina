@@ -558,7 +558,9 @@ addEventListener('keydown',e=>{
 // version since that one, and the header button opens the whole list, newest first. A browser that has never seen Lamina is not shown it: for them
 // none of it is new.
 const MDESC={'&':'&amp;','<':'&lt;','>':'&gt;'};
-const md2html=s=>s.replace(/[&<>]/g,c=>MDESC[c])
+// a Windows checkout serves CHANGELOG.md with CRLF: a blank line is then \r\n\r\n, nothing split on /\n{2,}/, and a whole
+// version came out as one paragraph with its - bullets inline (reported). The line endings are made one first
+const md2html=s=>s.replace(/\r\n?/g,'\n').replace(/[&<>]/g,c=>MDESC[c])
   .replace(/^### +(.+)$/gm,'\n<h4>$1</h4>\n')
   .replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/(?<!\*)\*([^*]+)\*/g,'<i>$1</i>')
   .split(/\n{2,}/).map(b=>{

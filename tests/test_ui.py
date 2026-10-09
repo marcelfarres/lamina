@@ -1120,3 +1120,24 @@ def test_an_example_keeps_the_machine_s_values(page):
     assert st() == ["hand", 0.23, 0.23]                       # still yours, and sliced with it
     page.select_option("#example", "wavy_torus"); settle(page)   # names its machine: a PETG print on the H2C
     assert st() == ["bambu_h2c", 0.2, 0.2]
+
+
+def test_the_notes_keep_their_lists_from_a_windows_checkout(page, server):
+    """A Windows checkout serves CHANGELOG.md with CRLF line endings: a blank line is then \r\n\r\n, and the dialog
+    showed a whole version as one paragraph with its bullets inline (reported). Served that way, every bullet of the
+    newest version is a list item of its own."""
+    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").replace("\r\n", "\n")
+    newest = text.split("\n## ")[1]
+    bullets = sum(line.startswith("- ") for line in newest.splitlines())
+    second = text.split("\n## ")[2].split("\n")[0].strip()
+    page.route("**/changelog.md", lambda r: r.fulfill(body=text.replace("\n", "\r\n"), content_type="text/markdown"))
+    try:
+        page.evaluate("v => localStorage.setItem('slicer_seen_version', JSON.stringify(v))", second)
+        page.goto(server + "/"); settle(page); page.wait_for_timeout(600)
+        assert page.locator("#newsdlg[open]").count(), "the newest version did not announce itself"
+        items = page.eval_on_selector_all("#news_body li", "els => els.map(e => e.textContent)")
+        assert len(items) == bullets > 3, items
+        assert not any(" - **" in t or "\n" in t for t in items)          # no bullet run into another
+        page.click("#news_go")
+    finally:
+        page.unroute("**/changelog.md")
