@@ -43560,6 +43560,12 @@ class FileLoader extends Loader {
 
 									}
 
+								}, ( e ) => {
+
+									// Lamina: as later three.js has it. A body cut short (a file rewritten while it was downloaded)
+									// was an uncaught "network error"; now it fails the load and reaches onError
+									controller.error( e );
+
 								} );
 
 							}

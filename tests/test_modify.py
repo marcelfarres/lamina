@@ -1,6 +1,7 @@
 """Modify form and connector placement keep to what was asked: a small thicken stays small, a square dowel keeps
 its wall."""
 import collections
+import os
 import pathlib
 import re
 
@@ -435,3 +436,19 @@ def test_a_new_name_reslices_without_remeshing(tmp_path):
     assert [s["extents"] for s in a["slices"]] == [s["extents"] for s in b["slices"]]
     assert b["label_tag"] == "second"
     assert "modify form: remeshing" in c["timing"] and c["bbox"] != b["bbox"]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows refuses to swap a file someone is reading: there it is written in place")
+def test_a_preview_being_downloaded_is_never_cut_short(tmp_path):
+    """The page may still be downloading the last preview when the next slice writes its own. Rewritten in place, the
+    download got a file cut short ("network error" in the 3D view, Linux CI). Swapped in whole, the download in progress
+    reads the whole old file and the next one finds the whole new one."""
+    out = tmp_path / "model.stl"
+    job = {"distribution": "count", "count": 4, "connect": "none", "autofix": "off"}
+    build(EXAMPLES / "egg.stl", "stacked", {**job, "round": 3}, mesh_out=out)
+    size = out.stat().st_size
+    with open(out, "rb") as reading:                      # a download that has the file open
+        build(EXAMPLES / "egg.stl", "stacked", {**job, "round": 6}, mesh_out=out)
+        assert len(reading.read()) == size                 # the old preview, whole
+    data = out.read_bytes()
+    assert len(data) == 84 + 50 * int.from_bytes(data[80:84], "little") != size   # the new one, whole, and new
