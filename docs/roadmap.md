@@ -141,9 +141,11 @@ What makes more models buildable comes first; polish and speed after.
    (`line_segments_in_mesh`, up to 27 % on horse, one ray per call). Tried and dropped: a snap grid on that union
    (2–4× slower, parts moved), trimesh's all-at-once plane cuts (no faster), the browser's sphere broad phase
    natively (60 % slower on the head). Next, in order:
-   - **Nesting**: keep the no-fit union per sheet and rotation from one part to the next where the moving part is
-     the same shape (identical parts come in runs), or search the free region bottom-up in bands and stop at the
-     first one with room. Either is an algorithm change: measure sheets and usage with `perf/nest_compare.py`.
+   - **Nesting**: since 0.2.4 a part's four turns are tried side by side (GEOS releases the GIL: nesting −39 % over
+     every preset natively, plans identical; the browser has no threads). Next, the algorithm: keep the no-fit union
+     per sheet and rotation from one part to the next where the moving part is the same shape (identical parts come
+     in runs), or search the free region bottom-up in bands and stop at the first one with room. Measure sheets and
+     usage with `perf/nest_compare.py`.
    - **Rays**: cast a slot's rays in one call (trimesh takes many at once) instead of one call per ray.
    - **Browser start**: a fresh worker takes ~20 s even cached, 12 s of it installing Lamina's packages through
      micropip on every start; shipping them so the start skips that would shorten both a cancel and every first load.
