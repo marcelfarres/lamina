@@ -1387,11 +1387,17 @@ async function init(){
   // material or a machine picks it as the selects would (its look, its compensation, its bed as the sheet); the caller
   // slices straight after, so the select's own delayed slice is dropped. Every other technique starts from its defaults
   // too: the memory kept the last example's preset, so the horse switched to stacked after the statue came back with
-  // the statue's 2 mm square dowels on axis y, and its tab spacers were all "thinner than 2 mm" (reported)
+  // the statue's 2 mm square dowels on axis y, and its tab spacers were all "thinner than 2 mm" (reported).
+  // The machine's kerf, slot fit and corners are not the model's: they stay as they were (the machine's, or what a fit
+  // test gave you) while the machine does, and become the new machine's when an example or its material picks another.
+  // Reset with everything else, the machine kept its name and lost its values: co2 sliced at slot offset 0 (reported)
   const applyPreset=()=>{const pr=PRESETS[$('#example').value];if(!pr)return;
+    const FIT=[...new Set(MODES.flatMap(m=>m.common).filter(p=>p.group==='fit').map(p=>p.name))];
+    const was=state.machine, fit=Object.fromEntries(FIT.filter(k=>!(k in pr.params)).map(k=>[k,structuredClone(state[k])]));   // what the preset names, it sets
     setMode(pr.mode,false);for(const k of Object.keys(memo))delete memo[k];Object.assign(state,{rotate:[0,0,0],size:[0,0,0],scale:1,round:0,thicken:0,shrinkwrap:0,smooth:0,hollow:0,space:0},structuredClone(pr.params));
     if(pr.params.material)$('#material').onchange({target:{value:pr.params.material}});
-    if(pr.params.machine)applyMachine(pr.params.machine);
+    const m=state.material||'cardboard', next=pr.params.machine||(machineOf(was)?.cuts.includes(kind(m))?was:matOf(m).machine);
+    if(next===was)Object.assign(state,fit); else applyMachine(next);
     clearTimeout(timer);renderFields()};
   // the file box lets go of the upload too: left holding it, choosing that same file again fires no change and loads nothing
   $('#example').onchange=()=>{pendingFile=null;$('#file').value='';newModel();applyPreset();countUse('model','example');fresh='loaded example '+$('#example').value;slice()};
