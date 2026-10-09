@@ -1103,3 +1103,20 @@ def test_a_drag_while_a_slice_runs_turns_the_view_not_the_model(page):
     assert drags                                         # at least one drag landed while it sliced (a fast machine may finish first)
     assert page.evaluate("() => window.__t.state().rotate") == [0, 0, 0]
     assert plan(page)["counts"]["errors"] == 0
+
+
+def test_an_example_keeps_the_machine_s_values(page):
+    """The machine's kerf and slot fit are not the model's. Pick a machine, tune its slot offset as a fit test would,
+    open another example: the machine and the tuned offset stay, and the slice is cut with them. An example that names
+    its own machine brings that machine's values. Reset with everything else, the machine kept its name but sliced at
+    slot offset 0 (reported)."""
+    st = lambda: page.evaluate("() => { const s = window.__t.state(); return [s.machine, s.slot_offset, window.__t.plan().params.slot_offset] }")
+    page.click('nav button[data-t="sheet"]')
+    page.select_option("#machine", "hand"); settle(page)
+    assert st() == ["hand", 0.1, 0.1]                         # the machine's own values, applied
+    page.fill("#p_slot_offset", "0.23"); page.press("#p_slot_offset", "Enter"); settle(page)
+    page.click('nav button[data-t="model"]')
+    page.select_option("#example", "torus"); settle(page)
+    assert st() == ["hand", 0.23, 0.23]                       # still yours, and sliced with it
+    page.select_option("#example", "wavy_torus"); settle(page)   # names its machine: a PETG print on the H2C
+    assert st() == ["bambu_h2c", 0.2, 0.2]

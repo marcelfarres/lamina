@@ -23,6 +23,10 @@ yours, instead of waiting behind it, and renaming a project no longer prepares t
 
 ### Fixed
 
+- **Your machine's kerf and slot offset stay put.** Opening the app, or picking another example, set the kerf and the
+  slot offset to 0 while the machine list still named your machine, so the parts were cut with no fit allowance at all.
+  They now keep your machine's values, or the ones you set after a fit test, until you pick another machine. An example
+  that comes with its own machine brings that machine's values.
 - **A model with a hole in it slices.** A mesh open somewhere, as scans often are at their base, could fail to slice
   with "need at least one array to concatenate". It is now filled into the solid it encloses, the hole closed straight
   across, as was always meant.
