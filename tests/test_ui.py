@@ -1141,3 +1141,25 @@ def test_the_notes_keep_their_lists_from_a_windows_checkout(page, server):
         page.click("#news_go")
     finally:
         page.unroute("**/changelog.md")
+
+
+def test_the_wheel_zooms_back_out(page, server):
+    """Wheel in, wheel out the same notches: the camera is back where it was. At a pixel ratio under 1 (a browser
+    zoomed out) one notch put the camera on the point it turns about and zooming out made it NaN; a fast flick sent
+    deltas of a thousand and more and dived into the model, past the clipping plane (reported). A flick is one notch
+    now, and the camera stops short of the point it turns about."""
+    pg = page.context.browser.new_page(viewport={"width": 1500, "height": 950}, device_scale_factor=0.9)
+    pg.errors = []; pg.on("pageerror", lambda e: pg.errors.append(str(e)))
+    try:
+        pg.goto(server + "/"); settle(pg)
+        box = pg.locator("#v3d canvas").first.bounding_box()
+        pg.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        dist = lambda: pg.evaluate("() => window.__t.camera.position.distanceTo(window.__t.target())")
+        start = dist()
+        for dy in [-100] * 10 + [-3000] + [100] * 10 + [3000]:      # ten notches and a flick in, the same out
+            pg.mouse.wheel(0, dy); pg.wait_for_timeout(60)
+            d = dist(); assert d == d and d > start / 200, d                # never NaN, never onto the target
+        pg.wait_for_timeout(400)
+        assert abs(dist() / start - 1) < 0.01, (start, dist())
+    finally:
+        pg.close()

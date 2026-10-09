@@ -494,7 +494,9 @@ class OrbitControls extends EventDispatcher {
 
 		function getZoomScale( delta ) {
 
-			const normalized_delta = Math.abs( delta ) / ( 100 * ( window.devicePixelRatio | 0 ) );
+			// Lamina: as three.js r162+ has it. r160 divided by ( devicePixelRatio | 0 ), which is 0 below a ratio of 1 (a browser
+			// zoomed out): one wheel notch put the camera on its target, and zooming out made its position NaN
+			const normalized_delta = Math.abs( delta * 0.01 );
 			return Math.pow( 0.95, scope.zoomSpeed * normalized_delta );
 
 		}
