@@ -404,6 +404,20 @@ def test_a_wall_too_thin_for_the_dowel_says_so():
     assert not [n for n in after["notes"] if "no connector" in n], "advice followed, layers still unconnected"
 
 
+def test_a_scan_with_a_hole_slices(tmp_path):
+    """A mesh open at one end (the egg with its top 15 % gone, as a scan often is) is remeshed into the solid it
+    encloses, the hole closed straight across: as wide as the egg, as tall as what is left of it. At the rim of the hole
+    three cut segments met at an end and the slice failed ("need at least one array to concatenate")."""
+    egg = trimesh.load(EXAMPLES / "egg.stl", force="mesh")
+    top = egg.bounds[1][2] - 0.15 * egg.extents[2]
+    egg.update_faces(egg.triangles_center[:, 2] <= top)
+    egg.export(tmp_path / "open.stl")
+    plan = build(tmp_path / "open.stl", "stacked", {"distribution": "count", "count": 8, "connect": "none", "autofix": "off"})
+    assert abs(plan["bbox"][0] - 180) < 2.5 and abs(plan["bbox"][1] - 120) < 2.5           # the egg is 180 × 120 × 150
+    assert abs(plan["bbox"][2] - (top - egg.bounds[0][2])) < 2.5                          # 127.5 left of its 150
+    assert plan["counts"]["parts"] == 8 and plan["counts"]["errors"] == 0
+
+
 def test_a_new_name_reslices_without_remeshing(tmp_path):
     """Changing the project name (or anything that does not shape the model) reuses the model as prepared and its
     preview: no second remesh, the same parts and notes. Changing a modify-form value remeshes again (reported: a name
