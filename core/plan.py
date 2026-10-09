@@ -3,7 +3,7 @@
     uv run python -m core.plan examples/egg.stl --mode interlocked --set nx=5 ny=4 thickness=3 --out working-files/egg
 """
 from __future__ import annotations
-import argparse, json, math, pathlib, threading, time
+import argparse, json, math, os, pathlib, shutil, threading, time
 import numpy as np
 import trimesh
 from shapely import affinity
@@ -419,8 +419,16 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     if mesh_out:                                    # processed model for the browser's ghost view (decimated)
         progress("preparing the preview model", 0.18)
         ghost = reuse(mesh, "preview", lambda m: decimate(m, 30000))
-        ghost.export(mesh_out)
-        ready(mesh_out, 0.19)                       # the 3D view can show the model now: it does not wait for the slices
+        # beside it, then swapped in: the page may still be downloading the last one, and rewritten in place it got a
+        # file cut short (Linux CI: "network error" in the 3D view's loader). Windows refuses the swap while the file
+        # is being read: then in place, as before
+        tmp = pathlib.Path(mesh_out).with_suffix(f".{threading.get_ident()}.stl")
+        ghost.export(tmp)
+        try:
+            os.replace(tmp, mesh_out)
+        except PermissionError:
+            shutil.copyfile(tmp, mesh_out); tmp.unlink()
+        ready(mesh_out, 0.19)                     # the 3D view can show the model now: it does not wait for the slices
     sheet0 = list(p["sheet"])
     if p["one_sheet"]:                              # one strip as wide as the sheet, as long as it needs: nest against a huge height
         p["sheet"] = [sheet0[0], ONE_SHEET_H]

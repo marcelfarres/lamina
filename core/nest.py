@@ -306,7 +306,8 @@ def _nest(pieces, sheet, gap, margin, kerf=0.0, label_h=0.0, font=4.0, tag=""):
             if not sh.room(disc):
                 continue
             box_of = {r: _bounds(np.concatenate(turned[r])) for r in ROTS}
-            for r, xy in zip(ROTS, each(lambda r: sh.spot(hull[r], box_of[r]), ROTS)):   # side by side, scored in order
+            spots = each(sh.spot, [hull[r] for r in ROTS], [box_of[r] for r in ROTS])   # side by side, scored in order
+            for r, xy in zip(ROTS, spots):
                 bounds = box_of[r]
                 if xy is None:
                     continue
