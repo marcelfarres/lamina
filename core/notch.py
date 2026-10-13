@@ -11,7 +11,7 @@ import numpy as np
 import shapely
 from shapely.geometry import Polygon, LineString
 from shapely.ops import unary_union
-from .geometry import plane_plane_line, line_segments_in_mesh, to_local, rect_along, circle
+from .geometry import crossings, to_local, rect_along, circle
 
 
 def slot_polygon(a_open, a_end, width, p) -> Polygon:
@@ -65,23 +65,21 @@ def _clip_segments(segments, p0, d, slices):
     return segments
 
 
-def cut_slots(a, b, ctx, open_toward, ratio, through=False):
+def cut_slots(a, b, ctx, open_toward, ratio, through=False, crossing=None):
     """Add to slice `a` the slots where slice `b` crosses it — one per in-mesh segment of the crossing line. With
     `through` (a spine and a ring: one sheet each along the line) it is one slot for the whole line instead, from
     a's own edge on the open side across every segment to the closed end — cut through where the line leaves the
     material and comes back (a chord grazing a neck), half-lapped in the segment that holds the closed end. One
     half-lap per segment is a slot no part can slide past, and a slot that stops at the lobe boundary while the
-    sheet's material goes on is a slit inside it that nothing slides into."""
+    sheet's material goes on is a slit inside it that nothing slides into. `crossing` is the pair's line from
+    `geometry.crossings` cast toward `open_toward`, when the caller cast many at once."""
     p = ctx.p
-    ln = plane_plane_line(a.M, b.M)
-    if ln is None:
+    cr = crossings(ctx.mesh, ctx.span, [(a.M, b.M)], [open_toward])[0] if crossing is None else crossing
+    if cr is None:
         return
-    p0, d = ln
-    if np.dot(d, open_toward) < 0:
-        d = -d
+    p0, d, segs = cr
     width = b.thickness + p["slot_offset"]
     made = 0
-    segs = line_segments_in_mesh(ctx.mesh, p0, d, ctx.span)
     pieces = _clip_segments(segs, p0, d, (a, b))
     spans, edge = pieces, None
     if through and pieces:
@@ -108,9 +106,8 @@ def cut_slots(a, b, ctx, open_toward, ratio, through=False):
 def interlock(family_a, family_b, ctx, a_open=(0, 0, 1), b_open=(0, 0, -1), ratio=None):
     """Slot two families into each other. Family A opens toward a_open (inserted from there) and takes `ratio`."""
     ratio = ctx.p["notch_ratio"] if ratio is None else ratio
-    for a in family_a:
-        for b in family_b:
-            cut_slots(a, b, ctx, a_open, ratio)
-    for b in family_b:
-        for a in family_a:
-            cut_slots(b, a, ctx, b_open, 1.0 - ratio)
+    cuts = [(a, b, a_open, ratio) for a in family_a for b in family_b] + [(b, a, b_open, 1.0 - ratio) for a in family_a for b in family_b]
+    lines = crossings(ctx.mesh, ctx.span, [(x.M, y.M) for x, y, _, _ in cuts], [t for _, _, t, _ in cuts])   # every line cast at once
+    for (x, y, toward, rt), cr in zip(cuts, lines):
+        if cr:
+            cut_slots(x, y, ctx, toward, rt, crossing=cr)

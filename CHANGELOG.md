@@ -13,6 +13,13 @@ Parts can keep the wood grain running one way.
   sheet's width. A part that would only fit turned is split to fit (with `split` on) or flagged, and two parts only
   count as the same part when they match without a sideways turn.
 
+### Changed
+
+- **Slots and checks are quicker.** Every line where two slices cross is now cast through the model in one go
+  instead of one at a time, for the slots and for the collision check, and a sheet that is asked again about the
+  same part answers from memory. Interlocked, radial and curve jobs slice faster; the parts, the sheets and every
+  cut file come out exactly as before.
+
 ### Fixed
 
 - **A lifesize model no longer takes a quarter of an hour to say it is too big.** A model far bigger than its material
