@@ -1,7 +1,7 @@
 # Lamina as a service:  docker run -p 8000:8000 -v lamina-jobs:/app/working-files ghcr.io/marcelfarres/lamina
 # Every dependency ships a manylinux wheel, so there is nothing to compile and no apt package to install.
 # The Python the starters ask for (027), and the uv that goes with it: bump both together.
-FROM ghcr.io/astral-sh/uv:0.13.0-python3.14-trixie-slim
+FROM ghcr.io/astral-sh/uv:0.13.5-python3.14-trixie-slim
 
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy PATH=/app/.venv/bin:$PATH
 WORKDIR /app
