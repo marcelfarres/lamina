@@ -2,6 +2,23 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## Unreleased
+
+### Changed
+
+- **Each part is one group in the SVG.** The sheet SVG now nests the colour layers inside a group per part, instead of
+  grouping the whole sheet by colour. A part can be moved or re-nested as a whole in LightBurn (or Inkscape) without
+  rebuilding its group by hand, while blue / green / yellow / orange / red still choose the machine layer. That is
+  what LightBurn 2.2's True Nest wants: one object per slice to place, not a handful of colour fragments. Its kerf
+  offset stays at 0 — the kerf is already compensated in the outline — and the sheet border and title are a group of
+  their own on the LABEL layer, to delete before nesting (or keep, if True Nest takes it as the sheet boundary). The
+  Export tab has **parts grouped in the SVG** to switch back to the old layout.
+
+### Fixed
+
+- **The export endpoint takes the label size you give it.** `font` had stopped being accepted, so a caller asking for
+  another letter height silently got the plan's own; the Export tab passes the size in the plan and was unaffected.
+
 ## 0.2.5
 
 The first version with changes from outside Lamina: @Schnema1 sent three. A stacked slice can carry the outline of

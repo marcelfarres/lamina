@@ -2,8 +2,11 @@
 derived from the plan's own data (never hardcoded), then checked against the parsed export output —
 lxml for SVG, ezdxf for DXF — so nothing here trusts export.py's own claims about what it wrote.
 """
+import io
+import json
 import pathlib
 import re
+import zipfile
 
 import ezdxf
 import trimesh
@@ -39,13 +42,90 @@ def test_svg_layers_and_entity_counts_stacked(tmp_path):
     exp = sheet0_expected_counts(plan)
 
     tree = etree.parse(str(tmp_path / f"{design_name(plan)} sheet1.svg"))
-    outer_g = tree.xpath('//svg:g[@id="OUTER"]', namespaces=SVG_NS)[0]
-    inner_g = tree.xpath('//svg:g[@id="INNER"]', namespaces=SVG_NS)[0]
-    assert len(outer_g.xpath('.//svg:path', namespaces=SVG_NS)) == exp["outer"]
-    assert len(inner_g.xpath('.//svg:path', namespaces=SVG_NS)) == exp["inner"]
+    # the colour layers sit inside the part groups now, so count their paths across all of them
+    assert len(tree.xpath('//svg:g[@data-layer="OUTER"]//svg:path', namespaces=SVG_NS)) == exp["outer"]
+    assert len(tree.xpath('//svg:g[@data-layer="INNER"]//svg:path', namespaces=SVG_NS)) == exp["inner"]
     # stacked cube has no fold lines, so SCORE is legitimately absent
     assert exp["score"] == 0
-    assert not tree.xpath('//svg:g[@id="SCORE"]', namespaces=SVG_NS)
+    assert not tree.xpath('//svg:g[@data-layer="SCORE"]', namespaces=SVG_NS)
+
+
+def test_svg_has_one_group_per_part_with_the_colours_inside(tmp_path):
+    """The SVG is grouped by part first, colour second: LightBurn (which groups objects of several layers without
+    complaint) can then move or re-nest a part as a whole, while each path still carries the colour that chooses its
+    machine layer. The sheet frame is an object of its own, not part of the last part."""
+    plan = build(EXAMPLES / "cube.stl", "folded", {"facet": 0, "joint": "laced", "autofix": "off"})
+    export(plan, tmp_path, fmts=("svg",), labels=True)
+    exp = sheet0_expected_counts(plan)
+    tree = etree.parse(str(tmp_path / f"{design_name(plan)} sheet1.svg"))
+
+    parts = tree.xpath('//svg:g[@data-label]', namespaces=SVG_NS)
+    expected = {pc["label"] for sl in plan["slices"] for pc in sl["pieces"] if pc["place"][0] == 0}
+    if plan.get("scale_check", {}).get("sheet") == 0:          # the calibration bar is a part too
+        expected.add("scale-check")
+    assert {p.get("data-label") for p in parts} == expected
+    assert len(parts) == len(expected)
+    assert len({p.get("id") for p in parts}) == len(parts)      # unique ids, even for labels that start with a digit
+    # every cut path sits in the group of the part it belongs to, and in no other
+    assert sum(len(p.xpath('.//svg:path[@data-label]', namespaces=SVG_NS)) for p in parts) == exp["outer"] + exp["inner"]
+    for p in parts:
+        assert p.xpath('./svg:g[@data-layer]', namespaces=SVG_NS)                     # colour layers, inside the part
+        assert {q.get("data-label") for q in p.xpath('.//svg:path[@data-label]', namespaces=SVG_NS)} <= {p.get("data-label")}
+    # no colour group spans the sheet any more: each sits inside a part, and the one at the top is the sheet frame
+    layers = tree.xpath('//svg:g[@data-layer]', namespaces=SVG_NS)
+    assert all(g.getparent().get("data-label") or g.getparent().tag.endswith("svg") for g in layers)
+    top = [c for c in tree.getroot() if c.tag.endswith("g")]
+    assert len(top) == len(parts) + 1                                             # the parts + the sheet frame
+    assert [c.get("data-layer") for c in top if not c.get("data-label")] == ["LABEL"]
+
+
+def test_svg_can_keep_the_old_colour_first_layout(tmp_path):
+    """The switch on the Export tab: one group per colour for the whole sheet, exactly the layout older files had."""
+    plan = build(EXAMPLES / "cube.stl", "folded", {"facet": 0, "joint": "laced", "autofix": "off"})
+    export(plan, tmp_path, fmts=("svg",), labels=True, grouped=False)
+    exp = sheet0_expected_counts(plan)
+    tree = etree.parse(str(tmp_path / f"{design_name(plan)} sheet1.svg"))
+    assert not tree.xpath('//svg:g[@data-label]', namespaces=SVG_NS)
+    assert len(tree.xpath('//svg:g[@data-layer="OUTER"]', namespaces=SVG_NS)) == 1
+    assert len(tree.xpath('//svg:g[@data-layer="OUTER"]//svg:path', namespaces=SVG_NS)) == exp["outer"]
+    assert len(tree.xpath('//svg:g[@data-layer="LABEL"]', namespaces=SVG_NS)) == 1
+
+
+def test_job_export_uses_the_requested_font_size():
+    """The export API should honor the font chosen in the sheet editor, not silently fall back to the plan default."""
+    from web.app import client_dir, job_export
+
+    client = "font-export-test"
+    job = "sheet-font"
+    jd = client_dir(client) / job
+    jd.mkdir(parents=True, exist_ok=True)
+    plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 3, "autofix": "off", "font": 4.0})
+    (jd / "plan.json").write_text(json.dumps(plan), encoding="utf-8")
+
+    resp = job_export(client, job, fmt="svg", labels=1, key=0, font=2.0)
+    with zipfile.ZipFile(io.BytesIO(resp.body)) as zf:
+        svg = zf.read(next(name for name in zf.namelist() if name.endswith(".svg"))).decode("utf-8")
+    assert 'font-size="2.0"' in svg
+    assert 'font-size="4.0"' not in svg
+
+
+def test_job_export_can_switch_part_grouping_off():
+    """The checkbox the Export tab adds: `grouped=0` produces the old colour-first file, so an outside script that
+    already parses it keeps working."""
+    from web.app import client_dir, job_export
+
+    client, job = "group-export-test", "sheet-group"
+    jd = client_dir(client) / job
+    jd.mkdir(parents=True, exist_ok=True)
+    plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 3, "autofix": "off"})
+    (jd / "plan.json").write_text(json.dumps(plan), encoding="utf-8")
+
+    resp = job_export(client, job, fmt="svg", labels=1, key=0, grouped=0)
+    with zipfile.ZipFile(io.BytesIO(resp.body)) as zf:
+        svg = zf.read(next(name for name in zf.namelist() if name.endswith(".svg"))).decode("utf-8")
+    tree = etree.fromstring(svg.encode("utf-8"))
+    assert not tree.xpath('//svg:g[@data-label]', namespaces=SVG_NS)
+    assert tree.xpath('//svg:g[@data-layer="OUTER"]', namespaces=SVG_NS)
 
 
 def test_next_layer_outline_goes_on_the_guide_layer_and_identical_slices_stay_one_part(tmp_path):
@@ -61,17 +141,16 @@ def test_next_layer_outline_goes_on_the_guide_layer_and_identical_slices_stay_on
 
     export(plan, tmp_path, fmts=("svg",), labels=True)
     tree = etree.parse(str(tmp_path / f"{design_name(plan)} sheet1.svg"))
-    assert not tree.xpath('//svg:g[@id="SCORE"]', namespaces=SVG_NS)
-    guide_g = tree.xpath('//svg:g[@id="GUIDE"]', namespaces=SVG_NS)[0]
-    assert len(guide_g.xpath('.//svg:path', namespaces=SVG_NS)) == sum(len(pc["lines"]) for pc in pieces if pc["place"][0] == 0)
+    assert not tree.xpath('//svg:g[@data-layer="SCORE"]', namespaces=SVG_NS)
+    assert len(tree.xpath('//svg:g[@data-layer="GUIDE"]//svg:path', namespaces=SVG_NS)) == sum(len(pc["lines"]) for pc in pieces if pc["place"][0] == 0)
 
     files = {f.name.split(" ", 1)[1]: f for f in export(plan, tmp_path / "pieces", fmts=("svg",), labels=True, per_piece=True)}
     assert "Z-1 x3.svg" in files and "Z-4 x1.svg" in files, files
     # the one-file-per-part export carries the guide too, in the part's own frame
     piece = etree.parse(str(files["Z-1 x3.svg"]))
     z1 = next(pc for pc in pieces if pc["label"] == "Z-1")
-    assert len(piece.xpath('//svg:g[@id="GUIDE"]//svg:path', namespaces=SVG_NS)) == len(z1["kerfed_lines"]) == len(z1["lines"]) > 0
-    assert not etree.parse(str(files["Z-4 x1.svg"])).xpath('//svg:g[@id="GUIDE"]', namespaces=SVG_NS)
+    assert len(piece.xpath('//svg:g[@data-layer="GUIDE"]//svg:path', namespaces=SVG_NS)) == len(z1["kerfed_lines"]) == len(z1["lines"]) > 0
+    assert not etree.parse(str(files["Z-4 x1.svg"])).xpath('//svg:g[@data-layer="GUIDE"]', namespaces=SVG_NS)
 
 
 def test_guide_is_the_layer_as_cut_with_its_inner_edge(tmp_path):
@@ -129,9 +208,9 @@ def test_a_lone_part_file_puts_the_label_under_the_next_layer_like_the_sheet(tmp
     assert 1300 < under.area < 1900 and under.covers(Point(z2["label_pos"][:2]))             # on the sheet: under the block
     files = export(plan, tmp_path, fmts=("svg",), labels=True, per_piece=True)
     tree = etree.parse(str(next(f for f in files if " Z-2 " in f.name)))
-    d = tree.xpath('//svg:g[@id="GUIDE"]/svg:path/@d', namespaces=SVG_NS)[0]
+    d = tree.xpath('//svg:g[@data-layer="GUIDE"]/svg:path/@d', namespaces=SVG_NS)[0]
     ring = Polygon([tuple(map(float, xy.split(","))) for xy in re.findall(r"[ML]([-\d.]+,[-\d.]+)", d)])
-    label = next(t for t in tree.xpath('//svg:g[@id="LABEL"]/svg:text', namespaces=SVG_NS) if "Z-2" in t.text)
+    label = next(t for t in tree.xpath('//svg:g[@data-layer="LABEL"]/svg:text', namespaces=SVG_NS) if "Z-2" in t.text)
     assert ring.covers(Point(float(label.get("x")), float(label.get("y"))))                  # in its file: the same spot
 
 
@@ -164,7 +243,7 @@ def test_a_lone_part_file_carries_its_seam_numbers(tmp_path):
     for f in export(plan, tmp_path, fmts=("svg",), labels=True, per_piece=True):
         lab = f.name.split(" ")[1]
         if lab in pieces:
-            small = etree.parse(str(f)).xpath(f'//svg:g[@id="LABEL"]/svg:text[@font-size="{font * 0.6}"]', namespaces=SVG_NS)
+            small = etree.parse(str(f)).xpath(f'//svg:g[@data-layer="LABEL"]/svg:text[@font-size="{font * 0.6}"]', namespaces=SVG_NS)
             assert len(small) == len(pieces[lab]["marks"]) == len(pieces[lab]["kerfed_marks"]), lab
 
 
@@ -194,11 +273,9 @@ def test_svg_score_and_label_counts_folded(tmp_path):
     assert exp["score"] > 0  # folded panels have fold lines — this plan should actually exercise SCORE
 
     tree = etree.parse(str(tmp_path / f"{design_name(plan)} sheet1.svg"))
-    score_g = tree.xpath('//svg:g[@id="SCORE"]', namespaces=SVG_NS)[0]
-    label_g = tree.xpath('//svg:g[@id="LABEL"]', namespaces=SVG_NS)[0]
-    assert len(score_g.xpath('.//svg:path', namespaces=SVG_NS)) == exp["score"]
+    assert len(tree.xpath('//svg:g[@data-layer="SCORE"]//svg:path', namespaces=SVG_NS)) == exp["score"]
     # LABEL text = per-piece marks + per-piece label + the sheet title text
-    assert len(label_g.xpath('.//svg:text', namespaces=SVG_NS)) == exp["marks"] + exp["label_pos"] + 1
+    assert len(tree.xpath('//svg:g[@data-layer="LABEL"]//svg:text', namespaces=SVG_NS)) == exp["marks"] + exp["label_pos"] + 1
 
 
 def test_dxf_reloads_with_same_layers_and_matching_entity_counts(tmp_path):
@@ -224,7 +301,7 @@ def test_a_project_name_is_text_in_the_svg_not_markup(tmp_path):
     export(plan, tmp_path, fmts=("svg",), labels=True)
     tree = etree.parse(str(tmp_path / f"{design_name(plan)} sheet1.svg"))                          # still well-formed…
     assert not tree.xpath("//*[local-name()='img']")                          # …and the tag is not an element
-    assert '<img' in "".join(tree.xpath('//svg:g[@id="LABEL"]/svg:text/text()', namespaces=SVG_NS))   # but text
+    assert '<img' in "".join(tree.xpath('//svg:g[@data-layer="LABEL"]//svg:text/text()', namespaces=SVG_NS))   # but text
 
 
 def test_assembly_key_explains_the_labels_and_lists_every_part(tmp_path):

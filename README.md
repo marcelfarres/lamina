@@ -310,10 +310,17 @@ does not slip through. It carries the most signal for stacked and folded work; d
   nothing uploaded, nothing rendered twice.
 - **Cut files**: SVG (opens directly in LightBurn, the Glowforge app and xTool Creative Space) and DXF in mm / cm /
   in, multi-page PDF, EPS per sheet, or one file per piece, each with or without the red label layer (one switch for
-  every file). Layers follow Slicer's Cut Layout: OUTER blue, INNER green (slots, holes), SCORE yellow (folds: solid mountain, dashed valley, dotted perforate), GUIDE orange (stacked: the
+  every file). In the SVG every part is one group with its own colour layers inside it, so a part can be moved or
+  re-nested as a whole in LightBurn or Inkscape while the colours still choose the machine layer; a switch keeps the
+  older layout, one group per colour for the whole sheet. Layers follow Slicer's Cut Layout: OUTER blue, INNER green (slots, holes), SCORE yellow (folds: solid mountain, dashed valley, dotted perforate), GUIDE orange (stacked: the
   next layer's outline engraved on the slice under it, when `next_outline` is on), LABEL red (labels, leaders, seam numbers, sheet border). The zip is named `<project or model>_v<revision>_<technique>_…`, and so is every file
   in it: they all start with the design, `egg_v1.0 sheet1 plywood.svg`, so the cut files of two designs unzipped
   into one folder never collide or mix.
+- **Nesting in LightBurn 2.2+**: each part arrives as one group, so True Nest moves a whole slice — outline, holes,
+  score lines, guide and label — instead of scattering its colours. Two things to mind: the kerf is already
+  compensated in the outline, so leave LightBurn's kerf offset at 0 for these layers (otherwise it is applied a
+  second time); and the sheet border and title are a group of their own on the LABEL layer — delete it before
+  nesting, or keep it if True Nest uses it as the sheet boundary.
 - **Identical pieces once**: in per-piece mode a shape that occurs several times is exported one time, with the
   quantity last in the file name and on the label. A per-piece file is named design, part, material, thickness,
   quantity, in that order and separated by spaces, and it always ends in its quantity, `x1` included
