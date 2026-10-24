@@ -11,6 +11,7 @@ Layers / colours follow Slicer's Cut Layout convention:
                             single-stroke font (core.font): open polylines the laser engraves in one pass, in every format
 In the SVG each part is one group (<g class="piece" data-label="…">) holding its own layers, labels and marks, so it can
 be moved as a unit in a vector editor; the colours above are on each part's layer groups, which is what laser software sorts by.
+`grouped=False` writes the older colour-first layout instead, one group per colour for the whole sheet.
 """
 from __future__ import annotations
 import argparse, html, json, math, pathlib
@@ -241,14 +242,18 @@ def sheet_title(plan, si):
             f"{'plate' if p.get('printed') else 'sheet'} {si + 1}/{plan['sheets']}").strip(" ·")
 
 
-def svg_doc(items, width, height, labels, border=False, font=4.0, units="mm", title="", margin=5.0):
+def svg_doc(items, width, height, labels, border=False, font=4.0, units="mm", title="", margin=5.0, grouped=True):
     """y is flipped so the drawing reads like the plan (y up). Physical size via width/height units, viewBox in mm.
     Every part is one <g class="piece" data-label="…">: its cuts, fold and guide lines, marks, arrows, label and
     leader, each in a sub-group named after its layer — so a part dragged somewhere else in Inkscape or Illustrator
     takes its labels and dowel numbers with it, and nothing goes out of register. The laser's software sorts the
     lines by colour, which each layer group carries whatever part it is in. The border and the title, which belong to the
     sheet and not to a part, are the first group. The title is engraved in the top margin, sized to fit the band
-    nothing else uses, or left out when the margin holds no legible text."""
+    nothing else uses, or left out when the margin holds no legible text.
+
+    `grouped=False` writes the older colour-first layout instead: one group per colour for the whole sheet, with the
+    border, the arrows and every label in the single LABEL group. For a tool that keeps the colours apart and never
+    moves a part on its own."""
     f = UNIT[units]
     out = ['<?xml version="1.0" encoding="UTF-8"?>',
            f'<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="{width * f:.4f}{units}" height="{height * f:.4f}{units}" viewBox="0 0 {width} {height}">']
@@ -263,38 +268,59 @@ def svg_doc(items, width, height, labels, border=False, font=4.0, units="mm", ti
     def label_group(body):
         return [f'<g class="LABEL" fill="none" stroke="{COLORS["LABEL"]}" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round">'] + body + ["</g>"]
 
+    def layer_group(layer, on):
+        body = [f'<g class="{layer}" fill="none" stroke="{COLORS[layer]}" stroke-width="0.15">']
+        for _, pts, closed, style, key in on:
+            tag = f' data-label="{html.escape(key, quote=True)}"' if closed else ""
+            dash = f' stroke-dasharray="{",".join(f"{v:g}" for v in DASH[style][0])}"' if DASH[style][0] else ""
+            body.append(f'<path{tag} d="{d_of(pts, closed)}"{dash}/>')
+        return body + ["</g>"]
+
     sheet = []
     if border:
         sheet.append(f'<rect x="0" y="0" width="{width}" height="{height}"/>')
     size = min(font, margin * 0.6)
     if title and size >= 1.5:
         sheet.append(text_path(title, glyphs(title, size, size * 0.5, height - margin / 2, anchor="start")))
-    if sheet:
-        out += ['<g class="sheet">'] + label_group(sheet) + ["</g>"]
-    for it in items:
-        out.append(f'<g class="piece" data-label="{html.escape(it.key, quote=True)}">')
-        lines = list(strokes([it]))
+    if grouped:
+        if sheet:
+            out += ['<g class="sheet">'] + label_group(sheet) + ["</g>"]
+        for it in items:
+            out.append(f'<g class="piece" data-label="{html.escape(it.key, quote=True)}">')
+            lines = list(strokes([it]))
+            for layer in ("OUTER", "INNER", "GUIDE", "SCORE"):
+                on = [s for s in lines if s[0] == layer]
+                if not on:                                            # a layer with nothing on it is left out
+                    continue
+                out += layer_group(layer, on)
+            if labels:
+                # the orientation arrows, then the marks and the label with its leader line
+                body = [f'<path d="{d_of(pts)}"/>' for lay, pts, *_ in lines if lay == "LABEL"]
+                for text, sts, leader in texts([it], font):
+                    body.append(text_path(text, sts))
+                    if leader:
+                        (ax, ay), (bx, by) = leader
+                        body.append(f'<line x1="{ax:.2f}" y1="{height - ay:.2f}" x2="{bx:.2f}" y2="{height - by:.2f}"/>')
+                if body:
+                    out += label_group(body)
+            out.append("</g>")
+    else:
+        lines = list(strokes(items))
         for layer in ("OUTER", "INNER", "GUIDE", "SCORE"):
             on = [s for s in lines if s[0] == layer]
-            if not on:                                            # a layer with nothing on it is left out
+            if not on:
                 continue
-            out.append(f'<g class="{layer}" fill="none" stroke="{COLORS[layer]}" stroke-width="0.15">')
-            for _, pts, closed, style, key in on:
-                tag = f' data-label="{html.escape(key, quote=True)}"' if closed else ""
-                dash = f' stroke-dasharray="{",".join(f"{v:g}" for v in DASH[style][0])}"' if DASH[style][0] else ""
-                out.append(f'<path{tag} d="{d_of(pts, closed)}"{dash}/>')
-            out.append("</g>")
+            out += layer_group(layer, on)
+        body = list(sheet)
         if labels:
-            # the orientation arrows, then the marks and the label with its leader line
-            body = [f'<path d="{d_of(pts)}"/>' for lay, pts, *_ in lines if lay == "LABEL"]
-            for text, sts, leader in texts([it], font):
+            body += [f'<path d="{d_of(pts)}"/>' for lay, pts, *_ in lines if lay == "LABEL"]
+            for text, sts, leader in texts(items, font):
                 body.append(text_path(text, sts))
                 if leader:
                     (ax, ay), (bx, by) = leader
                     body.append(f'<line x1="{ax:.2f}" y1="{height - ay:.2f}" x2="{bx:.2f}" y2="{height - by:.2f}"/>')
-            if body:
-                out += label_group(body)
-        out.append("</g>")
+        if body:
+            out += label_group(body)
     out.append("</svg>")
     return "\n".join(out)
 
@@ -445,7 +471,7 @@ def key_text(plan):
 
 
 # ------------------------------------------------------------------ driver
-def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, border=True, font=None, units=None, key=False):
+def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, border=True, font=None, units=None, key=False, grouped=True):
     out_dir = pathlib.Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
     font = font or plan["params"].get("font", 4.0); units = units or plan["params"].get("units", "mm")
     names = plan.get("codes") or {}                 # puzzle mode: engraved codes instead of positions
@@ -461,7 +487,7 @@ def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, bor
     def write(stem, items, w, h, border_, fmts=fmts, title=""):
         for fmt in fmts:
             f = out_dir / f"{design} {stem}.{fmt}"
-            if fmt == "svg": f.write_text(svg_doc(items, w, h, labels, border_, font, units, title, plan["params"].get("sheet_margin", 5.0)), encoding="utf-8")
+            if fmt == "svg": f.write_text(svg_doc(items, w, h, labels, border_, font, units, title, plan["params"].get("sheet_margin", 5.0), grouped), encoding="utf-8")
             elif fmt == "dxf": dxf_doc(items, labels, (w, h) if border_ else None, font, units).saveas(f)
             elif fmt == "eps": f.write_text(eps_doc(items, w, h, labels, border_, font), encoding="latin-1", errors="replace")   # a label in another script: ? for its letters, not a failed export
             elif fmt == "pdf": pdf_doc(f, [(items, w, h)], labels, border_, font)
@@ -512,9 +538,10 @@ def main(argv=None):
     ap.add_argument("--no-border", action="store_true"); ap.add_argument("--font", type=float)
     ap.add_argument("--units", choices=["mm", "cm", "in"])
     ap.add_argument("--no-key", action="store_true", help="leave out assembly-key.txt (what the labels mean, the build order, and in puzzle mode the codes)")
+    ap.add_argument("--no-group", action="store_true", help="SVG: one group per colour for the whole sheet (older layout) instead of one group per part")
     a = ap.parse_args(argv)
     plan = json.loads(pathlib.Path(a.plan).read_text())
-    for f in export(plan, a.out, a.fmt, a.labels, a.per_piece, not a.no_border, a.font, a.units, key=not a.no_key):
+    for f in export(plan, a.out, a.fmt, a.labels, a.per_piece, not a.no_border, a.font, a.units, key=not a.no_key, grouped=not a.no_group):
         print(f)
 
 

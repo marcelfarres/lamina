@@ -222,6 +222,7 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
       <div class="dl rows cutonly" id="dlfit"></div>
       <h2 id="dl_title">2 · The parts</h2>
       <div class="f cutonly"><span class="k" data-tip="Include the red LABEL layer (part names, leader lines, seam numbers, sheet border) in the cut files. Off = cuts and score lines only">labels in files</span><input type="checkbox" id="x_labels" checked></div>
+      <div class="f cutonly"><span class="k" data-tip="One group per part in the SVG, with its cuts, lines and labels inside it, so a part can be moved or re-nested as a whole in LightBurn or Inkscape; the colours still choose the layer. Off = one group per colour for the whole sheet (the older layout), for software that wants the colours kept apart">group parts</span><input type="checkbox" id="x_grouped" checked></div>
       <div class="f"><span class="k" data-tip="assembly-key.txt in the zip: what the labels mean, every part with where its centre sits and what it slots onto, in the order the 3D view builds them. In puzzle mode it is also the only way from an engraved code back to a part — untick it and the puzzle stays a puzzle (the file can always be downloaded later)">assembly key</span><input type="checkbox" id="x_key" checked></div>
       <div class="hint" id="legend" style="margin:2px 0 8px"></div>
       <div class="dl rows" id="dl"></div>
@@ -1373,7 +1374,7 @@ function renderWeight(){if(!plan)return;const d=dens(),g=d/1000,by=new Map();   
 }
 function renderDownloads(){ // the labels checkbox applies to every cut file; the server names files <project or model>_v<rev>_…
   protoHint(); renderWeight();
-  const b=`api/job/${CLIENT}/${job}`,L=$('#x_labels').checked?1:0,K=$('#x_key').checked?1:0,step=lenMM('#pr_step',0.1),U=`&units=${unit}`;   // the cut files come out in the unit on show, without a re-slice
+  const b=`api/job/${CLIENT}/${job}`,L=$('#x_labels').checked?1:0,K=$('#x_key').checked?1:0,G=$('#x_grouped').checked?1:0,step=lenMM('#pr_step',0.1),U=`&units=${unit}`;   // the cut files come out in the unit on show, without a re-slice
   // what the labels on the parts mean, before the cut rather than after it
   $('#legend').innerHTML=`<b>how the parts are labelled</b><br>${(mode.legend||'every part carries its own label').replace(/ · /g,'<br>')}`
     +(state.label_style==='code'?'<br><b>puzzle mode:</b> the parts are engraved with codes instead — assembly-key.txt maps them back':'');
@@ -1390,10 +1391,10 @@ function renderDownloads(){ // the labels checkbox applies to every cut file; th
   if(state.printed){$('#dl').innerHTML=rows(more);return}
   $('#dlfit').innerHTML=rows([['fit test SVG + DXF',`${b}/fitcut?fmt=svg,dxf&labels=${L}&step=${step}${U}`],['fit test PDF',`${b}/fitcut?fmt=pdf&labels=${L}&step=${step}${U}`]]);
   $('#dl').innerHTML=rows([
-    ['sheets SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}${U}`,'the usual one, a zip with one file per sheet: laser software opens the SVGs (LightBurn, xTool Creative Space, Glowforge), CAM the DXFs (Fusion, VCarve, SheetCAM)'],
-    ['sheets PDF (one page per sheet)',`${b}/export?fmt=pdf&labels=${L}&key=${K}${U}`,'print it at 100 % to cut by hand or check the sizes; Glowforge and LightBurn open it too'],
-    ['sheets EPS',`${b}/export?fmt=eps&labels=${L}&key=${K}${U}`,'for CorelDRAW, Illustrator and laser drivers that ask for EPS'],
-    ['one file per piece SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&per_piece=1${U}`,'every part on its own, not nested: to nest them yourself (Deepnest, your laser software) or cut them one at a time'],
+    ['sheets SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&grouped=${G}${U}`,'the usual one, a zip with one file per sheet: laser software opens the SVGs (LightBurn, xTool Creative Space, Glowforge), CAM the DXFs (Fusion, VCarve, SheetCAM)'],
+    ['sheets PDF (one page per sheet)',`${b}/export?fmt=pdf&labels=${L}&key=${K}&grouped=${G}${U}`,'print it at 100 % to cut by hand or check the sizes; Glowforge and LightBurn open it too'],
+    ['sheets EPS',`${b}/export?fmt=eps&labels=${L}&key=${K}&grouped=${G}${U}`,'for CorelDRAW, Illustrator and laser drivers that ask for EPS'],
+    ['one file per piece SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&per_piece=1&grouped=${G}${U}`,'every part on its own, not nested: to nest them yourself (Deepnest, your laser software) or cut them one at a time'],
     ...more]);
 }
 function renderReport(){
@@ -1426,7 +1427,7 @@ function renderReport(){
   $('#fit_go').onclick=e=>{const q=prq();q.set('step',lenMM('#pr_step',0.1));e.currentTarget.href=`api/job/${CLIENT}/${job}/fit?${q}`;countUse('export','fit-3mf')};
   // typing in a length box writes its mm back, so what the server is given never depends on the unit on show
   for(const el of $$('input[data-len]'))el.oninput=()=>{el.dataset.mm=el.value===''?'':toMM(+el.value);(el.id==='pr_step'?renderDownloads:protoHint)()};
-  $('#pr_scale').oninput=protoHint; $('#x_labels').onchange=$('#x_key').onchange=renderDownloads;
+  $('#pr_scale').oninput=protoHint; $('#x_labels').onchange=$('#x_key').onchange=$('#x_grouped').onchange=renderDownloads;
   // Which formats people actually take away — the strongest signal of what machines they run. The link's own
   // query string already names them, so nothing extra has to be tracked to know it.
   $('#dl').onclick=e=>{const a=e.target.closest('a');if(!a)return;
@@ -1539,7 +1540,7 @@ async function init(){
   $('#psave2').onclick=saveProject; $('#popen').onclick=()=>$('#pfile').click(); $('#pfile').onchange=e=>{if(e.target.files[0])openProject(e.target.files[0]);e.target.value=''};
   $('#pname').oninput=e=>{state.project=e.target.value;schedule()}; $('#pminor').onclick=()=>bump(false); $('#pmajor').onclick=()=>bump(true);
   $('#unit').onchange=e=>{unit={mm:'mm',cm:'cm',in:'in'}[e.target.value]||'mm';applyUnit()};   // one of the three, never the box's own text
-  $('#x_labels').onchange=()=>{if(job)renderDownloads()};
+  $('#x_labels').onchange=()=>{if(job)renderDownloads()}; $('#x_grouped').onchange=()=>{if(job)renderDownloads()};
   $$('nav button').forEach(b=>b.onclick=()=>showTab(b.dataset.t));
   // A new model keeps none of the last one's geometry. These parameters are in its millimetres or under its part
   // labels — axis lines, curve points, dowels, per-slice edits — so they are cleared from the form *and* from the
