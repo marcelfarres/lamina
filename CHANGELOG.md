@@ -2,6 +2,16 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## Unreleased
+
+### Added
+
+- **How much stock to buy.** The Export tab now gives the sheet area beside the weight: m², or ft² when the units are
+  inches, counted on whole sheets with their offcuts. It is the figure to compare with a shop's price per square
+  metre or the size of a pack.
+- **And how much of it becomes parts.** Beneath it, the area that ends up in the parts and the share of the stock that
+  is used — the offcut the layout costs, next to the material to order. A job that mixes thicknesses gets the sheet
+  count and area on each stock line too.
 ## 0.3.0
 
 The release for the laser: every label in a single-stroke font, dowels named after their slices and numbered beside their holes, labels that keep clear of parts and of each other, orientation arrows, a four-letter short name, and non-uniform spacing drawn as a curve in every technique, with a graph to draw it; a stack can be shifted to land a slice on a feature. Thin tips and slivers are found and can be trimmed off, small parts go into the hollows of big ones, and the first sheet is filled before the second. Folded nets got seam numbers that can be read and hinge lines for their tabs, the SVG keeps each part with its labels, and the assembly video names each part as it goes in.

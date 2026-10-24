@@ -339,10 +339,11 @@ does not slip through. It carries the most signal for stacked and folded work; d
   `HS Y-12` for a horse statue), the initials of the project's or model's name unless `short_name` sets it, so parts of two models cut
   together are never mixed up. The project's name when it has one, else the model's file name; room for it is kept
   when the parts are nested, and `label_model` turns it off.
-- **Weight**: the Export tab weighs the parts as cut (holes and slots taken out, each part at its own thickness, one
-  line per stock when a job mixes them), the sheets they are nested on and the dowels, from the material's density. Every
-  material on the list has a typical density you can correct, and a material of your own (+ beside the material)
-  keeps the density you give it.
+- **Weight** and **material to buy**: the Export tab weighs the parts as cut (holes and slots taken out, each part at
+  its own thickness, one line per stock when a job mixes them), the sheets they are nested on and the dowels, from the
+  material's density, and gives the sheet area to buy — m², or ft² in inches, on whole sheets with their offcuts —
+  with the area that becomes parts and the share of the stock used. Every material on the list has a typical density
+  you can correct, and a material of your own (+ beside the material) keeps the density you give it.
 - **Scale check**: every export carries a calibration bar, 10 cm or 4 in following the units, to cut first and
   measure before committing to the whole set.
 - **Kerf compensation is off by default**: many machines compensate their own kerf, and compensating twice ruins
