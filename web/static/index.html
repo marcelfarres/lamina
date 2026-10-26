@@ -1402,8 +1402,8 @@ function renderDownloads(){ // the labels checkbox applies to every cut file; th
   $('#dlfit').innerHTML=rows([['fit test SVG + DXF',`${b}/fitcut?fmt=svg,dxf&labels=${L}&step=${step}${U}`],['fit test PDF',`${b}/fitcut?fmt=pdf&labels=${L}&step=${step}${U}`]]);
   $('#dl').innerHTML=rows([
     ['sheets SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&grouped=${G}${U}`,'the usual one, a zip with one file per sheet: laser software opens the SVGs (LightBurn, xTool Creative Space, Glowforge), CAM the DXFs (Fusion, VCarve, SheetCAM)'],
-    ['sheets PDF (one page per sheet)',`${b}/export?fmt=pdf&labels=${L}&key=${K}&grouped=${G}${U}`,'print it at 100 % to cut by hand or check the sizes; Glowforge and LightBurn open it too'],
-    ['sheets EPS',`${b}/export?fmt=eps&labels=${L}&key=${K}&grouped=${G}${U}`,'for CorelDRAW, Illustrator and laser drivers that ask for EPS'],
+    ['sheets PDF (one page per sheet)',`${b}/export?fmt=pdf&labels=${L}&key=${K}${U}`,'print it at 100 % to cut by hand or check the sizes; Glowforge and LightBurn open it too'],
+    ['sheets EPS',`${b}/export?fmt=eps&labels=${L}&key=${K}${U}`,'for CorelDRAW, Illustrator and laser drivers that ask for EPS'],
     ['one file per piece SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&per_piece=1&grouped=${G}${U}`,'every part on its own, not nested: to nest them yourself (Deepnest, your laser software) or cut them one at a time'],
     ...more]);
 }
