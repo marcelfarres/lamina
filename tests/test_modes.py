@@ -463,6 +463,18 @@ def test_connectors_are_named_after_their_lower_slice_and_marked_beside_their_ho
     assert marks(next(sl for sl in plan["slices"] if sl["label"] == "Z-1")) == ["1a", "1b"]
 
 
+def test_a_pair_with_more_connectors_than_letters_doubles_them_up():
+    """A torus sliced across its ring: two islands per layer, 20 connectors each, 40 between one pair of slices. The
+    letters skip i and o, 24 of them; the 25th was looked up as if there were 26 and the slice crashed (031). After
+    z the letters double: Z-1aa, Z-1bb …, every name on the pair its own, none with an i or an o."""
+    plan = build(EXAMPLES / "torus.stl", "stacked", {"size": [200, 200, 200], "axis": "x", "distribution": "count", "count": 3,
+                                                     "placement": "random", "n_points": 20, "dowel_d": 3, "autofix": "off"})
+    lo = plan["rods"][0][6]                                                        # X-1: sliced along x
+    letters = [r[5][len(lo):] for r in plan["rods"] if r[6] == lo]
+    assert len(letters) > 24 and len(set(letters)) == len(letters), letters
+    assert "z" in letters and "aa" in letters and not any(c in s for s in letters for c in "io"), letters
+
+
 def test_folded_seam_numbers_sit_on_material_clear_of_cuts_and_folds_and_tabs_fold_at_their_base():
     """A seam number is only engraved where the whole of it lies on the panel (or its tab), clear of the cut edges,
     the fold lines and the other numbers; a hinge is scored across each tab's base alone, never along the seam under

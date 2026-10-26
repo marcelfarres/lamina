@@ -20,6 +20,8 @@ prefers it. The installable package is up to date again.
 
 ### Fixed
 
+- **Stacked slices with many dowels stopped with an error.** A pair of layers joined by more than 24 dowels or
+  pegs, a large model with several islands per layer, failed to slice. Past z the names now double up: Z-1aa, Z-1bb.
 - **`uv tool install lamina3d` and `pip install lamina3d` gave 0.2.5.** 0.3.0 never reached PyPI; this version does.
 
 ## 0.3.0
