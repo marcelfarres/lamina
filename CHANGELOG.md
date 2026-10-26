@@ -21,6 +21,9 @@ prefers it. The installable package is up to date again.
 ### Fixed
 
 - **`uv tool install lamina3d` and `pip install lamina3d` gave 0.2.5.** 0.3.0 never reached PyPI; this version does.
+- **A project file could name a folder outside the job.** The revision went into the cut files' names as written, so a
+  project file someone else made, with a path in its revision, had a download written beside the job instead of in it.
+  The revision is now cleaned like the project name: letters, digits, dots and dashes, nothing else.
 
 ## 0.3.0
 
