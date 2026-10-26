@@ -1,0 +1,32 @@
+# Every commit in a pull request is a person's: no AI as author or committer, and no message naming an AI, a model or
+# a session (no Co-Authored-By trailer). A cloud session commits with its own git identity, which no local hook sees;
+# this is where it is caught. Contributors and bots (Dependabot, the media recorder) pass.
+name: commits
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  authors:
+    runs-on: ubuntu-latest
+    steps:
+      - name: No AI author, committer or mention in any commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          bad=$(gh api "repos/$REPO/pulls/$PR/commits" --paginate --jq '.[]
+            | select(("\(.commit.author.name) \(.commit.author.email) \(.commit.committer.name) \(.commit.committer.email)" | test("claude|anthropic"; "i"))
+                  or (.commit.message | test("co-authored-by|claude|anthropic|\\b(opus|sonnet|haiku|fable)\\b|generated with|/code/session"; "i")))
+            | "\(.sha[0:7]) \(.commit.author.name) <\(.commit.author.email)>: \(.commit.message | split("\n")[0])"')
+          if [ -n "$bad" ]; then
+            echo "::error::Commits are made and signed by people, with plain messages. Re-author or reword these:"
+            echo "$bad"
+            exit 1
+          fi
+          echo "every commit is a person's"
