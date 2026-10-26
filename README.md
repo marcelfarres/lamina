@@ -328,7 +328,7 @@ does not slip through. It carries the most signal for stacked and folded work; d
 - **Cut files**: SVG (opens directly in LightBurn, the Glowforge app and xTool Creative Space) and DXF in mm / cm /
   in, multi-page PDF, EPS per sheet, or one file per piece, each with or without the red label layer (one switch for
   every file). Layers follow Slicer's Cut Layout: OUTER blue, INNER green (slots, holes), SCORE yellow (folds: solid mountain, dashed valley, dotted perforate), GUIDE orange (stacked: the
-  next layer's outline engraved on the slice under it, when `next_outline` is on), LABEL red (labels, leaders, seam numbers, sheet border). In the SVG each part is one group holding its own cuts, lines and labels, so it can be moved as a unit in a vector editor. The zip is named `<project or model>_v<revision>_<technique>_…`, and so is every file
+  next layer's outline engraved on the slice under it, when `next_outline` is on), LABEL red (labels, leaders, seam numbers, sheet border). In the SVG each part is one group holding its own cuts, lines and labels, so it can be moved as a unit in a vector editor; a switch under Export turns that off, for software that wants one group per colour for the whole sheet. The zip is named `<project or model>_v<revision>_<technique>_…`, and so is every file
   in it: they all start with the design, `egg_v1.0 sheet1 plywood.svg`, so the cut files of two designs unzipped
   into one folder never collide or mix.
 - **Identical pieces once**: in per-piece mode a shape that occurs several times is exported one time, with the
@@ -523,7 +523,8 @@ in, and in the list below.
 People whose pull requests are part of Lamina:
 
 - [@Schnema1](https://github.com/Schnema1) — the next layer's outline engraved on each stacked slice, labels
-  engraved on the parts themselves, and the wider steps slider with its counter.
+  engraved on the parts themselves, the wider steps slider with its counter, the stock area to buy, and the SVG's
+  one-group-per-colour switch.
 
 ## Support
 

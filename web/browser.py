@@ -39,7 +39,8 @@ def handle(method: str, path: str, query: str, form) -> tuple[int, dict, bytes]:
             F = lambda k, d: float(q.get(k, d)); I = lambda k, d: int(q.get(k, d))
             proto = dict(scale=F("scale", 1), size=F("size", 0), labels=q.get("labels", "groove"), font=F("font", 5),
                          min_thick=F("min_thick", 1.2), offset=F("offset", 0.2))
-            routes = {"export": lambda: A.job_export(client, job, q.get("fmt", "svg,dxf"), I("labels", 1), I("per_piece", 0), I("key", 1), q.get("units", "")),
+            routes = {"export": lambda: A.job_export(client, job, q.get("fmt", "svg,dxf"), I("labels", 1), I("per_piece", 0), I("key", 1), q.get("units", ""),
+                                                     grouped=I("grouped", 1)),
                       "stl": lambda: A.job_stl(client, job, q.get("part", "")),
                       "source": lambda: A.job_source(client, job),
                       "proto": lambda: A.job_proto(client, job, **proto),

@@ -2,16 +2,26 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
-## Unreleased
+## 0.3.1
+
+The Export tab says how much sheet to buy, and the SVG can be written one group per colour again for software that
+prefers it. The installable package is up to date again.
 
 ### Added
 
 - **How much stock to buy.** The Export tab now gives the sheet area beside the weight: m², or ft² when the units are
   inches, counted on whole sheets with their offcuts. It is the figure to compare with a shop's price per square
-  metre or the size of a pack.
-- **And how much of it becomes parts.** Beneath it, the area that ends up in the parts and the share of the stock that
-  is used — the offcut the layout costs, next to the material to order. A job that mixes thicknesses gets the sheet
-  count and area on each stock line too.
+  metre or the size of a pack. Beneath it, the area that ends up in the parts and the share of the stock that is
+  used, and a job that mixes thicknesses gets the sheet count and area on each stock line too. Thanks to @Schnema1.
+- **The SVG can keep the colours apart again.** A switch under Export, *group parts*, on by default: off, the sheet
+  is written one group per colour for the whole file, with the border, arrows and labels together in the label
+  colour — the layout for software that wants the colours kept apart and never moves a part on its own. The command
+  line has the same switch. Thanks to @Schnema1.
+
+### Fixed
+
+- **`uv tool install lamina3d` and `pip install lamina3d` gave 0.2.5.** 0.3.0 never reached PyPI; this version does.
+
 ## 0.3.0
 
 The release for the laser: every label in a single-stroke font, dowels named after their slices and numbered beside their holes, labels that keep clear of parts and of each other, orientation arrows, a four-letter short name, and non-uniform spacing drawn as a curve in every technique, with a graph to draw it; a stack can be shifted to land a slice on a feature. Thin tips and slivers are found and can be trimmed off, small parts go into the hollows of big ones, and the first sheet is filled before the second. Folded nets got seam numbers that can be read and hinge lines for their tabs, the SVG keeps each part with its labels, and the assembly video names each part as it goes in.

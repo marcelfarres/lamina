@@ -9,7 +9,7 @@ GET  /api/modes        mode schemas (drive the form)
 GET  /api/examples     bundled test models
 GET  /api/session?client=<id>                                                  → what that client sliced last
 GET  /api/progress?client=<id>                                                 → the stage the client's slice is in
-GET  /api/job/{client}/{job}/export?fmt=svg,dxf,pdf,eps&labels=1&per_piece=0   → zip of cut files
+GET  /api/job/{client}/{job}/export?fmt=svg,dxf,pdf,eps&labels=1&per_piece=0&grouped=1   → zip of cut files
 GET  /api/job/{client}/{job}/stl?part=<label>                                  → assembled solid (or one part) as STL
 """
 
@@ -348,11 +348,13 @@ def _scale(plan: dict, scale: float, size: float) -> float:
 
 
 @app.get("/api/job/{client}/{job}/export")
-def job_export(client: str, job: str, fmt: str = "svg,dxf", labels: int = 1, per_piece: int = 0, key: int = 1, units: str = ""):
+def job_export(client: str, job: str, fmt: str = "svg,dxf", labels: int = 1, per_piece: int = 0, key: int = 1, units: str = "",
+               grouped: int = 1):
     jd, plan = _plan(client, job)
     plan, fmts = with_units(plan, units), _fmts(fmt)
     name = f"{design_name(plan)}_{plan['mode']}_{'pieces' if per_piece else 'sheets'}_{'-'.join(fmts)}{'' if labels else '_plain'}.zip"
-    return _zip(client, jd, plan, lambda tmp: export(plan, tmp, fmts, bool(labels), bool(per_piece), key=bool(key)), name)
+    return _zip(client, jd, plan, lambda tmp: export(plan, tmp, fmts, bool(labels), bool(per_piece), key=bool(key),
+                                                    grouped=bool(grouped)), name)
 
 
 @app.get("/api/job/{client}/{job}/source")
