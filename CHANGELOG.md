@@ -23,6 +23,9 @@ prefers it. The installable package is up to date again.
 - **Stacked slices with many dowels stopped with an error.** A pair of layers joined by more than 24 dowels or
   pegs, a large model with several islands per layer, failed to slice. Past z the names now double up: Z-1aa, Z-1bb.
 - **`uv tool install lamina3d` and `pip install lamina3d` gave 0.2.5.** 0.3.0 never reached PyPI; this version does.
+- **A project file could name a folder outside the job.** The revision went into the cut files' names as written, so a
+  project file someone else made, with a path in its revision, had a download written beside the job instead of in it.
+  The revision is now cleaned like the project name: letters, digits, dots and dashes, nothing else.
 
 ## 0.3.0
 

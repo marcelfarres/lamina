@@ -220,10 +220,11 @@ def design_name(plan):
     """<project or model>_v<rev>: what every file of a job is named after, the zip it comes in and each file in it, so
     the cut files of two designs unzipped into one folder never mix (sheet1.svg of one over sheet1.svg of the other).
     One word: the spaces in a file name separate part, material, thickness and quantity. ASCII only: the zip's name
-    travels in an HTTP header, which carries nothing else."""
+    travels in an HTTP header, which carries nothing else. The revision is cleaned the same way as the name: both come
+    from a project file someone else may have written, and a path separator in either must never reach the file system."""
     p = plan["params"]
-    stem = "".join(c if c.isascii() and c.isalnum() or c in "-_." else "_" for c in str(p.get("project") or p.get("model_name") or "")).strip("_.")
-    return f"{stem or 'model'}_v{p.get('rev') or '1.0'}"
+    word = lambda s: "".join(c if c.isascii() and c.isalnum() or c in "-_." else "_" for c in str(s or "")).strip("_.")
+    return f"{word(p.get('project') or p.get('model_name')) or 'model'}_v{word(p.get('rev')) or '1.0'}"
 
 
 def mat_tag(plan):

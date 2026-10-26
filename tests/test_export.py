@@ -406,6 +406,19 @@ def test_every_file_carries_the_design_name_so_two_designs_never_mix(tmp_path):
         assert len({f.name for f in a} | {f.name for f in b}) == len(a) + len(b) == len(list(out.iterdir()))
 
 
+def test_a_hostile_revision_in_a_project_file_writes_nothing_outside_the_job_folder(tmp_path):
+    """033: the revision went into every file name as written, so a project file with rev "../../../evil" made export()
+    write its sheet one folder above the job. The name and the revision get the same cleaning, and ".." alone falls
+    back to 1.0."""
+    plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 3, "autofix": "off", "project": "a", "rev": "../../../evil"})
+    job = tmp_path / "a" / "b" / "job"
+    files = export(plan, job, fmts=("svg",), labels=True)
+    assert files and all(f.resolve().parent == job.resolve() for f in files), [str(f) for f in files]
+    assert design_name(plan) == "a_vevil"
+    plan["params"]["rev"] = ".."
+    assert design_name(plan) == "a_v1.0"
+
+
 def test_each_part_is_one_svg_group_with_its_labels_and_marks(tmp_path):
     """Someone rearranging the sheet in a vector editor drags a part as one thing: its cuts, its dowel numbers, its
     label and leader, and its arrows are one <g class="piece">, so nothing goes out of register. The colour stays
