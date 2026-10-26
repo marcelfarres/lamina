@@ -5,7 +5,8 @@ What changed in each release. The GitHub release for a version is this section, 
 ## 0.3.1
 
 The Export tab says how much sheet to buy, and the SVG can be written one group per colour again for software that
-prefers it. The installable package is up to date again.
+prefers it. Stacked slices with many dowels no longer stop with an error, a project file can no longer write a cut
+file outside its job, and the installable package is up to date again.
 
 ### Added
 
