@@ -1128,18 +1128,24 @@ def test_an_example_keeps_the_machine_s_values(page):
 def test_the_notes_keep_their_lists_from_a_windows_checkout(page, server):
     """A Windows checkout serves CHANGELOG.md with CRLF line endings: a blank line is then \r\n\r\n, and the dialog
     showed a whole version as one paragraph with its bullets inline (reported). Served that way, every bullet of the
-    newest version is a list item of its own."""
-    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").replace("\r\n", "\n")
-    newest = text.split("\n## ")[1]
-    bullets = sum(line.startswith("- ") for line in newest.splitlines())
-    second = text.split("\n## ")[2].split("\n")[0].strip()
+    newest version is a list item of its own.
+
+    The markdown is written here rather than read from the repo's CHANGELOG.md: the run-together only shows with two
+    bullets in a section, and the newest one there happens to hold one (an `## Unreleased` with a single note, as
+    #16 added) — the test then failed with `assert 1 > 1` on a dialog that was right."""
+    text = ("# Changelog\n\nWhat changed in each release.\n\n"
+            "## 9.9.9\n\n### Added\n\n"
+            "- **The first note.** It runs over more than one line,\n  as a changelog bullet does.\n"
+            "- **The second note.** Two bullets are enough to run into each other.\n\n"
+            "## 9.9.8\n\n- An older note.\n")
+    bullets = 2
     page.route("**/changelog.md", lambda r: r.fulfill(body=text.replace("\n", "\r\n"), content_type="text/markdown"))
     try:
-        page.evaluate("v => localStorage.setItem('slicer_seen_version', JSON.stringify(v))", second)
+        page.evaluate("v => localStorage.setItem('slicer_seen_version', JSON.stringify(v))", "9.9.8")
         page.goto(server + "/"); settle(page); page.wait_for_timeout(600)
         assert page.locator("#newsdlg[open]").count(), "the newest version did not announce itself"
         items = page.eval_on_selector_all("#news_body li", "els => els.map(e => e.textContent)")
-        assert len(items) == bullets > 1, items                           # two are enough to run into each other
+        assert len(items) == bullets, items                              # every bullet a list item of its own
         assert not any(" - **" in t or "\n" in t for t in items)          # no bullet run into another
     finally:
         page.unroute("**/changelog.md")
