@@ -2,8 +2,11 @@
 derived from the plan's own data (never hardcoded), then checked against the parsed export output —
 lxml for SVG, ezdxf for DXF — so nothing here trusts export.py's own claims about what it wrote.
 """
+import io
+import json
 import pathlib
 import re
+import zipfile
 
 import ezdxf
 import trimesh
@@ -403,6 +406,19 @@ def test_every_file_carries_the_design_name_so_two_designs_never_mix(tmp_path):
         assert len({f.name for f in a} | {f.name for f in b}) == len(a) + len(b) == len(list(out.iterdir()))
 
 
+def test_a_hostile_revision_in_a_project_file_writes_nothing_outside_the_job_folder(tmp_path):
+    """033: the revision went into every file name as written, so a project file with rev "../../../evil" made export()
+    write its sheet one folder above the job. The name and the revision get the same cleaning, and ".." alone falls
+    back to 1.0."""
+    plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 3, "autofix": "off", "project": "a", "rev": "../../../evil"})
+    job = tmp_path / "a" / "b" / "job"
+    files = export(plan, job, fmts=("svg",), labels=True)
+    assert files and all(f.resolve().parent == job.resolve() for f in files), [str(f) for f in files]
+    assert design_name(plan) == "a_vevil"
+    plan["params"]["rev"] = ".."
+    assert design_name(plan) == "a_v1.0"
+
+
 def test_each_part_is_one_svg_group_with_its_labels_and_marks(tmp_path):
     """Someone rearranging the sheet in a vector editor drags a part as one thing: its cuts, its dowel numbers, its
     label and leader, and its arrows are one <g class="piece">, so nothing goes out of register. The colour stays
@@ -422,3 +438,36 @@ def test_each_part_is_one_svg_group_with_its_labels_and_marks(tmp_path):
         assert len(g.xpath('./svg:g[@class="LABEL"]/svg:path[not(@data-text)]', namespaces=SVG_NS)) == len(it.scores)   # the arrows
     assert tree.xpath('//svg:g[@class="sheet"]//svg:rect', namespaces=SVG_NS)                   # the border is the sheet's, not a part's
     assert {(g.get("stroke"), g.get("fill")) for g in tree.xpath('//svg:g[@class="OUTER"]', namespaces=SVG_NS)} == {("#0055ff", "none")}
+
+
+def test_svg_can_fall_back_to_one_group_per_colour(tmp_path):
+    """The switch on the Export tab for software that wants the colours kept apart: no <g class="piece">, one group
+    per colour for the whole sheet, and the border, arrows and every label together in the single LABEL group."""
+    plan = build(EXAMPLES / "cube.stl", "folded", {"facet": 0, "joint": "laced", "autofix": "off"})
+    export(plan, tmp_path, fmts=("svg",), labels=True, grouped=False)
+    exp = sheet0_expected_counts(plan)
+    tree = etree.parse(str(tmp_path / f"{design_name(plan)} sheet1.svg"))
+    assert not tree.xpath('//svg:g[@class="piece"]', namespaces=SVG_NS)
+    assert len(tree.xpath('//svg:g[@class="OUTER"]', namespaces=SVG_NS)) == 1
+    assert len(tree.xpath('//svg:g[@class="OUTER"]/svg:path', namespaces=SVG_NS)) == exp["outer"]
+    assert len(tree.xpath('//svg:g[@class="LABEL"]', namespaces=SVG_NS)) == 1
+    assert len(tree.xpath('//svg:g[@class="LABEL"]/svg:path[@data-text]', namespaces=SVG_NS)) == exp["marks"] + exp["label_pos"] + 1
+
+
+def test_job_export_can_switch_part_grouping_off():
+    """The checkbox the Export tab adds: `grouped=0` on the endpoint produces the colour-first file, so software that
+    keeps the colours apart and never moves a part on its own reads it as before."""
+    from web.app import client_dir, job_export
+
+    client, job = "group-export-test", "sheet-group"
+    jd = client_dir(client) / job
+    jd.mkdir(parents=True, exist_ok=True)
+    plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 3, "autofix": "off"})
+    (jd / "plan.json").write_text(json.dumps(plan), encoding="utf-8")
+
+    resp = job_export(client, job, fmt="svg", labels=1, key=0, grouped=0)
+    with zipfile.ZipFile(io.BytesIO(resp.body)) as zf:
+        svg = zf.read(next(name for name in zf.namelist() if name.endswith(".svg")))
+    tree = etree.fromstring(svg)
+    assert not tree.xpath('//svg:g[@class="piece"]', namespaces=SVG_NS)
+    assert len(tree.xpath('//svg:g[@class="OUTER"]', namespaces=SVG_NS)) == 1

@@ -462,7 +462,7 @@ class Stacked(Mode):
             name = a.cutnames.get(ka)
             if name is None:
                 n = named.get(i, 0); named[i] = n + 1
-                name = f"{a.label}{ABC_LOWER[n % 26] * (n // 26 + 1)}"
+                name = f"{a.label}{ABC_LOWER[n % len(ABC_LOWER)] * (n // len(ABC_LOWER) + 1)}"
             add_cut(a, ga, ka, b.label, pt, name); add_cut(b, gb, kb, a.label, pt, name)
             if not tab:
                 ctx.rods.append([list((a.M @ np.array([xa, ya, -t / 2, 1]))[:3]), list((a.M @ np.array([xa, ya, spacing + t / 2, 1]))[:3]), d,

@@ -328,7 +328,7 @@ does not slip through. It carries the most signal for stacked and folded work; d
 - **Cut files**: SVG (opens directly in LightBurn, the Glowforge app and xTool Creative Space) and DXF in mm / cm /
   in, multi-page PDF, EPS per sheet, or one file per piece, each with or without the red label layer (one switch for
   every file). Layers follow Slicer's Cut Layout: OUTER blue, INNER green (slots, holes), SCORE yellow (folds: solid mountain, dashed valley, dotted perforate), GUIDE orange (stacked: the
-  next layer's outline engraved on the slice under it, when `next_outline` is on), LABEL red (labels, leaders, seam numbers, sheet border). In the SVG each part is one group holding its own cuts, lines and labels, so it can be moved as a unit in a vector editor. The zip is named `<project or model>_v<revision>_<technique>_…`, and so is every file
+  next layer's outline engraved on the slice under it, when `next_outline` is on), LABEL red (labels, leaders, seam numbers, sheet border). In the SVG each part is one group holding its own cuts, lines and labels, so it can be moved as a unit in a vector editor; a switch under Export turns that off, for software that wants one group per colour for the whole sheet. The zip is named `<project or model>_v<revision>_<technique>_…`, and so is every file
   in it: they all start with the design, `egg_v1.0 sheet1 plywood.svg`, so the cut files of two designs unzipped
   into one folder never collide or mix.
 - **Identical pieces once**: in per-piece mode a shape that occurs several times is exported one time, with the
@@ -340,10 +340,11 @@ does not slip through. It carries the most signal for stacked and folded work; d
   `HS Y-12` for a horse statue), the initials of the project's or model's name unless `short_name` sets it, so parts of two models cut
   together are never mixed up. The project's name when it has one, else the model's file name; room for it is kept
   when the parts are nested, and `label_model` turns it off.
-- **Weight**: the Export tab weighs the parts as cut (holes and slots taken out, each part at its own thickness, one
-  line per stock when a job mixes them), the sheets they are nested on and the dowels, from the material's density. Every
-  material on the list has a typical density you can correct, and a material of your own (+ beside the material)
-  keeps the density you give it.
+- **Weight** and **material to buy**: the Export tab weighs the parts as cut (holes and slots taken out, each part at
+  its own thickness, one line per stock when a job mixes them), the sheets they are nested on and the dowels, from the
+  material's density, and gives the sheet area to buy — m², or ft² in inches, on whole sheets with their offcuts —
+  with the area that becomes parts and the share of the stock used. Every material on the list has a typical density
+  you can correct, and a material of your own (+ beside the material) keeps the density you give it.
 - **Scale check**: every export carries a calibration bar, 10 cm or 4 in following the units, to cut first and
   measure before committing to the whole set.
 - **Kerf compensation is off by default**: many machines compensate their own kerf, and compensating twice ruins
@@ -522,7 +523,8 @@ in, and in the list below.
 People whose pull requests are part of Lamina:
 
 - [@Schnema1](https://github.com/Schnema1) — the next layer's outline engraved on each stacked slice, labels
-  engraved on the parts themselves, and the wider steps slider with its counter.
+  engraved on the parts themselves, the wider steps slider with its counter, the stock area to buy, and the SVG's
+  one-group-per-colour switch.
 
 ## Support
 

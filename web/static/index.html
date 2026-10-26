@@ -222,6 +222,7 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
       <div class="dl rows cutonly" id="dlfit"></div>
       <h2 id="dl_title">2 · The parts</h2>
       <div class="f cutonly"><span class="k" data-tip="Include the red LABEL layer (part names, leader lines, seam numbers, sheet border) in the cut files. Off = cuts and score lines only">labels in files</span><input type="checkbox" id="x_labels" checked></div>
+      <div class="f cutonly"><span class="k" data-tip="One group per part in the SVG, with its cuts, lines and labels inside it, so a part can be moved or re-nested as a whole in LightBurn or Inkscape; the colours still choose the layer. Off = one group per colour for the whole sheet (the older layout), for software that wants the colours kept apart">group parts</span><input type="checkbox" id="x_grouped" checked></div>
       <div class="f"><span class="k" data-tip="assembly-key.txt in the zip: what the labels mean, every part with where its centre sits and what it slots onto, in the order the 3D view builds them. In puzzle mode it is also the only way from an engraved code back to a part — untick it and the puzzle stays a puzzle (the file can always be downloaded later)">assembly key</span><input type="checkbox" id="x_key" checked></div>
       <div class="hint" id="legend" style="margin:2px 0 8px"></div>
       <div class="dl rows" id="dl"></div>
@@ -1347,6 +1348,10 @@ function protoHint(){if(!plan)return;const s=prScale(),mn=lenMM('#pr_min',1.2);
 const fmtMass=g=>unit==='in'?(g<453.59237?`${+(g/28.349523125).toPrecision(3)} oz`:`${+(g/453.59237).toPrecision(3)} lb`)
                             :(g<1000?`${+g.toPrecision(3)} g`:`${+(g/1000).toPrecision(3)} kg`);
 const fmtVol=mm3=>unit==='in'?`${+(mm3/16387.064).toPrecision(3)} in³`:`${+(mm3/1000).toPrecision(3)} cm³`;
+// Area for buying stock: square metres with the metric units, square feet in inches — and the smaller unit while a
+// sheet is small enough that 0.00x m² would not tell the reader anything (mm²: 1 m² = 1e6, 1 ft² = 92903.04).
+const fmtArea=mm2=>unit==='in'?(mm2<92903.04?`${+(mm2/645.16).toPrecision(3)} in²`:`${+(mm2/92903.04).toPrecision(3)} ft²`)
+                            :(mm2<1e4?`${+(mm2/100).toPrecision(3)} cm²`:`${+(mm2/1e6).toPrecision(3)} m²`);
 // Dowel rods are bought, not cut, and are taken to be of the job's material. The plan stores them a pair of slices at
 // a time, overlapping by a slice, so collinear pieces are merged: an aligned dowel through the stack counts once.
 function rodStats(){const lines=new Map(),q=x=>Math.round(x*100);
@@ -1362,18 +1367,24 @@ function renderWeight(){if(!plan)return;const d=dens(),g=d/1000,by=new Map();   
   for(const s of plan.slices)for(const pc of s.pieces){const b=by.get(s.thickness)||{n:0,v:0};b.n++;b.v+=pc.area*s.thickness;by.set(s.thickness,b)}
   const parts=[...by.values()].reduce((a,b)=>a+b.v,0), rods=rodStats();
   const stock=[...Array(plan.sheets).keys()].reduce((a,i)=>a+plan.sheet[0]*plan.sheet[1]*(plan.sheet_thick?.[i]??state.thickness),0);
+  const area0=plan.sheet[0]*plan.sheet[1], buy=plan.sheets*area0;      // mm²: one sheet (the strip used, in one_sheet), and all of them
+  const sheetsOf=new Map();                                            // sheets per stock, for the per-thickness lines
+  for(const t of plan.sheet_thick||[]){const k=+t.toFixed(6);sheetsOf.set(k,(sheetsOf.get(k)||0)+1)}
   $('#weight').innerHTML=`<div class="stats"><div class="k" data-tip="Every part as cut, holes and slots taken out, each at its own thickness"><b>${fmtMass(parts*g)}</b>parts</div>
     <div><b>${fmtVol(parts)}</b>of ${esc(state.material)}</div>`
-    +(state.printed?'':`<div class="k" data-tip="The whole sheets the parts are nested on, offcuts included: what you buy and lift onto the machine"><b>${fmtMass(stock*g)}</b>${plan.sheets} sheet(s)</div>`)
+    +(state.printed?'':`<div class="k" data-tip="The whole sheets the parts are nested on, offcuts included: what you buy and lift onto the machine"><b>${fmtMass(stock*g)}</b>${plan.sheets} sheet(s)</div>
+      <div class="k" data-tip="The whole sheets the parts are nested on, offcuts included: what you buy. The line below says how much of that area becomes parts"><b>${fmtArea(buy)}</b>to buy</div>`)
     +(rods.n?`<div class="k" data-tip="The dowel rods, bought rather than cut, taken to be of the same material as the parts"><b>${fmtMass(rods.vol*g)}</b>${rods.n} dowel(s)</div>
       <div class="k" data-tip="Parts and dowels together: what the finished model weighs, glue aside"><b>${fmtMass((parts+rods.vol)*g)}</b>assembled</div>`:'')+`</div>`
+    +(state.printed?'':`<div class="hint">${fmtArea(plan.material_area_mm2)} in the parts · ${Math.round(plan.sheet_usage*100)} % of the stock used</div>`)
     +(rods.n?`<div class="hint">${rods.n} dowel(s), ${fmtLen(rods.len)} of rod in all</div>`:'')
-    +(by.size>1?[...by].sort((a,b)=>a[0]-b[0]).map(([t,b])=>`<div class="hint">${fmtLen(t)} stock: ${b.n} part(s) · ${fmtMass(b.v*g)}</div>`).join(''):'')
+    +(by.size>1?[...by].sort((a,b)=>a[0]-b[0]).map(([t,b])=>{const n=sheetsOf.get(+t.toFixed(6))||0;
+      return `<div class="hint">${fmtLen(t)} stock: ${b.n} part(s) · ${fmtMass(b.v*g)} · ${n} sheet(s), ${fmtArea(n*area0)}</div>`}).join(''):'')
     +`<div class="hint">at ${+(d*DU()).toPrecision(4)} ${DUNIT()}, set with the material on Sheet &amp; fit</div>`;
 }
 function renderDownloads(){ // the labels checkbox applies to every cut file; the server names files <project or model>_v<rev>_…
   protoHint(); renderWeight();
-  const b=`api/job/${CLIENT}/${job}`,L=$('#x_labels').checked?1:0,K=$('#x_key').checked?1:0,step=lenMM('#pr_step',0.1),U=`&units=${unit}`;   // the cut files come out in the unit on show, without a re-slice
+  const b=`api/job/${CLIENT}/${job}`,L=$('#x_labels').checked?1:0,K=$('#x_key').checked?1:0,G=$('#x_grouped').checked?1:0,step=lenMM('#pr_step',0.1),U=`&units=${unit}`;   // the cut files come out in the unit on show, without a re-slice
   // what the labels on the parts mean, before the cut rather than after it
   $('#legend').innerHTML=`<b>how the parts are labelled</b><br>${(mode.legend||'every part carries its own label').replace(/ · /g,'<br>')}`
     +(state.label_style==='code'?'<br><b>puzzle mode:</b> the parts are engraved with codes instead — assembly-key.txt maps them back':'');
@@ -1390,10 +1401,10 @@ function renderDownloads(){ // the labels checkbox applies to every cut file; th
   if(state.printed){$('#dl').innerHTML=rows(more);return}
   $('#dlfit').innerHTML=rows([['fit test SVG + DXF',`${b}/fitcut?fmt=svg,dxf&labels=${L}&step=${step}${U}`],['fit test PDF',`${b}/fitcut?fmt=pdf&labels=${L}&step=${step}${U}`]]);
   $('#dl').innerHTML=rows([
-    ['sheets SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}${U}`,'the usual one, a zip with one file per sheet: laser software opens the SVGs (LightBurn, xTool Creative Space, Glowforge), CAM the DXFs (Fusion, VCarve, SheetCAM)'],
+    ['sheets SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&grouped=${G}${U}`,'the usual one, a zip with one file per sheet: laser software opens the SVGs (LightBurn, xTool Creative Space, Glowforge), CAM the DXFs (Fusion, VCarve, SheetCAM)'],
     ['sheets PDF (one page per sheet)',`${b}/export?fmt=pdf&labels=${L}&key=${K}${U}`,'print it at 100 % to cut by hand or check the sizes; Glowforge and LightBurn open it too'],
     ['sheets EPS',`${b}/export?fmt=eps&labels=${L}&key=${K}${U}`,'for CorelDRAW, Illustrator and laser drivers that ask for EPS'],
-    ['one file per piece SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&per_piece=1${U}`,'every part on its own, not nested: to nest them yourself (Deepnest, your laser software) or cut them one at a time'],
+    ['one file per piece SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&per_piece=1&grouped=${G}${U}`,'every part on its own, not nested: to nest them yourself (Deepnest, your laser software) or cut them one at a time'],
     ...more]);
 }
 function renderReport(){
@@ -1426,7 +1437,7 @@ function renderReport(){
   $('#fit_go').onclick=e=>{const q=prq();q.set('step',lenMM('#pr_step',0.1));e.currentTarget.href=`api/job/${CLIENT}/${job}/fit?${q}`;countUse('export','fit-3mf')};
   // typing in a length box writes its mm back, so what the server is given never depends on the unit on show
   for(const el of $$('input[data-len]'))el.oninput=()=>{el.dataset.mm=el.value===''?'':toMM(+el.value);(el.id==='pr_step'?renderDownloads:protoHint)()};
-  $('#pr_scale').oninput=protoHint; $('#x_labels').onchange=$('#x_key').onchange=renderDownloads;
+  $('#pr_scale').oninput=protoHint; $('#x_labels').onchange=$('#x_key').onchange=$('#x_grouped').onchange=renderDownloads;
   // Which formats people actually take away — the strongest signal of what machines they run. The link's own
   // query string already names them, so nothing extra has to be tracked to know it.
   $('#dl').onclick=e=>{const a=e.target.closest('a');if(!a)return;
@@ -1539,7 +1550,7 @@ async function init(){
   $('#psave2').onclick=saveProject; $('#popen').onclick=()=>$('#pfile').click(); $('#pfile').onchange=e=>{if(e.target.files[0])openProject(e.target.files[0]);e.target.value=''};
   $('#pname').oninput=e=>{state.project=e.target.value;schedule()}; $('#pminor').onclick=()=>bump(false); $('#pmajor').onclick=()=>bump(true);
   $('#unit').onchange=e=>{unit={mm:'mm',cm:'cm',in:'in'}[e.target.value]||'mm';applyUnit()};   // one of the three, never the box's own text
-  $('#x_labels').onchange=()=>{if(job)renderDownloads()};
+  $('#x_labels').onchange=()=>{if(job)renderDownloads()}; $('#x_grouped').onchange=()=>{if(job)renderDownloads()};
   $$('nav button').forEach(b=>b.onclick=()=>showTab(b.dataset.t));
   // A new model keeps none of the last one's geometry. These parameters are in its millimetres or under its part
   // labels — axis lines, curve points, dowels, per-slice edits — so they are cleared from the form *and* from the

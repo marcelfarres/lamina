@@ -49,7 +49,9 @@ jobs:
         run: |
           uv tool install --python 3.14 dist/*.whl   # the Python the starters ask for (027): the runner's default is newer than the libraries
           mkdir run && cd run
-          BROWSER=true uv tool run lamina3d --port 8000 &
+          # the installed wheel itself: `uv tool run lamina3d` asks PyPI first and runs the last published version when it
+          # differs from the installed one, so a new version never got here (0.3.0 served 0.2.5's changelog, bugs/029)
+          BROWSER=true "$(uv tool dir --bin)/lamina3d" --port 8000 &
           trap "kill $!" EXIT   # left running, it holds uv's cache lock: setup-uv's cleanup then waits 5 min and fails the run
           for i in $(seq 60); do curl -sf localhost:8000/api/modes >/dev/null && break; sleep 1; done
           curl -sf localhost:8000/changelog.md | grep -q "^## ${GITHUB_REF_NAME#v}$"
