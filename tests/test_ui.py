@@ -779,6 +779,11 @@ def test_the_export_tab_weighs_the_parts(page):
     page.click('nav button[data-t="export"]')
     weight = lambda: page.text_content("#weight")
     assert "1.93 kg" in weight() and "246 cm³" in weight() and "7.85 g/cm³" in weight(), weight()
+    # the stock area to buy: whole sheets, offcuts included, against the area that becomes parts
+    p = plan(page)
+    buy = p["sheets"] * p["sheet"][0] * p["sheet"][1]                       # mm²
+    assert f"{buy/1e6:.3g} m²" in weight() and "to buy" in weight(), weight()
+    assert f"{p['material_area_mm2']/1e6:.3g} m² in the parts" in weight(), weight()
 
     page.evaluate("""() => { window.__t.state().thick = {'Z-2': 6};
         document.getElementById('p_count').dispatchEvent(new Event('input', {bubbles: true})) }""")
@@ -791,6 +796,7 @@ def test_the_export_tab_weighs_the_parts(page):
 
     page.select_option("#unit", "in")
     assert "4.25 lb" in weight() and "0.2836 lb/in³" in weight(), weight()
+    assert f"{buy/92903.04:.3g} ft²" in weight(), weight()                   # square feet, not m²
     page.select_option("#unit", "mm")
 
     # dowels: two aligned rods, each one piece from the first slice's outer face to the last one's, of the same steel

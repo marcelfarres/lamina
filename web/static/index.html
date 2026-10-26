@@ -1347,6 +1347,10 @@ function protoHint(){if(!plan)return;const s=prScale(),mn=lenMM('#pr_min',1.2);
 const fmtMass=g=>unit==='in'?(g<453.59237?`${+(g/28.349523125).toPrecision(3)} oz`:`${+(g/453.59237).toPrecision(3)} lb`)
                             :(g<1000?`${+g.toPrecision(3)} g`:`${+(g/1000).toPrecision(3)} kg`);
 const fmtVol=mm3=>unit==='in'?`${+(mm3/16387.064).toPrecision(3)} in³`:`${+(mm3/1000).toPrecision(3)} cm³`;
+// Area for buying stock: square metres with the metric units, square feet in inches — and the smaller unit while a
+// sheet is small enough that 0.00x m² would not tell the reader anything (mm²: 1 m² = 1e6, 1 ft² = 92903.04).
+const fmtArea=mm2=>unit==='in'?(mm2<92903.04?`${+(mm2/645.16).toPrecision(3)} in²`:`${+(mm2/92903.04).toPrecision(3)} ft²`)
+                            :(mm2<1e4?`${+(mm2/100).toPrecision(3)} cm²`:`${+(mm2/1e6).toPrecision(3)} m²`);
 // Dowel rods are bought, not cut, and are taken to be of the job's material. The plan stores them a pair of slices at
 // a time, overlapping by a slice, so collinear pieces are merged: an aligned dowel through the stack counts once.
 function rodStats(){const lines=new Map(),q=x=>Math.round(x*100);
@@ -1362,13 +1366,19 @@ function renderWeight(){if(!plan)return;const d=dens(),g=d/1000,by=new Map();   
   for(const s of plan.slices)for(const pc of s.pieces){const b=by.get(s.thickness)||{n:0,v:0};b.n++;b.v+=pc.area*s.thickness;by.set(s.thickness,b)}
   const parts=[...by.values()].reduce((a,b)=>a+b.v,0), rods=rodStats();
   const stock=[...Array(plan.sheets).keys()].reduce((a,i)=>a+plan.sheet[0]*plan.sheet[1]*(plan.sheet_thick?.[i]??state.thickness),0);
+  const area0=plan.sheet[0]*plan.sheet[1], buy=plan.sheets*area0;      // mm²: one sheet (the strip used, in one_sheet), and all of them
+  const sheetsOf=new Map();                                            // sheets per stock, for the per-thickness lines
+  for(const t of plan.sheet_thick||[]){const k=+t.toFixed(6);sheetsOf.set(k,(sheetsOf.get(k)||0)+1)}
   $('#weight').innerHTML=`<div class="stats"><div class="k" data-tip="Every part as cut, holes and slots taken out, each at its own thickness"><b>${fmtMass(parts*g)}</b>parts</div>
     <div><b>${fmtVol(parts)}</b>of ${esc(state.material)}</div>`
-    +(state.printed?'':`<div class="k" data-tip="The whole sheets the parts are nested on, offcuts included: what you buy and lift onto the machine"><b>${fmtMass(stock*g)}</b>${plan.sheets} sheet(s)</div>`)
+    +(state.printed?'':`<div class="k" data-tip="The whole sheets the parts are nested on, offcuts included: what you buy and lift onto the machine"><b>${fmtMass(stock*g)}</b>${plan.sheets} sheet(s)</div>
+      <div class="k" data-tip="The whole sheets the parts are nested on, offcuts included: what you buy. The line below says how much of that area becomes parts"><b>${fmtArea(buy)}</b>to buy</div>`)
     +(rods.n?`<div class="k" data-tip="The dowel rods, bought rather than cut, taken to be of the same material as the parts"><b>${fmtMass(rods.vol*g)}</b>${rods.n} dowel(s)</div>
       <div class="k" data-tip="Parts and dowels together: what the finished model weighs, glue aside"><b>${fmtMass((parts+rods.vol)*g)}</b>assembled</div>`:'')+`</div>`
+    +(state.printed?'':`<div class="hint">${fmtArea(plan.material_area_mm2)} in the parts · ${Math.round(plan.sheet_usage*100)} % of the stock used</div>`)
     +(rods.n?`<div class="hint">${rods.n} dowel(s), ${fmtLen(rods.len)} of rod in all</div>`:'')
-    +(by.size>1?[...by].sort((a,b)=>a[0]-b[0]).map(([t,b])=>`<div class="hint">${fmtLen(t)} stock: ${b.n} part(s) · ${fmtMass(b.v*g)}</div>`).join(''):'')
+    +(by.size>1?[...by].sort((a,b)=>a[0]-b[0]).map(([t,b])=>{const n=sheetsOf.get(+t.toFixed(6))||0;
+      return `<div class="hint">${fmtLen(t)} stock: ${b.n} part(s) · ${fmtMass(b.v*g)} · ${n} sheet(s), ${fmtArea(n*area0)}</div>`}).join(''):'')
     +`<div class="hint">at ${+(d*DU()).toPrecision(4)} ${DUNIT()}, set with the material on Sheet &amp; fit</div>`;
 }
 function renderDownloads(){ // the labels checkbox applies to every cut file; the server names files <project or model>_v<rev>_…
