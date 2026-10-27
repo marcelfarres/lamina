@@ -2,6 +2,17 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.3.2
+
+Parts can keep the wood grain running one way.
+
+### Added
+
+- **Keep the grain.** A new sheet option (`grain`) stops the nester from turning parts sideways: each part is laid as
+  it stands, or upside down, so the grain runs the same way through every part. Lay the stock with its grain along the
+  sheet's width. A part that would only fit turned is split to fit (with `split` on) or flagged, and two parts only
+  count as the same part when they match without a sideways turn.
+
 ## 0.3.1
 
 The Export tab says how much sheet to buy, and the SVG can be written one group per colour again for software that

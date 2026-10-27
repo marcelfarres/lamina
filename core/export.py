@@ -443,6 +443,8 @@ def key_text(plan):
     if p.get("orient_mark"):
         out.append("  The two arrows at the middle of each part: the engraved face is the front, and the long arrow points the same way on "
                    "every part (up the slice's own frame), the short one to its right — turn the parts until their arrows agree.")
+    if p.get("grain"):
+        out.append("  Keep the grain: no part is turned sideways on the sheet, so lay the stock with its grain along the sheet's width.")
     if codes:
         out += ["  Puzzle mode: what is engraved is the code in the first column below — it says nothing about where the part goes.",
                 "  This file is the only way back, so leave it out of the zip (the tickbox under Export) to keep the puzzle."]
