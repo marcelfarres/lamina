@@ -173,6 +173,9 @@ What makes more models buildable comes first; polish and speed after.
    - **A thin ring is warned about, not helped.** A hollowed layer about 6 mm wide (the bunny's) holds a 6 mm dowel
      only at a bulge: the check says how thick the wall is and what the dowel needs, and there is no button. Placing
      dowels at the bulges farthest apart, or a smaller dowel for that layer alone, would be the next step.
+8. **Keep the grain** (asked for after 0.3.0): a switch that lets the nester turn parts only 0° or 180°, never
+   sideways, so the wood grain runs the same way on every part, with the grain arrow drawn on each sheet. Today the
+   nester tries every turn that fits.
 
 Left out of the four features above, deliberately: the instructions are a text file (`assembly-key.txt`) with the
 build order as a column, not a numbered page per step; the 3D-printed prototype still engraves real labels in puzzle
