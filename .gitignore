@@ -14,6 +14,8 @@ __pycache__/
 Claude outputs/
 _to_delete/
 .playwright-mcp/
-graphify-out/
 
 .claude/
+
+# graphify: the graph lives in the private working-files/internal/graphify-out; never commit it here
+/graphify-out
