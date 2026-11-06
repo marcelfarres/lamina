@@ -25,7 +25,13 @@ def values(p):
     return []
 
 
-CASES = [pytest.param(mode.name, p.name, v, id=f"{mode.name}-{p.name}={v}")
+# The smallest sheet the slider allows (10 × 10 mm) splits every part of the cube into fragments: 145 s alone for
+# radial, past the 180 s cap when twelve workers share the cores (035, as 025 was). Those cases get the budget they
+# need; every other case keeps the cap, so a hang there is still caught in three minutes.
+TINY_SHEET = pytest.mark.timeout(600)
+
+CASES = [pytest.param(mode.name, p.name, v, id=f"{mode.name}-{p.name}={v}",
+                      marks=[TINY_SHEET] if p.name == "sheet" and v == values(p)[0] else [])
          for mode in MODES.values()
          for p in mode.all_params() if p.name not in mode.hidden_common
          for v in values(p)]

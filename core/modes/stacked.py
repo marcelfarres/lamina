@@ -91,7 +91,7 @@ class Stacked(Mode):
         elif p["distribution"] == "count":
             pos = ctx.positions(length, [t] * p["count"])
         else:                                             # one after another, each at its own thickness
-            n = ctx.count_by_thickness(length, t, gap)
+            n = ctx.count_by_thickness(length, t, gap, ax)
             pos = ctx.stacked_positions(length, [ctx.thickness_of(name(i)) for i in range(n)], gap)
         by_distance = drawn is None and p["distribution"] == "distance"
         if p["shift"] and pos:
@@ -301,49 +301,48 @@ class Stacked(Mode):
         they miss, or hold badly, gets a spread of its own."""
         p = ctx.p; out = []
         want = max(1, p["n_points"])
-        if True:
-            fixed = [q for q in list(p["dowels"]) + self.common_points(ctx, margin) if overlap.contains(Point(q))]
-            clear = lambda q, pts: all(_dist(q, r) > clearance for r in pts)   # noqa: E731
-            for isl in islands:
-                # held is the piece's hold, not the overlap's: an ear's overlap is a sliver of the ear, and two dowels
-                # holding the sliver dropped the third rod the ear itself needed (1.37 where the check promised 0.9)
-                piece = max(as_multi(a.raw).geoms, key=lambda g: g.intersection(isl).area)
-                lev = lambda pts, piece=piece: dowel_leverage(piece, pts)                       # noqa: E731
-                # dowels someone placed come on top of the n_points asked for: counted in, one typed into a horse's
-                # ear stood in for one of its two and the ear came out held 1.56 where the check promised 1.2
-                need = want + sum(isl.contains(Point(q)) for q in p["dowels"])
-                held = lambda pts, need=need, lev=lev: len(pts) >= need and lev(pts) <= LEVERAGE_OK   # noqa: E731
-                mine = [q for q in fixed if isl.contains(Point(q))]
-                # One point is a hinge: a piece pinned once still turns about it, which is exactly what a glued stack
-                # does while it dries. Two locate it. An island the common points miss (an ear) gets its own, and one
-                # they touch only once is topped up from its own spread, clear of the point already there.
-                # A dowel is a straight rod: where this slice already carries a hole that is still inside the overlap,
-                # the rod carries on through it. Choosing a fresh spread every pair walks the points inward a few
-                # millimetres a layer on anything tapered — close enough to the hole above to merge with it, which is
-                # how a cone came out with holes 5 mm apart and half its layers with no dowel at all.
-                # Enough of them is not only a count: the shared points sit in the region common to every layer — on a
-                # sphere, the smallest one — so a 200 mm piece in the middle was held by two dowels 46 mm apart
-                # (reported). Rods carry on farthest out first; a piece they still do not hold is offered them topped up
-                # from its own spread toward its edge, or that spread whole beside the dowels typed in (topping one rod
-                # up left the blob's foot lopsided, 2.2) — one that holds first, then the count, then the better hold:
-                # counting first chose three dowels bunched on a horse's leg over two that held it.
-                c = isl.centroid
-                for q in sorted(taken, key=lambda q: -_dist(q, (c.x, c.y))):
-                    if held(mine):
-                        break
-                    if isl.contains(Point(q)) and clear(q, mine):
-                        mine.append(q)
-                if not held(mine):
-                    here = [q for q in taken if isl.buffer(clearance).contains(Point(q))]
-                    fresh = self.spread(isl, want, apart=2.5 * d, clear=here, by=clearance)
-                    topped = list(mine)
-                    for q in fresh:
-                        if len(topped) < need and clear(q, topped):
-                            topped.append(q)
-                    own = [q for q in p["dowels"] if isl.contains(Point(q))]
-                    own += [q for q in fresh if clear(q, own)]
-                    mine = min((mine, topped, own), key=lambda pts: (lev(pts) > LEVERAGE_OK, -min(len(pts), need), lev(pts)))
-                out += mine
+        fixed = [q for q in list(p["dowels"]) + self.common_points(ctx, margin) if overlap.contains(Point(q))]
+        clear = lambda q, pts: all(_dist(q, r) > clearance for r in pts)   # noqa: E731
+        for isl in islands:
+            # held is the piece's hold, not the overlap's: an ear's overlap is a sliver of the ear, and two dowels
+            # holding the sliver dropped the third rod the ear itself needed (1.37 where the check promised 0.9)
+            piece = max(as_multi(a.raw).geoms, key=lambda g: g.intersection(isl).area)
+            lev = lambda pts, piece=piece: dowel_leverage(piece, pts)                       # noqa: E731
+            # dowels someone placed come on top of the n_points asked for: counted in, one typed into a horse's
+            # ear stood in for one of its two and the ear came out held 1.56 where the check promised 1.2
+            need = want + sum(isl.contains(Point(q)) for q in p["dowels"])
+            held = lambda pts, need=need, lev=lev: len(pts) >= need and lev(pts) <= LEVERAGE_OK   # noqa: E731
+            mine = [q for q in fixed if isl.contains(Point(q))]
+            # One point is a hinge: a piece pinned once still turns about it, which is exactly what a glued stack
+            # does while it dries. Two locate it. An island the common points miss (an ear) gets its own, and one
+            # they touch only once is topped up from its own spread, clear of the point already there.
+            # A dowel is a straight rod: where this slice already carries a hole that is still inside the overlap,
+            # the rod carries on through it. Choosing a fresh spread every pair walks the points inward a few
+            # millimetres a layer on anything tapered — close enough to the hole above to merge with it, which is
+            # how a cone came out with holes 5 mm apart and half its layers with no dowel at all.
+            # Enough of them is not only a count: the shared points sit in the region common to every layer — on a
+            # sphere, the smallest one — so a 200 mm piece in the middle was held by two dowels 46 mm apart
+            # (reported). Rods carry on farthest out first; a piece they still do not hold is offered them topped up
+            # from its own spread toward its edge, or that spread whole beside the dowels typed in (topping one rod
+            # up left the blob's foot lopsided, 2.2) — one that holds first, then the count, then the better hold:
+            # counting first chose three dowels bunched on a horse's leg over two that held it.
+            c = isl.centroid
+            for q in sorted(taken, key=lambda q: -_dist(q, (c.x, c.y))):
+                if held(mine):
+                    break
+                if isl.contains(Point(q)) and clear(q, mine):
+                    mine.append(q)
+            if not held(mine):
+                here = [q for q in taken if isl.buffer(clearance).contains(Point(q))]
+                fresh = self.spread(isl, want, apart=2.5 * d, clear=here, by=clearance)
+                topped = list(mine)
+                for q in fresh:
+                    if len(topped) < need and clear(q, topped):
+                        topped.append(q)
+                own = [q for q in p["dowels"] if isl.contains(Point(q))]
+                own += [q for q in fresh if clear(q, own)]
+                mine = min((mine, topped, own), key=lambda pts: (lev(pts) > LEVERAGE_OK, -min(len(pts), need), lev(pts)))
+            out += mine
         return out      # whether each one really fits, against the cuts already made, is connect's `fits`
 
     @staticmethod

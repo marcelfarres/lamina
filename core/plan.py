@@ -344,12 +344,9 @@ def reuse(mesh, name, make):
 
 def _prepare(path, params, notes, mode):
     mesh = load_cad(path) if path.suffix.lower() in CAD_SUFFIXES else trimesh.load(path, force="mesh")
-    if params["up_axis"] != "z":
-        src = "xyz".index(params["up_axis"])
-        mesh.apply_transform(trimesh.geometry.align_vectors(np.eye(3)[src], [0, 0, 1]))
-    rot = params.get("rotate") or [0, 0, 0]
-    if any(rot):
-        mesh.apply_transform(trimesh.transformations.euler_matrix(*np.radians(rot[:3]), "sxyz"))
+    # `size` is the model's own, along the file's axes, and is applied before any turn: aimed at the world axes after
+    # the turn, as it used to be, a bear made 500 mm tall and then stood up along x was 500 mm long and half as big
+    # again (034). The page shows and takes the numbers along the view's axes and keeps them on the model's.
     size = params.get("size") or []
     if any(size):
         tgt = np.array([s if s else 0 for s in (list(size) + [0, 0, 0])[:3]], float)
@@ -360,6 +357,12 @@ def _prepare(path, params, notes, mode):
             mesh.apply_scale([tgt[i] / ext[i] if tgt[i] > 0 else 1 for i in range(3)])
     if params["scale"] != 1:                          # multiplies the target size when one is set
         mesh.apply_scale(params["scale"])
+    if params["up_axis"] != "z":
+        src = "xyz".index(params["up_axis"])
+        mesh.apply_transform(trimesh.geometry.align_vectors(np.eye(3)[src], [0, 0, 1]))
+    rot = params.get("rotate") or [0, 0, 0]
+    if any(rot):
+        mesh.apply_transform(trimesh.transformations.euler_matrix(*np.radians(rot[:3]), "sxyz"))
     if max(mesh.extents) < 5:                         # Blender writes metres: a 100 mm cube arrives 0.1 mm across
         notes.append(f"the model is only {max(mesh.extents):.3g} mm across — saved in metres or centimetres? Set size "
                      "to its real size in mm (100 mm cube: size 100)")
@@ -381,6 +384,7 @@ def _prepare(path, params, notes, mode):
         notes.append("open surface (not a closed solid): panelled as it is — its boundary edges stay open and carry "
                      "no joints, and a hole in the surface stays a hole")
     auto = not mesh.is_watertight and not surface and not params["shrinkwrap"]
+    sized = mesh.extents.copy()                       # before modify form grows it: what a scale acts on (the cap's fix)
     if params["shrinkwrap"] or params["hollow"] or params["thicken"] or params["round"] or auto:
         if auto:                                      # the finest grid, and smoothed: a scan's noise goes with its holes
             notes.append("mesh is not watertight and could not be mended — remeshed on a fine grid and smoothed (set shrinkwrap to choose the resolution)")
@@ -390,6 +394,7 @@ def _prepare(path, params, notes, mode):
         progress("smoothing", 0.16)
         mesh = mesh.copy(); trimesh.smoothing.filter_taubin(mesh, iterations=int(params["smooth"] or 10))
     mesh.apply_translation(-mesh.bounds.mean(0))
+    mesh.metadata["sized_extents"] = sized
     return mesh
 
 
@@ -438,8 +443,8 @@ def _moved(e, rot, x0, y0):
     return mv(e[0]), mv(e[1]), e[2]
 
 
-def _match(c, g, tol, mirror, ce, ge):
-    """How outline `g` fits outline `c` (both at the origin, long side along x): "same" under some quarter turn,
+def _match(c, g, tol, mirror, ce, ge, turns=(0, 90, 180, 270)):
+    """How outline `g` fits outline `c` (both at the origin, long side along x): "same" under one of `turns`,
     "flipped" when it only fits as its mirror image, None when it does not fit at all. What is engraved on them (`ce`,
     `ge`: guide lines, marks with their texts, in the same frames) has to coincide under that same move: two slices
     with the same outline but another layer's outline, or another seam number, marked on them are two parts."""
@@ -448,7 +453,7 @@ def _match(c, g, tol, mirror, ce, ge):
     flip = lambda x: affinity.scale(x, -1, 1, origin=(0, 0))
     tries = (("same", g, ge), ("flipped", flip(g), (flip(ge[0]), flip(ge[1]), ge[2]))) if mirror else (("same", g, ge),)   # mirrored once, not per turn
     for kind, m, me in tries:
-        for r in (0, 90, 180, 270):
+        for r in turns:
             h = affinity.rotate(m, r, origin=(0, 0)); x0, y0, _, _ = h.bounds
             if _same_outline(c, affinity.translate(h, -x0, -y0), tol) and _coincide(ce, _moved(me, r, x0, y0)):
                 return kind
@@ -464,22 +469,23 @@ def _coincide(a, b, w=0.05):
     return len(ta) == len(tb) and all(any(t == u and p.distance(q) < 0.5 for q, u in zip(pb.geoms, tb)) for p, t in zip(pa.geoms, ta))
 
 
-def mark_identical(pieces, mirror=False, tol=1e-3):
+def mark_identical(pieces, mirror=False, tol=1e-3, grain=False):
     """Pieces with the same cut outline — kerf applied, any quarter turn, and with `mirror` also turned over — are one
     part in several copies: the first of each set keeps the others' labels in `same`, the ones that have to be turned
     over in `flipped`, so they are cut once with a quantity and listed once. What is engraved on a piece — a guide line
     (stacked, `next_outline`), a seam number — is part of what the piece is and has to match too; fold lines keep every
-    folded panel a part of its own."""
+    folded panel a part of its own. With `grain` only a copy as it stands or upside down is the same part: one turned
+    sideways would be cut across the grain."""
     groups = []                                     # [(first piece, its outline at the origin, what is engraved on it there)]
     for pc in pieces:
         if any(s != "guide" for s, _ in pc.lines):  # score lines (folded panels): each fold pattern is its own part
             continue
-        a = min_rect_angle(pc.kerfed)
+        a = 0.0 if grain else min_rect_angle(pc.kerfed)
         g = affinity.rotate(pc.kerfed, a, origin=(0, 0)); x0, y0, _, _ = g.bounds; g = affinity.translate(g, -x0, -y0)
         ge = _moved((MultiLineString([ln for _, ln in pc.lines]), MultiPoint([m[:2] for m in pc.marks]), [m[2] for m in pc.marks]), a, x0, y0)
         for first, c, ce in groups:
             # same outline but cut from other stock is not the same part: it belongs on the other thickness's sheet
-            kind = _match(c, g, tol, mirror, ce, ge) if first.parent.thickness == pc.parent.thickness else None
+            kind = _match(c, g, tol, mirror, ce, ge, (0, 180) if grain else (0, 90, 180, 270)) if first.parent.thickness == pc.parent.thickness else None
             if kind:
                 (first.same if kind == "same" else first.flipped).append(pc.label)
                 break
@@ -506,6 +512,27 @@ def shed_slivers(raw, prof, cuts, mf, mp):
     return MultiPolygon(keep), len(prof.geoms) - len(keep)   # empty: the plane only grazes the model, there is no part
 
 
+def _swap_in(mesh, dest, waits=(0, 0.05, 0.1, 0.2, 0.4, 0.8)):
+    """Write `mesh` to `dest` without ever leaving a half-written file there; True when it got there. See build()."""
+    tmp = dest.with_suffix(f".{threading.get_ident()}.stl")
+    mesh.export(tmp)
+    try:
+        for wait in waits:
+            time.sleep(wait)
+            try:
+                os.replace(tmp, dest)
+                return True
+            except PermissionError:
+                try:
+                    shutil.copyfile(tmp, dest)
+                    return True
+                except PermissionError:
+                    continue
+        return False
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     mode = MODES[mode_name]
     p = coerce_params(mode, raw_params)
@@ -519,13 +546,10 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         ghost = reuse(mesh, "preview", lambda m: decimate(m, 30000))
         # beside it, then swapped in: the page may still be downloading the last one, and rewritten in place it got a
         # file cut short (Linux CI: "network error" in the 3D view's loader). Windows refuses the swap while the file
-        # is being read: then in place, as before
-        tmp = pathlib.Path(mesh_out).with_suffix(f".{threading.get_ident()}.stl")
-        ghost.export(tmp)
-        try:
-            os.replace(tmp, mesh_out)
-        except PermissionError:
-            shutil.copyfile(tmp, mesh_out); tmp.unlink()
+        # is open (the page downloading it, a virus scanner reading it): then in place; refused that too (036: a
+        # scanner holds it), tried again a moment later, and after 1.5 s the slice goes on with the last preview —
+        # the preview is only what the view shows, never a reason for the slice to fail
+        _swap_in(ghost, pathlib.Path(mesh_out))
         # the 3D view can show the model now, before the slices: not a stage of its own, the stage line stays put
         report("", 0.19, str(mesh_out))
     sheet0 = list(p["sheet"])
@@ -569,7 +593,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     progress("nesting the parts on sheets", 0.85)
     for sl in slices:
         if p["split"] and sl.facets is None:
-            split_slice(sl, p["sheet"], p["sheet_margin"], p["tab"])
+            split_slice(sl, p["sheet"], p["sheet_margin"], p["tab"], p["grain"])
         else:
             sl.pieces = islands(sl) if sl.facets is None else [Piece(sl.label, sl.profile, sl, sl.lines, sl.marks)]   # a folded net stays whole
     n_err += _oversize(slices, p, sheet0, mesh, ctx)
@@ -579,11 +603,11 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
             pc.lines = pc.lines + orient_arrows(pc.geom, keep=[mark_box(*m[:3], p["font"], mark_rot(m)) for m in pc.marks])
     kerf = p["kerf"] if p["compensate"] else 0.0       # off by default: many machines compensate their own kerf
     tag = label_tag(p, model_path)                     # the model's name, engraved before every label: nested with room for it
-    n_sheets = nest(pieces, p["sheet"], p["gap"], p["sheet_margin"], kerf, p["labels"], p["font"], tag, p["label_place"])
+    n_sheets = nest(pieces, p["sheet"], p["gap"], p["sheet_margin"], kerf, p["labels"], p["font"], tag, p["label_place"], p["grain"])
     if crowded := [pc.label for pc in pieces if pc.crowded]:
         notes.append(f"no free spot beside {len(crowded)} part(s) for their labels ({', '.join(crowded[:6])}{'…' if len(crowded) > 6 else ''}): "
                      "they sit on the part, overrunning it where it is small — a smaller font, a bigger gap or sheet, or `label_model` off gives them room")
-    mark_identical(pieces, p["mirror_ok"])             # which parts are the same part: one cut file, one row, a quantity
+    mark_identical(pieces, p["mirror_ok"], grain=p["grain"])   # which parts are the same part: one cut file, one row, a quantity
     # puzzle mode: what gets engraved is a code with no order in it. The plan keeps the real labels — the app, the
     # checks and the 3D view are the "plans" you consult when you give up — and the export carries the key.
     codes = label_codes([pc.label for pc in pieces], f"{pathlib.Path(model_path).name}|{mode_name}") if p["label_style"] == "code" else {}
@@ -599,7 +623,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     progress("done", 1.0)
     if ctx.notes_extra:
         notes.append(ctx.notes_extra)
-    if cov < 0.9:
+    if cov < 0.9 and (slices or not ctx.errors):    # stopped before the first slice: the error says why, not this
         notes.append(f"model coverage {cov:.0%}: parts of the model have no geometry — more slices (count / spacing), a different axis, or round/thicken thin features")
 
     plan = {
@@ -675,11 +699,16 @@ def _oversize(slices, p, sheet0, mesh, ctx):
     takes a sheet to itself, so it is an error whether or not `split` was asked to cut it — with the size the model
     would have to be for its parts to fit, so "too big for my sheet" comes with the number. Returns the errors added."""
     over = [(sl, pc, *min_dims(pc.geom)) for sl in slices for pc in sl.pieces      # rotation is free on the sheet
-            if not fits_rotated(pc.geom, p["sheet"], p["sheet_margin"])]
+            if not fits_rotated(pc.geom, p["sheet"], p["sheet_margin"], p["grain"])]
     if not over:
         return 0
-    long_s, short_s = sorted((p["sheet"][0] - 2 * p["sheet_margin"], p["sheet"][1] - 2 * p["sheet_margin"]), reverse=True)
-    f = min(min(long_s / large, short_s / small) for _, _, small, large in over)
+    sw, sh = p["sheet"][0] - 2 * p["sheet_margin"], p["sheet"][1] - 2 * p["sheet_margin"]
+    if p["grain"]:                                  # the part as it stands: its width on the sheet's, its height on the sheet's
+        over = [(sl, pc, b[3] - b[1], b[2] - b[0]) for sl, pc, *_ in over for b in [pc.geom.bounds]]
+        f = min(min(sw / w, sh / h) for _, _, h, w in over)
+    else:
+        long_s, short_s = sorted((sw, sh), reverse=True)
+        f = min(min(long_s / large, short_s / small) for _, _, small, large in over)
     fit = [round(float(e) * f, 1) for e in mesh.extents]
     fit_txt = " × ".join(f"{v:g}" for v in fit)
     for sl, pc, small, large in over:
@@ -690,7 +719,7 @@ def _oversize(slices, p, sheet0, mesh, ctx):
         sl.errors.append(e)
         # suggest_fixes has already run (the pieces only exist here), so this error brings its own fixes
         sl.fixes.append({"error": e, "options": ([] if p["split"] else [{"title": "split oversize parts", "set": {"split": True}}])
-                         + [{"title": f"scale the model to {f:.0%} ({fit_txt} mm)", "set": {"size": fit, "scale": 1}}]
+                         + [{"title": f"scale the model to {f:.0%} ({fit_txt} mm)", "set": {"scale": round(p["scale"] * f, 4)}}]
                          + ([] if p["one_sheet"] else [{"title": "one long sheet (cut the strip apart at the machine)", "set": {"one_sheet": True}}])})
     ctx.errors.append(f"{len(over)} part(s) are bigger than the {sheet0[0]:g} × {sheet0[1]:g} mm sheet: "
                       f"set `size` to about {fit_txt} mm ({f:.0%} of this model)"

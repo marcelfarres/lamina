@@ -295,12 +295,16 @@ def label_angles(region):
     return (0, 90) if min(abs(long) % 90, 90 - abs(long) % 90) < 5 else (0, 90, round(long, 1), round(long + 90 if long < 0 else long - 90, 1))
 
 
-def line_segments_in_mesh(mesh, p0, d, span) -> list[tuple[float, float]]:
-    """Inside-segments (s_in, s_out) of the line p0 + s*d against the mesh."""
-    d = np.asarray(d, float); d = d / np.linalg.norm(d)
-    origin = np.asarray(p0, float) - d * span
+def lines_in_mesh(mesh, lines, span) -> list[list[tuple[float, float]]]:
+    """For each line (p0, d): its inside-segments (s_in, s_out) against the mesh, s along d from p0. One cast for all
+    the lines: trimesh's bookkeeping per call cost about as much as the ray itself, and a slice casts hundreds — one
+    per slot and one per pair of a family in the collision check."""
+    if not lines:
+        return []
+    D = np.asarray([d for _, d in lines], float); D /= np.linalg.norm(D, axis=1)[:, None]
+    P = np.asarray([p for p, _ in lines], float); O = P - D * span
     if HAVE_RTREE:
-        locs, _, _ = mesh.ray.intersects_location([origin], [d], multiple_hits=True)   # rtree broad phase, cached on the mesh
+        locs, ray, _ = mesh.ray.intersects_location(O, D, multiple_hits=True)   # rtree broad phase, cached on the mesh
     else:                                                 # the browser build: a broad phase of our own — only the triangles
         from types import SimpleNamespace                 # whose bounding sphere the line passes through are tested
         from trimesh.ray.ray_triangle import ray_triangle_id
@@ -308,17 +312,34 @@ def line_segments_in_mesh(mesh, p0, d, span) -> list[tuple[float, float]]:
         if "c" not in cache:                              # once per mesh
             tri = mesh.triangles; c = tri.mean(1)
             cache.update(c=c, r2=(np.linalg.norm(tri - c[:, None], axis=2).max(1) + 1e-6) ** 2)
-        v = cache["c"] - origin; t = v @ d
-        near = np.flatnonzero(np.einsum("ij,ij->i", v, v) - t * t <= cache["r2"])   # squared distance to the line
-        tree = SimpleNamespace(bounds=mesh.bounds, intersection=lambda b: near)
-        _, _, locs = ray_triangle_id(mesh.triangles, [origin], [d], triangles_normal=mesh.face_normals, tree=tree, multiple_hits=True)
-    if len(locs) == 0:
-        return []
-    s = np.sort((locs - p0) @ d)
-    s = s[np.r_[True, np.diff(s) > 1e-6]]
-    if len(s) % 2:
-        s = s[:-1]
-    return [(float(s[i]), float(s[i + 1])) for i in range(0, len(s), 2) if s[i + 1] - s[i] > 0.3]
+        locs, ray = [], []
+        for k in range(len(lines)):
+            v = cache["c"] - O[k]; t = v @ D[k]
+            near = np.flatnonzero(np.einsum("ij,ij->i", v, v) - t * t <= cache["r2"])   # squared distance to the line
+            tree = SimpleNamespace(bounds=mesh.bounds, intersection=lambda b, near=near: near)
+            _, _, hit = ray_triangle_id(mesh.triangles, O[k:k + 1], D[k:k + 1], triangles_normal=mesh.face_normals, tree=tree, multiple_hits=True)
+            locs += list(hit); ray += [k] * len(hit)
+    locs, ray = np.asarray(locs, float).reshape(-1, 3), np.asarray(ray, int)   # no hit at all comes back shaped (0,)
+    out = []
+    for k in range(len(lines)):
+        s = np.sort((locs[ray == k] - P[k]) @ D[k])
+        s = s[np.r_[True, np.diff(s) > 1e-6]] if len(s) else s
+        if len(s) % 2:
+            s = s[:-1]
+        out.append([(float(s[i]), float(s[i + 1])) for i in range(0, len(s), 2) if s[i + 1] - s[i] > 0.3])
+    return out
+
+
+def crossings(mesh, span, frames, toward=None):
+    """For each pair of slice frames (Ma, Mb): the line their planes meet on and where it runs inside the model,
+    (p0, d, [(s_in, s_out) …]) — or None where the planes are parallel. With `toward`, a direction per pair, d is
+    turned to point that way (a slot's open side) and the cast runs along it: a ray grazing an edge hits an odd
+    number of times and the last hit is the one dropped, so the direction has to be the one the caller means."""
+    lines = [plane_plane_line(Ma, Mb) for Ma, Mb in frames]
+    if toward is not None:
+        lines = [None if ln is None else (ln[0], -ln[1] if np.dot(ln[1], t) < 0 else ln[1]) for ln, t in zip(lines, toward)]
+    segs = iter(lines_in_mesh(mesh, [ln for ln in lines if ln is not None], span))
+    return [None if ln is None else (ln[0], ln[1], next(segs)) for ln in lines]
 
 
 def plane_plane_line(Ma, Mb):

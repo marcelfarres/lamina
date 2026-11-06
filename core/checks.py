@@ -12,7 +12,7 @@ from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
 
-from .geometry import (dowel_leverage, hole_reach, into, line_segments_in_mesh, min_dims, plane_plane_line, rect_along, thin_spots,
+from .geometry import (crossings, dowel_leverage, hole_reach, into, min_dims, plane_plane_line, rect_along, thin_spots,
                        to_local, to_world)
 
 HELD_GROUPS = ("X", "Y", "R", "C")     # regions in these groups must be held by a slot / dowel / the core
@@ -180,19 +180,18 @@ def check_collisions(slices, mesh, span):
         if s.group in ("X", "Y", "S", "R", "C") and s.profile is not None:
             groups.setdefault(s.group, []).append(s)
     for members in groups.values():
-        for i, a in enumerate(members):
-            for b in members[i + 1:]:
-                ln = plane_plane_line(a.M, b.M)
-                if ln is None:
-                    continue
-                p0, d = ln
-                for s_in, s_out in line_segments_in_mesh(mesh, p0, d, span):
-                    m = p0 + d * (s_in + s_out) / 2
-                    la, lb = to_local(a.M, [m])[0], to_local(b.M, [m])[0]
-                    if a.profile.contains(Point(la)) and b.profile.contains(Point(lb)):
-                        msg = f"crosses {b.label} inside the model and nothing joins them (they collide) — reduce the tilt / offset, move one, or delete one"
-                        a.errors.append(msg); b.errors.append(f"crosses {a.label} inside the model and nothing joins them (they collide) — reduce the tilt / offset, move one, or delete one")
-                        break
+        pairs = [(a, b) for i, a in enumerate(members) for b in members[i + 1:]]
+        for (a, b), cr in zip(pairs, crossings(mesh, span, [(a.M, b.M) for a, b in pairs])):   # every pair's line cast at once
+            if cr is None:
+                continue
+            p0, d, segs = cr
+            for s_in, s_out in segs:
+                m = p0 + d * (s_in + s_out) / 2
+                la, lb = to_local(a.M, [m])[0], to_local(b.M, [m])[0]
+                if a.profile.contains(Point(la)) and b.profile.contains(Point(lb)):
+                    msg = f"crosses {b.label} inside the model and nothing joins them (they collide) — reduce the tilt / offset, move one, or delete one"
+                    a.errors.append(msg); b.errors.append(f"crosses {a.label} inside the model and nothing joins them (they collide) — reduce the tilt / offset, move one, or delete one")
+                    break
 
 
 # ---------------------------------------------------------------- assembly connectivity

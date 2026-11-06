@@ -2,6 +2,50 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.3.2
+
+A model far too big for its material now stops at once and offers the size that can be cut, turning a model no
+longer changes its size, and the corner cube and the turn rings behave under the mouse. Parts can keep the wood grain
+running one way, and interlocked, radial and curve jobs slice faster.
+
+### Added
+
+- **Keep the grain.** A new switch on the Sheet & fit tab, *keep the grain*, stops the nester from turning parts
+  sideways: each part is laid as it stands, or upside down, so the grain runs the same way through every part. Lay the
+  stock with its grain along the sheet's width. A part that would only fit turned is split to fit (with *split* on) or
+  flagged, and two parts only count as the same part when they match without a sideways turn.
+
+### Changed
+
+- **Slots and checks are quicker.** Every line where two slices cross is now cast through the model in one go
+  instead of one at a time, for the slots and for the collision check, and a sheet that is asked again about the
+  same part answers from memory. Interlocked, radial and curve jobs slice faster; the parts, the sheets and every
+  cut file come out exactly as before.
+
+### Fixed
+
+- **A lifesize model no longer takes a quarter of an hour to say it is too big.** A model far bigger than its material
+  can cut, 3.5 m of bear at 3 mm, was sliced into the 500 layers the cap allows and split over hundreds of sheets
+  before the error could be read. Over the cap nothing is sliced: the message names the size and the count, and a
+  one-click fix scales the model to the layers that can be cut. A model that arrives huge is usually lifesize or in
+  centimetres: set *size* to the real size. Thanks to Colin.
+- **Turning the model no longer changes its size.** *size* aimed at whatever lay along that axis after the turn, so a
+  model made 500 mm tall and then stood up along x (up axis, turn, the rings or the sliders) came back 500 mm long
+  and half as big again. Size now belongs to the model: a number stays with the dimension it was typed for through
+  every turn, and the boxes read along the view's axes, so after a turn the number shows in the box of the axis that
+  dimension lies along now. A project file saved before this version is read the old way once. On the command line
+  *size* is along the model file's own axes. Thanks to Colin.
+- **The corner cube is a click; a drag on it turns the view.** It snapped to a face the moment it was pressed, while the
+  drag went on turning the view underneath, so a drag "moved a bit, then jumped to a face". And in the flat view it
+  gave, two of the turn rings are edge-on lines through the model, which a drag on the model then grabbed, turning
+  the model over and slicing it again. A ring seen edge-on is no longer grabbed; face-on, it still turns the model
+  wherever it shows. And the glide after a drag was a step per frame, so with a big model on a slow machine the view
+  lagged the drag by seconds and kept moving long after it: it is a step per time now. Thanks to Colin.
+- **On Windows a slice no longer fails over its 3D preview.** When the page was still downloading the last preview,
+  or a virus scanner was reading it, Windows refused to replace the file and the slice stopped with "Permission
+  denied … model.stl". It now tries again for a moment and, if the file stays locked, finishes the slice and keeps the
+  last preview in the view.
+
 ## 0.3.1
 
 The Export tab says how much sheet to buy, and the SVG can be written one group per colour again for software that

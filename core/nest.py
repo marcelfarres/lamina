@@ -6,7 +6,8 @@ goes to its lowest, then leftmost, vertex: it slides into concavities and holes,
 corners of bounding boxes. Deepnest computes the Minkowski sum with Clipper; here each outline is cut into convex
 pieces (constrained Delaunay triangles merged while they stay convex) and the sum is the union of the hulls of the
 piece pairs, which shapely does. Parts are placed one by one, largest first, each tried at its minimum-rectangle
-angle plus quarter turns; labels afterwards, in free space next to each part, with a leader line.
+angle plus quarter turns (with `grain`, as it stands or upside down); labels afterwards, in free space next to each
+part, with a leader line.
 
 Not taken from Deepnest: its genetic algorithm over the part order and rotations (minutes of search for a few
 percent of sheet) and its merging of shared cut lines.
@@ -165,6 +166,7 @@ class Sheet:
     def __init__(self, W, H, margin):
         self.W, self.H, self.margin = W, H, margin
         self.placed, self.pieces, self.convex = [], [], []
+        self.nfp = {}            # the no-fit union for a part's shape, and how many placed pieces it covers (see spot)
         # A raster of the sheet, CELL wide, a cell blocked when a placed part covers it whole, and the radius of the
         # largest disc the free cells hold (a distance transform): a part whose hull holds a bigger disc cannot fit,
         # and is not searched for a spot, which costs a union per rotation. A blocked frame stands for the margin.
@@ -209,7 +211,20 @@ class Sheet:
             return None
         free = box(x0, y0, x1 + 1e-9, y1 + 1e-9)          # a hair wide even when the part exactly spans the sheet
         if self.convex:
-            free = free.difference(shapely.union_all(np.concatenate([_minkowski(self.convex, _edges(-p)) for p in pieces])))
+            # Identical parts come one after another (sorted by area), and a stack or a tube is mostly identical parts:
+            # once a sheet is full, every later copy asks it again. The union of no-fit polygons is kept per shape,
+            # the hull to the bit, and handed back while nothing has been placed since — the very same geometry, so
+            # the answer is the one a fresh union gives. Nothing looser: the lowest vertex is chosen to the last bit,
+            # so a union built in two steps, or one shared between hulls a rounding apart (a square's four turns),
+            # flips ties between turns and renests the job onto another sheet.
+            key = tuple(p.tobytes() for p in pieces)
+            n, nfp = self.nfp.get(key, (0, None))
+            if n != len(self.convex):
+                nfp = shapely.union_all(np.concatenate([_minkowski(self.convex, _edges(-p)) for p in pieces]))
+                if len(self.nfp) >= 16:
+                    del self.nfp[next(iter(self.nfp))]
+                self.nfp[key] = (len(self.convex), nfp)
+            free = free.difference(nfp)
         if free.is_empty:
             return None
         c = shapely.get_coordinates(free)
@@ -219,20 +234,21 @@ class Sheet:
 MANY = 150          # above this many pieces the rectangle packer takes over (see nest)
 
 
-def _rect_nest(prepared, sheet, gap, margin):
+def _rect_nest(prepared, sheet, gap, margin, grain=False):
     """Rectangle packing of the parts' minimum bounding boxes — the path for many pieces. Above `MANY` parts the
     polygon nesting is far slower (quadratic in the part count) and, measured on 200 and 400 identical crescents with
     the corner search it replaced, packed no tighter, so the count is the gate. Skyline rather than MaxRects:
-    MaxRects de-duplicates its free-rectangle list on every insert, which is quadratic in the part count."""
+    MaxRects de-duplicates its free-rectangle list on every insert, which is quadratic in the part count. With `grain`
+    no part is turned."""
     from rectpack import newPacker, SkylineBlWm, PackingMode, PackingBin, SORT_AREA
     W, H = sheet[0] - 2 * margin, sheet[1] - 2 * margin
-    packer = newPacker(mode=PackingMode.Offline, bin_algo=PackingBin.BFF, pack_algo=SkylineBlWm, sort_algo=SORT_AREA, rotation=True)
+    packer = newPacker(mode=PackingMode.Offline, bin_algo=PackingBin.BFF, pack_algo=SkylineBlWm, sort_algo=SORT_AREA, rotation=not grain)
     dims = []
     for i, (pc, rot0) in enumerate(prepared):
         x0, y0, x1, y1 = affinity.rotate(pc.nest_shape, rot0, origin=(0, 0)).bounds
         w, h = x1 - x0 + gap, y1 - y0 + gap
         dims.append((w, h))
-        if (w <= W + gap and h <= H + gap) or (h <= W + gap and w <= H + gap):
+        if (w <= W + gap and h <= H + gap) or (not grain and h <= W + gap and w <= H + gap):
             packer.add_rect(w, h, i)
     packer.add_bin(W + gap, H + gap, count=float("inf"))
     packer.pack()
@@ -257,27 +273,28 @@ def _rect_nest(prepared, sheet, gap, margin):
     return [sheets[k] for k in sorted(sheets)]
 
 
-def nest(pieces, sheet, gap, margin, kerf=0.0, labels=False, font=4.0, tag="", place="part"):
+def nest(pieces, sheet, gap, margin, kerf=0.0, labels=False, font=4.0, tag="", place="part", grain=False):
     """Sets piece.place, .kerfed, .placed(+lines, marks), .label_pos, .leader. Returns sheet count.
 
     One sheet is one stock thickness. A part whose thickness was changed is cut from another piece of material, so
-    it gets sheets of its own rather than sharing one and being cut from the wrong stock."""
+    it gets sheets of its own rather than sharing one and being cut from the wrong stock. With `grain` every part
+    keeps its own frame's x along the sheet's width, turned 0° or 180° only, so the grain runs one way on all of them."""
     by_thick = {}
     for pc in pieces:
         by_thick.setdefault(round(pc.parent.thickness, 6), []).append(pc)
     if len(by_thick) < 2:
-        return _nest(pieces, sheet, gap, margin, kerf, labels, font, tag, place)
+        return _nest(pieces, sheet, gap, margin, kerf, labels, font, tag, place, grain)
     n = 0
     for t in sorted(by_thick):
         group = by_thick[t]
-        used = _nest(group, sheet, gap, margin, kerf, labels, font, tag, place)
+        used = _nest(group, sheet, gap, margin, kerf, labels, font, tag, place, grain)
         for pc in group:
             pc.place = (pc.place[0] + n, *pc.place[1:])      # each group numbered after the ones before it
         n += used
     return n
 
 
-def _nest(pieces, sheet, gap, margin, kerf, labels, font, tag, place):
+def _nest(pieces, sheet, gap, margin, kerf, labels, font, tag, place, grain):
     k = kerf / 2
     prepared = []
     for pc in pieces:
@@ -292,8 +309,8 @@ def _nest(pieces, sheet, gap, margin, kerf, labels, font, tag, place):
             if fit_on_part(pc.kerfed, [ln for s, ln in pc.lines if s == "guide"], w, h, keep, label_angles(pc.kerfed), room=min(2.0, 0.3 * font * 0.65)) is None:
                 x0, y0, x1, y1 = pc.kerfed.bounds; cx = (x0 + x1) / 2
                 pc.nest_shape = as_multi(unary_union([pc.kerfed, box(cx - w / 2, y1 + 1.0, cx + w / 2, y1 + 1.0 + h)]))
-        prepared.append((pc, min_rect_angle(pc.nest_shape)))
-    sheets = _rect_nest(prepared, sheet, gap, margin) if len(prepared) > MANY else _poly_nest(prepared, sheet, gap, margin)
+        prepared.append((pc, 0.0 if grain else min_rect_angle(pc.nest_shape)))
+    sheets = _rect_nest(prepared, sheet, gap, margin, grain) if len(prepared) > MANY else _poly_nest(prepared, sheet, gap, margin, grain)
     if len(prepared) <= MANY and len(sheets) > 1:
         # the polygon nest fills bottom-left and lets a round part drop into the valley between two below it, which
         # can cost a whole column (seven rings: five and two, where three and three would do); the plain rectangle
@@ -304,7 +321,7 @@ def _nest(pieces, sheet, gap, margin, kerf, labels, font, tag, place):
         # placement, so the polygon one is put back when it stays: labels are placed against the outlines the
         # pieces really have
         kept = [(pc.place, pc.placed, pc.placed_lines, pc.placed_marks) for pc, _ in prepared]
-        rect = _rect_nest(prepared, sheet, gap, margin)
+        rect = _rect_nest(prepared, sheet, gap, margin, grain)
         least = lambda ss: min(sum(pc.kerfed.area for pc in sh.pieces) for sh in ss)
         if len(rect) < len(sheets) or (len(rect) == len(sheets) and least(rect) < least(sheets)):
             sheets = rect
@@ -317,10 +334,11 @@ def _nest(pieces, sheet, gap, margin, kerf, labels, font, tag, place):
     return max(1, len(sheets))
 
 
-def _poly_nest(prepared, sheet, gap, margin):
+def _poly_nest(prepared, sheet, gap, margin, grain=False):
     """Every part on the first sheet with room for it, at the lowest-left spot of its free region (see the module
     docstring), largest first; a part bigger than a sheet takes the sheet it lands on to itself."""
     W, H = sheet; half = gap / 2
+    rots = (0, 180) if grain else ROTS
     order = sorted(range(len(prepared)), key=lambda i: -prepared[i][0].kerfed.area)
     grown_all = [pc.nest_shape.buffer(half + TOL, join_style=1) for pc, _ in prepared]   # half the gap on each part keeps them the gap apart
     # a hole no part could go in — a dowel hole, a slot: smaller than the smallest part with its share of the gap — is
@@ -339,11 +357,11 @@ def _poly_nest(prepared, sheet, gap, margin):
         thin = grown.simplify(TOL, preserve_topology=False)
         grown = thin if thin.is_valid and not thin.is_empty else grown
         convex = _convex_pieces(grown, POCKET, PIECES)
-        turned = {r: _rot(convex, rot0 + r) for r in ROTS}
+        turned = {r: _rot(convex, rot0 + r) for r in rots}
         # ponytail: the part on its way in is its convex hull, the placed ones their pieces, so the no-fit polygons
         # cost pieces × 1 rings, not pieces × pieces: a part slides into a placed part's cavity or hole, but not its
         # own cavity around a placed part's bulge. Pass turned[r] to spot() for that, at the quadratic cost.
-        hull = {r: _rot([_hull(grown)], rot0 + r) for r in ROTS}
+        hull = {r: _rot([_hull(grown)], rot0 + r) for r in rots}
         disc = shapely.maximum_inscribed_circle(grown.convex_hull, TOL).length
         best = None
         for sh in sheets + [None]:                                # first sheet it fits on
@@ -351,9 +369,9 @@ def _poly_nest(prepared, sheet, gap, margin):
                 sh = Sheet(W, H, margin); sheets.append(sh)
             if not sh.room(disc):
                 continue
-            box_of = {r: _bounds(np.concatenate(turned[r])) for r in ROTS}
-            spots = each(sh.spot, [hull[r] for r in ROTS], [box_of[r] for r in ROTS])   # side by side, scored in order
-            for r, xy in zip(ROTS, spots):
+            box_of = {r: _bounds(np.concatenate(turned[r])) for r in rots}
+            spots = each(sh.spot, [hull[r] for r in rots], [box_of[r] for r in rots])   # side by side, scored in order
+            for r, xy in zip(rots, spots):
                 bounds = box_of[r]
                 if xy is None:
                     continue

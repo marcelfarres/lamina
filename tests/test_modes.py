@@ -4,6 +4,7 @@ mode's own parameters ask for, and a shape with no reason to fail comes back wit
 """
 import json
 import pathlib
+import time
 
 import numpy as np
 import pytest
@@ -558,3 +559,82 @@ def test_stacked_shift_moves_every_slice_plane_and_keeps_the_model_covered():
     assert zt[0] == z(moved)[0]                                                     # the same shifted start
     clash = build(EXAMPLES / "cube.stl", "stacked", {**by_count, "thick": {"Z-3": 60}, "shift": 1})   # 60 mm among 10 mm slices 30 mm apart
     assert any("slices overlap" in e for e in clash["errors"])                       # by count, a shift reports what overlaps
+
+
+def test_a_model_far_too_big_for_its_thickness_stops_before_slicing(monkeypatch):
+    """Reported: a lifesize bear, 3.5 m at 3 mm, was cut into the 500 slices the cap allows and split over hundreds of
+    sheets, a quarter of an hour before the error could be read. Over the cap nothing is sliced: the error names the
+    length and the count, and its one-click fix is the scale that holds the cap — taken, it lands under the cap,
+    thickened or not (thicken grows the model after the scale, so a size aimed at the grown length never got there)."""
+    t0 = time.time()
+    plan = build(EXAMPLES / "egg.stl", "stacked", {"size": [0, 0, 3000], "thickness": 3, "autofix": "off"})
+    assert time.time() - t0 < 60
+    assert plan["counts"]["slices"] == 0 and plan["counts"]["parts"] == 0 and plan["sheets"] == 1
+    assert any(e.startswith("1000 slices of 3 mm along 3000 mm of model") for e in plan["errors"]), plan["errors"]
+    assert not any("coverage" in n for n in plan["notes"]), plan["notes"]
+    fix = plan["fixes"][0]["options"][0]
+    assert fix["title"].startswith("scale the model to 50%") and abs(fix["set"]["scale"] - 0.5) < 0.001
+    import core.modes
+    monkeypatch.setattr(core.modes, "MAX_SLICES", 20)                 # a small cap, so the fix taken slices in seconds
+    for grow in ({}, {"thicken": 4}):
+        params = {"size": [0, 0, 120], "thickness": 3, "autofix": "off", **grow}
+        over = build(EXAMPLES / "egg.stl", "stacked", params)
+        assert over["counts"]["slices"] == 0 and over["fixes"], over["errors"]
+        taken = build(EXAMPLES / "egg.stl", "stacked", {**params, **over["fixes"][0]["options"][0]["set"]})
+        assert 19 <= taken["counts"]["slices"] <= 20 and not taken["errors"], (grow, taken["counts"], taken["errors"])
+
+
+def test_the_spacing_curve_stops_at_the_cap_too():
+    """The same lifesize model laid out by a drawn spacing curve used to be cut short at the cap without a word and
+    sliced anyway: it stops with the same kind of error."""
+    plan = build(EXAMPLES / "egg.stl", "stacked", {"size": [0, 0, 3000], "thickness": 3, "autofix": "off", "spacing_vary": True,
+                                                   "spacing_fix": "curve", "spacing_curve": [[0, 3], [0.5, 3], [1, 3]], "spacing_min": 3})
+    assert plan["counts"]["slices"] == 0 and any("spacing curve lays 500 slices" in e for e in plan["errors"]), plan["errors"]
+
+
+def test_size_is_the_model_s_own_whichever_way_it_is_turned():
+    """size 30 along z stays the model's z: stood up along x (up axis) or turned a quarter about y, the model keeps
+    the same three extents, and the 30 lies along the view axis the turn put it on."""
+    box = trimesh.creation.box([10, 20, 40])
+    stl = EXAMPLES.parent / "working-files" / "box_10_20_40.stl"; stl.parent.mkdir(exist_ok=True); box.export(stl)
+    base = {"distribution": "count", "count": 3, "size": [0, 0, 30], "autofix": "off", "connect": "none"}
+    flat = build(stl, "stacked", base)["bbox"]
+    assert flat == pytest.approx([7.5, 15, 30], abs=1e-6)
+    assert sorted(build(stl, "stacked", {**base, "up_axis": "x"})["bbox"]) == pytest.approx(sorted(flat), abs=1e-6)
+    assert sorted(build(stl, "stacked", {**base, "up_axis": "y"})["bbox"]) == pytest.approx(sorted(flat), abs=1e-6)
+    turned = build(stl, "stacked", {**base, "rotate": [0, 90, 0]})["bbox"]
+    assert turned == pytest.approx([30, 15, 7.5], abs=1e-6)
+
+
+def test_a_preview_windows_will_not_let_go_of_never_fails_the_slice(tmp_path, monkeypatch):
+    """Seen in the UI suite on Windows (036): the page, or a virus scanner, still had model.stl open, Windows refused
+    both the swap and the in-place copy, and the slice failed with PermissionError over the preview, which is only
+    what the 3D view shows. Refused a few times, the preview gets there; refused for good, the slice still finishes
+    and the last preview stays."""
+    import os
+    import shutil
+    import core.plan as P
+    refusals = {"n": 0}
+    real_replace, real_copy = os.replace, shutil.copyfile
+    def locked(limit):
+        def replace(a, b):
+            if refusals["n"] < limit and str(b).endswith("model.stl"):
+                refusals["n"] += 1
+                raise PermissionError(13, "Permission denied", str(b))
+            return real_replace(a, b)
+        def copy(a, b, **k):
+            if refusals["n"] < limit and str(b).endswith("model.stl"):
+                refusals["n"] += 1
+                raise PermissionError(13, "Permission denied", str(b))
+            return real_copy(a, b, **k)
+        monkeypatch.setattr(P.os, "replace", replace); monkeypatch.setattr(P.shutil, "copyfile", copy)
+    out = tmp_path / "model.stl"
+    params = {"distribution": "count", "count": 3, "autofix": "off"}
+    locked(3)                                   # the swap, the copy, the swap: the copy after it gets through
+    plan = build(EXAMPLES / "cube.stl", "stacked", params, mesh_out=out)
+    assert plan["counts"]["slices"] == 3 and out.exists() and refusals["n"] == 3
+    first = out.read_bytes()
+    refusals["n"] = 0; locked(10**6)            # never let go
+    plan = build(EXAMPLES / "egg.stl", "stacked", params, mesh_out=out)
+    assert plan["counts"]["slices"] == 3 and out.read_bytes() == first   # sliced; the last preview stays
+    assert not list(tmp_path.glob("model.*.stl"))                        # and no half-written file is left beside it

@@ -106,6 +106,10 @@ COMMON: list[Param] = [
       "or PETG ticks it", group="sheet"),
     P("sheet_margin", "number", 5, "Keep-out from the sheet edge (mm)", 0, 100, 0.5, group="sheet", unit="mm"),
     P("gap", "number", 3, "Gap between parts on the sheet (mm)", 0, 50, 0.5, group="sheet", unit="mm"),
+    P("grain", "bool", False, "Keep the grain: every part is laid on the sheet as it stands in its own frame, or upside down, "
+      "never turned sideways, so the wood grain runs the same way through all of them. Lay the stock with its grain along "
+      "the sheet's width (the first sheet size). Parts pack less tightly; one that only fits turned is split, or flagged",
+      group="sheet", label="keep the grain"),
     P("labels", "bool", True, "Engrave part labels (LABEL layer): beside each part with a leader line, or on the part itself — see `labels on the parts`", group="sheet"),
     P("font", "number", 4.0, "Height of a capital letter in the engraved labels (mm). Single-stroke lettering: the laser draws each letter as one line, not the two edges of a filled one", 1, 30, 0.5, group="sheet", unit="mm"),
     P("short_name", "text", "", "The short name engraved before each label, up to 4 letters or digits (HS Y-12). Blank = the initials of the "
@@ -250,6 +254,7 @@ class Ctx:
         self.ax = [e for e in np.eye(3)]
         self.mid = np.asarray(params.get("center") or [0, 0, 0], float)
         self.ext = mesh.extents
+        self.sized = np.asarray(mesh.metadata.get("sized_extents", self.ext), float)   # before modify form grew it
         self.span = float(np.linalg.norm(self.ext)) * 2
         self.p = params
         self.errors = []          # mode-level errors (bad parameter combinations)
@@ -283,6 +288,11 @@ class Ctx:
         pos, k = spaced(p[param] or [], length, p["spacing_min"], max(p["spacing_max"], p["spacing_min"] + 1e-6),
                         count if p["spacing_fix"] == "count" else None, periodic, MAX_SLICES)
         self.spacing.append({"param": param, "positions": [round(float(q), 3) for q in pos], "length": float(length), "unit": unit, "scale": round(float(k), 4)})
+        if p["spacing_fix"] != "count" and len(pos) >= MAX_SLICES:   # the walk hit the cap with model left over: stop, as count_by_thickness does
+            self.errors.append(f"the spacing curve lays {MAX_SLICES} slices along {length:.0f} mm of model and does not reach its end — more "
+                               f"than can be cut. A model this big is usually a units slip (lifesize, or saved in centimetres): set `size` to "
+                               f"the real size, or raise the curve's spacing")
+            return []
         if abs(k - 1) > 0.5 and p["spacing_fix"] == "count":
             self.notes_extra = " · ".join(x for x in [self.notes_extra, f"spacing curve ({param}): the count and the drawn spacings disagree — "
                                                       f"the curve is scaled {k:.2f}× to fit {len(pos)}; change the count or the curve"] if x)
@@ -322,10 +332,25 @@ class Ctx:
         lo = -room / 2 + (room - max(0.0, z - gap)) / 2
         return [lo + c for c in out]
 
-    def count_by_thickness(self, length, t, gap=0.0):
+    def count_by_thickness(self, length, t, gap=0.0, axis=None):
         """Slices that fit along `length` one thickness (+ gap) apart — never more than the count slider allows: a
         metre of paper slices is a wrong setting, and every slice is a section, checks and a part to nest."""
-        n = max(1, int((length - 2 * self.p["margin"] + gap) // (t + gap)))
+        room = length - 2 * self.p["margin"]
+        n = max(1, int((room + gap) // (t + gap)))
         if n > MAX_SLICES:
-            self.errors.append(f"{n} slices at this thickness and spacing: capped at {MAX_SLICES} — use thicker material, more space, or `count`")
-        return min(n, MAX_SLICES)
+            # Not capped and carried on: a lifesize model (3.5 m of bear at 3 mm) was cut into the 500 and split over
+            # hundreds of sheets, a quarter of an hour before the error could be read (034). Stopped here instead,
+            # before a single section is taken, with the scale that holds the cap: a scale, not a size, so it is the
+            # same whichever way the model is turned, and measured on the length before thicken / round grew it,
+            # which they add again after the scale.
+            grown = float(self.ext[axis] - self.sized[axis]) if axis is not None else 0.0
+            want = MAX_SLICES * (t + gap) - gap - 0.01 + 2 * self.p["margin"]        # the length that holds MAX_SLICES layers
+            f = (want - grown) / (length - grown)
+            e = (f"{n} slices of {t:g} mm along {room:.0f} mm of model — more than the {MAX_SLICES} that can be cut. A model "
+                 f"this big is usually a units slip (lifesize, or saved in centimetres): set `size` to the real size, "
+                 f"or use thicker material, more space, or `count`")
+            self.errors.append(e)
+            self.fixes.append({"error": e, "options": [{"title": f"scale the model to {f:.0%} ({want:.0f} mm along the stack: {MAX_SLICES} layers)",
+                                                        "set": {"scale": round(self.p["scale"] * f, 4)}}]})
+            return 0
+        return n

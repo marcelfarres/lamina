@@ -14,15 +14,18 @@ from .model import Piece
 MAX_PIECES = 12                       # sheets a part may span
 MAX_TABS = 24                         # tabs along one cut
 
-def fits_rotated(geom, sheet, margin):
-    """Does the part fit the sheet in any orientation?
+def fits_rotated(geom, sheet, margin, grain=False):
+    """Does the part fit the sheet in any orientation? With `grain` only as it stands (or upside down, the same box):
+    the nester may not turn it sideways.
 
     The minimum-area rectangle alone is not enough: for a diagonal shape it can be longer than the axis-aligned box
     (a 500x380 panel measured 493x460 that way and was refused although it fits upright). Either box fitting suffices.
     """
     sw, sh = sheet[0] - 2 * margin, sheet[1] - 2 * margin
-    fits = lambda w, h: (w <= sw and h <= sh) or (h <= sw and w <= sh)
     x0, y0, x1, y1 = geom.bounds
+    if grain:
+        return x1 - x0 <= sw and y1 - y0 <= sh
+    fits = lambda w, h: (w <= sw and h <= sh) or (h <= sw and w <= sh)
     return fits(x1 - x0, y1 - y0) or fits(*min_dims(geom))
 
 
@@ -36,12 +39,12 @@ def tab(cx, cy, along, w, depth, side):
     return Polygon([(cx + ax * x + px * y, cy + ay * x + py * y) for x, y in shape.exterior.coords])
 
 
-def _strips(profile, axis, sheet, margin, tab_w, sl):
+def _strips(profile, axis, sheet, margin, tab_w, sl, grain=False):
     """Cut `profile` across `axis` into strips joined by puzzle tabs. Returns the strips (the profile itself when it
     would take more than MAX_PIECES, with the slice saying so)."""
     x0, y0, x1, y1 = profile.bounds
     w, h = x1 - x0, y1 - y0
-    usable = max(sheet) - 2 * margin - 2 * tab_w
+    usable = (sheet[axis] if grain else max(sheet)) - 2 * margin - 2 * tab_w   # with `grain` a strip cannot turn to the long side
     n = max(2, math.ceil((w if axis == 0 else h) / usable))
     if n > MAX_PIECES:                                    # a part many sheets long is a wrong setting, not a puzzle
         sl.errors.append(f"{w:.0f}×{h:.0f} mm is {n} sheets long: use a bigger sheet or `one_sheet`, a smaller model, or a technique with smaller parts")
@@ -130,22 +133,25 @@ def islands(sl):
     return pieces_of(sl, geoms)
 
 
-def split_slice(sl, sheet, margin, tab_w):
+def split_slice(sl, sheet, margin, tab_w, grain=False):
     """Cut the slice into pieces that each fit the sheet. One pass fixes one direction, so a part over the sheet both
     ways — a big model on a small sheet — is cut the long way and then across, until every piece fits or nothing can
-    be cut further."""
-    if fits_rotated(sl.profile, sheet, margin):          # the packer may rotate the part freely
+    be cut further. With `grain` a piece stays as it stands, so only the direction that is over the sheet is cut."""
+    if fits_rotated(sl.profile, sheet, margin, grain):   # the packer may rotate the part freely (or, with grain, flip it)
         sl.pieces = islands(sl)
         return
     x0, y0, x1, y1 = sl.profile.bounds
     w, h = x1 - x0, y1 - y0
     long_first = (0, 1) if w >= h else (1, 0)
     geoms = [sl.profile]
+    over = lambda g, axis: g.bounds[2 + axis] - g.bounds[axis] > sheet[axis] - 2 * margin
     for axis in long_first * 2:
-        bad = [i for i, g in enumerate(geoms) if not fits_rotated(g, sheet, margin)]
+        bad = [i for i, g in enumerate(geoms) if not fits_rotated(g, sheet, margin, grain)]
         if not bad:
             break
-        cut = [g2 for i, g in enumerate(geoms) for g2 in (_strips(g, axis, sheet, margin, tab_w, sl) if i in bad else [g])]
+        if grain and not (bad := [i for i in bad if over(geoms[i], axis)]):
+            continue
+        cut = [g2 for i, g in enumerate(geoms) for g2 in (_strips(g, axis, sheet, margin, tab_w, sl, grain) if i in bad else [g])]
         if len(cut) == len(geoms):                       # nothing could be cut further (MAX_PIECES): the slice said so
             break
         geoms = cut
