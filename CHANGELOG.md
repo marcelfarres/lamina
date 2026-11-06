@@ -10,7 +10,7 @@ running one way, and interlocked, radial and curve jobs slice faster.
 
 ### Added
 
-- **Keep the grain.** A new switch on the Sheet & fit tab, *grain*, stops the nester from turning parts sideways:
+- **Keep the grain.** A new switch on the Sheet & fit tab, *keep the grain*, stops the nester from turning parts sideways:
   each part is laid as it stands, or upside down, so the grain runs the same way through every part. Lay the stock
   with its grain along the sheet's width. A part that would only fit turned is split to fit (with *split* on) or
   flagged, and two parts only count as the same part when they match without a sideways turn.
