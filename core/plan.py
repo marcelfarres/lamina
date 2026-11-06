@@ -344,12 +344,9 @@ def reuse(mesh, name, make):
 
 def _prepare(path, params, notes, mode):
     mesh = load_cad(path) if path.suffix.lower() in CAD_SUFFIXES else trimesh.load(path, force="mesh")
-    if params["up_axis"] != "z":
-        src = "xyz".index(params["up_axis"])
-        mesh.apply_transform(trimesh.geometry.align_vectors(np.eye(3)[src], [0, 0, 1]))
-    rot = params.get("rotate") or [0, 0, 0]
-    if any(rot):
-        mesh.apply_transform(trimesh.transformations.euler_matrix(*np.radians(rot[:3]), "sxyz"))
+    # `size` is the model's own, along the file's axes, and is applied before any turn: aimed at the world axes after
+    # the turn, as it used to be, a bear made 500 mm tall and then stood up along x was 500 mm long and half as big
+    # again (034). The page shows and takes the numbers along the view's axes and keeps them on the model's.
     size = params.get("size") or []
     if any(size):
         tgt = np.array([s if s else 0 for s in (list(size) + [0, 0, 0])[:3]], float)
@@ -360,6 +357,12 @@ def _prepare(path, params, notes, mode):
             mesh.apply_scale([tgt[i] / ext[i] if tgt[i] > 0 else 1 for i in range(3)])
     if params["scale"] != 1:                          # multiplies the target size when one is set
         mesh.apply_scale(params["scale"])
+    if params["up_axis"] != "z":
+        src = "xyz".index(params["up_axis"])
+        mesh.apply_transform(trimesh.geometry.align_vectors(np.eye(3)[src], [0, 0, 1]))
+    rot = params.get("rotate") or [0, 0, 0]
+    if any(rot):
+        mesh.apply_transform(trimesh.transformations.euler_matrix(*np.radians(rot[:3]), "sxyz"))
     if max(mesh.extents) < 5:                         # Blender writes metres: a 100 mm cube arrives 0.1 mm across
         notes.append(f"the model is only {max(mesh.extents):.3g} mm across — saved in metres or centimetres? Set size "
                      "to its real size in mm (100 mm cube: size 100)")
@@ -381,6 +384,7 @@ def _prepare(path, params, notes, mode):
         notes.append("open surface (not a closed solid): panelled as it is — its boundary edges stay open and carry "
                      "no joints, and a hole in the surface stays a hole")
     auto = not mesh.is_watertight and not surface and not params["shrinkwrap"]
+    sized = mesh.extents.copy()                       # before modify form grows it: what a scale acts on (the cap's fix)
     if params["shrinkwrap"] or params["hollow"] or params["thicken"] or params["round"] or auto:
         if auto:                                      # the finest grid, and smoothed: a scan's noise goes with its holes
             notes.append("mesh is not watertight and could not be mended — remeshed on a fine grid and smoothed (set shrinkwrap to choose the resolution)")
@@ -390,6 +394,7 @@ def _prepare(path, params, notes, mode):
         progress("smoothing", 0.16)
         mesh = mesh.copy(); trimesh.smoothing.filter_taubin(mesh, iterations=int(params["smooth"] or 10))
     mesh.apply_translation(-mesh.bounds.mean(0))
+    mesh.metadata["sized_extents"] = sized
     return mesh
 
 
@@ -599,7 +604,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     progress("done", 1.0)
     if ctx.notes_extra:
         notes.append(ctx.notes_extra)
-    if cov < 0.9:
+    if cov < 0.9 and (slices or not ctx.errors):    # stopped before the first slice: the error says why, not this
         notes.append(f"model coverage {cov:.0%}: parts of the model have no geometry — more slices (count / spacing), a different axis, or round/thicken thin features")
 
     plan = {
@@ -690,7 +695,7 @@ def _oversize(slices, p, sheet0, mesh, ctx):
         sl.errors.append(e)
         # suggest_fixes has already run (the pieces only exist here), so this error brings its own fixes
         sl.fixes.append({"error": e, "options": ([] if p["split"] else [{"title": "split oversize parts", "set": {"split": True}}])
-                         + [{"title": f"scale the model to {f:.0%} ({fit_txt} mm)", "set": {"size": fit, "scale": 1}}]
+                         + [{"title": f"scale the model to {f:.0%} ({fit_txt} mm)", "set": {"scale": round(p["scale"] * f, 4)}}]
                          + ([] if p["one_sheet"] else [{"title": "one long sheet (cut the strip apart at the machine)", "set": {"one_sheet": True}}])})
     ctx.errors.append(f"{len(over)} part(s) are bigger than the {sheet0[0]:g} × {sheet0[1]:g} mm sheet: "
                       f"set `size` to about {fit_txt} mm ({f:.0%} of this model)"

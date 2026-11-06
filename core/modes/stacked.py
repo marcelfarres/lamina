@@ -91,7 +91,7 @@ class Stacked(Mode):
         elif p["distribution"] == "count":
             pos = ctx.positions(length, [t] * p["count"])
         else:                                             # one after another, each at its own thickness
-            n = ctx.count_by_thickness(length, t, gap)
+            n = ctx.count_by_thickness(length, t, gap, ax)
             pos = ctx.stacked_positions(length, [ctx.thickness_of(name(i)) for i in range(n)], gap)
         by_distance = drawn is None and p["distribution"] == "distance"
         if p["shift"] and pos:

@@ -443,7 +443,7 @@ function field(p){
     inp=sl?`<div class="rows">${[...Array(n)].map((_,i)=>`<div class="r"><small>${lab[i]}</small>${slider(id+'_'+i,(v||[])[i]||0,p,`data-vec="${p.name}" data-i="${i}"`)}</div>`).join('')}</div>`
         // `size` left at 0 is "however big the model is": the box is empty and shows what came out as a placeholder,
         // so typing one dimension tells you the other two instead of leaving three zeros that mean three things
-        :`<span class="vec">${[...Array(n)].map((_,i)=>`<small>${lab[i]}</small>${num(id+'_'+i,(v||[])[i]||(p.name==='size'?null:0),p,`data-vec="${p.name}" data-i="${i}" ${p.name==='size'?`placeholder="${plan?+(+show(p,plan.bbox[i])).toPrecision(3):'auto'}"`:''}`)}`).join('')}</span>`}
+        :`<span class="vec">${[...Array(n)].map((_,i)=>`<small>${lab[i]}</small>${num(id+'_'+i,(v||[])[p.name==='size'?sizeAxes()[i]:i]||(p.name==='size'?null:0),p,`data-vec="${p.name}" data-i="${i}" ${p.name==='size'?`placeholder="${plan?+(+show(p,plan.bbox[i])).toPrecision(3):'auto'}"`:''}`)}`).join('')}</span>`}
   else if(p.type==='text')inp=`<input id="${id}" value="${esc(v)}">`;
   else if(p.type==='curve')inp=`<span class="hint">drawn in the graph under the 3D view</span>`;
   else if(p.type==='points')inp=`<div class="rows" id="${id}">${(v||[]).map((q,i)=>`<div class="r"><small>${i+1}</small><input type="number" step="any" value="${show(p,q[0])}" data-pt="${p.name}" data-i="${i}" data-j="0"><input type="number" step="any" value="${show(p,q[1])}" data-pt="${p.name}" data-i="${i}" data-j="1"><button class="small x" data-del="${p.name}" data-i="${i}">×</button></div>`).join('')}<div class="r"><button class="small" data-add="${p.name}">+ point</button><span class="hint">or alt-click in the 3D view</span></div></div>`;
@@ -546,13 +546,23 @@ function spcBind(c){
 }
 function applyShowIf(){for(const el of $$('.f[data-show]')){const [k,vals]=el.dataset.show.split(':');el.hidden=!vals.split('|').includes(String(state[k]))}}
 const allParams=()=>[...mode.common,...mode.params];
-function setVal(name,v){state[name]=v;applyShowIf();schedule()}
+function setVal(name,v){state[name]=v;applyShowIf();if(name==='rotate'||name==='up_axis')syncSizeBoxes();schedule()}
+// `size` is the model's own: its three numbers are along the model file's axes, and the slicer scales it before any
+// turn, so turning the model never changes its size (aimed at the view's axes after the turn, a bear 500 mm tall,
+// stood up along x, came back 500 mm long and half as big again — reported). The boxes read along the view's axes:
+// box x shows the model dimension that lies along x now, and a number typed there goes to that dimension.
+// ponytail: a turn that is not a quarter turn takes the nearest axis for the boxes; the numbers themselves never move
+const UP={z:[[1,0,0],[0,1,0],[0,0,1]],x:[[0,0,1],[0,1,0],[-1,0,0]],y:[[0,-1,0],[0,0,1],[-1,0,0]]};   // where each model axis points once the up axis is z (trimesh's align_vectors)
+function sizeAxes(){const u=UP[state.up_axis||'z'],e=new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...(state.rotate||[0,0,0]).map(d=>d*Math.PI/180),'ZYX')).multiply(new THREE.Matrix4().makeBasis(V3(u[0]),V3(u[1]),V3(u[2]))).elements;
+  return [0,1,2].map(j=>[0,1,2].reduce((a,i)=>Math.abs(e[4*i+j])>Math.abs(e[4*a+j])?i:a,0))}   // view axis j ← the model axis with most of it (row j's largest entry; column-major)
+const sizeToModel=w=>{const m=sizeAxes(),s=[0,0,0];for(let j=0;j<3;j++)if(w[j])s[m[j]]=w[j];return s};   // a size typed along the view's axes (project files before 0.3.2)
+function syncSizeBoxes(){const p=allParams().find(q=>q.name==='size');if(!p)return;const m=sizeAxes(),s=state.size||[];for(let i=0;i<3;i++){const el=$('#p_size_'+i);if(el)el.value=s[m[i]]?show(p,s[m[i]]):''}}
 // one delegated handler for every widget
 $('#tabs').addEventListener('input',e=>{
   const t=e.target; if(t.id==='file')return; const P=name=>allParams().find(p=>p.name===name);
   if(t.dataset.for){const box=document.getElementById(t.dataset.for);box.value=t.value;box.dispatchEvent(new Event('input',{bubbles:true}));return}   // slider → its number box
   if(t.type==='number'){const r=document.getElementById(t.id+'_r');if(r)r.value=t.value}
-  if(t.dataset.vec){const p=P(t.dataset.vec),v=[...(state[p.name]||[0,0,0])];v[+t.dataset.i]=fromU(p,+t.value||0);
+  if(t.dataset.vec){const p=P(t.dataset.vec),v=[...(state[p.name]||[0,0,0])];v[p.name==='size'?sizeAxes()[+t.dataset.i]:+t.dataset.i]=fromU(p,+t.value||0);   // a size box is a view axis; the number is the model's
     if(p.name==='size'){fitted=false;if(state.scale!==1){state.scale=1;for(const el of [$('#p_scale'),$('#p_scale_r')])if(el)el.value=1}}   // a new size is the new 100 %
     return setVal(p.name,v)}
   if(t.dataset.pt){const p=P(t.dataset.pt),v=(state[p.name]||[]).map(q=>[...q]);v[+t.dataset.i][+t.dataset.j]=fromU(p,+t.value||0);return setVal(p.name,v)}
@@ -877,7 +887,13 @@ function cubeHit(ev){const b=renderer.domElement.getBoundingClientRect(),r=cubeR
 function viewFrom(dir){ // swing the camera round to look along -dir at the current target, keeping its distance
   const t=controls.target.clone(),d=camera.position.distanceTo(t),from=camera.position.clone(),to=t.clone().addScaledVector(V3(dir).normalize(),d),t0=performance.now();
   (function step(){const k=Math.min(1,(performance.now()-t0)/220),s=k*k*(3-2*k);camera.position.lerpVectors(from,to,s).sub(t).setLength(d).add(t);camera.lookAt(t);controls.update();dirty=true;if(k<1)requestAnimationFrame(step)})()}
-(function loop(){requestAnimationFrame(loop);if(controls.update()||dirty){renderer.render(scene,camera);drawCube();dirty=false}})();   // render only when something changed
+// Render only when something changed. The orbit's damping is a step per frame (5 % of what is left of the drag), so at
+// a few frames a second — a model of hundreds of parts on a laptop, a headless CI browser — the view lagged the drag
+// by seconds and glided on long after it: "rotating the model is difficult" (reported from a Mac). Steps per time
+// instead: a slow frame takes as many as the frames it stood for, ten at most
+let lastFrame=performance.now();
+(function loop(t=lastFrame){requestAnimationFrame(loop);const n=Math.max(1,Math.min(10,Math.round((t-lastFrame)/16.7)));lastFrame=t;let moved=false;for(let i=0;i<n;i++)moved=controls.update()||moved;
+  if(moved||dirty){renderer.render(scene,camera);drawCube();dirty=false}})();
 function mat4(M){return new THREE.Matrix4().set(...M[0],...M[1],...M[2],...M[3])}
 function shape(rings){const s=new THREE.Shape(rings[0].map(([x,y])=>new THREE.Vector2(x,y)));for(const h of rings.slice(1))s.holes.push(new THREE.Path(h.map(([x,y])=>new THREE.Vector2(x,y))));return s}
 function applyLook(){const k=$('#look').value,op=+$('#opacity').value;for(const m of parts.children){if(m.userData.group==='B')continue;   // a lobe boundary is a guide, not material: it keeps its own look
@@ -1040,8 +1056,12 @@ function hit(ev){ray.setFromCamera(ndc(ev),camera);const g=ray.intersectObjects(
   const cp=ray.intersectObjects(guides.children.filter(o=>o.userData.cp!==undefined||o.userData.ax!==undefined||o.userData.axline!==undefined));if(cp.length)return cp[0];   // curve points, axis rods and ends too: they draw on top, so they pick on top
   // rotation rings (Model tab only), and not while a slice runs: they are the last model's size then, and a drag meant
   // to turn the view caught one and stood the new model on its head (reported on the statue, picked from the list)
-  const rg=rings.visible&&!busy?ray.intersectObjects(rings.children):[];if(rg.length)return rg[0];
-  const h=ray.intersectObjects(parts.children.filter(m=>m.visible));return h.length?h[0]:null}
+  const h=ray.intersectObjects(parts.children.filter(m=>m.visible))[0]||null;
+  // A ring seen edge-on is a line through the model (every flat view from the cube has two): it cannot be seen to be
+  // grabbed, yet a drag on the model caught one and turned the model over, with a slice to follow (reported from a
+  // Mac). Face-on enough, a ring is grabbed wherever it shows — it draws through the model, so its far side too
+  const d=ray.ray.direction, rg=rings.visible&&!busy?ray.intersectObjects(rings.children).filter(x=>Math.abs(d.getComponent(x.object.userData.ring))>0.2):[];
+  return rg[0]||h}
 function screenAngle(ev,centre){const r=renderer.domElement.getBoundingClientRect(),c=centre.clone().project(camera);return Math.atan2(-(ev.clientY-r.top)+(1-c.y)/2*r.height*-1+r.height-(1-c.y)/2*r.height,(ev.clientX-r.left)-(c.x+1)/2*r.width)}
 const pick=ev=>{const h=hit(ev);return h&&!h.object.userData.gizmo?h.object:null};
 const __screen=p=>{const r=renderer.domElement.getBoundingClientRect(),q=p.clone().project(camera);return [r.left+(q.x+1)/2*r.width,r.top+(1-q.y)/2*r.height]};
@@ -1243,7 +1263,10 @@ function togglePoint(h,shift){ // alt-click: dowel (stacked) in the clicked slic
   }else return;
   renderFields(); slice();
 }
-renderer.domElement.addEventListener('pointerdown',ev=>{if(ev.button!==0)return;const cv=cubeHit(ev);if(cv){viewFrom(cv);down=null;return}down={x:ev.clientX,y:ev.clientY};const h=hit(ev);
+// The cube answers a click, on release: it used to snap on press while the orbit's own drag ran on under it, so a
+// drag that began on the cube "moved a bit, then jumped to a face" (reported from a Mac). A drag on it now turns the
+// view like a drag anywhere, and the cube turns with it
+renderer.domElement.addEventListener('pointerdown',ev=>{if(ev.button!==0)return;down={x:ev.clientX,y:ev.clientY,cube:!!cubeHit(ev)};if(down.cube)return;const h=hit(ev);
   if(h&&h.object.userData.ring!==undefined){ // start turning the model about the ring's axis
     const i=h.object.userData.ring,centre=new THREE.Vector3(0,0,0),r=renderer.domElement.getBoundingClientRect(),c=centre.clone().project(camera),cx=r.left+(c.x+1)/2*r.width,cy=r.top+(1-c.y)/2*r.height;
     const axisDir=new THREE.Vector3(i===0?1:0,i===1?1:0,i===2?1:0),sign=axisDir.dot(camera.position.clone().sub(centre))>=0?1:-1;
@@ -1313,7 +1336,9 @@ renderer.domElement.addEventListener('pointerup',ev=>{
   if(drag){controls.enabled=true;const d=drag;drag=null;gizmo.position.set(0,0,0);for(const m of d.meshes){m.matrixAutoUpdate=true;m.matrix.identity()}
     // a dragged offset lands on a round step of the unit on show (0.1 mm, 0.01 cm, 0.005 in), never on 0.4843 in
     if(Math.abs(d.delta)>0.05){const k=d.mode,cur=state[k]?.[selected]||0,st=niceStep(0.1*UNIT[unit]);setEdit(k,cur+(k==='offset'?toMM(Math.round(d.delta*UNIT[unit]/st)*st):Math.round(d.delta)))}else applyExplode();return}
-  if(!down||Math.hypot(ev.clientX-down.x,ev.clientY-down.y)>10)return;const h=hit(ev);if(h&&(h.object.userData.gizmo||h.object.userData.ring!==undefined))return;
+  if(!down||Math.hypot(ev.clientX-down.x,ev.clientY-down.y)>10)return;
+  if(down.cube){const cv=cubeHit(ev);if(cv)viewFrom(cv);return}
+  const h=hit(ev);if(h&&(h.object.userData.gizmo||h.object.userData.ring!==undefined))return;
   if(h&&(h.object.userData.ax!==undefined||h.object.userData.axline!==undefined)){if(ev.altKey){const list=axisList(),i=h.object.userData.ax?h.object.userData.ax.i:h.object.userData.axline;   // alt-click an axis or its end: drop that fan (the last one stays — a radial job has to turn about something) or that branch
       if(list.length>1||lineParam()==='branches'){state[lineParam()]=dropLine(i);renderFields();slice()}
       else status('the last axis stays — alt-click the model to add another first');}return}
@@ -1457,7 +1482,7 @@ function renderReport(){
 // model itself. One definition of the data model, used by save project, by the export zips (web/app.py) and by a
 // bug report — which is the only caller that ever leaves the model out, and only when its box is unticked.
 async function projectObj(withModel=true){
-  const proj={version:3,name:state.project||'',rev:state.rev||'1.0',mode:mode.name,unit,state,memo,example:job&&!job.startsWith('ex_')?'':$('#example').value};
+  const proj={version:4,name:state.project||'',rev:state.rev||'1.0',mode:mode.name,unit,state,memo,example:job&&!job.startsWith('ex_')?'':$('#example').value};
   // the uploaded model travels inside the project file — when the server still has it. A job swept by the TTL, a
   // restarted server or a slice still in flight answers with nothing, and a project file without its model is far
   // better than a save that dies half way: whoever opens it is told which model to bring.
@@ -1483,6 +1508,7 @@ async function saveProject(){
 const projName=proj=>`${proj.name||proj.model?.name||proj.example||'model'}_v${proj.rev}.lamina.json`;
 async function openProject(f){
   const s=JSON.parse(await f.text()); Object.assign(memo,s.memo||{}); setMode(s.mode||'interlocked',false); Object.assign(state,s.state||{}); unit=s.unit||state.units||'mm';
+  if((s.version||0)<4&&(state.size||[]).some(Boolean))state.size=sizeToModel(state.size);   // before 0.3.2 size was along the view's axes
   state.project=s.name||state.project||''; state.rev=s.rev||state.rev||'1.0'; syncProject();
   job=null; pendingFile=null; srcFile=null; fitted=false; deselect(); $('#file').value='';   // as an example does: the upload box lets go
   if(s.model?.b64){const bin=atob(s.model.b64),u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);pendingFile=new File([u8],s.model.name)}
@@ -1665,7 +1691,7 @@ window.laminaFeedback?.({bug:async withModel=>{
   sheets:ls('slicer_sheets',[]).filter(s=>!s[2]||s[2]===fam()).map(([n,s])=>[n,s]),units:state.units},null,1)})});
 
 // test and capture hook (tests/test_ui.py, scripts/media/capture.mjs)
-window.__t={target:()=>controls.target,banner:()=>banner.visible?banner.userData.text:'',parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>plan,job:()=>job,
+window.__t={sizeAxes:()=>sizeAxes(),target:()=>controls.target,banner:()=>banner.visible?banner.userData.text:'',parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>plan,job:()=>job,
   idle:()=>!timer&&!busy,   // no change waiting out its debounce, no slice running: what a test or a capture waits for
   ghost:()=>ghost.children,ghostUrl:()=>ghostUrl,pivot:()=>pivot3&&rnd(pivot3),
   screen:p=>{const q=new THREE.Vector3(p[0],p[1],p[2]).project(camera),r=renderer.domElement.getBoundingClientRect();

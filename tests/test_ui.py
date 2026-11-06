@@ -166,6 +166,11 @@ def test_every_parameter_of_every_technique_reaches_the_slicer(page, server):
         set_fields(page, ids)
         settle(page)
         got = plan(page)["params"]
+        if "size" in want:                                     # the boxes read along the view's axes; the plan holds the model's own
+            axes, model = page.evaluate("() => window.__t.sizeAxes()"), [0, 0, 0]
+            for j, v in enumerate(want["size"]):
+                model[axes[j]] = v
+            want["size"] = model
         wrong = {k: (v, got.get(k)) for k, v in want.items()
                  if not (isinstance(v, (int, float)) and not isinstance(v, bool) and abs(float(got.get(k, 1e9)) - v) < 1e-3
                          or isinstance(v, list) and all(abs(a - b) < 1e-3 for a, b in zip(v, got.get(k, [])))
@@ -1242,3 +1247,55 @@ def test_the_build_order_names_the_part_going_in(page):
     page.evaluate("k => { const e = document.getElementById('steps'); e.value = k; e.dispatchEvent(new Event('input')) }", n)
     page.wait_for_timeout(300)
     assert page.evaluate("() => window.__t.banner()") == ""
+
+
+def test_a_turn_keeps_the_model_s_size(page):
+    """Reported: a bear sized 500 mm tall, stood up along x (up axis), came back 763 × 566 × 500 — `size` aimed at
+    whatever lay along z after the turn. Size belongs to the model now: through the up axis (x and y), a quarter
+    turn and a typed turn the model keeps its size, the number stays the model's z, and the box of the view axis that
+    dimension lies along is the one that shows it."""
+    page.click('nav button[data-t="model"]')
+    set_fields(page, [("p_size_2", 100)]); settle(page)
+    before = sorted(plan(page)["bbox"])
+    assert plan(page)["bbox"][2] == pytest.approx(100, abs=0.1)
+    boxes = lambda: [page.input_value(f"#p_size_{i}") for i in range(3)]
+    size = lambda: page.evaluate("() => window.__t.state().size")
+    for up, box in (("x", 0), ("y", 0), ("z", 2)):            # the file's z lies along the view's x once x or y is up (the slicer's own turn)
+        page.select_option("#p_up_axis", up); settle(page)
+        assert size() == [0, 0, 100] and boxes()[box] == "100" and [b for b in boxes() if b] == ["100"], (up, boxes())
+        assert sorted(plan(page)["bbox"]) == pytest.approx(before, abs=0.5)
+    page.click('button[data-rot="1"]'); settle(page)          # a quarter turn about y: the 100 now lies along x
+    assert size() == [0, 0, 100] and boxes()[0] == "100" and sorted(plan(page)["bbox"]) == pytest.approx(before, abs=0.5)
+    set_fields(page, [("p_rotate_1", 0), ("p_rotate_0", 90)]); settle(page)   # typed turns, as the sliders send them: along y now
+    assert size() == [0, 0, 100] and boxes()[1] == "100" and sorted(plan(page)["bbox"]) == pytest.approx(before, abs=0.5)
+    set_fields(page, [("p_size_1", 50)]); settle(page)        # typed into the box it shows in, it is still the model's z
+    assert size() == [0, 0, 50] and plan(page)["bbox"][1] == pytest.approx(50, abs=0.1)
+    page.click("#origsize"); settle(page)
+
+
+def test_the_cube_snaps_on_a_click_and_a_drag_turns_the_view_not_the_model(page):
+    """Reported from a Mac: a drag on the corner cube "moves a bit then jumps to the next face", and a drag on the
+    model after it sliced the model again. The cube snapped on press while the orbit's own drag ran on under it; and
+    in the flat view it gave, two turn rings are edge-on lines through the model, which the next drag grabbed. Now a
+    click on the cube gives the flat view, a drag on it turns the view, and a drag on the model in a flat view turns
+    the view only."""
+    page.click('nav button[data-t="technique"]')
+    page.click('#modes button[data-m="stacked"]'); settle(page)   # the reporter's technique: rings, no axis rod through the middle
+    page.click('nav button[data-t="model"]')
+    page.click("#fit"); still(page)
+    cv = page.locator("#v3d canvas").first.bounding_box()
+    cube = (cv["x"] + cv["width"] - 10 - 46, cv["y"] + cv["height"] - 10 - 46)   # the cube's centre: a 92 px square 10 px in from the bottom right
+    look = lambda: page.evaluate("() => window.__t.camera.position.clone().sub(window.__t.target()).normalize().toArray()")
+    flat = lambda v: max(abs(c) for c in v) > 0.999
+    assert not flat(look())
+    page.mouse.click(*cube); page.wait_for_timeout(500); still(page)
+    assert flat(look()), look()                                   # a click: the flat view of the face under the pointer
+    page.mouse.move(*cube); page.mouse.down(); page.mouse.move(cube[0] - 80, cube[1] + 40, steps=8); page.mouse.up(); still(page)
+    assert not flat(look()), look()                               # a drag: the view turned, no face snapped to
+    page.mouse.click(*cube); page.wait_for_timeout(500); still(page)
+    assert flat(look())
+    cx, cy = cv["x"] + cv["width"] / 2, cv["y"] + cv["height"] / 2   # the model's centre, where the edge-on rings run
+    page.mouse.move(cx, cy); page.mouse.down(); page.mouse.move(cx + 120, cy + 30, steps=8); page.mouse.up(); still(page)
+    assert not flat(look())
+    assert page.evaluate("() => window.__t.state().rotate") == [0, 0, 0]
+    assert page.evaluate("() => window.__t.idle()")

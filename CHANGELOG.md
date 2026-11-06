@@ -2,6 +2,28 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.3.2
+
+### Fixed
+
+- **A lifesize model no longer takes a quarter of an hour to say it is too big.** A model far bigger than its material
+  can cut, 3.5 m of bear at 3 mm, was sliced into the 500 layers the cap allows and split over hundreds of sheets
+  before the error could be read. Over the cap nothing is sliced: the message names the size and the count, and a
+  one-click fix scales the model to the layers that can be cut. A model that arrives huge is usually lifesize or in
+  centimetres: set *size* to the real size. Thanks to Colin.
+- **Turning the model no longer changes its size.** *size* aimed at whatever lay along that axis after the turn, so a
+  model made 500 mm tall and then stood up along x (up axis, turn, the rings or the sliders) came back 500 mm long
+  and half as big again. Size now belongs to the model: a number stays with the dimension it was typed for through
+  every turn, and the boxes read along the view's axes, so after a turn the number shows in the box of the axis that
+  dimension lies along now. A project file saved before this version is read the old way once. On the command line
+  *size* is along the model file's own axes. Thanks to Colin.
+- **The corner cube is a click; a drag on it turns the view.** It snapped to a face the moment it was pressed, while the
+  drag went on turning the view underneath, so a drag "moved a bit, then jumped to a face". And in the flat view it
+  gave, two of the turn rings are edge-on lines through the model, which a drag on the model then grabbed, turning
+  the model over and slicing it again. A ring is grabbed only where it can be seen: face-on, and in front of the
+  model. And the glide after a drag was a step per frame, so with a big model on a slow machine the view lagged the
+  drag by seconds and kept moving long after it: it is a step per time now. Thanks to Colin.
+
 ## 0.3.1
 
 The Export tab says how much sheet to buy, and the SVG can be written one group per colour again for software that
