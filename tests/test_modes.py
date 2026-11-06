@@ -604,3 +604,37 @@ def test_size_is_the_model_s_own_whichever_way_it_is_turned():
     assert sorted(build(stl, "stacked", {**base, "up_axis": "y"})["bbox"]) == pytest.approx(sorted(flat), abs=1e-6)
     turned = build(stl, "stacked", {**base, "rotate": [0, 90, 0]})["bbox"]
     assert turned == pytest.approx([30, 15, 7.5], abs=1e-6)
+
+
+def test_a_preview_windows_will_not_let_go_of_never_fails_the_slice(tmp_path, monkeypatch):
+    """Seen in the UI suite on Windows (036): the page, or a virus scanner, still had model.stl open, Windows refused
+    both the swap and the in-place copy, and the slice failed with PermissionError over the preview, which is only
+    what the 3D view shows. Refused a few times, the preview gets there; refused for good, the slice still finishes
+    and the last preview stays."""
+    import os
+    import shutil
+    import core.plan as P
+    refusals = {"n": 0}
+    real_replace, real_copy = os.replace, shutil.copyfile
+    def locked(limit):
+        def replace(a, b):
+            if refusals["n"] < limit and str(b).endswith("model.stl"):
+                refusals["n"] += 1
+                raise PermissionError(13, "Permission denied", str(b))
+            return real_replace(a, b)
+        def copy(a, b, **k):
+            if refusals["n"] < limit and str(b).endswith("model.stl"):
+                refusals["n"] += 1
+                raise PermissionError(13, "Permission denied", str(b))
+            return real_copy(a, b, **k)
+        monkeypatch.setattr(P.os, "replace", replace); monkeypatch.setattr(P.shutil, "copyfile", copy)
+    out = tmp_path / "model.stl"
+    params = {"distribution": "count", "count": 3, "autofix": "off"}
+    locked(3)                                   # the swap, the copy, the swap: the copy after it gets through
+    plan = build(EXAMPLES / "cube.stl", "stacked", params, mesh_out=out)
+    assert plan["counts"]["slices"] == 3 and out.exists() and refusals["n"] == 3
+    first = out.read_bytes()
+    refusals["n"] = 0; locked(10**6)            # never let go
+    plan = build(EXAMPLES / "egg.stl", "stacked", params, mesh_out=out)
+    assert plan["counts"]["slices"] == 3 and out.read_bytes() == first   # sliced; the last preview stays
+    assert not list(tmp_path.glob("model.*.stl"))                        # and no half-written file is left beside it

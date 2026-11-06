@@ -41,6 +41,11 @@ running one way, and interlocked, radial and curve jobs slice faster.
   the model over and slicing it again. A ring seen edge-on is no longer grabbed; face-on, it still turns the model
   wherever it shows. And the glide after a drag was a step per frame, so with a big model on a slow machine the view
   lagged the drag by seconds and kept moving long after it: it is a step per time now. Thanks to Colin.
+- **On Windows a slice no longer fails over its 3D preview.** When the page was still downloading the last preview,
+  or a virus scanner was reading it, Windows refused to replace the file and the slice stopped with "Permission
+  denied … model.stl". It now tries again for a moment and, if the file stays locked, finishes the slice and keeps the
+  last preview in the view.
+
 ## 0.3.1
 
 The Export tab says how much sheet to buy, and the SVG can be written one group per colour again for software that

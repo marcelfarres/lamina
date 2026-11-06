@@ -512,6 +512,27 @@ def shed_slivers(raw, prof, cuts, mf, mp):
     return MultiPolygon(keep), len(prof.geoms) - len(keep)   # empty: the plane only grazes the model, there is no part
 
 
+def _swap_in(mesh, dest, waits=(0, 0.05, 0.1, 0.2, 0.4, 0.8)):
+    """Write `mesh` to `dest` without ever leaving a half-written file there; True when it got there. See build()."""
+    tmp = dest.with_suffix(f".{threading.get_ident()}.stl")
+    mesh.export(tmp)
+    try:
+        for wait in waits:
+            time.sleep(wait)
+            try:
+                os.replace(tmp, dest)
+                return True
+            except PermissionError:
+                try:
+                    shutil.copyfile(tmp, dest)
+                    return True
+                except PermissionError:
+                    continue
+        return False
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     mode = MODES[mode_name]
     p = coerce_params(mode, raw_params)
@@ -525,13 +546,10 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         ghost = reuse(mesh, "preview", lambda m: decimate(m, 30000))
         # beside it, then swapped in: the page may still be downloading the last one, and rewritten in place it got a
         # file cut short (Linux CI: "network error" in the 3D view's loader). Windows refuses the swap while the file
-        # is being read: then in place, as before
-        tmp = pathlib.Path(mesh_out).with_suffix(f".{threading.get_ident()}.stl")
-        ghost.export(tmp)
-        try:
-            os.replace(tmp, mesh_out)
-        except PermissionError:
-            shutil.copyfile(tmp, mesh_out); tmp.unlink()
+        # is open (the page downloading it, a virus scanner reading it): then in place; refused that too (036: a
+        # scanner holds it), tried again a moment later, and after 1.5 s the slice goes on with the last preview —
+        # the preview is only what the view shows, never a reason for the slice to fail
+        _swap_in(ghost, pathlib.Path(mesh_out))
         # the 3D view can show the model now, before the slices: not a stage of its own, the stage line stays put
         report("", 0.19, str(mesh_out))
     sheet0 = list(p["sheet"])
