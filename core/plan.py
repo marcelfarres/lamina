@@ -443,8 +443,8 @@ def _moved(e, rot, x0, y0):
     return mv(e[0]), mv(e[1]), e[2]
 
 
-def _match(c, g, tol, mirror, ce, ge):
-    """How outline `g` fits outline `c` (both at the origin, long side along x): "same" under some quarter turn,
+def _match(c, g, tol, mirror, ce, ge, turns=(0, 90, 180, 270)):
+    """How outline `g` fits outline `c` (both at the origin, long side along x): "same" under one of `turns`,
     "flipped" when it only fits as its mirror image, None when it does not fit at all. What is engraved on them (`ce`,
     `ge`: guide lines, marks with their texts, in the same frames) has to coincide under that same move: two slices
     with the same outline but another layer's outline, or another seam number, marked on them are two parts."""
@@ -453,7 +453,7 @@ def _match(c, g, tol, mirror, ce, ge):
     flip = lambda x: affinity.scale(x, -1, 1, origin=(0, 0))
     tries = (("same", g, ge), ("flipped", flip(g), (flip(ge[0]), flip(ge[1]), ge[2]))) if mirror else (("same", g, ge),)   # mirrored once, not per turn
     for kind, m, me in tries:
-        for r in (0, 90, 180, 270):
+        for r in turns:
             h = affinity.rotate(m, r, origin=(0, 0)); x0, y0, _, _ = h.bounds
             if _same_outline(c, affinity.translate(h, -x0, -y0), tol) and _coincide(ce, _moved(me, r, x0, y0)):
                 return kind
@@ -469,22 +469,23 @@ def _coincide(a, b, w=0.05):
     return len(ta) == len(tb) and all(any(t == u and p.distance(q) < 0.5 for q, u in zip(pb.geoms, tb)) for p, t in zip(pa.geoms, ta))
 
 
-def mark_identical(pieces, mirror=False, tol=1e-3):
+def mark_identical(pieces, mirror=False, tol=1e-3, grain=False):
     """Pieces with the same cut outline — kerf applied, any quarter turn, and with `mirror` also turned over — are one
     part in several copies: the first of each set keeps the others' labels in `same`, the ones that have to be turned
     over in `flipped`, so they are cut once with a quantity and listed once. What is engraved on a piece — a guide line
     (stacked, `next_outline`), a seam number — is part of what the piece is and has to match too; fold lines keep every
-    folded panel a part of its own."""
+    folded panel a part of its own. With `grain` only a copy as it stands or upside down is the same part: one turned
+    sideways would be cut across the grain."""
     groups = []                                     # [(first piece, its outline at the origin, what is engraved on it there)]
     for pc in pieces:
         if any(s != "guide" for s, _ in pc.lines):  # score lines (folded panels): each fold pattern is its own part
             continue
-        a = min_rect_angle(pc.kerfed)
+        a = 0.0 if grain else min_rect_angle(pc.kerfed)
         g = affinity.rotate(pc.kerfed, a, origin=(0, 0)); x0, y0, _, _ = g.bounds; g = affinity.translate(g, -x0, -y0)
         ge = _moved((MultiLineString([ln for _, ln in pc.lines]), MultiPoint([m[:2] for m in pc.marks]), [m[2] for m in pc.marks]), a, x0, y0)
         for first, c, ce in groups:
             # same outline but cut from other stock is not the same part: it belongs on the other thickness's sheet
-            kind = _match(c, g, tol, mirror, ce, ge) if first.parent.thickness == pc.parent.thickness else None
+            kind = _match(c, g, tol, mirror, ce, ge, (0, 180) if grain else (0, 90, 180, 270)) if first.parent.thickness == pc.parent.thickness else None
             if kind:
                 (first.same if kind == "same" else first.flipped).append(pc.label)
                 break
@@ -574,7 +575,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     progress("nesting the parts on sheets", 0.85)
     for sl in slices:
         if p["split"] and sl.facets is None:
-            split_slice(sl, p["sheet"], p["sheet_margin"], p["tab"])
+            split_slice(sl, p["sheet"], p["sheet_margin"], p["tab"], p["grain"])
         else:
             sl.pieces = islands(sl) if sl.facets is None else [Piece(sl.label, sl.profile, sl, sl.lines, sl.marks)]   # a folded net stays whole
     n_err += _oversize(slices, p, sheet0, mesh, ctx)
@@ -584,11 +585,11 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
             pc.lines = pc.lines + orient_arrows(pc.geom, keep=[mark_box(*m[:3], p["font"], mark_rot(m)) for m in pc.marks])
     kerf = p["kerf"] if p["compensate"] else 0.0       # off by default: many machines compensate their own kerf
     tag = label_tag(p, model_path)                     # the model's name, engraved before every label: nested with room for it
-    n_sheets = nest(pieces, p["sheet"], p["gap"], p["sheet_margin"], kerf, p["labels"], p["font"], tag, p["label_place"])
+    n_sheets = nest(pieces, p["sheet"], p["gap"], p["sheet_margin"], kerf, p["labels"], p["font"], tag, p["label_place"], p["grain"])
     if crowded := [pc.label for pc in pieces if pc.crowded]:
         notes.append(f"no free spot beside {len(crowded)} part(s) for their labels ({', '.join(crowded[:6])}{'…' if len(crowded) > 6 else ''}): "
                      "they sit on the part, overrunning it where it is small — a smaller font, a bigger gap or sheet, or `label_model` off gives them room")
-    mark_identical(pieces, p["mirror_ok"])             # which parts are the same part: one cut file, one row, a quantity
+    mark_identical(pieces, p["mirror_ok"], grain=p["grain"])   # which parts are the same part: one cut file, one row, a quantity
     # puzzle mode: what gets engraved is a code with no order in it. The plan keeps the real labels — the app, the
     # checks and the 3D view are the "plans" you consult when you give up — and the export carries the key.
     codes = label_codes([pc.label for pc in pieces], f"{pathlib.Path(model_path).name}|{mode_name}") if p["label_style"] == "code" else {}
@@ -680,11 +681,16 @@ def _oversize(slices, p, sheet0, mesh, ctx):
     takes a sheet to itself, so it is an error whether or not `split` was asked to cut it — with the size the model
     would have to be for its parts to fit, so "too big for my sheet" comes with the number. Returns the errors added."""
     over = [(sl, pc, *min_dims(pc.geom)) for sl in slices for pc in sl.pieces      # rotation is free on the sheet
-            if not fits_rotated(pc.geom, p["sheet"], p["sheet_margin"])]
+            if not fits_rotated(pc.geom, p["sheet"], p["sheet_margin"], p["grain"])]
     if not over:
         return 0
-    long_s, short_s = sorted((p["sheet"][0] - 2 * p["sheet_margin"], p["sheet"][1] - 2 * p["sheet_margin"]), reverse=True)
-    f = min(min(long_s / large, short_s / small) for _, _, small, large in over)
+    sw, sh = p["sheet"][0] - 2 * p["sheet_margin"], p["sheet"][1] - 2 * p["sheet_margin"]
+    if p["grain"]:                                  # the part as it stands: its width on the sheet's, its height on the sheet's
+        over = [(sl, pc, b[3] - b[1], b[2] - b[0]) for sl, pc, *_ in over for b in [pc.geom.bounds]]
+        f = min(min(sw / w, sh / h) for _, _, h, w in over)
+    else:
+        long_s, short_s = sorted((sw, sh), reverse=True)
+        f = min(min(long_s / large, short_s / small) for _, _, small, large in over)
     fit = [round(float(e) * f, 1) for e in mesh.extents]
     fit_txt = " × ".join(f"{v:g}" for v in fit)
     for sl, pc, small, large in over:

@@ -309,7 +309,9 @@ does not slip through. It carries the most signal for stacked and folded work; d
   mm; a label with no room at that size is tried smaller, down to half, before it goes on the part anyway. No part
   ever comes out unlabelled; a sheet with no free spot for a label says so in the notes. `orient_mark` engraves two
   small arrows at the middle of every part, a long one up and a short one right in the part's own frame, the same
-  on every part, so a part turned or laid face down is seen at once.
+  on every part, so a part turned or laid face down is seen at once. `grain` (keep the grain) never turns a part
+  sideways on the sheet, only upside down, so the wood grain runs the same way through every part: lay the stock with
+  its grain along the sheet's width.
 - **Dowels are named after their slices**: dowel `Z-3a` is the connector *a* between `Z-3` and `Z-4`, and the mark
   `3a` is engraved beside its hole on both slices, so a hole marked with a number below the slice's own takes the rod
   from below and one with its own number the rod going up. A straight rod through several slices keeps the name of the

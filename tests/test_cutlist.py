@@ -35,6 +35,13 @@ def test_the_same_outline_is_not_the_same_part_with_its_holes_or_its_marks_elsew
     marked = [piece("S-1", strip, [(30, 4, "3")]), piece("S-2", strip, [(30, 4, "4")]), piece("S-3", strip, [(10, 4, "3")]), piece("S-4", strip, [(30.2, 4.1, "3")])]
     mark_identical(marked)
     assert marked[0].same == ["S-4"] and marked[1].same == [] and marked[2].same == []
+    # keep the grain: the same slab standing up is a part of its own, upside down it is the same one
+    turned = lambda: [piece("Z-1", MultiPolygon([box(0, 0, 200, 100)])), piece("Z-2", MultiPolygon([box(0, 0, 100, 200)])),
+                      piece("Z-3", MultiPolygon([box(-200, -100, 0, 0)]))]
+    free, kept = turned(), turned()
+    mark_identical(free); mark_identical(kept, grain=True)
+    assert free[0].same == ["Z-2", "Z-3"]
+    assert kept[0].same == ["Z-3"] and kept[1].same == []
 
 
 def test_per_piece_export_merges_identical_pieces_with_a_quantity(tmp_path):

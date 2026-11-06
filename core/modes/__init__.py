@@ -106,6 +106,10 @@ COMMON: list[Param] = [
       "or PETG ticks it", group="sheet"),
     P("sheet_margin", "number", 5, "Keep-out from the sheet edge (mm)", 0, 100, 0.5, group="sheet", unit="mm"),
     P("gap", "number", 3, "Gap between parts on the sheet (mm)", 0, 50, 0.5, group="sheet", unit="mm"),
+    P("grain", "bool", False, "Keep the grain: every part is laid on the sheet as it stands in its own frame, or upside down, "
+      "never turned sideways, so the wood grain runs the same way through all of them. Lay the stock with its grain along "
+      "the sheet's width (the first sheet size). Parts pack less tightly; one that only fits turned is split, or flagged",
+      group="sheet", label="keep the grain"),
     P("labels", "bool", True, "Engrave part labels (LABEL layer): beside each part with a leader line, or on the part itself — see `labels on the parts`", group="sheet"),
     P("font", "number", 4.0, "Height of a capital letter in the engraved labels (mm). Single-stroke lettering: the laser draws each letter as one line, not the two edges of a filled one", 1, 30, 0.5, group="sheet", unit="mm"),
     P("short_name", "text", "", "The short name engraved before each label, up to 4 letters or digits (HS Y-12). Blank = the initials of the "

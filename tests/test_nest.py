@@ -132,6 +132,50 @@ def test_a_part_over_the_sheet_both_ways_is_cut_both_ways():
     assert abs(sum(pc.geom.area for pc in sl.pieces) - 600 * 400) < 1e-6      # the pieces still tile the part
 
 
+@pytest.mark.parametrize("many", [0, 10_000], ids=["rect_path", "polygon_path"])
+def test_keep_the_grain_lays_every_part_as_it_stands_or_upside_down(monkeypatch, many):
+    """Asked for (032): the grain has to run the same way through every part. With `grain` each part's placed outline
+    is its own outline moved, or turned 180°, never sideways; without it the nester turns this cube's slices 270°."""
+    from shapely import affinity
+    monkeypatch.setattr(nest, "MANY", many)
+    model, mode, params = BUILD_ARGS
+
+    shape = lambda rings: unary_union([Polygon(r[0], r[1:]) for r in rings])
+
+    def off(own, placed, deg):                       # what is left over when the part's own outline, turned, is laid on it
+        g = affinity.rotate(own, deg, origin=(0, 0))
+        return affinity.translate(g, placed.bounds[0] - g.bounds[0], placed.bounds[1] - g.bounds[1]).symmetric_difference(placed).area
+
+    def turns(plan):
+        pairs = [(shape(pc["kerfed"]), shape(pc["placed"])) for sl in plan["slices"] for pc in sl["pieces"]]
+        return [min((0, 90, 180, 270), key=lambda d: off(own, placed, d)) for own, placed in pairs]
+
+    assert any(t in (90, 270) for t in turns(build(model, mode, params)))
+    kept = build(model, mode, {**params, "grain": True})
+    assert set(turns(kept)) <= {0, 180}, turns(kept)
+    assert not kept["errors"]
+
+
+def test_keep_the_grain_splits_a_part_that_only_fits_turned():
+    """A 580 × 380 part on a 400 × 600 sheet fits only turned sideways: with `grain` it is cut across its width into
+    pieces that fit as they stand, and only that way."""
+    from types import SimpleNamespace
+    from shapely.geometry import box
+    from core.geometry import as_multi
+    from core.split import split_slice
+    part = lambda: SimpleNamespace(label="Z-1", profile=as_multi(box(0, 0, 580, 380)), lines=[], marks=[], warnings=[],
+                                   errors=[], pieces=None, facets=None, thickness=3)
+    free, kept = part(), part()
+    split_slice(free, (400, 600), 5, 8)
+    split_slice(kept, (400, 600), 5, 8, grain=True)
+    assert len(free.pieces) == 1
+    assert len(kept.pieces) == 2, [pc.geom.bounds for pc in kept.pieces]
+    for pc in kept.pieces:
+        x0, y0, x1, y1 = pc.geom.bounds
+        assert x1 - x0 <= 390 and y1 - y0 <= 590 and y1 - y0 > 370       # cut across x only: each keeps the full height
+    assert abs(sum(pc.geom.area for pc in kept.pieces) - 580 * 380) < 1e-6
+
+
 def test_a_part_of_another_thickness_gets_its_own_sheet_and_says_so(tmp_path):
     """One slice thickened by hand is cut from other stock: it may not share a sheet with the rest, the plan says
     what each sheet is cut from, and the cut files name it so the wrong sheet is not loaded on the machine."""

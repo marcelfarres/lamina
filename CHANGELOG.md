@@ -4,6 +4,15 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ## 0.3.2
 
+Parts can keep the wood grain running one way.
+
+### Added
+
+- **Keep the grain.** A new sheet option (`grain`) stops the nester from turning parts sideways: each part is laid as
+  it stands, or upside down, so the grain runs the same way through every part. Lay the stock with its grain along the
+  sheet's width. A part that would only fit turned is split to fit (with `split` on) or flagged, and two parts only
+  count as the same part when they match without a sideways turn.
+
 ### Fixed
 
 - **A lifesize model no longer takes a quarter of an hour to say it is too big.** A model far bigger than its material
@@ -20,8 +29,8 @@ What changed in each release. The GitHub release for a version is this section, 
 - **The corner cube is a click; a drag on it turns the view.** It snapped to a face the moment it was pressed, while the
   drag went on turning the view underneath, so a drag "moved a bit, then jumped to a face". And in the flat view it
   gave, two of the turn rings are edge-on lines through the model, which a drag on the model then grabbed, turning
-  the model over and slicing it again. A ring is grabbed only where it can be seen: face-on, and in front of the
-  model. And the glide after a drag was a step per frame, so with a big model on a slow machine the view lagged the
+  the model over and slicing it again. A ring seen edge-on is no longer grabbed; face-on, it still turns the model
+  wherever it shows. And the glide after a drag was a step per frame, so with a big model on a slow machine the view lagged the
   drag by seconds and kept moving long after it: it is a step per time now. Thanks to Colin.
 
 ## 0.3.1
