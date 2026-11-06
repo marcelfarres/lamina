@@ -10,7 +10,7 @@ from shapely.geometry import Polygon
 from shapely.ops import unary_union
 from . import Mode, Param, register, MAX_SLICES, spacing_params
 from ..model import Slice
-from ..geometry import rot_about, as_multi, circle, section_polygons
+from ..geometry import rot_about, as_multi, circle, crossings, section_polygons
 from ..notch import cut_slots
 
 COINCIDENT = math.cos(math.radians(3))     # two planes this close in angle are the same sheet, not a crossing
@@ -284,12 +284,12 @@ class Radial(Mode):
         # slots: half-slice takes `notch_ratio` from the axis side, ring the rest from the outside. A spine and a
         # half-slice both contain the axis, so they never cross — the rings hold both.
         r = p["notch_ratio"]
-        for h in halves:
-            for ring in rings:
-                if ring.lobe != h.lobe:                   # a lobe's parts never reach another lobe's: no crossing to cast for
-                    continue
-                cut_slots(h, ring, ctx, tuple(-h.radial), r)
-                cut_slots(ring, h, ctx, tuple(h.radial), 1 - r)
+        cuts = [c for h in halves for ring in rings if ring.lobe == h.lobe             # a lobe's parts never reach another lobe's
+                for c in ((h, ring, tuple(-h.radial), r), (ring, h, tuple(h.radial), 1 - r))]
+        lines = crossings(ctx.mesh, ctx.span, [(x.M, y.M) for x, y, _, _ in cuts], [t for _, _, t, _ in cuts])   # cast at once
+        for (x, y, toward, rt), cr in zip(cuts, lines):
+            if cr:
+                cut_slots(x, y, ctx, toward, rt, crossing=cr)
         self._slot_spines(ctx, spine_sl, rings, axes, r, t)
         if not rings:
             ctx.errors.append("no ring slices — nothing holds the half-slices")

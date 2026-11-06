@@ -166,6 +166,7 @@ class Sheet:
     def __init__(self, W, H, margin):
         self.W, self.H, self.margin = W, H, margin
         self.placed, self.pieces, self.convex = [], [], []
+        self.nfp = {}            # the no-fit union for a part's shape, and how many placed pieces it covers (see spot)
         # A raster of the sheet, CELL wide, a cell blocked when a placed part covers it whole, and the radius of the
         # largest disc the free cells hold (a distance transform): a part whose hull holds a bigger disc cannot fit,
         # and is not searched for a spot, which costs a union per rotation. A blocked frame stands for the margin.
@@ -210,7 +211,20 @@ class Sheet:
             return None
         free = box(x0, y0, x1 + 1e-9, y1 + 1e-9)          # a hair wide even when the part exactly spans the sheet
         if self.convex:
-            free = free.difference(shapely.union_all(np.concatenate([_minkowski(self.convex, _edges(-p)) for p in pieces])))
+            # Identical parts come one after another (sorted by area), and a stack or a tube is mostly identical parts:
+            # once a sheet is full, every later copy asks it again. The union of no-fit polygons is kept per shape,
+            # the hull to the bit, and handed back while nothing has been placed since — the very same geometry, so
+            # the answer is the one a fresh union gives. Nothing looser: the lowest vertex is chosen to the last bit,
+            # so a union built in two steps, or one shared between hulls a rounding apart (a square's four turns),
+            # flips ties between turns and renests the job onto another sheet.
+            key = tuple(p.tobytes() for p in pieces)
+            n, nfp = self.nfp.get(key, (0, None))
+            if n != len(self.convex):
+                nfp = shapely.union_all(np.concatenate([_minkowski(self.convex, _edges(-p)) for p in pieces]))
+                if len(self.nfp) >= 16:
+                    del self.nfp[next(iter(self.nfp))]
+                self.nfp[key] = (len(self.convex), nfp)
+            free = free.difference(nfp)
         if free.is_empty:
             return None
         c = shapely.get_coordinates(free)
