@@ -592,6 +592,19 @@ def test_the_spacing_curve_stops_at_the_cap_too():
     assert plan["counts"]["slices"] == 0 and any("spacing curve lays 500 slices" in e for e in plan["errors"]), plan["errors"]
 
 
+def test_a_spacing_curve_of_exactly_the_cap_is_sliced(monkeypatch):
+    """A curve that lays exactly MAX_SLICES slices and reaches the model's end is not over the cap (037: the walk was cut
+    at the cap, so exactly the cap and cut short looked the same and both were refused)."""
+    import core.modes
+    monkeypatch.setattr(core.modes, "MAX_SLICES", 20)
+    params = {"size": [0, 0, 60], "thickness": 3, "autofix": "off", "connect": "none", "spacing_vary": True,
+              "spacing_fix": "curve", "spacing_curve": [[0, 3], [0.5, 3], [1, 3]], "spacing_min": 3}
+    plan = build(EXAMPLES / "egg.stl", "stacked", params)           # 60 mm at 3 mm: exactly 20
+    assert plan["counts"]["slices"] == 20 and not plan["errors"], plan["errors"]
+    over = build(EXAMPLES / "egg.stl", "stacked", {**params, "size": [0, 0, 63]})   # 21: one past
+    assert over["counts"]["slices"] == 0 and over["errors"]
+
+
 def test_size_is_the_model_s_own_whichever_way_it_is_turned():
     """size 30 along z stays the model's z: stood up along x (up axis) or turned a quarter about y, the model keeps
     the same three extents, and the 30 lies along the view axis the turn put it on."""

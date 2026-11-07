@@ -2,6 +2,13 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.3.3
+
+### Fixed
+
+- **A drawn spacing curve that fits exactly the most slices Lamina cuts is sliced.** A curve laying exactly 500 slices
+  along the model was refused as too many, the same as a curve that runs out before the model's end.
+
 ## 0.3.2
 
 A model far too big for its material now stops at once and offers the size that can be cut, turning a model no
