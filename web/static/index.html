@@ -1468,7 +1468,7 @@ function renderReport(){
   // query string already names them, so nothing extra has to be tracked to know it.
   $('#dl').onclick=e=>{const a=e.target.closest('a');if(!a)return;
     const href=a.getAttribute('href')||'', q=new URLSearchParams(href.split('?')[1]||'');
-    const fmts=(q.get('fmt')?q.get('fmt').split(','):/\/stl$/.test(href)?['stl']:/\/step$/.test(href)?['step']:/plan\.json/.test(href)?['plan-json']:[]).map(f=>/fitcut/.test(href)?'fit-'+f:f);
+    const fmts=(q.get('fmt')?q.get('fmt').split(','):[href.split('?')[0].split('/').pop().replace('.','-')]).map(f=>/fitcut/.test(href)?'fit-'+f:f);
     fmts.forEach(f=>countUse('export',f+(q.get('per_piece')?'-per-piece':'')))};
   // one row per different part: its own size, how many to cut, and which pieces come off it
   const size=pc=>[pc.bbox[2]-pc.bbox[0],pc.bbox[3]-pc.bbox[1]].map(inU).join('×');
