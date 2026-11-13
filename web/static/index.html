@@ -572,7 +572,7 @@ $('#tabs').addEventListener('input',e=>{
   if(t.dataset.chip)return;
   const p=allParams().find(p=>'p_'+p.name===t.id); if(!p)return;
   if(p.name==='units'){unit=t.value;return applyUnit()}   // the Sheet tab's units box is the toolbar's, not a second one
-  if(p.type==='file'){const f=t.files[0]; if(f)f.text().then(x=>setVal(p.name,x)); return}
+  if(p.type==='file'){const f=t.files[0], hint=t.parentElement.querySelector('small'); if(f)f.text().then(x=>{setVal(p.name,x); if(hint)hint.textContent='a file is loaded'}); return}
   if(p.type==='bool')setVal(p.name,t.checked); else if(p.type==='choice'||p.type==='text')setVal(p.name,t.value); else setVal(p.name,t.value===''?p.default:fromU(p,+t.value));
   if(t.closest('#g-model'))fitted=false;
 });

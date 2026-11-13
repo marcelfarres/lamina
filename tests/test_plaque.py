@@ -201,6 +201,16 @@ def test_crossed_slices_half_lap_into_each_other_and_both_families_stand_on_the_
     assert len(slots) >= 2 * 9 and all(a.distance(b) >= 2 - 1e-6 for i, a in enumerate(slots) for b in slots[i + 1:])
 
 
+def test_a_plaque_preset_names_its_own_gap_between_side_by_side_slices():
+    """The page keeps a setting by name when the technique changes, and stacked's `space` is 0: a plaque example that
+    left `space` to its default opened with touching slices, twice as many as it was made for."""
+    import json
+    presets = json.load(open("examples/presets.json", encoding="utf-8"))
+    for name, pre in presets.items():
+        if name != "_" and pre["mode"] == "plaque" and pre["params"].get("layout", "parallel") == "parallel":
+            assert "space" in pre["params"], name
+
+
 def test_slices_cannot_run_along_the_axis_the_plate_is_square_to(ball):
     plan = build(ball, "plaque", {**BASE, "back": "-z", "axis": "z"})
     assert plan["counts"]["slices"] == 0 and plan["errors"]

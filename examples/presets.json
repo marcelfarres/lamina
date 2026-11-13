@@ -2,7 +2,7 @@
   "_": "The technique and parameters each bundled example opens with: the shape's best construction, standing the right way up, sliced without an error. Keys are parameter names as the UI holds them; `rotate` turns y-up scans upright; per-slice keys (`thick`, `offset`, `grow`) name slice labels. Every preset names its material thickness, so one example never inherits the last one's stock.",
   "blob":      {"mode": "radial",      "params": {"thickness": 3, "count": 8, "ring_count": 4, "round": 3, "trim_thin": true}},
   "bowl":      {"mode": "radial",      "params": {"thickness": 3, "count": 14, "ring_count": 8}},
-  "bonsai":    {"mode": "plaque",      "params": {"thickness": 3, "layout": "parallel", "back": "-y", "axis": "x", "sink": 27, "margin": 4, "plate": "rounded", "plate_margin": 20}},
+  "bonsai":    {"mode": "plaque",      "params": {"thickness": 3, "layout": "parallel", "back": "-y", "axis": "x", "space": 3, "distribution": "distance", "sink": 27, "margin": 4, "plate": "rounded", "plate_margin": 20}},
   "bracket":   {"mode": "interlocked", "params": {"thickness": 3, "nx": 5, "ny": 4}},
   "bunny":     {"mode": "stacked",     "params": {"thickness": 3, "rotate": [90, 0, 0], "axis": "z", "connect": "dowel", "dowel_d": 4, "placement": "random", "n_points": 2, "round": 2, "thicken": 2, "margin": 4}},
   "cone":      {"mode": "radial",      "params": {"thickness": 3, "count": 8, "ring_count": 4, "trim_thin": true}},
