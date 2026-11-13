@@ -9,6 +9,9 @@ What changed in each release. The GitHub release for a version is this section, 
 - **A slice no longer fails now and then while it nests the parts.** On a busy computer, laying the parts on the
   sheets could stop with an error and no result; slicing again usually worked. The parts are now laid out without
   that failure.
+- **Two folded-panel jobs sliced at the same moment no longer mix.** On a shared server, when two people sliced
+  folded panels at the same time, one of them could get panels that belonged to the other model. Each slice now works
+  on its own.
 
 ## 0.3.2
 

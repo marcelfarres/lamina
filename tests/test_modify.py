@@ -12,7 +12,8 @@ import trimesh
 from shapely.geometry import Point
 
 from core.geometry import dowel_leverage, section_polygons
-from core.plan import MODES, build, coerce_params, load_mesh, reuse
+from core.mesh import load_mesh, reuse
+from core.plan import MODES, build, coerce_params
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 EXAMPLES = ROOT / "examples"
@@ -29,8 +30,8 @@ def test_thicken_smaller_than_a_grid_step_acts_exactly():
     widths = [sl["extents"][0] for sl in plan["slices"]]
     assert min(widths) < 0.6 * max(widths)          # still a cone: the top slice is far narrower than the base
     assert 398.5 < plan["bbox"][2] < 402.5
-    plain = load_mesh(EXAMPLES / "cone.stl", coerce_params(MODES["stacked"], {"size": [0, 0, 400]}), [], "stacked")
-    thick = load_mesh(EXAMPLES / "cone.stl", coerce_params(MODES["stacked"], {"size": [0, 0, 400], "thicken": 1}), [], "stacked")
+    plain = load_mesh(EXAMPLES / "cone.stl", coerce_params(MODES["stacked"], {"size": [0, 0, 400]}), [])
+    thick = load_mesh(EXAMPLES / "cone.stl", coerce_params(MODES["stacked"], {"size": [0, 0, 400], "thicken": 1}), [])
 
     def width_at(mesh, z):                            # the cut's reach in x at a height above the base
         M = np.eye(4); M[2, 3] = mesh.bounds[0][2] + z
@@ -50,7 +51,7 @@ def test_round_removes_a_thin_fin_and_rounds_the_corners_to_the_radius_asked(tmp
     fin = trimesh.creation.box((3, 40, 20)); fin.apply_translation([0, 0, 40])
     trimesh.util.concatenate([box, fin]).export(tmp_path / "finned.stl")
     p = coerce_params(MODES["stacked"], {"thickness": 3, "round": 4})
-    mesh = load_mesh(tmp_path / "finned.stl", p, [], "stacked")
+    mesh = load_mesh(tmp_path / "finned.stl", p, [])
     assert abs(mesh.extents[2] - 60) < 0.5, mesh.extents    # the fin is gone, the box is not thinner
     corner = Point(30, 30).distance(mid_outline(mesh))
     assert 0.83 - 0.3 < corner < 0.83 + 1.2, corner
@@ -74,14 +75,14 @@ def test_a_closed_cavity_is_solid_and_a_doubled_surface_is_one(tmp_path):
     outer, inner = trimesh.creation.icosphere(4, 30), trimesh.creation.icosphere(4, 23)
     inner.invert()
     trimesh.util.concatenate([outer, inner]).export(tmp_path / "shell.stl")
-    mesh = load_mesh(tmp_path / "shell.stl", coerce_params(MODES["stacked"], {"thickness": 3, "hollow": 3}), [], "stacked")
+    mesh = load_mesh(tmp_path / "shell.stl", coerce_params(MODES["stacked"], {"thickness": 3, "hollow": 3}), [])
     assert len(mesh.split(only_watertight=False)) == 2, "one outer and one inner surface"
     radii = np.linalg.norm(mesh.vertices, axis=1)
     assert abs(radii.max() - 30) < 0.3 and abs(radii.min() - 27) < 0.3, (radii.min(), radii.max())
     assert not ((radii > 27.5) & (radii < 29.5)).any(), "a void sheet inside the wall"
 
     trimesh.util.concatenate([outer, outer.copy()]).export(tmp_path / "doubled.stl")
-    thick = load_mesh(tmp_path / "doubled.stl", coerce_params(MODES["stacked"], {"thickness": 3, "thicken": 1}), [], "stacked")
+    thick = load_mesh(tmp_path / "doubled.stl", coerce_params(MODES["stacked"], {"thickness": 3, "thicken": 1}), [])
     assert abs(thick.extents[0] - 62) < 0.3, thick.extents
 
 
@@ -130,7 +131,7 @@ def test_a_prototype_too_thin_to_print_is_planned_again_thicker():
 def test_build_reports_its_progress_from_start_to_one(tmp_path, monkeypatch):
     """What the page's overlay is drawn from: every stage in order, per-slice sections, ending at 1.0 — and the
     preview mesh announced as soon as it is written, so the 3D view can show the model before the slices exist."""
-    import core.plan as P
+    import core.progress as P
     seen = []
     # monkeypatch puts back the hook it found: the server's, which is how a newer slice stops an older one — a
     # hand-made reset to a no-op left the rest of the test run with no way to stop a slice (test_web failed after it)
@@ -171,7 +172,7 @@ def test_a_slice_turns_about_the_point_the_view_gives_it():
 def test_a_second_autofix_pass_never_sends_the_bar_backwards(monkeypatch):
     """The stages repeat when autofix adds crossing slices, which used to drop the bar from 70 % back to 20 % with no
     word about why. Each extra pass now has a band of its own at the end, and says which pass it is."""
-    import core.plan as P
+    import core.progress as P
     seen = []
     monkeypatch.setattr(P, "report", lambda text, frac, artifact=None: seen.append((text, frac)))   # put back after
     build(EXAMPLES / "cube.stl", "curve", {"count": 6, "spines": 0, "autofix": "add"})   # spines 0: every rib floats, autofix adds them
@@ -205,11 +206,11 @@ def test_modify_form_leaves_a_smooth_curve_smooth(setting, value, offset):
     egg sits where the model's own outline is — `offset` mm out for thicken — to a few hundredths of a millimetre
     (measured: spread 0.01–0.02 mm, peak to trough 0.1–0.2 mm, on a 180 mm part)."""
     p = coerce_params(MODES["stacked"], {"thickness": 3})
-    plain = load_mesh(EXAMPLES / "egg.stl", p, [], "stacked")
+    plain = load_mesh(EXAMPLES / "egg.stl", p, [])
     edge = mid_outline(plain).boundary
 
     q = coerce_params(MODES["stacked"], {"thickness": 3, setting: value})
-    cut = mid_outline(load_mesh(EXAMPLES / "egg.stl", q, [], "stacked"))
+    cut = mid_outline(load_mesh(EXAMPLES / "egg.stl", q, []))
     d = np.array([edge.distance(Point(v)) for g in cut.geoms for v in np.asarray(g.exterior.coords)])
     assert abs(d.mean() - offset) < 0.15, f"outline sits {d.mean():.3f} mm from the original curve, {offset} asked"
     assert d.std() < 0.05, f"outline wobbles by {d.std():.3f} mm about the original curve"
@@ -225,7 +226,7 @@ def test_a_remeshed_model_sections_the_browser_s_way_of_sorting_loops(monkeypatc
         raise ImportError("rtree is not available (as in the browser build)")
 
     monkeypatch.setattr(trimesh.path.Path2D, "polygons_full", no_rtree)
-    mesh = load_mesh(EXAMPLES / "bunny.stl", coerce_params(MODES["stacked"], {"thickness": 3, "round": 2}), [], "stacked")
+    mesh = load_mesh(EXAMPLES / "bunny.stl", coerce_params(MODES["stacked"], {"thickness": 3, "round": 2}), [])
     assert len(mesh.faces) != len(trimesh.load(EXAMPLES / "bunny.stl").faces), "this test is only meaningful on a remeshed model"
     assert not mid_outline(mesh).is_empty
     plan = build(EXAMPLES / "bunny.stl", "stacked", {"thickness": 3, "round": 2, "distribution": "count", "count": 8})
@@ -337,7 +338,7 @@ def test_random_dowels_spread_across_the_layer():
     job = {"connect": "dowel", "placement": "random", "n_points": 2, "thickness": 3, "space": 5,
            "distribution": "count", "count": 20, "autofix": "off"}
     plan = build(EXAMPLES / "horse.stl", "stacked", job)
-    mesh = load_mesh(EXAMPLES / "horse.stl", coerce_params(MODES["stacked"], job), [], "stacked")
+    mesh = load_mesh(EXAMPLES / "horse.stl", coerce_params(MODES["stacked"], job), [])
     reach, levels = [], dowels_by_level(plan)
     for z, pts in levels.items():
         M = np.eye(4); M[2, 3] = z + job["thickness"] / 2     # a rod starts half a thickness below its slice's plane
@@ -363,7 +364,7 @@ def test_aligned_dowels_hold_a_big_piece_from_near_its_edge(n):
     job = {"size": [0, 0, 200], "connect": "dowel", "placement": "aligned", "n_points": n, "dowel_d": 6,
            "thickness": 6, "distribution": "count", "count": 20, "autofix": "off"}
     plan = build(EXAMPLES / "sphere.stl", "stacked", job)
-    mesh = load_mesh(EXAMPLES / "sphere.stl", coerce_params(MODES["stacked"], job), [], "stacked")
+    mesh = load_mesh(EXAMPLES / "sphere.stl", coerce_params(MODES["stacked"], job), [])
     below, worst = [], 0.0
     for z, pts in sorted(dowels_by_level(plan).items()):
         pts, below = pts + below, pts               # a layer carries the rods from the one below and to the one above
@@ -398,7 +399,7 @@ def test_a_bunched_piece_is_offered_the_dowel_that_holds_it():
     x, y = fix["set"]["dowels"][-1]
 
     after = build(EXAMPLES / "horse.stl", "stacked", {**job, **fix["set"]})
-    mesh = load_mesh(EXAMPLES / "horse.stl", coerce_params(MODES["stacked"], {**job, **fix["set"]}), [], "stacked")
+    mesh = load_mesh(EXAMPLES / "horse.stl", coerce_params(MODES["stacked"], {**job, **fix["set"]}), [])
     sl = next(s for s in after["slices"] if s["label"] == label)
     M = np.asarray(sl["M"]); inv = np.linalg.inv(M)
     piece = next(g for g in section_polygons(mesh, M).geoms if g.buffer(1).contains(Point(x, y)))
@@ -467,7 +468,7 @@ def test_a_new_name_reslices_without_remeshing(tmp_path):
     a = build(EXAMPLES / "egg.stl", "stacked", {**job, "project": "first"}, mesh_out=tmp_path / "a.stl")
     b = build(EXAMPLES / "egg.stl", "stacked", {**job, "project": "second"}, mesh_out=tmp_path / "b.stl")
     p = coerce_params(MODES["stacked"], {**job, "project": "third"})
-    m, again = load_mesh(EXAMPLES / "egg.stl", p, [], "stacked"), lambda _: pytest.fail("worked out again")
+    m, again = load_mesh(EXAMPLES / "egg.stl", p, []), lambda _: pytest.fail("worked out again")
     reuse(m, "preview", again); reuse(m, "square", again)      # the builds kept both (no timing: CI is slow)
     c = build(EXAMPLES / "egg.stl", "stacked", {**job, "project": "second", "round": 4})
     assert "modify form: remeshing" in a["timing"] and "modify form: remeshing" not in b["timing"]

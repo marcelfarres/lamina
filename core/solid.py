@@ -7,7 +7,7 @@ which opens in OrcaSlicer / PrusaSlicer as one named object per part, ready to a
     uv run python -m core.solid working-files/egg.json --fit working-files/egg_fit --step 0.1     # 5 slot offsets to try first
 """
 from __future__ import annotations
-import argparse, contextlib, json, math, pathlib, tempfile
+import argparse, contextlib, json, pathlib, tempfile
 import numpy as np
 import trimesh
 from shapely import affinity
@@ -234,17 +234,12 @@ def fit_plan(plan, slot_offset, sheet=None, thickness=None):
     p["slot_offset"] = round(slot_offset, 4)
     p["thickness"] = thickness or p["thickness"]
     p.update(scale=1.0, size=[0, 0, 0], rotate=[0, 0, 0], split=False, autofix="off")
-    mode, size = plan["mode"], FIT_SIZE
-    if mode == "radial":
-        p.update(rings="count", ring_count=min(p["ring_count"], 2))
-        need = 2 * (p["count"] * (p["thickness"] + p["slot_offset"]) / math.pi + p["thickness"])    # as radial.py sizes the core
-        size = max(size, 2 * need)
-    elif mode == "interlocked":
-        p.update(distribution="count", nx=min(p["nx"], 4), ny=min(p["ny"], 4))
-    elif mode in ("stacked", "curve"):
-        p.update(distribution="count", count=min(p["count"], 3))
+    from .plan import MODES, build
+    mode = plan["mode"]
+    few, room = MODES[mode].fit(p)                 # the technique's own: which slices show its joint, on how big a stand-in
+    p.update(few)
+    size = max(FIT_SIZE, room)
     p["sheet"] = sheet or [max(200.0, 1.2 * size)] * 2
-    from .plan import build
     with tempfile.NamedTemporaryFile(suffix=".stl", delete=False) as f:
         trimesh.creation.icosphere(3, size / 2).export(f.name)
     try:

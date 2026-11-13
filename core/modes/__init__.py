@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from ..geometry import frame, rot_about
 
-REGISTRY: dict[str, Mode] = {}
+REGISTRY: dict[str, type[Mode]] = {}
 MAX_SLICES = 500                      # the count slider's ceiling, and the ceiling for by-distance slicing too
 
 # Param.type → what the UI renders
@@ -206,6 +206,7 @@ class Mode:
     legend: str = ""                   # what this mode's part labels mean — shown in the Export tab, written into
     params: list[Param] = []           # assembly-key.txt beside the cut files, and the only key in puzzle mode
     hidden_common: tuple = ()          # common params that make no sense for this mode
+    surface: bool = False              # cut from the model's surface, not its volume: an open edge is the input, not a defect
 
     def build(self, ctx) -> list:
         raise NotImplementedError
@@ -224,6 +225,13 @@ class Mode:
         taken out of `profile` — such as stacked's next-layer guide. `slices` are the kept ones, in order."""
         return None
 
+    @staticmethod
+    def fit(p) -> tuple[dict, float]:
+        """Optional: what a fit test of this technique needs (solid.fit_plan) → the changes to the job's parameters
+        `p` that leave the few slices its joints show on, and the least the stand-in may be across (mm) to hold
+        them; 0 = the usual small one."""
+        return {}, 0.0
+
     @classmethod
     def all_params(cls) -> list[Param]:
         return COMMON + cls.params
@@ -236,7 +244,7 @@ class Mode:
 
 
 def register(cls):
-    REGISTRY[cls.name] = cls()
+    REGISTRY[cls.name] = cls           # the class: every build makes its own instance (plan.build)
     return cls
 
 

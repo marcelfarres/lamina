@@ -44,6 +44,19 @@ def test_a_value_past_the_slider_is_held_to_the_slider(tmp_path):
     assert plan["params"]["count"] == 500 and plan["params"]["thickness"] == 0.05
 
 
+def test_two_slices_at_once_do_not_share_a_technique():
+    """The server runs one build per request thread. A technique keeps the build's state on itself (folded panels:
+    the simplified mesh, the frames, the cuts of each face), so every build has to have a technique instance of its
+    own: with one shared, two folded jobs sliced at the same moment unfolded each other's mesh."""
+    from concurrent.futures import ThreadPoolExecutor
+    jobs = [(CUBE, {"facet": 0, "joint": "laced"}), (CUBE.with_name("egg.stl"), {"facet": 25, "joint": "tab"})] * 2
+    parts = lambda plan: [(s["label"], [pc["kerfed"] for pc in s["pieces"]]) for s in plan["slices"]]   # noqa: E731
+    alone = [parts(build(model, "folded", prm)) for model, prm in jobs[:2]] * 2
+    with ThreadPoolExecutor(4) as pool:
+        together = list(pool.map(lambda job: parts(build(job[0], "folded", job[1])), jobs))
+    assert together == alone
+
+
 @pytest.mark.parametrize("mode, name, value", CASES)
 def test_every_setting_of_every_slider_slices(mode, name, value, tmp_path):
     # 6 mm stock: ten slices through the cube instead of forty, the same code paths at a quarter of the time

@@ -18,8 +18,9 @@ import base64, contextlib, hashlib, io, itertools, json, os, pathlib, re, shutil
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
-from core import plan as plan_module
-from core.plan import build, MODES, CAD_SUFFIXES
+from core import progress as build_progress
+from core.plan import build, MODES
+from core.mesh import CAD_SUFFIXES
 from core.export import design_name, export, svg_doc, items_for_sheet, sheet_title
 from core.solid import assembled
 
@@ -129,7 +130,7 @@ def _report(text, frac, artifact=None):
             f.write_text(json.dumps(d))
 
 
-plan_module.report = _report
+build_progress.report = _report
 
 
 @app.get("/api/progress")
