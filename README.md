@@ -31,7 +31,7 @@ No install, no account, nothing uploaded — the Python runs in your own browser
 **[Landing page with screenshots and clips](https://marcelfarres.github.io/lamina/?ref=github-readme)** ·
 [parity with the original, option by option](docs/roadmap.md) · [how the unfolding works](docs/folded-panels.md)
 
-## The five ways to build a model
+## The six ways to build a model
 
 Each one is a clip on the [landing page](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques);
 the stills below are the same scenes.
@@ -41,6 +41,7 @@ the stills below are the same scenes.
 | [![Stacked: parallel slices with dowels](docs/media/stacked_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Stacked** — parallel sections, touching or spaced, held by dowels, pegs or spacers | [![Interlocked: two slotted families forming an egg-crate](docs/media/interlocked_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Interlocked** — two slotted families, egg-crate |
 | [![Radial: half-slices fanned around an axis with locking rings](docs/media/radial_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Radial** — half-slices around an axis, locked by rings | [![Curve: ribs following a curve through the model](docs/media/curve_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Curve** — ribs that follow a bend, not the grid |
 | [![Folded: a surface unfolded into flat panels with score lines](docs/media/folded_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#folded)<br>**Folded** — the surface unfolded flat, papercraft nets as Pepakura makes them, with 13 joint types | [![A cube net cut with the tongue joint](docs/media/joint_tongue.png)](https://marcelfarres.github.io/lamina/?ref=github-readme#folded)<br>**Thirteen joints** — seam, tab, gear, tongue, puzzle, laced… |
+| [![Plaque: a bonsai in slices standing on a flat back plate](docs/media/plaque_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Plaque** — for the wall: the model cut off at a back plate, its slices standing on the plate, held by teeth through plate slots | |
 | [![Radial with an axis through each ball of a dumbbell, at right angles to each other, and the plane between them at the neck](docs/media/axes_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Radial, an axis per lobe** — a fan per ball, one spine through all of them | [![The plane between two lobes of the snowman selected and tilted](docs/media/lobes_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#editing)<br>**Where lobes meet** — a plane you select, move and tilt like any slice |
 
 ## What it checks, and what you get
@@ -250,7 +251,7 @@ uv run python -m core.plan examples/egg.stl --mode folded --list-params         
 
 ## What it does
 
-### Five construction techniques
+### Six construction techniques
 
 The original's six techniques as five modes (its *3D Slices* is stacked with `surface=outer`), and one of Lamina's own, `plaque`.
 
