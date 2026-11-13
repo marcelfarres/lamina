@@ -16,6 +16,10 @@ The assembled model now also downloads as a STEP file, for CAD.
 
 ### Fixed
 
+- **Folded panels score only the edges you fold.** A flat face made of several triangles (a rectangle cut in two,
+  a hexagon cut in six) had a fold line on every inner edge, so the score layer could not go to an engraving tip
+  or a creasing tool as it was. Those lines are gone: the score layer now holds the real folds only. A few inner
+  edges of such a face were also numbered as seams although nothing is cut there; they no longer are.
 - **A slice no longer fails now and then while it nests the parts.** On a busy computer, laying the parts on the
   sheets could stop with an error and no result; slicing again usually worked. The parts are now laid out without
   that failure.

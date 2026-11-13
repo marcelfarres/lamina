@@ -25,7 +25,8 @@ FOLDS = {"paper": 1, "card": 1.5, "cardboard": 7, "greyboard": 2, "polypropylene
          "EVA foam": 10, "steel": 3, "stainless steel": 3, "aluminium": 3, "brass": 3, "copper": 3,
          "plywood": 0, "mdf": 0, "acrylic": 0, "basswood": 0, "balsa": 0, "foam board": 0, "PLA": 0, "PETG": 0}
 FOLDED_JOINTS = ("tab", "multitab", "diamond", "ticked", "gear", "tongue", "puzzle", "strip")   # a flap or bridge that bends
-MAX_HOLES = 60                        # holes along one seam (rivet / laced / strip)
+FLAT = math.radians(1)                # two faces closer to one plane than this are one flat piece: no score between them
+MAX_HOLES = 60                       # holes along one seam (rivet / laced / strip)
 MAX_FACES = 4000                      # triangles this can unfold and lay out in a usable time
 MAX_PANELS = 400                      # …and parts, when `separate` makes every triangle one (see build)
 JOINT_HELP = ("seam = plain edge (glue / sew) · tab = one glue tab · multitab = several small tabs · diamond = triangular ticks · "
@@ -118,7 +119,7 @@ class Folded(Mode):
             sl = Slice(f"P-{i + 1}", "F", frames[pn.faces[0]], t)
             sl.pn = pn
             sl.raw = as_multi(pn.union.buffer(0))
-            for k in pn.folds:
+            for k in self.creases(pn):
                 fa = list(mesh.faces[mesh.face_adjacency[k][0]])
                 va, vb = mesh.face_adjacency_edges[k]
                 f = mesh.face_adjacency[k][0]
@@ -170,7 +171,7 @@ class Folded(Mode):
         plywood cracks along the score where 3 mm cardboard folds. Every face its own panel, joined by ribs, folds
         nothing."""
         p = self.p; kind = p.get("material_kind") or p.get("material"); most = FOLDS.get(kind)
-        folds = sum(len(pn.folds) for pn in panels) + (len(seams) if p["joint"] in FOLDED_JOINTS else 0)
+        folds = sum(len(self.creases(pn)) for pn in panels) + (len(seams) if p["joint"] in FOLDED_JOINTS else 0)
         if most is None or not folds or self.t <= most:
             return
         why = "it does not fold, it cracks along the line" if most == 0 else f"it folds along a score up to about {most:g} mm"
@@ -184,6 +185,11 @@ class Folded(Mode):
                                                  "note": "rigid panels, each rib cut at its seam's angle and slotted in from the back"}]}]
 
     # ---------------------------------------------------------------- helpers
+    def creases(self, pn):
+        """The panel's edges that are bent. The triangles of one flat face (a rectangle's diagonal, a hexagon's
+        spokes) are joined edges too, but there is nothing to fold there and so nothing to score."""
+        return [k for k in pn.folds if self.mesh.face_adjacency_angles[k] >= FLAT]
+
     @staticmethod
     def usable_sheet(p):
         """Panel size limit for the unfolder: the sheet minus margins, minus room for glue tabs that grow the outline."""
