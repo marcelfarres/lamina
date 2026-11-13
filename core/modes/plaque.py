@@ -13,10 +13,12 @@ from shapely.strtree import STRtree
 from . import Param, register
 from .stacked import Stacked
 from ..model import Slice
-from ..geometry import as_lines, as_multi, frame, frame_xy, to_local, to_world
+from ..geometry import as_lines, as_multi, frame, frame_xy, rot_about, to_local, to_world
+from ..notch import interlock
+from ..vector import outlines
 
 BIG = 1e5
-SHAPES = ["circle", "ellipse", "rectangle", "rounded", "hexagon", "shield", "silhouette"]
+SHAPES = ["circle", "ellipse", "rectangle", "rounded", "hexagon", "shield", "silhouette", "file"]
 SHIELD = [(-.5, .40), (-.42, .43), (-.30, .40), (-.12, .47), (0, .50), (.12, .47), (.30, .40), (.42, .43), (.5, .40),
           (.5, -.12), (.40, -.30), (.22, -.42), (0, -.50), (-.22, -.42), (-.40, -.30), (-.5, -.12)]
 _S = {q.name: q for q in Stacked.params}
@@ -59,19 +61,24 @@ class Plaque(Stacked):
     title = "Plaque"
     description = ("The model cut off at a flat back plate, its slices standing on edge on the plate: each slice has teeth that go "
                    "through plate slots. `sink` sets how deep the model goes into the plate; what is behind the plate is left out.")
-    legend = ("W-1 = the back plate · R-5 = the 5th half-slice of a radial fan, counted round from `angle` · X-3 = the 3rd slice across the plate, counted from the low end (Y- or Z- when the slices "
+    legend = ("W-1 = the back plate · X-2 / Y-4 in a crossed plaque = the 2nd slice of the first family and the 4th of the second, "
+              "which half-lap into each other · R-5 = the 5th half-slice of a radial fan, counted round from `angle` · X-3 = the 3rd slice across the plate, counted from the low end (Y- or Z- when the slices "
               "run that way): its teeth go into the row of plate slots under it · X-3a = spacer a between X-3 and X-4, which "
               "holds a piece of one of them that does not reach the plate")
     params = [
         Param("back", "choice", "-z", "The side of the model that goes against the plate: the plate is square to this axis and the "
               "model sticks out of it the other way", choices=["-z", "+z", "-y", "+y", "-x", "+x"], label="back of the model"),
         Param("layout", "choice", "parallel", "How the slices stand on the plate: parallel = side by side, one after another · "
-              "radial = a fan of half-slices round a centre (move it with `center`), their inner ends meeting round a small hole",
-              choices=["parallel", "radial"]),
+              "radial = a fan of half-slices round a centre (move it with `center`), their inner ends meeting round a small hole · "
+              "crossed = two families at right angles, slotted into each other half way like an egg crate, both standing on the plate",
+              choices=["parallel", "radial", "crossed"]),
         Param("axis", "choice", "x", "Slice direction (normal of the slices): one of the two axes that lie in the plate", choices=["x", "y", "z"],
               show_if=("layout", "parallel")),
         Param("planes", "int", 12, "Radial: planes through the centre; each gives two half-slices", 2, 90, 1, show_if=("layout", "radial")),
-        Param("angle", "number", 0.0, "Radial: turn the whole fan about its centre (deg)", -90, 90, 1, unit="deg", show_if=("layout", "radial")),
+        Param("angle", "number", 0.0, "Radial: turn the whole fan about its centre (deg) · crossed: turn the grid on the plate",
+              -90, 90, 1, unit="deg", show_if=("layout", ["radial", "crossed"])),
+        Param("nx", "int", 8, "Crossed: slices of the first family, which goes into the plate first", 1, 200, 1, show_if=("layout", "crossed")),
+        Param("ny", "int", 8, "Crossed: slices of the second family, which drops onto the first from the front", 1, 200, 1, show_if=("layout", "crossed")),
         Param("radius", "number", 0.0, "Radial: the radius of the hole in the middle of the fan, where the half-slices end (mm). "
               "0 = the least that lets them all fit round it; under that least their inner ends collide", 0, 500, 0.5, unit="mm",
               show_if=("layout", "radial")),
@@ -80,11 +87,18 @@ class Plaque(Stacked):
         Param("plate_thickness", "number", 0.0, "Thickness of the back plate's material (mm), which is also how long the teeth are: "
               "they end flush with the back of the plate. 0 = the same material as the slices", 0, 100, 0.05, unit="mm", label="plate thickness"),
         Param("plate", "choice", "rounded", "The plate's outline: a shape fitted round the model, or silhouette = the model's own "
-              "shadow on the plate, grown by the margin", choices=SHAPES, choice_labels={"rounded": "rounded rectangle"}),
+              "shadow on the plate, grown by the margin · file = a shape of your own, drawn in an SVG or DXF file",
+              choices=SHAPES, choice_labels={"rounded": "rounded rectangle", "file": "file (SVG / DXF)"}),
+        Param("plate_file", "file", "", "The plate's outline from an SVG or DXF file: its largest closed shape is the plate, closed shapes "
+              "inside it are cut out of the plate (a hanging hole, an ornament). The drawing is fitted round the model, keeping its "
+              "proportions; place the model in it with plate scale, mirror, rotation and offset", show_if=("plate", "file"), label="plate file"),
         Param("plate_margin", "number", 20.0, "How far the plate reaches past the model all round (mm)", 0, 500, 1, unit="mm", label="plate margin"),
         Param("plate_size", "vec2", [0, 0], "The plate's width and height (mm), in place of the fit round the model; 0 = automatic. "
               "One value keeps the shape's proportions", 0, 5000, 1, unit="mm", label="plate size"),
         Param("plate_offset", "vec2", [0, 0], "Move the plate under the model (mm)", -5000, 5000, 1, unit="mm", label="plate offset"),
+        Param("plate_scale", "number", 100.0, "The plate's size as a percentage of its fit round the model: over 100 leaves more plate "
+              "round the model, under 100 lets the model reach past it", 10, 500, 1, unit="", label="plate scale (%)"),
+        Param("plate_mirror", "bool", False, "Turn the plate's outline over, left to right: for a file drawn the other way round", label="plate mirror"),
         Param("plate_rotation", "number", 0.0, "Turn the plate about its middle (deg)", -180, 180, 1, unit="deg", label="plate rotation"),
         Param("teeth", "int", 2, "The fewest teeth for each stretch of a slice that stands on the plate. A slice that meets the plate "
               "in two separate stretches gets this many in each", 2, 20, 1),
@@ -104,9 +118,9 @@ class Plaque(Stacked):
     def build(self, ctx):
         p = ctx.p
         p.update(FIXED)
-        k = "xyz".index(p["back"][1]); ax = "xyz".index(p["axis"]); radial = p["layout"] == "radial"
+        k = "xyz".index(p["back"][1]); ax = "xyz".index(p["axis"]); radial = p["layout"] == "radial"; crossed = p["layout"] == "crossed"
         n_p = ctx.ax[k] * (1.0 if p["back"][0] == "-" else -1.0)        # the plate's normal: out of the plate, toward the front
-        if ax == k and not radial:
+        if ax == k and p["layout"] == "parallel":
             e = f"the slices stand on the plate, so their direction cannot be {p['axis']}, the axis the plate is square to"
             ctx.errors.append(e)
             ctx.fixes.append({"error": e, "options": [{"title": f"slice along {a}", "set": {"axis": a}} for a in "xyz" if a != p["axis"]]})
@@ -124,7 +138,28 @@ class Plaque(Stacked):
         Mp = frame_xy(n_p * (z0 - plate_t / 2), np.cross(up, n_p), up)
         mf = p["min_feature"]; slot_w = p["thickness"] + p["slot_offset"]
         ctx.rods = []
-        if radial:
+        clash = {}                      # crossed: slice → the stretches of its foot (from, to) where a slice of the other family stands
+        fams = []
+        if crossed:
+            # Two families along the plate's own two directions, turned by `angle`. The first goes into the plate; the
+            # second drops onto it from the front, so its slots open toward the plate and the first family's away.
+            R = rot_about(n_p, p["angle"]); front = box(-BIG, 0, BIG, BIG); hub = Polygon(); wall = BIG
+            for name, group, e, n in (("X", "X", R @ Mp[:3, 0], p["nx"]), ("Y", "Y", R @ Mp[:3, 1], p["ny"])):
+                reach = (ctx.covered.vertices - ctx.mid) @ e
+                L = float(np.ptp(reach)); c = float(reach.min() + reach.max()) / 2
+                fam = []
+                for j, s in enumerate(ctx.positions(L, [p["thickness"]] * n)):
+                    lab = f"{name}-{j + 1}"
+                    o = ctx.mid + e * (c + s + ctx.override("offset", lab))
+                    fam.append(Slice(lab, group, frame(o + n_p * (z0 - o @ n_p), e, up_hint=n_p), ctx.thickness_of(lab), clip=as_multi(front)))
+                fams.append(ctx.keep(fam))
+            for mine, other in ((fams[0], fams[1]), (fams[1], fams[0])):
+                for sl in mine:
+                    at = [float((o.M[:3, 3] - sl.M[:3, 3]) @ sl.M[:3, 0]) for o in other]
+                    clash[sl.label] = [(x - slot_w / 2, x + slot_w / 2) for x in at]
+            slices = fams[0] + fams[1]
+            ctx.cover_r = max(ctx.ext) / max(1, min(p["nx"], p["ny"])) / 2 + p["thickness"]
+        elif radial:
             # 2 × planes half-slices, 180 / planes apart. Their inner corners meet where the chord between two
             # neighbours is one slice wide, and their plate slots keep a wall between them a little further out.
             n = p["planes"]; half = math.pi / (2 * n)
@@ -162,8 +197,30 @@ class Plaque(Stacked):
         slices = [s for s in slices if not s.raw.is_empty]
         if not slices:
             return []
-        shape = self.placed(silhouette(ctx.covered, Mp, p["plate_margin"]) if p["plate"] == "silhouette" else
-                            outline(p["plate"], to_local(Mp, ctx.mesh.vertices[depth >= z0 - 1e-9]), p["plate_margin"]), p)
+        if crossed:
+            interlock([s for s in fams[0] if s in slices], [s for s in fams[1] if s in slices], ctx, a_open=tuple(n_p), b_open=tuple(-n_p))
+        foot = to_local(Mp, ctx.mesh.vertices[depth >= z0 - 1e-9])     # the model in front of the plate, in the plate's x, y
+        if p["plate"] == "file":
+            try:
+                if not p["plate_file"]:
+                    raise ValueError("no file chosen: pick an SVG or DXF file, or another plate shape")
+                shape, said = outlines(p["plate_file"])
+            except ValueError as err:
+                e = f"plate file: {err}"
+                ctx.errors.append(e)
+                ctx.fixes.append({"error": e, "options": [{"title": "use a rounded rectangle", "set": {"plate": "rounded"}}]})
+                return []
+            if said:
+                ctx.notes_extra = " · ".join(x for x in [ctx.notes_extra, "plate file: " + ", ".join(said)] if x)
+            # fitted round the model: the drawing's box covers the model's and the margin, its proportions kept
+            (fx0, fy0), (fx1, fy1) = foot.min(0), foot.max(0); x0, y0, x1, y1 = shape.bounds
+            f = max((fx1 - fx0 + 2 * p["plate_margin"]) / (x1 - x0), (fy1 - fy0 + 2 * p["plate_margin"]) / (y1 - y0))
+            shape = affinity.scale(affinity.translate(shape, (fx0 + fx1 - x0 - x1) / 2, (fy0 + fy1 - y0 - y1) / 2), f, f, origin=((fx0 + fx1) / 2, (fy0 + fy1) / 2))
+        elif p["plate"] == "silhouette":
+            shape = silhouette(ctx.covered, Mp, p["plate_margin"])
+        else:
+            shape = outline(p["plate"], foot, p["plate_margin"])
+        shape = self.placed(shape, p)
         plate = Slice("W-1", "W", Mp, plate_t); plate.raw = as_multi(shape)
 
         # teeth: every piece that stands on the plate, in every stretch where it does
@@ -177,12 +234,14 @@ class Plaque(Stacked):
         for i, sl in enumerate(slices):
             mine, has, here = [], [], []
             for g in sl.raw.geoms:
-                tt = self.teeth(p, sl, g, rim, Mp, plate_t, (0.25 if i % 2 else -0.25) if close else 0.0, beside if tight else [], short)
+                tt = self.teeth(p, sl, g, rim, Mp, plate_t, (0.25 if i % 2 else -0.25) if close else 0.0,
+                                beside if tight else clash.get(sl.label, []), short)
                 here += [(t[0].bounds[0], t[0].bounds[2]) for t in tt]
                 for tooth, slot, pt in tt:
                     sl.links.append((plate.label, tooth, pt)); plate.links.append((sl.label, slot, pt))
                     plate.cuts.append(slot); owner.append(sl.label)
-                mine.append(unary_union([g, *[t[0] for t in tt]]) if tt else g); has.append(bool(tt))
+                # held: by its teeth, or in a crossed plaque by a slice of the other family slotted through it
+                mine.append(unary_union([g, *[t[0] for t in tt]]) if tt else g); has.append(bool(tt) or any(g.intersects(c) for c in sl.cuts))
             pieces.append(mine); held.append(has); beside = here
         if short:
             ctx.notes_extra = " · ".join(x for x in [ctx.notes_extra, f"{len(short)} stretch(es) on the plate too short for {p['teeth']} teeth, "
@@ -192,7 +251,7 @@ class Plaque(Stacked):
         # floating pieces: each hangs from a piece beside it that is held, by the plate or by its own neighbour
         joins = {}                                                      # index of the lower slice → the overlaps to join across
         need = (p["dowel_d"] + 2 * mf) ** 2                             # an overlap with room for a spacer and its walls
-        changed = not radial            # a fan's neighbours stand at an angle to each other: no flat spacer goes between them
+        changed = p["layout"] == "parallel"   # a fan's neighbours stand at an angle, a crossed piece is held by what crosses it: no spacers
         while changed:
             changed = False
             for i in range(len(slices)):
@@ -235,8 +294,8 @@ class Plaque(Stacked):
         if joined:
             ctx.notes_extra = " · ".join(x for x in [ctx.notes_extra, f"{joined} floating piece(s) hang from the slice beside them on spacers"] if x)
         extra = self.connect(ctx, slices) if ctx.joins else []
-        few = sorted({sl.label for sl in slices for g in sl.raw.geoms
-                      if g.bounds[1] > -plate_t / 2 and 0 < sum(g.intersects(c) for c in sl.cuts) < 3})   # no tooth: it hangs
+        few = sorted({sl.label for sl in slices for g in sl.raw.geoms if ctx.joins
+                      and g.bounds[1] > -plate_t / 2 and 0 < sum(g.intersects(c) for c in sl.cuts) < 3})   # no tooth: it hangs
         if few:
             ctx.notes_extra = " · ".join(x for x in [ctx.notes_extra, f"{len(few)} floating piece(s) had room for fewer than 3 spacers and may turn or tilt "
                                                      f"({', '.join(few[:8])}{'…' if len(few) > 8 else ''}): a smaller spacer width fits more"] if x)
@@ -249,6 +308,9 @@ class Plaque(Stacked):
         if w or h:
             fx = w / (x1 - x0) if w else h / (y1 - y0); fy = h / (y1 - y0) if h else fx
             shape = affinity.scale(shape, fx, fy)
+        k = p["plate_scale"] / 100
+        if k != 1 or p["plate_mirror"]:
+            shape = affinity.scale(shape, -k if p["plate_mirror"] else k, k)
         if p["plate_rotation"]:
             shape = affinity.rotate(shape, p["plate_rotation"])
         return affinity.translate(shape, *p["plate_offset"])

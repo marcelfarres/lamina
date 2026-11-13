@@ -60,7 +60,7 @@ def test_teeth_are_spread_evenly_and_a_long_stretch_gets_more_of_them(ball):
     assert np.ptp(np.diff(xs)) < 1e-3                               # the same step between every two teeth
 
 
-@pytest.mark.parametrize("kind", SHAPES)
+@pytest.mark.parametrize("kind", [s for s in SHAPES if s != "file"])
 def test_every_plate_shape_holds_the_model(ball, kind):
     plan = build(ball, "plaque", {**BASE, "sink": 50, "plate": kind, "plate_margin": 15})
     assert plan["counts"]["errors"] == 0
@@ -74,6 +74,33 @@ def test_plate_size_rotation_and_offset_place_the_plate(ball):
     plate = by_group(plan, "W")[0]
     assert plate["extents"] == pytest.approx([200, 120], abs=0.01)
     assert shape(plate).bounds[0] == pytest.approx(-90, abs=0.01)   # moved 10 mm along the plate's x
+
+
+STAR = ('<svg xmlns="http://www.w3.org/2000/svg" width="200mm" height="100mm" viewBox="0 0 200 100">'
+        '<path d="M0 0 H200 V100 H0 Z"/><circle cx="20" cy="15" r="5"/><text x="5" y="5">hi</text></svg>')
+
+
+def test_the_plate_can_be_a_shape_drawn_in_a_file_fitted_round_the_model_and_placed(ball):
+    plan = build(ball, "plaque", {**BASE, "sink": 50, "plate": "file", "plate_file": STAR, "plate_margin": 10})
+    assert plan["counts"]["errors"] == 0, plan["errors"]
+    plate = shape(by_group(plan, "W")[0])
+    x0, y0, x1, y1 = plate.bounds                                   # a 2 : 1 drawing round a 100 mm ball and 10 mm of margin
+    assert (x1 - x0, y1 - y0) == pytest.approx((240, 120), abs=0.5) and (x0 + x1) / 2 == pytest.approx(0, abs=0.5)
+    hole = max((Polygon(r) for r in plate.geoms[0].interiors), key=lambda q: q.area)     # the drawing's own cut-out, top left
+    assert hole.area == pytest.approx(3.14159 * 6 ** 2, rel=0.03) and hole.centroid.x < -80 and hole.centroid.y > 30
+    assert any("text ignored" in n for n in plan["notes"])
+    turned = build(ball, "plaque", {**BASE, "sink": 50, "plate": "file", "plate_file": STAR, "plate_margin": 10,
+                                    "plate_mirror": True, "plate_scale": 150, "plate_offset": [20, 0]})
+    t = shape(by_group(turned, "W")[0])
+    assert t.bounds[2] - t.bounds[0] == pytest.approx(360, abs=0.5) and (t.bounds[0] + t.bounds[2]) / 2 == pytest.approx(20, abs=0.5)
+    assert max((Polygon(r) for r in t.geoms[0].interiors), key=lambda q: q.area).centroid.x > 100      # mirrored: the cut-out is on the right
+
+
+def test_a_file_plate_with_no_file_or_no_outline_says_so_and_offers_a_shape(ball):
+    for text, word in (("", "no file chosen"), ("<svg xmlns='http://www.w3.org/2000/svg'><line x1='0' y1='0' x2='5' y2='5'/></svg>", "no closed outline"), ("junk", "not an SVG or DXF")):
+        plan = build(ball, "plaque", {**BASE, "plate": "file", "plate_file": text})
+        assert plan["counts"]["slices"] == 0 and word in plan["errors"][0]
+        assert plan["fixes"][0]["options"][0]["set"] == {"plate": "rounded"}
 
 
 def mushroom(extra=None):
@@ -144,9 +171,31 @@ def test_a_hole_too_small_for_the_fan_is_an_error_with_the_radius_that_fits(ball
 def test_the_drop_example_is_one_body_and_slices_clean_as_a_fan():
     from core.testmodels import droplet
     assert droplet().body_count == 1                                # rings, column and bulb: nothing in the air
-    plan = build("examples/droplet.stl", "plaque", {**BASE, "layout": "radial", "plate": "circle"})
+    plan = build("examples/droplet.stl", "plaque", {**BASE, "layout": "radial", "planes": 36, "angle": 1, "plate": "circle"})
     assert plan["counts"]["errors"] == 0 and plan["counts"]["warnings"] == 0
-    assert len(by_group(plan, "R")) == 24
+    assert len(by_group(plan, "R")) == 72
+
+
+def test_crossed_slices_half_lap_into_each_other_and_both_families_stand_on_the_plate(ball):
+    plan = build(ball, "plaque", {**BASE, "layout": "crossed", "nx": 4, "ny": 5, "sink": 50, "plate": "circle"})
+    assert plan["counts"]["errors"] == 0, [s["errors"] for s in plan["slices"]]
+    xs, ys = by_group(plan, "X"), by_group(plan, "Y")
+    assert (len(xs), len(ys)) == (4, 5)
+    foot = Polygon([(-1e4, -10), (1e4, -10), (1e4, -0.01), (-1e4, -0.01)])
+    for s in xs + ys:
+        assert s["engages"], s["label"]                             # every slice is slotted onto the other family
+        g = shape(s)
+        teeth = g.intersection(foot)
+        assert len(getattr(teeth, "geoms", [teeth])) >= 2
+    # the first family's slots open to the front, the second's to the plate: it drops on from the front
+    top = lambda s: shape(s).bounds[3]                              # noqa: E731
+    mid_x = max(xs, key=top)
+    solid = lambda s: Polygon(max(shape(s).geoms, key=lambda q: q.area).exterior)   # noqa: E731
+    assert solid(mid_x).area - shape(mid_x).area < 1                # slots are notches in the outline, not holes
+    # no tooth where a slice of the other family stands: every plate slot is clear of the other family's lines
+    plate = shape(by_group(plan, "W")[0])
+    slots = [Polygon(r) for p in plate.geoms for r in p.interiors]
+    assert len(slots) >= 2 * 9 and all(a.distance(b) >= 2 - 1e-6 for i, a in enumerate(slots) for b in slots[i + 1:])
 
 
 def test_slices_cannot_run_along_the_axis_the_plate_is_square_to(ball):

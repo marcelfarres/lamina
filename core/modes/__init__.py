@@ -16,6 +16,7 @@ MAX_SLICES = 500                      # the count slider's ceiling, and the ceil
 
 # Param.type → what the UI renders
 #   number | int | choice | bool | text
+#   file          a file picked in the form, kept as its text (an SVG or DXF outline)   value: the file's text
 #   vec2 / vec3   two / three number boxes                      value: [x, y(, z)]
 #   points        table of 2D points (+ alt-click in the 3D view) value: [[x, y], …]
 #   lines3        table of 3D lines start→end                   value: [[[x,y,z],[x,y,z]], …]

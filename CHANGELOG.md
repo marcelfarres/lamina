@@ -11,10 +11,13 @@ What changed in each release. The GitHub release for a version is this section, 
   with its back. You choose which side of the model goes against the plate, how deep the model sinks into it (what is
   behind the plate is left out), how many teeth each slice gets and how wide they are; long slices get more teeth,
   evenly spread. The plate has its own material thickness and its own shape: circle, ellipse, rectangle, rounded
-  rectangle, hexagon, shield, or the model's own silhouette, with a margin, a size, a turn and an offset. The slices
+  rectangle, hexagon, shield, the model's own silhouette, or a shape of your own from an SVG or DXF file (closed shapes
+  inside it are cut out of the plate), with a margin, a size, a scale, a mirror, a turn and an offset to place the
+  model in it. The slices
   are spread with the same controls as Stacked Slices, or stand as a fan round a centre (*layout* radial), their inner
-  ends meeting round a small hole whose radius you can set. Two new examples open with it: a drop falling into water,
-  as a fan on a round plate, and a bonsai in its pot. A piece of a slice that does not reach the plate hangs from the
+  ends meeting round a small hole whose radius you can set, or as two families slotted into each other like an egg
+  crate (*layout* crossed). Two new examples open with it: the rings a drop leaves on water,
+  as a fan on a round plate, a bonsai in its pot, and a dancer made of smooth blobs, crossed. A piece of a slice that does not reach the plate hangs from the
   slice beside it on three small flat spacers (side-by-side slices only), set edge-on so they hardly show from the front; a piece that no
   neighbour can hold is left out and named in the notes, or kept with its error if you prefer.
 

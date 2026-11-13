@@ -120,35 +120,68 @@ def hook():
 
 
 def droplet():
-    """A drop falling into still water, for the plaque's radial layout: rings that fade outward on a disc, and one
-    column rising from the middle with a bulb on top — all one body, nothing in the air. A profile turned about z;
-    the column is thick enough to stand outside the hole a radial fan leaves in its middle. 100 across before the ×3."""
-    R, rn, rb = 50.0, 7.5, 10.0                         # the disc, the column's neck, the bulb
-    r = np.linspace(R, rn, 260)
-    z = 7 + 5.5 * np.cos(2 * np.pi * (r - rn) / 11.5) * np.exp(-(r - rn) / 38) + 30 * np.exp(-(r - rn) / 2.6)
-    top = float(z[-1]); cz = top + np.sqrt(rb ** 2 - rn ** 2)   # the bulb: a ball sitting on the neck
-    arc = [(rb * np.sin(a), cz - rb * np.cos(a)) for a in np.linspace(np.arcsin(rn / rb), np.pi, 40)]
-    prof = [(0.0, 0.0), (R, 0.0)] + [(float(a), float(b)) for a, b in zip(r, z)] + arc[1:-1] + [(0.0, cz + rb)]
-    return trimesh.creation.revolve(np.array(prof), sections=120)
+    """Rings on still water after a drop, for the plaque's radial layout: long, soft waves that fade a little toward
+    the rim and sink smoothly to almost nothing at it, on a disc. A profile turned about z. Nothing stands in the middle: a radial fan leaves a hole there, and
+    a thin column would be cut to slivers. 100 across before the ×3."""
+    R = 50.0
+    r = np.linspace(R, 0, 400)
+    fade = np.clip((R - r) / 16, 0, 1); fade = fade * fade * (3 - 2 * fade)      # the last third of a wave sinks into the plate
+    z = 1.0 + fade * (6 + 4.2 * np.cos(2 * np.pi * r / 14) * np.exp(-r / 90))
+    prof = [(0.0, 0.0), (R, 0.0)] + [(float(a), float(b)) for a, b in zip(r, z)]
+    return trimesh.creation.revolve(np.array(prof), sections=144)
 
 
 def bonsai():
-    """A bonsai in its pot, for the plaque: a trunk that leans one way and back, thinning as it climbs, two branches,
-    and flat pads of foliage at their ends. Stands along z with its back to −y; cut at half its depth it is a relief
-    of the tree on its plate. The trunk and branches are balls strung along a curve, each a little smaller."""
+    """A bonsai in its pot, for the plaque: a gnarled trunk that leans one way and back, thinning as it climbs, roots
+    that grip the soil, three branches, and clouds of foliage at their ends. Stands along z with its back to −y; cut
+    at half its depth it is a relief of the tree on its plate. Trunk and branches are balls strung along a curve,
+    each cloud is a handful of flattened balls: no two alike, and the same tree every time (a fixed seed)."""
+    from scipy.interpolate import CubicSpline
+    rng = np.random.default_rng(11)
+
+    def limb(pts, r0, r1, n, knots=0.14):
+        pts = np.array(pts, float)
+        path = CubicSpline(np.linspace(0, 1, len(pts)), pts)(np.linspace(0, 1, n))
+        path[1:-1, 0] += rng.normal(0, 0.35, n - 2)                     # bark: the line wanders, the girth swells and thins
+        rad = np.linspace(r0, r1, n) * (1 + knots * np.sin(np.linspace(0, 9, n) + rng.uniform(0, 6)) + rng.normal(0, 0.04, n))
+        return [icosphere(2, float(r)).apply_translation(c) for c, r in zip(path, rad)]
+
+    def cloud(c, size, n):
+        size = np.array(size, float); out = [icosphere(3, 1).apply_scale(size * 0.62).apply_translation(c)]   # a core holds it together
+        for _ in range(n):
+            d = rng.normal(size=3); d = d / np.linalg.norm(d) * rng.uniform(0.25, 0.8)
+            d[2] = abs(d[2]) * 0.9 - 0.15                               # flat underneath, heaped on top
+            k = rng.uniform(0.34, 0.56) * size[0]
+            out.append(icosphere(2, 1).apply_scale([k, k * 0.85, k * rng.uniform(0.5, 0.75)]).apply_translation(np.array(c) + d * size))
+        return out
+
+    pot = trimesh.creation.revolve(np.array([(0, 0), (11.5, 0), (12.5, 1), (15.5, 7.5), (16.6, 8), (16.6, 9.6), (0, 9.6)]), sections=64).apply_scale([1.5, 0.56, 1])
+    soil = icosphere(3, 1).apply_scale([21, 7.5, 2.6]).apply_translation([0, 0, 9.4])
+    trunk = limb([(-6, 0, 10), (-11, 0, 19), (-3, 0, 27), (8, 0, 33), (7, 0, 43), (-1, 0, 50), (-3, 0, 55)], 6.0, 2.0, 54)
+    roots = [b for end in [(-17, 0, 10.5), (3, 0, 10.5), (-10, 2, 10.2)] for b in limb([(-7, 0, 13), end], 3.2, 1.3, 9, 0.05)]
+    limbs = limb([(4, 0, 30), (13, 0, 30), (21, 0, 34), (26, 0, 34)], 2.8, 1.5, 22) + limb([(7, 0, 40), (-4, 0, 40), (-13, 0, 44), (-18, 0, 44)], 2.6, 1.5, 22) \
+        + limb([(4, 0, 46), (10, 0, 48), (14, 0, 51)], 2.0, 1.3, 12)
+    leaves = cloud((-3, 0, 58), (14, 7.5, 6.5), 11) + cloud((27, 0, 37), (12, 7, 5.5), 9) + cloud((-20, 0, 47), (11.5, 7, 5), 9) + cloud((15, 0, 53), (8, 6, 4.2), 6)
+    return union(pot, soil, *trunk, *roots, *limbs, *leaves)
+
+
+def figure():
+    """A dancer made of smooth blobs, for the plaque's crossed layout: a head that floats above the shoulders, a
+    body that leans, one arm up and one flung out, one leg standing and one drawn up. Stands along z with its back
+    to −y; cut at half its depth every blob stands on the plate, so nothing needs to touch."""
     from scipy.interpolate import CubicSpline
 
-    def limb(pts, r0, r1, n):
-        pts = np.array(pts, float); t = np.linspace(0, 1, len(pts))
-        return [icosphere(2, r).apply_translation(c) for c, r in zip(CubicSpline(t, pts)(np.linspace(0, 1, n)), np.linspace(r0, r1, n))]
+    def limb(pts, r0, r1, n=28):
+        path = CubicSpline(np.linspace(0, 1, len(pts)), np.array(pts, float))(np.linspace(0, 1, n))
+        return [icosphere(2, float(r)).apply_translation(c) for c, r in zip(path, np.linspace(r0, r1, n))]
 
-    pad = lambda c, size: icosphere(3, 1).apply_scale(size).apply_translation(c)   # noqa: E731
-    pot = [box([44, 16, 8]).apply_translation([0, 0, 4]), box([48, 18, 3]).apply_translation([0, 0, 8.5])]
-    trunk = limb([(-5, 0, 9), (-10, 0, 19), (-2, 0, 28), (8, 0, 35), (6, 0, 45), (-2, 0, 53)], 5.5, 2.2, 46)
-    right = limb([(4, 0, 31), (13, 0, 31), (22, 0, 35)], 2.6, 1.6, 16)
-    left = limb([(7, 0, 41), (-4, 0, 41), (-15, 0, 44)], 2.4, 1.6, 18)
-    pads = [pad((-3, 0, 57), (15, 7.5, 6)), pad((25, 0, 38), (12, 7, 5)), pad((-19, 0, 47), (11, 7, 4.5)), pad((12, 0, 50), (8, 6, 4))]
-    return union(*pot, *trunk, *right, *left, *pads)
+    head = icosphere(3, 10.5).apply_translation([5, 0, 97])
+    body = limb([(3, 0, 68), (0, 0, 56), (-4, 0, 42)], 13.5, 11.0)
+    stand = limb([(-8, 0, 40), (-12, 0, 22), (-7, 0, 5)], 9.0, 5.5)
+    drawn = limb([(0, 0, 40), (19, 0, 32), (7, 0, 17)], 8.5, 5.5)
+    up = limb([(10, 0, 66), (25, 0, 76), (29, 0, 96)], 6.5, 4.8)
+    out = limb([(-6, 0, 65), (-24, 0, 59), (-33, 0, 76)], 6.5, 4.8)
+    return trimesh.util.concatenate([head, union(*body, *stand, *drawn, *up, *out)]).apply_scale([1, 1, 1])
 
 
 MODELS = {
@@ -179,6 +212,7 @@ MODELS = {
     # for the plaque
     "droplet": droplet,
     "bonsai": bonsai,
+    "figure": figure,
 }
 
 if __name__ == "__main__":

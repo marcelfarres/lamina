@@ -445,6 +445,7 @@ function field(p){
         // so typing one dimension tells you the other two instead of leaving three zeros that mean three things
         :`<span class="vec">${[...Array(n)].map((_,i)=>`<small>${lab[i]}</small>${num(id+'_'+i,(v||[])[p.name==='size'?sizeAxes()[i]:i]||(p.name==='size'?null:0),p,`data-vec="${p.name}" data-i="${i}" ${p.name==='size'?`placeholder="${plan?+(+show(p,plan.bbox[i])).toPrecision(3):'auto'}"`:''}`)}`).join('')}</span>`}
   else if(p.type==='text')inp=`<input id="${id}" value="${esc(v)}">`;
+  else if(p.type==='file')inp=`<span><input type="file" id="${id}" accept=".svg,.dxf"><small class="hint">${v?'a file is loaded':'no file yet'}</small></span>`;   // kept as its text
   else if(p.type==='curve')inp=`<span class="hint">drawn in the graph under the 3D view</span>`;
   else if(p.type==='points')inp=`<div class="rows" id="${id}">${(v||[]).map((q,i)=>`<div class="r"><small>${i+1}</small><input type="number" step="any" value="${show(p,q[0])}" data-pt="${p.name}" data-i="${i}" data-j="0"><input type="number" step="any" value="${show(p,q[1])}" data-pt="${p.name}" data-i="${i}" data-j="1"><button class="small x" data-del="${p.name}" data-i="${i}">×</button></div>`).join('')}<div class="r"><button class="small" data-add="${p.name}">+ point</button><span class="hint">or alt-click in the 3D view</span></div></div>`;
   else if(p.type==='lines3')inp=`<div class="rows" id="${id}">${(v||[]).length?`<div class="r hint"><small></small>${['x','y','z'].map(a=>`<span style="flex:1;text-align:center">${a} (${unit})</span>`).join('')}<span style="flex:0 0 24px"></span></div>`:''}${(v||[]).map((l,i)=>[0,1].map(e=>`<div class="r"><small>${e?'end':`${i+1} start`}</small>${[0,1,2].map(j=>`<input type="number" step="any" value="${show(p,l[e][j])}" data-ln="${p.name}" data-i="${i}" data-e="${e}" data-j="${j}" title="${e?'end':'start'} ${'xyz'[j]}">`).join('')}<span style="flex:0 0 24px">${e?'':`<button class="small x" data-del="${p.name}" data-i="${i}">×</button>`}</span></div>`).join('')).join('')}<div class="r"><button class="small" data-add="${p.name}">${{axes:'+ split an axis',branches:'+ branch'}[p.name]||'+ line'}</button><span class="hint">${{axes:'or alt-click the model for a parallel axis · drag them in the 3D view',branches:'or shift+alt-click a hoof, hand or tail tip · drag the ends in the 3D view · alt-click one to remove it'}[p.name]||'one straight dowel per line · or alt-click the model: a line up through that point'}</span></div></div>`;
@@ -571,6 +572,7 @@ $('#tabs').addEventListener('input',e=>{
   if(t.dataset.chip)return;
   const p=allParams().find(p=>'p_'+p.name===t.id); if(!p)return;
   if(p.name==='units'){unit=t.value;return applyUnit()}   // the Sheet tab's units box is the toolbar's, not a second one
+  if(p.type==='file'){const f=t.files[0]; if(f)f.text().then(x=>setVal(p.name,x)); return}
   if(p.type==='bool')setVal(p.name,t.checked); else if(p.type==='choice'||p.type==='text')setVal(p.name,t.value); else setVal(p.name,t.value===''?p.default:fromU(p,+t.value));
   if(t.closest('#g-model'))fitted=false;
 });
