@@ -136,3 +136,20 @@ def test_garbage():
         outlines("this is not a drawing")
     with pytest.raises(ValueError, match="not an SVG or DXF file"):
         outlines("<html><body/></html>")
+
+
+def test_a_file_saved_on_windows_reads_the_same():
+    """What a CAD program on Windows writes, and what the browser hands over unchanged: CR LF line ends, which made
+    ezdxf read an empty drawing, and a byte-order mark before the first tag of an SVG."""
+    doc = ezdxf.new("R2010"); doc.units = ezdxf.units.MM; msp = doc.modelspace()
+    msp.add_line((0, 0), (200, 0)); msp.add_line((200, 0), (200, 180)); msp.add_line((0, 180), (0, 0))
+    msp.add_arc((100, 180), 100, 0, 180); msp.add_circle((100, 250), 5)
+    out = io.StringIO(); doc.write(out)
+    unix = out.getvalue().replace("\r\n", "\n")
+    a, _ = outlines(unix)
+    b, _ = outlines(unix.replace("\n", "\r\n"))
+    assert a.bounds == pytest.approx((0, 0, 200, 280), abs=0.05) and len(a.interiors) == 1
+    assert b.equals(a)
+    svg = '<svg xmlns="http://www.w3.org/2000/svg" width="20mm" height="10mm" viewBox="0 0 20 10"><rect width="20" height="10"/></svg>'
+    c, _ = outlines("﻿" + svg.replace(">", ">\r\n"))
+    assert c.area == pytest.approx(200, rel=1e-6)

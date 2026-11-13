@@ -22,6 +22,9 @@ def outlines(text: str) -> tuple[Polygon, list[str]]:
     in millimetres, y up; and notes (plain sentences) about what was ignored. Raises ValueError with a plain message
     when the text is neither format or holds no closed outline."""
     notes: list[str] = []
+    # as a Windows program saves it: a byte-order mark first, and CR LF line ends, which ezdxf, reading from text,
+    # takes for an empty drawing (a DXF from any CAD program on Windows came back "no closed outline")
+    text = text.lstrip("﻿").replace("\r\n", "\n").replace("\r", "\n")
     root = _xml_root(text)
     rings = _svg_rings(root, notes) if root is not None else _dxf_rings(text, notes)
     return _plate(rings, notes), notes
