@@ -2,6 +2,14 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.3.3
+
+### Added
+
+- **A Reddit community.** [r/Lamina3D](https://www.reddit.com/r/Lamina3D) is a place to show what you built, ask for
+  help and say what Lamina should do next. It is linked beside the Discord in the app's header, on the Export tab,
+  on the landing page and in the README.
+
 ## 0.3.2
 
 A model far too big for its material now stops at once and offers the size that can be cut, turning a model no
