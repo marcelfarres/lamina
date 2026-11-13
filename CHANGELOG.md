@@ -2,6 +2,14 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.3.3
+
+### Fixed
+
+- **A slice no longer fails now and then while it nests the parts.** On a busy computer, laying the parts on the
+  sheets could stop with an error and no result; slicing again usually worked. The parts are now laid out without
+  that failure.
+
 ## 0.3.2
 
 A model far too big for its material now stops at once and offers the size that can be cut, turning a model no
