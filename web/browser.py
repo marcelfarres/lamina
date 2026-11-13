@@ -42,6 +42,7 @@ def handle(method: str, path: str, query: str, form) -> tuple[int, dict, bytes]:
             routes = {"export": lambda: A.job_export(client, job, q.get("fmt", "svg,dxf"), I("labels", 1), I("per_piece", 0), I("key", 1), q.get("units", ""),
                                                      grouped=I("grouped", 1)),
                       "stl": lambda: A.job_stl(client, job, q.get("part", "")),
+                      "step": lambda: A.job_step(client, job, q.get("part", "")),
                       "source": lambda: A.job_source(client, job),
                       "proto": lambda: A.job_proto(client, job, **proto),
                       "fit": lambda: A.job_fit(client, job, **proto, step=F("step", 0.1)),

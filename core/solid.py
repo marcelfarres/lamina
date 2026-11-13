@@ -3,6 +3,7 @@
 which opens in OrcaSlicer / PrusaSlicer as one named object per part, ready to arrange.
 
     uv run python -m core.solid working-files/egg.json --out working-files/egg_assembled.stl [--part X-3]
+    uv run python -m core.solid working-files/egg.json --out working-files/egg_assembled.step     # solids for CAD (core/step.py)
     uv run python -m core.solid working-files/egg.json --proto working-files/egg_proto --scale 0.5 --labels groove
     uv run python -m core.solid working-files/egg.json --fit working-files/egg_fit --step 0.1     # 5 slot offsets to try first
 """
@@ -14,7 +15,9 @@ from shapely import affinity
 from shapely.geometry import Polygon, MultiPolygon
 from shapely.ops import unary_union
 import shapely
-from .geometry import even_odd, min_rect_angle
+from .export import design_name, export
+from .geometry import even_odd, facet_polys, min_rect_angle
+from .step import step_text
 
 
 _no_engine = False   # trimesh has no triangulation engine here (the browser build): remembered, or it logs advice per piece
@@ -41,23 +44,25 @@ def extrude(poly, height) -> trimesh.Trimesh:
 def piece_mesh(pc, thickness) -> trimesh.Trimesh:
     """Every facet extruded by the thickness, centred on its plane, placed with its frame."""
     parts = []
-    for fc in pc["facets"]:
-        M = np.array(fc["M"])
-        for rings in fc["rings"]:
-            poly = Polygon(rings[0], rings[1:])
-            if not poly.is_valid:
-                poly = poly.buffer(0)
-            if poly.is_empty:
-                continue
-            m = extrude(poly, thickness)
-            m.apply_translation([0, 0, -thickness / 2]); m.apply_transform(M)
-            parts.append(m)
+    for poly, M in facet_polys(pc):
+        m = extrude(poly, thickness)
+        m.apply_translation([0, 0, -thickness / 2]); m.apply_transform(M)
+        parts.append(m)
     return trimesh.util.concatenate(parts) if parts else trimesh.Trimesh()
 
 
 def assembled(plan, part=None) -> trimesh.Trimesh:
     ms = [piece_mesh(pc, sl["thickness"]) for sl in plan["slices"] for pc in sl["pieces"] if part is None or pc["label"] == part]
     return trimesh.util.concatenate(ms) if ms else trimesh.Trimesh()
+
+
+def solid_bytes(plan, part=None, fmt="stl") -> bytes:
+    """The assembled model, or the one part labelled `part`, as a file: `step` is solids for CAD (core/step.py),
+    anything else a mesh in that format. LookupError when the plan has no such part."""
+    if part and part not in {pc["label"] for sl in plan["slices"] for pc in sl["pieces"]}:
+        raise LookupError(f"no part {part} in this plan")
+    data = step_text(plan, part, design_name(plan)) if fmt == "step" else assembled(plan, part).export(file_type=fmt)
+    return data if isinstance(data, bytes) else data.encode()         # STEP and some mesh formats (OBJ, OFF) are text
 
 
 # ---------------------------------------------------------------- text → polygons (labels engraved in prototypes)
@@ -290,7 +295,6 @@ def fit_sheets(plan, out_dir, fmts=("svg", "dxf"), labels=True, step=0.1, steps=
     slot offset and ±1 … ±`steps` × `step` mm, a folder of sheets per offset, every part labelled with its offset.
     The loosest that still holds is the slot offset to set. This is the test that predicts the model's fit; a
     scaled print (fit_set) cannot, a clearance being millimetres, not a ratio, and the process and material theirs."""
-    from .export import export
     out_dir = pathlib.Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
     files, tags = [], []
     for k in range(-steps, steps + 1):
@@ -318,6 +322,8 @@ def main(argv=None):
     ap.add_argument("--offset", type=float, default=0.2, help="print slot offset: slots this much wider than the material, in printed mm")
     a = ap.parse_args(argv)
     plan = json.loads(pathlib.Path(a.plan).read_text())
+    if not (a.out or a.proto or a.fit):
+        ap.error("nothing to write: give --out, --proto or --fit")
     if a.fit:
         for f in fit_set(plan, a.fit, a.scale, a.labels, a.font, a.min_thick, a.offset, a.step):
             print(f)
@@ -328,7 +334,12 @@ def main(argv=None):
         for f in proto_set(plan, a.proto, a.scale, a.labels, a.font, a.min_thick, note=note):
             print(f)
     else:
-        assembled(plan, a.part).export(a.out); print(a.out)
+        fmt = pathlib.Path(a.out).suffix[1:].lower()
+        try:
+            pathlib.Path(a.out).write_bytes(solid_bytes(plan, a.part, "step" if fmt == "stp" else fmt))
+        except LookupError as e:
+            ap.error(str(e))
+        print(a.out)
 
 
 if __name__ == "__main__":

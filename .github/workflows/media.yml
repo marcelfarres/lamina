@@ -38,8 +38,8 @@ jobs:
           node-version: "22"   # capture.mjs uses the built-in WebSocket
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: uv sync --frozen
-      - run: uv run --with playwright playwright install --with-deps chromium
-      - run: uv run --with playwright python scripts/media/record.py ${{ github.event.inputs.scenes }}
+      - run: uv run playwright install --with-deps chromium
+      - run: uv run python scripts/media/record.py ${{ github.event.inputs.scenes }}
       - name: commit the media if they changed
         run: |
           git config user.name "github-actions[bot]"

@@ -11,6 +11,7 @@ GET  /api/session?client=<id>                                                  �
 GET  /api/progress?client=<id>                                                 → the stage the client's slice is in
 GET  /api/job/{client}/{job}/export?fmt=svg,dxf,pdf,eps&labels=1&per_piece=0&grouped=1   → zip of cut files
 GET  /api/job/{client}/{job}/stl?part=<label>                                  → assembled solid (or one part) as STL
+GET  /api/job/{client}/{job}/step?part=<label>                                 → the same as STEP: true solids for CAD
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from fastapi.responses import FileResponse, Response
 from core import plan as plan_module
 from core.plan import build, MODES, CAD_SUFFIXES
 from core.export import design_name, export, svg_doc, items_for_sheet, sheet_title
-from core.solid import assembled
+from core.solid import fit_set, fit_sheets, proto_plan, proto_set, solid_bytes
 
 HERE = pathlib.Path(__file__).resolve().parent
 # Jobs go under the folder Lamina is started from: the repo, /app in Docker and the browser, the starter's own folder.
@@ -374,8 +375,6 @@ def job_proto(client: str, job: str, scale: float = 1.0, size: float = 0.0, labe
     them individually) — zipped, with the project file and a README saying how the print differs from the job."""
     jd, plan = _plan(client, job)
     scale = _scale(plan, scale, size)
-    from core.solid import proto_plan, proto_set
-
     plan, note = proto_plan(plan, scale, min_thick, offset)  # thicker material and the print's own clearance, so the slots fit
     try:
         return _zip(client, jd, plan, lambda tmp: proto_set(plan, tmp, scale, _engrave(labels), font, min_thick, note=note),
@@ -390,8 +389,6 @@ def job_fit(client: str, job: str, scale: float = 1.0, size: float = 0.0, labels
     mm), each part engraved with its value (see core.solid.fit_set) — plate.3mf, one STL per variant, README, zipped."""
     jd, plan = _plan(client, job)
     scale = _scale(plan, scale, size)
-    from core.solid import fit_set
-
     return _zip(client, jd, plan, lambda tmp: fit_set(plan, tmp, scale, _engrave(labels), font, min_thick, offset, step),
                 f"{design_name(plan)}_{plan['mode']}_printfit_x{scale:.3g}.zip")
 
@@ -402,19 +399,28 @@ def job_fitcut(client: str, job: str, fmt: str = "svg,dxf", labels: int = 1, ste
     at slot offsets around its own, a folder of sheets each (see core.solid.fit_sheets) — zipped with a README."""
     jd, plan = _plan(client, job)
     plan, fmts = with_units(plan, units), _fmts(fmt)
-    from core.solid import fit_sheets
-
     return _zip(client, jd, plan, lambda tmp: fit_sheets(plan, tmp, fmts, bool(labels), step), f"{design_name(plan)}_{plan['mode']}_fit_{'-'.join(fmts)}.zip")
 
 
 @app.get("/api/job/{client}/{job}/stl")
 def job_stl(client: str, job: str, part: str = ""):
+    return _solid_file(client, job, part, "stl")
+
+
+@app.get("/api/job/{client}/{job}/step")
+def job_step(client: str, job: str, part: str = ""):
+    """The same model as true solids for CAD: flat faces, no triangles (see core.step)."""
+    return _solid_file(client, job, part, "step")
+
+
+def _solid_file(client, job, part, fmt):
     _, plan = _plan(client, job)
-    if part and part not in {pc["label"] for sl in plan["slices"] for pc in sl["pieces"]}:  # a label of the plan, or nothing: it names the file too
-        raise HTTPException(404, "no such part")
-    data = assembled(plan, part or None).export(file_type="stl")
-    name = f"{design_name(plan)}_{plan['mode']}_{part or 'assembled'}.stl"
-    return Response(data, media_type="model/stl", headers={"Content-Disposition": f'attachment; filename="{name}"'})
+    try:
+        data = solid_bytes(plan, part or None, fmt)
+    except LookupError:                                       # a label of the plan, or nothing: it names the file too
+        raise HTTPException(404, "no such part") from None
+    name = f"{design_name(plan)}_{plan['mode']}_{part or 'assembled'}.{fmt}"
+    return Response(data, media_type=f"model/{fmt}", headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
 def main():

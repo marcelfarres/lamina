@@ -2,8 +2,8 @@
 file downloads, no uncaught error. This is what gates the deploy in .github/workflows/pages.yml. Locally:
 
     python deploy/build_site.py
-    uv run --with playwright playwright install chromium
-    LAMINA_E2E=1 uv run --with playwright pytest tests/test_e2e_site.py -q
+    uv run playwright install chromium
+    LAMINA_E2E=1 uv run pytest tests/test_e2e_site.py -q
 """
 import functools
 import http.server

@@ -31,8 +31,8 @@ jobs:
       - uses: astral-sh/setup-uv@v7
       - run: python deploy/build_site.py
       # the site goes out only if a real browser can load it and slice with every technique
-      - run: uv run --with playwright playwright install --with-deps chromium
-      - run: uv run --with playwright pytest tests/test_e2e_site.py -q
+      - run: uv run playwright install --with-deps chromium
+      - run: uv run pytest tests/test_e2e_site.py -q
         env:
           LAMINA_E2E: 1
       - uses: actions/upload-pages-artifact@v5

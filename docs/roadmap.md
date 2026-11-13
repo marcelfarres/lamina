@@ -79,6 +79,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Scale-check bar | ✅ | 10 cm or 4 in bar on the first sheet with room and as its own piece file, to cut and measure first |
 | Kerf compensation toggle | ✅ | `compensate`, off by default: machines that compensate their own kerf must not be compensated twice |
 | Solid output (STL of assembled model / single part) | ✅ | pure trimesh |
+| Solid output as STEP (true solids for CAD, flat faces) | ✅ | `core/step.py` writes the text itself, no CAD kernel, so the browser build has it too |
 | Test set | ✅ | 17 synthetic shapes (the dumbbell — two spheres on a neck — is the case for an axis per lobe) + 5 scanned (a head, three animals, the bunny); regression matrix; unfold and pipeline tests |
 
 ## §4 Get Plans / export

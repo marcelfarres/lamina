@@ -2,8 +2,8 @@
 technique touched at least once, so a field that stops driving the slicer — or a button that throws — fails here
 instead of in someone's inbox.
 
-    uv run --with playwright playwright install chromium
-    LAMINA_UI=1 uv run --with playwright pytest tests/test_ui.py -q
+    uv run playwright install chromium
+    LAMINA_UI=1 uv run pytest tests/test_ui.py -q
 
 It drives the page the way a person does (real input events, the debounce, the real /api/slice), and fails on any
 uncaught JavaScript error, on a status line that never settles, and on a parameter whose value does not reach the
@@ -243,7 +243,7 @@ def test_no_number_on_screen_is_cut_off(page):
             for tab in ("model", "technique", "sheet", "checks", "export"):
                 page.click(f'nav button[data-t="{tab}"]'); page.wait_for_timeout(150)
                 for line in page.evaluate(CUT_OFF):
-                    found.setdefault(line.split(" shows")[0].split(':')[0] + line.split(':')[1].split(' shows')[0], f"{example}/{mode}/{unit}: {line}")
+                    found.setdefault(line, f"{example}/{mode}/{unit}: {line}")     # the whole line: a box without a name must not hide another (040)
         page.select_option("#unit", "mm"); page.evaluate("() => window.__t.deselect()")
     assert not found, "\n".join(found.values())
 
@@ -1047,6 +1047,7 @@ def test_every_control_does_what_it_says_and_every_download_holds_the_plan(page,
     assert len(stl) == 84 + 50 * int.from_bytes(stl[80:84], "little") and int.from_bytes(stl[80:84], "little") > 100, "the STL is not whole"
     one = get(links["assembled STL"] + "?part=" + sorted(labels)[0]).body()     # one part alone, as the parts table offers it
     assert len(one) == 84 + 50 * int.from_bytes(one[80:84], "little") and 0 < len(one) < len(stl)
+    assert get(links["assembled STEP"]).body().count(b"MANIFOLD_SOLID_BREP('") >= len(labels), "the STEP misses parts"
     assert json.loads(get(links["plan.json"]).body())["counts"]["parts"] == p["counts"]["parts"]
     fit = zip_of(get(links[next(t for t in links if t.startswith("fit test SVG"))]).body())
     assert "README.txt" in fit.namelist() and len({n.split("/")[0] for n in fit.namelist() if "/" in n}) == 5

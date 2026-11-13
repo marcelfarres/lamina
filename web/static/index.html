@@ -33,7 +33,7 @@ input,select,button{font:inherit}input,select{width:100%;padding:4px 6px;border:
 .vec{display:flex;gap:4px}.vec input{min-width:0}.vec small{align-self:center;color:var(--muted)}
 .rows{display:flex;flex-direction:column;gap:3px}.rows .r{display:flex;gap:3px;align-items:center}.rows .r input{min-width:0}.rows .r small{color:var(--muted);min-width:44px}
 button.small{padding:3px 8px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:4px;cursor:pointer;font-size:12px;white-space:nowrap}button.small:hover{border-color:var(--acc)}button.small:disabled{opacity:.35;cursor:default;border-color:var(--line)}button.x{padding:2px 6px;color:var(--muted)}
-.chips{display:flex;flex-wrap:wrap;gap:4px;align-items:center}.chip{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:1px 8px;font-size:12px}.chip b{cursor:pointer;color:var(--muted);margin-left:4px}.chips input{width:70px;padding:2px 6px}
+.chips{display:flex;flex-wrap:wrap;gap:4px;align-items:center}.chip{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:1px 8px;font-size:12px}.chip b{cursor:pointer;color:var(--muted);margin-left:4px}.chips input{width:78px;padding:2px 6px}
 .hint{color:var(--muted);font-size:11px}h3.sub{font-size:12px;font-weight:600;margin:12px 0 1px;color:var(--ink)}p.hint.sub{margin:0 0 4px}
 .bar select{padding:1px 4px;width:auto}
 .modes{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}.modes button{padding:6px 9px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:4px;cursor:pointer;font-size:12px}.modes button.on{background:var(--acc);border-color:var(--acc);color:#fff}
@@ -85,9 +85,9 @@ button.small{padding:3px 8px;border:1px solid var(--line);background:var(--panel
 .sheet svg g[class]{stroke-width:1.2px;vector-effect:non-scaling-stroke}
 .sheet svg g[class] *{vector-effect:non-scaling-stroke}
 .sl{display:flex;gap:6px;align-items:center}.sl input[type=range]{flex:1;min-width:60px}.sl input[type=number]{width:74px;flex:none}
-/* a slider drives these boxes, so the spin buttons only hide the digits */
-.sl input[type=number],#sel input[type=number]{appearance:textfield;-moz-appearance:textfield}
-.sl input[type=number]::-webkit-inner-spin-button,.sl input[type=number]::-webkit-outer-spin-button,#sel input[type=number]::-webkit-inner-spin-button,#sel input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+/* a slider drives these boxes, and x y z or a table's values stand two or three in a row: the spin buttons only hide the digits */
+.sl input[type=number],#sel input[type=number],.vec input[type=number],.rows .r input[type=number]{appearance:textfield;-moz-appearance:textfield}
+.sl input[type=number]::-webkit-inner-spin-button,.sl input[type=number]::-webkit-outer-spin-button,#sel input[type=number]::-webkit-inner-spin-button,#sel input[type=number]::-webkit-outer-spin-button,.vec input[type=number]::-webkit-inner-spin-button,.vec input[type=number]::-webkit-outer-spin-button,.rows .r input[type=number]::-webkit-inner-spin-button,.rows .r input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 h2 button.reset{float:right;text-transform:none;letter-spacing:0;font-size:11px;padding:1px 7px;margin-top:-3px}
 #view{display:flex;flex-direction:column}#view.only3d #lower{display:none}#view.only3d #v3d{flex:1 1 auto}#view.only2d #v3d{display:none}#view.only2d #lower{flex:1}
 .dl{display:flex;flex-wrap:wrap;gap:6px}.dl.rows{flex-direction:column}.dl .r{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin-bottom:4px}.dl a{padding:6px 10px;border:1px solid var(--line);border-radius:4px;text-decoration:none;color:var(--ink);font-size:12px;background:var(--panel2)}.dl a:hover{border-color:var(--acc)}
@@ -1427,6 +1427,7 @@ function renderDownloads(){ // the labels checkbox applies to every cut file; th
   // every file says what it is for: eight buttons in a row left the reader to know which program wants which format
   const rows=r=>r.map(([t,u,use])=>`<div class="r"><a href="${u}">${t}</a>${use?`<span class="hint">${use}</span>`:''}</div>`).join('');
   const more=[['assembled STL',`${b}/stl`,'the whole model built from its parts, as one 3D file: to look at it or render it in another program'],
+    ['assembled STEP',`${b}/step`,'the same model as true solids, for CAD (Fusion, FreeCAD, Onshape): every part a body with flat faces, not a triangle mesh'],
     ['plan.json',`jobs/${CLIENT}/${job}/plan.json`,'everything Lamina worked out, for scripts and other tools']];
   $('#dl_title').textContent=state.printed?'The parts':'2 · The parts';
   if(state.printed){$('#dl').innerHTML=rows(more);return}
@@ -1473,7 +1474,7 @@ function renderReport(){
   // query string already names them, so nothing extra has to be tracked to know it.
   $('#dl').onclick=e=>{const a=e.target.closest('a');if(!a)return;
     const href=a.getAttribute('href')||'', q=new URLSearchParams(href.split('?')[1]||'');
-    const fmts=(q.get('fmt')?q.get('fmt').split(','):/\/stl$/.test(href)?['stl']:/plan\.json/.test(href)?['plan-json']:[]).map(f=>/fitcut/.test(href)?'fit-'+f:f);
+    const fmts=(q.get('fmt')?q.get('fmt').split(','):[href.split('?')[0].split('/').pop().replace('.','-')]).map(f=>/fitcut/.test(href)?'fit-'+f:f);
     fmts.forEach(f=>countUse('export',f+(q.get('per_piece')?'-per-piece':'')))};
   // one row per different part: its own size, how many to cut, and which pieces come off it
   const size=pc=>[pc.bbox[2]-pc.bbox[0],pc.bbox[3]-pc.bbox[1]].map(inU).join('×');
