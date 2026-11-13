@@ -110,12 +110,19 @@ class Folded(Mode):
         Param("score_side", "choice", "inside", "The face of the sheet that is up on the cutter, and so carries the scores and "
               "seam numbers: inside = the net is mirrored, they end up inside the model and the outside stays one clean "
               "surface; outside = they show on the outside, as on a printed paper model", choices=["inside", "outside"]),
+        Param("hinge", "number", 0.4, "3D printed panels (PLA, PETG): the skin left at every fold (mm). The panel prints at its "
+              "full thickness with a V groove along each fold, cut to that fold's own angle: it folds to the model's shape and "
+              "stops there, and with the plain `seam` joint the seam edges are mitred the same way, so the panels meet face to "
+              "face for glue. Two layers (0.4 mm) is a good start; PETG bends, PLA is brittle and folds once. 0 = no groove", 0, 5, 0.05, unit="mm"),
+        Param("hinge_w", "number", 0.4, "3D printed panels: width of the flat strip of skin at the bottom of each fold's groove (mm), "
+              "the length that bends. Wider folds more easily and stops less sharply", 0, 5, 0.05, unit="mm", label="hinge width"),
         Param("edge_labels", "bool", True, "Engrave the seam number beside every joint on both panels, so mating edges can be found"),
     ]
     hidden_common = ("notch_ratio", "notch_factor", "notch_angle", "relief", "tool_d", "margin", "tab", "offset", "tilt", "roll", "thick", "center", "skip")
 
     def build(self, ctx):
         p = ctx.p; t = p["thickness"]; self.p = p; self.t = t; self.inside = p["score_side"] == "inside"
+        self.hinged = bool(p["printed"]) and 0 < p["hinge"] < t        # printed with a living hinge at every fold
         # Bound the face count itself, not the facet size. `facet` 0 means "keep every triangle", which made
         # target_faces return 0 and skipped this guard entirely — the one route into unfold() with no limit, so a
         # scanned mesh of 200 000 faces never came back and the server looked hung. Whichever way the count was
@@ -152,6 +159,7 @@ class Folded(Mode):
                 va, vb = mesh.face_adjacency_edges[k]
                 f = mesh.face_adjacency[k][0]
                 sl.lines.append((self.mv(convex[k], styles), LineString([pn.tri[f][fa.index(va)], pn.tri[f][fa.index(vb)]])))
+                self.vee(sl, pn.tri[f][fa.index(va)], pn.tri[f][fa.index(vb)], k)
             slices.append(sl)
             for f in pn.faces:
                 owner[f] = sl
@@ -161,6 +169,9 @@ class Folded(Mode):
             va, vb = mesh.face_adjacency_edges[k]
             sides = [self.side(owner[f], f, va, vb) for f in (fa, fb)]
             phi = self.interior_angle(k)
+            if p["joint"] == "seam":                          # a mitre: the half of a fold's groove that lies on each panel
+                for s in sides:
+                    self.vee(s["sl"], s["A"], s["B"], k)
             extra += self.joint(j, k, sides, phi, convex[k])
         # additions (tabs) → raw; facets for the 3D view: the profile of every face in its own frame (+ folded tabs)
         for sl in slices:
@@ -192,6 +203,7 @@ class Folded(Mode):
                 sl.raw = as_multi(flip(sl.raw)); sl.cuts = [flip(c) for c in sl.cuts]
                 sl.lines = [(s, flip(ln)) for s, ln in sl.lines]
                 sl.marks = [(-m[0], m[1], m[2], -mark_rot(m)) for m in sl.marks]
+                sl.vees = [[-v[0], v[1], -v[2], *v[3:]] for v in sl.vees]
         # the sheet's outer face lies on the model's surface and its thickness goes inwards, so the outside is one
         # surface; centred on the surface, every fold left a notch on the outside and the model grew by half a sheet
         for sl in slices + extra:
@@ -212,7 +224,10 @@ class Folded(Mode):
         sheet thicker than the curve's radius, or faces too small for the sheet, cannot be folded to the model."""
         m, t = self.mesh, self.t
         L = np.linalg.norm(np.diff(m.vertices[m.face_adjacency_edges], axis=1)[:, 0], axis=1)
-        give = t * np.tan(np.minimum(m.face_adjacency_angles, math.pi * 0.999) / 2) * L
+        bend = np.minimum(m.face_adjacency_angles, math.pi * 0.999)
+        give = t * np.tan(bend / 2) * L
+        if self.hinged:                                       # a printed groove: as deep as the sheet less its skin, plus half its flat bottom
+            give = ((t - self.p["hinge"]) * np.tan(bend / 2) + self.p["hinge_w"] / 2 * (bend > math.radians(1))) * L
         for sl in slices:
             k = np.asarray(sl.pn.folds, int)
             if not len(k):
@@ -227,6 +242,18 @@ class Folded(Mode):
                                    f"off the inside of the bend on each side of a fold, and here the folds around a face need "
                                    f"more than the whole face. Use a thinner sheet or a bigger facet size, or round the model "
                                    f"less tightly: a curve needs a radius bigger than the sheet is thick")
+
+    def vee(self, sl, a, b, k):
+        """The V groove a printed panel gets along edge a→b (a fold, or a seam edge to mitre) of adjacency k: opened to
+        the edge's bend, on the face that closes (the inside of a convex edge), down to the hinge skin. An edge
+        between faces in one plane bends nothing and gets none."""
+        bend = float(self.mesh.face_adjacency_angles[k])
+        if not self.hinged or bend < math.radians(1):
+            return
+        h, g = self.p["hinge"], self.p["hinge_w"]
+        wide = g / 2 + (self.t - h) * math.tan(min(bend, math.pi * 0.999) / 2)
+        top = bool(self.mesh.face_adjacency_convex[k]) == self.inside       # the closing face is the one up on the bed
+        sl.vees.append([*map(float, a), *map(float, b), g, h, wide, top])
 
     def sunk(self, M):
         """Frame M moved half a sheet inwards: the centred extrusion then spans the surface to one thickness inside."""
@@ -243,12 +270,15 @@ class Folded(Mode):
         plywood cracks along the score where 3 mm cardboard folds. Every face its own panel, joined by ribs, folds
         nothing."""
         p = self.p; kind = p.get("material_kind") or p.get("material"); most = FOLDS.get(kind)
+        if self.hinged and p["joint"] not in FOLDED_JOINTS:      # printed with a groove at every fold: the skin is what folds
+            return False
         folds = sum(len(pn.folds) for pn in panels) + (len(seams) if p["joint"] in FOLDED_JOINTS else 0)
         if most is None or not folds or self.t <= most:
             return False
         why = "it does not fold, it cracks along the line" if most == 0 else f"it folds along a score up to about {most:g} mm"
         msg = (f"{folds} fold(s) in {self.t:g} mm {kind}: {why}. Cut every face as its own panel (separate) and join them with "
-               f"a joint that needs no fold (rib, rivet or laced), or use a thinner or foldable material")
+               f"a joint that needs no fold (rib, rivet or laced), or use a thinner or foldable material"
+               + (". Printed, the plain `seam` joint with a `hinge` skin folds along a groove at every fold" if p["printed"] else ""))
         ctx.errors.append(msg)
         fix = {"separate": True, "joint": "rib"}
         if (target_faces(ctx.mesh, p["facet"]) or len(ctx.mesh.faces)) > MAX_PANELS:    # each face is a part now: as few as build cuts

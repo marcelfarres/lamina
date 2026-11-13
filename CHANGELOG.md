@@ -14,6 +14,12 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ### Added
 
+- **Printed panels that fold.** PLA and PETG do not fold along a score, so folded panels in a printed material
+  stopped with an error. Now the panel prints at its full thickness with a V groove along every fold, cut to that
+  fold's own angle: the thin skin left at the bottom is the hinge, and the fold stops when it reaches the model's
+  shape. Two new settings on the Technique tab set the skin: *hinge* (its thickness) and *hinge width* (the strip
+  that bends). With the plain *seam* joint the seam edges are mitred the same way, so thick panels meet face to face
+  for glue. A new example, *fold_test*, is a small box to print and fold: it opens in 2 mm PETG on one plate.
 - **Folded panels say when the sheet is too thick to fold.** A fold takes material off the inside of the bend, more
   the thicker the sheet and the sharper the bend. Where the folds around a face would need more than the whole face,
   the panel warns how many folds cannot close: use a thinner sheet, a bigger facet size, or a gentler curve. A curve

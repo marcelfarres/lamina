@@ -63,6 +63,17 @@ face meet and it cannot be folded to the model's shape: on a curve this happens 
 curve's radius, a little sooner where the faces are narrow. Each panel says how many of its folds cannot close. The
 check runs only when the material folds at all (the material check comes first).
 
+## Printed panels: a groove at every fold
+A printed material (PLA, PETG) does not fold along a score. Printed, the panel can be thick and still fold: with
+`hinge` above 0 every fold gets a V groove on the face that closes, cut down to a skin `hinge` thick (the living
+hinge) with a flat bottom `hinge w` wide. Each wall leans half the fold's bend, so the groove opens
+`hinge w` + 2 · (t − hinge) · tan(bend / 2) wide and its walls meet when the fold reaches the model's angle. With
+the plain `seam` joint each seam edge gets the half of that groove on its own panel (a mitre): the panels meet
+face to face, with room for glue. Mountain folds are grooved from the face up on the bed, valley folds from the
+bed side. Edges between faces in one plane get no groove. The grooves travel in the plan with each piece (`vees`)
+and `core/solid.py` cuts them from the printed part; the browser build has no boolean engine and prints plain parts.
+The example `fold_test` (48 × 48 × 32 mm, 2 mm PETG) carries 45°, 76°, 80°, 90° and 104° folds and a valley edge.
+
 Complexity: O(faces × panel size) shapely unions per run; 300 faces ≈ 1 s per strategy.
 
 ## Joints (core/modes/folded.py)

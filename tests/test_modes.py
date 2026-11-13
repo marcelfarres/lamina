@@ -328,6 +328,31 @@ def test_folded_says_when_the_sheet_is_too_thick_to_fold_round_the_curve():
     assert closes(1.5) and not closes(8)
 
 
+def test_folded_panels_printed_get_a_groove_at_every_fold_down_to_the_hinge_skin(tmp_path):
+    """Asked for: print the panels thick and still fold them. PETG does not fold along a score, but printed it can
+    carry a V groove at every fold, cut to the fold's own angle, with a thin skin left as the hinge. The bundled
+    fold_test opens that way: no error, and under the middle of a groove the printed part is the skin and no more."""
+    from core.solid import proto_set
+    pr = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["fold_test"]
+    job = {**pr["params"], "material_kind": "PETG", "autofix": "off"}
+    plan = build(EXAMPLES / "fold_test.stl", "folded", job)
+    assert not plan["errors"] and plan["counts"]["errors"] == 0
+    sl = plan["slices"][0]; pc = sl["pieces"][0]
+    bends = {round(2 * np.degrees(np.arctan((v[6] - v[4] / 2) / (sl["thickness"] - v[5])))) for v in pc["vees"]}
+    assert {45, 90, 104} <= bends                                       # each groove opened to its own fold
+    assert {v[7] for v in pc["vees"]} == {True, False}                   # the valley edge closes on the other face
+    proto_set(plan, tmp_path, labels="none")
+    part = trimesh.load(tmp_path / "P-1.stl")
+    assert part.is_watertight
+    x0 = min(x for r in pc["kerfed"] for x, _ in r[0]); y0 = min(y for r in pc["kerfed"] for _, y in r[0])
+    v = max((v for v in pc["vees"] if v[7]), key=lambda v: np.hypot(v[2] - v[0], v[3] - v[1]))
+    mid = np.array([(v[0] + v[2]) / 2 - x0, (v[1] + v[3]) / 2 - y0]); along = np.array([v[2] - v[0], v[3] - v[1]])
+    sec = part.section(plane_origin=[*mid, 0], plane_normal=[*along, 0]).vertices
+    under = sec[np.linalg.norm(sec[:, :2] - mid, axis=1) < v[4] / 2 + 0.01]
+    assert np.isclose(under[:, 2].max(), job["hinge"], atol=0.02) and np.isclose(under[:, 2].min(), 0, atol=1e-3)
+    assert "does not fold" in build(EXAMPLES / "fold_test.stl", "folded", {**job, "hinge": 0})["errors"][0]
+
+
 # the horse on the landing page: its body curve and a branch down each leg, from where it leaves the body to the hoof
 HORSE = {"size": [0, 300, 0], "thicken": 1, "round": 2, "thickness": 3, "slot_offset": 0.1, "plane": "yz", "count": 20, "spines": 1}
 HORSE_CURVE = [[-119, 11], [-89, 18], [-59, 23], [-14, 10], [16, 13], [50, 22], [76, 47], [91, 76], [106, 89], [136, 83]]

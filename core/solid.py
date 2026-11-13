@@ -118,6 +118,16 @@ def label_inside(geom, text, min_h, inset=1.0):
     return None
 
 
+def vee(a, b, land, skin, wide, top, t) -> trimesh.Trimesh:
+    """The V groove along a→b to take out of a part `t` thick: `land` wide at the bottom, `skin` above the far face,
+    `wide` to each side where it opens on the top face (or the bottom one)."""
+    a, b = np.asarray(a, float), np.asarray(b, float)
+    d = (b - a) / np.linalg.norm(b - a); n = np.array([-d[1], d[0]])
+    a, b = a - d * 0.01, b + d * 0.01                                   # a hair past both ends and the open face: no coplanar faces
+    z0, z1 = (skin, t + 0.01) if top else (t - skin, -0.01)
+    return trimesh.convex.convex_hull([[*(q + n * s * u), z] for q in (a, b) for u, z in ((land / 2, z0), (wide, z1)) for s in (-1, 1)])
+
+
 def proto_part(pc, thickness, scale, labels, font, min_thick):
     """One part flat on z = 0 at `scale`, its label (`font` mm tall at least, see label_inside) as a groove (half
     depth, 0.6 mm at most) or a hole (through). Returns the mesh and whether the part got its label."""
@@ -130,6 +140,11 @@ def proto_part(pc, thickness, scale, labels, font, min_thick):
     if label is not None and labels == "hole":
         geom = geom.difference(label)
     mesh = trimesh.util.concatenate([extrude(g, t) for g in shapely.get_parts(geom) if g.area > 0])
+    if pc.get("vees"):                                     # a printed folded panel: a groove at every fold, its skin the hinge
+        move = lambda x, y: (x * scale - x0, y * scale - y0)   # noqa: E731
+        cuts = [vee(move(*v[0:2]), move(*v[2:4]), v[4], v[5], v[6], v[7], t) for v in pc["vees"]]
+        with contextlib.suppress(Exception):               # no boolean engine (the browser build): the part stays plain
+            mesh = trimesh.boolean.difference([mesh, *cuts], engine="manifold")
     if label is not None and labels == "groove":
         depth = min(t * 0.5, 0.6)
         groove = trimesh.util.concatenate([extrude(g, depth + 0.01) for g in shapely.get_parts(label) if g.area > 0])

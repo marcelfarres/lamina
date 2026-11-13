@@ -119,6 +119,15 @@ def hook():
     return trimesh.creation.sweep_polygon(Point(0, 0).buffer(9, 32), path, cap=True)
 
 
+def fold_test():
+    """A small box to print flat and fold (folded panels, printed): an L with one corner cut off and a sloping lid, so
+    one net carries 90° and 45° mountain folds, a 90° valley fold and seams at odd angles. 48 × 48 × 32 mm as exported."""
+    from shapely.geometry import Polygon
+    m = trimesh.creation.extrude_polygon(Polygon([(0, 0), (48, 0), (48, 24), (24, 24), (24, 48), (12, 48), (0, 36)]), 20)
+    v = m.vertices.copy(); top = v[:, 2] > 10; v[top, 2] += 0.25 * v[top, 0]
+    return trimesh.Trimesh(v / 3, m.faces)                # the export scales every model × 3
+
+
 MODELS = {
     # geometric
     "cube": lambda: box([60, 60, 60]),
@@ -144,6 +153,8 @@ MODELS = {
     "ripple": ripple,
     "berry": berry,
     "hook": hook,
+    # printed and folded: a groove at every fold
+    "fold_test": fold_test,
 }
 
 if __name__ == "__main__":
