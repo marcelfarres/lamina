@@ -36,5 +36,7 @@
                 "curve": [[-120, -126], [-60, -126], [0, -126], [42, -108], [66, -60], [78, 0], [78, 60], [78, 120]],
                 "spacing_vary": true, "spacing_curve": [[0, 34], [0.3, 30], [0.5, 9], [0.7, 30], [1, 34]], "spacing_min": 3, "spacing_max": 60}},
   "fold_test": {"mode": "folded", "params": {"material": "PETG", "printed": true, "machine": "bambu_h2c", "sheet": [325, 320], "thickness": 2, "kerf": 0,
-                "facet": 0, "joint": "seam", "hinge": 0.4, "hinge_w": 0.4}}
+                "facet": 0, "joint": "seam", "hinge": 0.4, "hinge_w": 0.4}},
+  "fold_lamp": {"mode": "folded", "params": {"material": "PETG", "printed": true, "machine": "bambu_h2c", "sheet": [325, 320], "thickness": 2, "kerf": 0,
+                "facet": 0, "strategy": "strip", "joint": "seam", "hinge": 0.4, "hinge_w": 0.4, "window": 0.6, "edge_labels": false}}
 }

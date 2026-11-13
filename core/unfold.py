@@ -52,6 +52,7 @@ class Panel:
         self.tri = {}              # face → (3,2) layout coordinates
         self.union = None          # shapely polygon of the layout
         self.folds = []            # adjacency indices of the fold edges inside the panel
+        self.parent = {}           # face → (the face it was laid out from, the adjacency index of the fold between them)
 
     def to_local(self, f, geom):
         """Layout geometry → the face's own 2D frame (inverse rigid transform)."""
@@ -133,7 +134,7 @@ def unfold_once(mesh, split, max_faces, max_dims, weights, local):
             visited.add(to); pn.faces.append(to)
             pn.R[to], pn.t[to], pn.tri[to] = R, t, tri
             tris.append(poly); boxes = np.vstack([boxes, b]); pts.append(tri)
-            pn.folds.append(k); tree.add(k)
+            pn.folds.append(k); tree.add(k); pn.parent[to] = (fr, k)
             for a2, f2, k2 in nb[to]:
                 if f2 not in visited:
                     heapq.heappush(heap, (a2, to, f2, k2))

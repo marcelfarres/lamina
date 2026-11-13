@@ -74,6 +74,26 @@ bed side. Edges between faces in one plane get no groove. The grooves travel in 
 and `core/solid.py` cuts them from the printed part; the browser build has no boolean engine and prints plain parts.
 The example `fold_test` (48 × 48 × 32 mm, 2 mm PETG) carries 45°, 76°, 80°, 90° and 104° folds and a valley edge.
 
+## Stiff sheet: seams meet at the inside edges
+Two square-cut panels that both reach the model's edge occupy the same corner on every outward (convex) seam: a
+t × t square at 90°. Paper gives; metal, wood and acrylic do not, and the part cannot close. With `edge fit` =
+inner (the default) each outward seam edge is cut back by t · tan(bend / 2), so the inside edges of the two
+panels meet and the gap is on the outside. Holes, slots and seam numbers are measured from the new edge. Inward
+seams need nothing: their material moves apart. Joints with a tab or loop on the edge are not cut back, and
+printed panels are mitred instead (above). `outer` keeps the edges on the model's edge.
+
+## Windows
+`window` opens every face with a hole of its own shape, for a lamp shade or a lantern. The frame left around it is
+what the share asks for and never less than 1.25 × the minimum feature width, plus what the face's grooves or
+cut-back edges take, plus the reach of the joint's holes or slots. A face too small for that stays whole.
+The example `fold_lamp` uses it: a twisted, swelling tube of 72 triangles, printed in 2 mm PETG on one plate.
+
+## The fold slider
+Each panel face remembers the face it was unfolded from (`Panel.parent`). The plan gives every facet a `hinge`:
+its parent facet, the fold line on the model (a point and a direction) and the turn that lays it flat beside the
+parent. The 3D view's `fold` slider turns every face about its fold line by the share left, parents first: 0 % is
+the flat panel in the plane of its first face, 100 % the model. The recorded assembly video ends with it.
+
 Complexity: O(faces × panel size) shapely unions per run; 300 faces ≈ 1 s per strategy.
 
 ## Joints (core/modes/folded.py)

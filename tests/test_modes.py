@@ -353,6 +353,39 @@ def test_folded_panels_printed_get_a_groove_at_every_fold_down_to_the_hinge_skin
     assert "does not fold" in build(EXAMPLES / "fold_test.stl", "folded", {**job, "hinge": 0})["errors"][0]
 
 
+def test_folded_stiff_panels_meet_at_their_inside_edges():
+    """Asked for: in metal or wood the panels did not go together. Two square-cut panels that both reach the model's
+    edge share the corner on every outward seam, and stiff sheet has nowhere to go. Each seam edge is cut back by
+    t × tan(bend / 2): on a cube in 6 mm sheet that is 6 mm off every side of every face."""
+    job = {"thickness": 6, "material": "plywood", "facet": 0, "separate": True, "joint": "laced", "autofix": "off", "sheet": [1200, 800]}
+    side = lambda fit: max(build(EXAMPLES / "cube.stl", "folded", {**job, "edge_fit": fit})["slices"][0]["extents"])   # noqa: E731
+    assert np.isclose(side("outer"), 180, atol=0.05) and np.isclose(side("inner"), 168, atol=0.05)
+
+
+def test_folded_lamp_has_a_window_in_its_faces_and_unfolds_flat():
+    """The bundled lamp shade: `window` opens its faces and leaves a frame the grooves fit in (no warning), and the
+    hinges the 3D view folds it by lay every face of a panel in the plane of the panel's first face at fold 0."""
+    pr = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["fold_lamp"]
+    plan = build(EXAMPLES / "fold_lamp.stl", "folded", {**pr["params"], "material_kind": "PETG", "autofix": "off"})
+    assert plan["counts"]["errors"] == 0 and plan["counts"]["warnings"] == 0
+    pc = max((sl["pieces"][0] for sl in plan["slices"]), key=lambda pc: len(pc["facets"]))
+    assert sum(len(poly) - 1 for poly in pc["kerfed"]) > 40                 # windows: holes in the net
+
+    def turn(h, s):                                                        # as the page's applyFold builds it
+        p, d, u = np.array(h[1:4]), np.array(h[4:7]), (1 - s) * h[7]
+        K = np.array([[0, -d[2], d[1]], [d[2], 0, -d[0]], [-d[1], d[0], 0]])
+        R = np.eye(3) + np.sin(u) * K + (1 - np.cos(u)) * K @ K
+        M = np.eye(4); M[:3, :3] = R; M[:3, 3] = p - R @ p
+        return M
+    D, normals = [], []
+    for fc in pc["facets"]:
+        h = fc.get("hinge")
+        D.append(D[h[0]] @ turn(h, 0) if h else np.eye(4))
+        normals.append(D[-1][:3, :3] @ np.array(fc["M"])[:3, 2])
+    assert sum(1 for fc in pc["facets"] if fc.get("hinge")) == len(pc["facets"]) - 1
+    assert np.allclose(normals, normals[0], atol=1e-3)                       # flat: every face looks the same way
+
+
 # the horse on the landing page: its body curve and a branch down each leg, from where it leaves the body to the hoof
 HORSE = {"size": [0, 300, 0], "thicken": 1, "round": 2, "thickness": 3, "slot_offset": 0.1, "plane": "yz", "count": 20, "spines": 1}
 HORSE_CURVE = [[-119, 11], [-89, 18], [-59, 23], [-14, 10], [16, 13], [50, 22], [76, 47], [91, 76], [106, 89], [136, 83]]

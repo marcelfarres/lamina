@@ -83,6 +83,8 @@ class Slice:
     mark_boxes: list = field(default_factory=list)  # folded: the room each of `marks` takes, boxed once (cached)
     reduced: int = 0                    # folded: joints made smaller than asked
     vees: list = field(default_factory=list)        # folded, printed: [x0, y0, x1, y1, land, skin, half width, top] a V groove per fold and seam edge
+    hinges: list | None = None                      # folded: per facet, [parent facet, point xyz, axis xyz, unfold angle] or None: how the 3D view folds it
+    tab_of: list = field(default_factory=list)      # folded: the face each of `tab_facets` lies on
     tab_facets: list = field(default_factory=list)  # folded: the tabs as the 3D view shows them, folded onto their panel
 
     @property

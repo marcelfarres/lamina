@@ -734,7 +734,8 @@ def _slice_json(sl):
         "engages": sl.engages, "extents": [round(sl.bbox[2] - sl.bbox[0], 2), round(sl.bbox[3] - sl.bbox[1], 2)],
         "errors": sl.errors, "warnings": sl.warnings, "fixes": sl.fixes,
         "pieces": [{"label": pc.label, "place": list(pc.place), "bbox": [round(b, 3) for b in pc.bbox],
-                    "facets": [{"M": np.round(M, 6).tolist(), "rings": poly_coords(g)} for M, g in pc.facets],   # 3D view
+                    "facets": [{"M": np.round(M, 6).tolist(), "rings": poly_coords(g), **({"hinge": h} if h else {})}   # 3D view; hinge: how a folded panel's face unfolds
+                               for (M, g), h in zip(pc.facets, sl.hinges or [None] * len(pc.facets))],
                     "kerfed": poly_coords(pc.kerfed),        # local 2D, kerf applied (per-piece export)
                     "placed": poly_coords(pc.placed),        # sheet coordinates, kerf applied
                     "lines": [[s, line_coords(l)[0]] for s, l in pc.placed_lines],   # fold and guide lines on the sheet
