@@ -73,6 +73,7 @@ class Stacked(Mode):
         Param("spacer_dir", "choice", "alternate", "Orientation of pegs / spacers in the slice plane", choices=["x", "y", "alternate"], show_if=("connect", "tab")),
     ]
     hidden_common = ("notch_ratio", "notch_factor", "notch_angle")
+    side_step = 1.2            # consecutive pairs put their spacers this many widths to one side and the other, clear of each other
 
     legend = ("Z-3 = the 3rd slice along the stacking axis, counted from the low end (X- or Y- when you stack along those) · "
               "Z-3a = dowel a between Z-3 and Z-4 — a connector is named after the lower of the two slices it joins and a letter, "
@@ -83,6 +84,42 @@ class Stacked(Mode):
     def build(self, ctx):
         p = ctx.p
         ax = "xyz".index(p["axis"]); normal = ctx.ax[ax]; up = ctx.ax[(ax + 2) % 3]
+        length = ctx.ext[ax]
+        labels, pos, th, drawn = self.planes(ctx, ax)
+        slices = ctx.keep([Slice(lab, "S", ctx.frame(lab, ctx.mid + normal * z, normal, up_hint=up), tk)
+                           for lab, z, tk in zip(labels, pos, th)])
+        self.profiles(ctx, slices)
+        slices = [s for s in slices if not s.raw.is_empty]
+        ctx.rods = []
+        ctx.cover_r = self.cover_r(ctx, pos, drawn, length, len(slices))
+        if p["space"] > 0 and p["connect"] == "none":
+            ctx.errors.append(f"space = {p['space']:g} mm between slices but no connectors — the slices would float: set connect to tab (spacers) or dowel, or set space to 0")
+        if p["connect"] == "none" or len(slices) < 2:
+            return slices
+        return self.in_order(slices, self.connect(ctx, slices))
+
+    @staticmethod
+    def cover_r(ctx, pos, drawn, length, n):
+        """How far across its plane a slice counts as covering the surface: half the widest step between two slices."""
+        p = ctx.p
+        return (max(np.diff(pos)) / 2 + 0.5 if len(pos) > 1 else length / 2) if drawn is not None else \
+            (p["thickness"] + p["space"]) / 2 + 0.5 if p["distribution"] == "distance" else length / (2 * max(1, n)) + 0.5
+
+    @staticmethod
+    def in_order(slices, extra):
+        """Assembly order: a slice, then the connectors that sit on it, then the next slice …"""
+        by_pair = {}
+        for sl in extra:
+            by_pair.setdefault(sl.pair, []).append(sl)
+        out = []
+        for i, sl in enumerate(slices):
+            out.append(sl); out += by_pair.get(i, [])
+        return out
+
+    def planes(self, ctx, ax):
+        """Where the slices of the stack sit along axis `ax`: their labels, positions (0 = the middle of the model) and
+        thicknesses, and what the spacing curve drew (None when the spacing is even)."""
+        p = ctx.p
         length = ctx.ext[ax]; t = p["thickness"]; gap = p["space"]
         name = lambda i: f"{p['axis'].upper()}-{i + 1}"
         drawn = ctx.spaced("spacing_curve", length - 2 * p["margin"], p["count"])
@@ -110,26 +147,7 @@ class Stacked(Mode):
                       "use fewer slices, thinner material, or a smaller shift"
                 ctx.errors.append(f"{'spacing curve' if drawn is not None else 'shift'}: {len(tight)} pair(s) of slices overlap — "
                                   f"{a} and {b} are {g:.1f} mm apart, less than the material: {why}")
-        slices = ctx.keep([Slice(lab, "S", ctx.frame(lab, ctx.mid + normal * z, normal, up_hint=up), tk)
-                           for lab, z, tk in zip(labels, pos, th)])
-        self.profiles(ctx, slices)
-        slices = [s for s in slices if not s.raw.is_empty]
-        ctx.rods = []
-        ctx.cover_r = (max(np.diff(pos)) / 2 + 0.5 if len(pos) > 1 else length / 2) if drawn is not None else \
-            (t + gap) / 2 + 0.5 if p["distribution"] == "distance" else length / (2 * max(1, len(slices))) + 0.5
-        if p["space"] > 0 and p["connect"] == "none":
-            ctx.errors.append(f"space = {p['space']:g} mm between slices but no connectors — the slices would float: set connect to tab (spacers) or dowel, or set space to 0")
-        if p["connect"] == "none" or len(slices) < 2:
-            return slices
-        extra = self.connect(ctx, slices)
-        # assembly order: a slice, then the connectors that sit on it, then the next slice …
-        by_pair = {}
-        for sl in extra:
-            by_pair.setdefault(sl.pair, []).append(sl)
-        out = []
-        for i, sl in enumerate(slices):
-            out.append(sl); out += by_pair.get(i, [])
-        return out
+        return labels, pos, th, drawn
 
     def shifted(self, ctx, pos, name, length, t, gap, refill):
         """Every slice plane moved by `shift` along the axis. A stack laid by distance is laid again from the shifted
@@ -440,7 +458,7 @@ class Stacked(Mode):
             tab_w_i = d if gap_i < 1e-6 else d * 0.6
             if tab:
                 ang = {"x": 0.0, "y": 90.0, "alternate": 90.0 * (j % 2)}[p["spacer_dir"]]
-                step = d * 1.2 * (1 if i % 2 else -1)
+                step = d * self.side_step * (1 if i % 2 else -1)
                 angs = (ang, 90.0 - ang) if p["spacer_dir"] == "alternate" else (ang,)
                 tries = [(A, s) for A in angs for s in (step, -step)] + [(A, 0.0) for A in angs]
             else:
@@ -494,7 +512,7 @@ class Stacked(Mode):
             # already there, plus the connector's own reach — so a small layer with room for one finds it; its most
             # inward spot is taken first, then each as far from the others as the room allows. No room at all, and
             # the check says what size would fit. Lines are the connectors someone drew; nothing is added to those.
-            for isl in [] if p["placement"] == "lines" else as_multi(a.raw.intersection(b.raw)).geoms:
+            for isl in self.islands(ctx, a, b):
                 have = [q for q in got if isl.contains(Point(q))]
                 # As many as asked for on top of any typed in, and for dowels, on past that while the piece is not
                 # held and the next spot holds it better (at most as many again): a dowel typed into a bunny's ear
@@ -515,7 +533,7 @@ class Stacked(Mode):
                     parts = sorted(as_multi(room).geoms, key=lambda g: -g.area)
                     x0, y0, x1, y1 = room.bounds; h = max(d / 4, math.sqrt(room.area) / 20)
                     grid = np.stack(np.meshgrid(np.arange(x0, x1, h), np.arange(y0, y1, h)), -1).reshape(-1, 2)
-                    q += [shapely.maximum_inscribed_circle(g, 0.1).coords[0] for g in parts]   # each room's middle first
+                    q += self.seeds(parts)
                     q += [tuple(c) for c in grid[shapely.contains_xy(room, grid[:, 0], grid[:, 1])]]
                 def far(q, ms):                                        # farthest from the connectors in ms first
                     q.sort(key=lambda pt: -min(_dist(pt, m) for m in ms))
@@ -543,6 +561,15 @@ class Stacked(Mode):
                 if (round(x, 2), round(y, 2)) not in used:
                     slices[0].warnings.append(f"dowel point ({x:g}, {y:g}) is outside the material of every pair of slices — nothing cut; alt-click nearer the middle of a slice")
         return extra
+
+    def islands(self, ctx, a, b):
+        """The islands two neighbouring slices share that connect() holds with as many connectors as were asked for:
+        all of them, but for lines, which are the connectors someone drew."""
+        return [] if ctx.p["placement"] == "lines" else as_multi(a.raw.intersection(b.raw)).geoms
+
+    def seeds(self, parts):
+        """Where the first connector of an island is tried: the middle of each room it has."""
+        return [shapely.maximum_inscribed_circle(g, 0.1).coords[0] for g in parts]
 
     @staticmethod
     def _said(p, skipped, bare, rooms, margin, d):

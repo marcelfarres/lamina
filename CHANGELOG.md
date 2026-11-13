@@ -2,6 +2,20 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.3.3
+
+### Added
+
+- **Plaque: a new technique for wall pieces.** The model is cut off at a flat back plate and its slices stand on edge
+  on the plate, like a trophy head on a shield. Each slice has teeth that go through slots in the plate and end flush
+  with its back. You choose which side of the model goes against the plate, how deep the model sinks into it (what is
+  behind the plate is left out), how many teeth each slice gets and how wide they are; long slices get more teeth,
+  evenly spread. The plate has its own material thickness and its own shape: circle, ellipse, rectangle, rounded
+  rectangle, hexagon, shield, or the model's own silhouette, with a margin, a size, a turn and an offset. The slices
+  are spread with the same controls as Stacked Slices. A piece of a slice that does not reach the plate hangs from the
+  slice beside it on three small flat spacers, set edge-on so they hardly show from the front; a piece that no
+  neighbour can hold is left out and named in the notes, or kept with its error if you prefer.
+
 ## 0.3.2
 
 A model far too big for its material now stops at once and offers the size that can be cut, turning a model no

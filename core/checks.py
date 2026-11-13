@@ -15,8 +15,8 @@ from shapely.strtree import STRtree
 from .geometry import (crossings, dowel_leverage, hole_reach, into, min_dims, plane_plane_line, rect_along, thin_spots,
                        to_local, to_world)
 
-HELD_GROUPS = ("X", "Y", "R", "C")     # regions in these groups must be held by a slot / dowel / the core
-STRUCTURAL = ("X", "Y", "R", "C", "S")  # take part in the assembly-connectivity check (panels, pegs, strips, ribs do not)
+HELD_GROUPS = ("X", "Y", "R", "C", "W")     # regions in these groups must be held by a slot / dowel / the core ("W" = a plaque's back plate)
+STRUCTURAL = ("X", "Y", "R", "C", "S", "W")  # take part in the assembly-connectivity check (panels, pegs, strips, ribs do not)
 LEVERAGE_WARN = 1.5    # placement aims for 0.8 (geometry.LEVERAGE_OK); past this a piece's far edge visibly wanders
 
 
@@ -59,7 +59,7 @@ def check_slice(sl, p):
                                f"move the slice (offset), or accept and handle with care")
         # engagement: a region must be held by something (a slot, a dowel, the core) unless it is the only region of a stacked slice
         if sl.group in HELD_GROUPS or (sl.group == "S" and len(regions) > 1):
-            held = any(reg.intersects(c) for c in sl.cuts)
+            held = any(reg.intersects(c) for c in sl.cuts) or any(reg.intersects(g) for _, g, _ in sl.links)   # a plaque's tooth is a link, not a cut
             if not held and sl.group != "S":
                 sl.errors.append(f"{tag} floats — no slot or dowel holds it: add a crossing slice through it, move this slice, or delete it")
             elif not held and p.get("space", 0) > 0:     # stacked with a gap: nothing touches, so an island without a connector hangs in the air

@@ -619,7 +619,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         top = max([pc.placed.bounds[3] for pc in pieces] + [pc.label_pos[1] + p["font"] * 0.7 for pc in pieces if pc.label_pos], default=0.0) + p["sheet_margin"]
         sheet_out = [sheet0[0], float(np.ceil(top))]; p["sheet"] = sheet0
     progress("measuring coverage", 0.94)
-    cov = coverage(mesh, slices, ctx.cover_r or max(mesh.extents) / 8, lat=max(3.0, p["thickness"]))
+    cov = coverage(mesh if ctx.covered is None else ctx.covered, slices, ctx.cover_r or max(mesh.extents) / 8, lat=max(3.0, p["thickness"]))
     progress("done", 1.0)
     if ctx.notes_extra:
         notes.append(ctx.notes_extra)
@@ -633,6 +633,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         "axes": [a.tolist() for a in ctx.ax], "mid": ctx.mid.tolist(),      # slicing frame (for click-placed points in the UI)
         "curve3d": ctx.curve3d, "curve_pts": ctx.curve_pts,
         "axes3d": ctx.axes3d,                                                # radial's fan axes, curve's branches: drawn and dragged in 3D
+        "clip": ctx.clip,                                                    # plaque: the plate's front face [point, normal]; the model behind it is not shown
         "bounds3d": ctx.bounds3d,                                            # the planes between lobes or at a branch's joint, moved and tilted like slices
         "spacing": ctx.spacing,                                              # what the drawn spacing curves gave: positions along each axis, for the graph
         "rods": ctx.rods,                                                    # dowel rods for the 3D view and the key: [[x0,y0,z0],[x1,y1,z1],d,section [[x,y]…] in the slice's x/y,slice x axis,name (Z-3a),from slice,to slice]

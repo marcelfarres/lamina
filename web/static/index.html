@@ -372,7 +372,7 @@ const SHEETS={
   foam:[['20 × 30 in · 508 × 762 mm',inch(20,30)],['32 × 40 in · 813 × 1016 mm',inch(32,40)],['40 × 60 in · 1016 × 1524 mm',inch(40,60)],['A2 · 594 × 420 mm',[594,420]],['A1 · 841 × 594 mm',[841,594]],['A0 · 1189 × 841 mm',[1189,841]],['1000 × 2000 mm',[1000,2000]]],
   // print beds: one sheet is one plate
   print:[['180 × 180 mm bed',[180,180]],['220 × 220 mm bed',[220,220]],['250 × 210 mm bed',[250,210]],['256 × 256 mm bed',[256,256]],['300 × 300 mm bed',[300,300]],['325 × 320 mm bed',[325,320]],['350 × 350 mm bed',[350,350]]]};
-const COLORS={X:0xd9a760,Y:0x7fb0d9,S:0xd9c080,R:0x8fd08f,C:0xc07070,F:0xc9a0e0,J:0xf0c060,P:0x9a9a9a,B:0x4fd1ff};
+const COLORS={X:0xd9a760,Y:0x7fb0d9,S:0xd9c080,R:0x8fd08f,C:0xc07070,F:0xc9a0e0,J:0xf0c060,P:0x9a9a9a,B:0x4fd1ff,W:0x0072b2};
 const LOOKS={cardboard:[0xb98a5a,.9,0],paper:[0xf2f0e6,.95,0],plywood:[0xd9b98a,.7,0],steel:[0xaab2bb,.35,.8],plastic:[0x6fb7e8,.25,.05],brass:[0xc9a44c,.3,.85],copper:[0xc27a52,.3,.85],foam:[0x45484f,.95,0]};
 const PLANE_IDX={xz:[0,2],yz:[1,2],xy:[0,1]};
 let MODES=[],mode=null,state={},job=null,plan=null,seq=0,timer=null,pendingFile=null,srcFile=null,unit='mm',selected=null,busy=false,busySince=0;
@@ -970,6 +970,7 @@ function render3D(modelUrl){
   applyLook(); renderGuides();
   $('#steps').max=i; $('#steps').value=i; applyExplode();
   if(!ghostLive)showGhost(modelUrl);   // already shown mid-build: the same mesh, and fetching it again is not free
+  clipGhost();
   ghost.visible=$('#ghost').checked; dirty=true;
   if(selected){const m=parts.children.find(c=>c.userData.slice===selected);m?highlight(m):deselect()}
   if(!fitted){fitView();fitted=true}
@@ -977,6 +978,9 @@ function render3D(modelUrl){
 // The translucent model behind the parts, loaded on its own: the build finishes with the mesh a second or two in and
 // says so, so the 3D view fills with your model while the slices are still being worked out instead of staying empty
 // until the last sheet is nested. Until there are parts, the view frames the model itself.
+// A plaque leaves out what is behind its plate: the ghost is cut at the plate's front face (plan.clip = [point, normal]).
+function clipGhost(){const c=plan?.clip, pl=c?[new THREE.Plane(new THREE.Vector3(...c[1]),-(c[0][0]*c[1][0]+c[0][1]*c[1][1]+c[0][2]*c[1][2]))]:null;
+  renderer.localClippingEnabled=true; for(const m of ghost.children){m.material.clippingPlanes=pl;m.material.needsUpdate=true} dirty=true}
 function showGhost(modelUrl){
   if(!modelUrl||modelUrl===ghostUrl)return;
   if(ghostUrl?.startsWith('blob:'))URL.revokeObjectURL(ghostUrl);   // the browser build hands over the mesh itself
@@ -984,7 +988,7 @@ function showGhost(modelUrl){
   new STLLoader().load(modelUrl,g=>{
     smoothNormals(g);
     ghost.clear(); ghost.add(new THREE.Mesh(g,new THREE.MeshStandardMaterial({color:0x8899aa,transparent:true,opacity:.18,depthWrite:false})));
-    ghost.visible=$('#ghost').checked;
+    ghost.visible=$('#ghost').checked; clipGhost();
     if(!fitted&&!parts.children.length)fitView();       // not `fitted = true`: the parts get their own fit when they land
     dirty=true});
 }
