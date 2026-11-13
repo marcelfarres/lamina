@@ -340,7 +340,7 @@ def test_folded_panels_printed_get_a_groove_at_every_fold_down_to_the_hinge_skin
     sl = plan["slices"][0]; pc = sl["pieces"][0]
     bends = {round(2 * np.degrees(np.arctan(v[6] / (sl["thickness"] - v[5])))) for v in pc["vees"]}     # the fold at which the walls meet
     assert {45, 90, 104} <= bends                                       # each groove opened to its own fold
-    assert {v[7] for v in pc["vees"]} == {True, False}                   # the valley edge closes on the other face
+    assert {v[7] for v in pc["vees"]} == {True}                          # its one inward edge is a seam: the sheets part there, no mitre
     assert sum(len(fc.get("bevel", [])) for fc in pc["facets"]) == len(pc["vees"]) + sum(1 for fc in pc["facets"] if fc.get("hinge") and fc["hinge"][7])   # the 3D view draws every groove: a fold on both its faces
     proto_set(plan, tmp_path, labels="none")
     part = trimesh.load(tmp_path / "P-1.stl")
@@ -355,6 +355,28 @@ def test_folded_panels_printed_get_a_groove_at_every_fold_down_to_the_hinge_skin
     assert "does not fold" in build(EXAMPLES / "fold_test.stl", "folded", {**job, "hinge": 0})["errors"][0]
     tight = build(EXAMPLES / "fold_test.stl", "folded", {**job, "hinge_stop": -5})["slices"][0]["pieces"][0]["vees"]
     assert {round(2 * np.degrees(np.arctan(v[6] / (sl["thickness"] - v[5])))) for v in tight} >= {40, 85, 99}   # every fold stops 5° sooner
+
+
+def test_folded_printed_glue_tabs_are_flaps_of_the_skin():
+    """A glue tab as thick as a printed sheet would fold into the panel it glues to. Printed, a tab keeps only the
+    hinge skin: a thin flap on a mitred seam, shown on the outside of the panel it folds onto."""
+    from core.solid import proto_set
+    pr = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["fold_test"]
+    plan = build(EXAMPLES / "fold_test.stl", "folded", {**pr["params"], "material_kind": "PETG", "joint": "tab", "tab_h": 8, "autofix": "off"})
+    assert plan["counts"]["errors"] == 0
+    pc = plan["slices"][0]["pieces"][0]
+    assert len(pc["thin"]) >= 10 and pc["thin_t"] == 0.4
+    assert sum(1 for fc in pc["facets"] if fc.get("t") == 0.4) == len(pc["thin"])        # the 3D view draws them thin
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        proto_set(plan, d, labels="none")
+        part = trimesh.load(pathlib.Path(d) / "P-1.stl")
+    assert part.body_count == 1                                            # every tab still hangs on its panel
+    x0 = min(x for r in pc["kerfed"] for x, _ in r[0]); y0 = min(y for r in pc["kerfed"] for _, y in r[0])
+    for rings in pc["thin"]:
+        mid = np.mean(rings[0], axis=0) - [x0, y0]
+        near = part.vertices[np.linalg.norm(part.vertices[:, :2] - mid, axis=1) < 2.5]
+        assert len(near) == 0 or near[:, 2].max() < 0.41                    # nothing above the skin inside a tab
 
 
 def test_folded_stiff_panels_meet_at_their_inside_edges():
@@ -411,6 +433,7 @@ def test_folded_lamp_has_a_window_in_its_faces_and_unfolds_flat():
     assert plan["counts"]["errors"] == 0 and plan["counts"]["warnings"] == 0
     pc = max((sl["pieces"][0] for sl in plan["slices"]), key=lambda pc: len(pc["facets"]))
     assert sum(len(poly) - 1 for poly in pc["kerfed"]) > 40                 # windows: holes in the net
+    assert {v[7] for v in pc["vees"]} == {True, False}                      # valley folds are grooved from the other face
 
     def turn(h, s):                                                        # as the page's applyFold builds it
         p, d, u = np.array(h[1:4]), np.array(h[4:7]), (1 - s) * h[7]

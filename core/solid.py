@@ -49,8 +49,9 @@ def piece_mesh(pc, thickness) -> trimesh.Trimesh:
                 poly = poly.buffer(0)
             if poly.is_empty:
                 continue
-            m = extrude(poly, thickness)
-            m.apply_translation([0, 0, -thickness / 2]); m.apply_transform(M)
+            t = fc.get("t") or thickness                                # a thin printed tab is not the sheet's thickness
+            m = extrude(poly, t)
+            m.apply_translation([0, 0, -t / 2]); m.apply_transform(M)
             parts.append(m)
     return trimesh.util.concatenate(parts) if parts else trimesh.Trimesh()
 
@@ -140,9 +141,12 @@ def proto_part(pc, thickness, scale, labels, font, min_thick):
     if label is not None and labels == "hole":
         geom = geom.difference(label)
     mesh = trimesh.util.concatenate([extrude(g, t) for g in shapely.get_parts(geom) if g.area > 0])
-    if pc.get("vees"):                                     # a printed folded panel: a groove at every fold, its skin the hinge
+    if pc.get("vees") or pc.get("thin"):                  # a printed folded panel: a groove at every fold, its skin the hinge
         move = lambda x, y: (x * scale - x0, y * scale - y0)   # noqa: E731
-        cuts = [vee(move(*v[0:2]), move(*v[2:4]), v[4], v[5], v[6], v[7], t) for v in pc["vees"]]
+        cuts = [vee(move(*v[0:2]), move(*v[2:4]), v[4], v[5], v[6], v[7], t) for v in pc.get("vees", [])]
+        for rings in pc.get("thin", []):                    # the glue tabs keep only the skin: everything above it goes
+            tab = Polygon([move(x, y) for x, y in rings[0]]).buffer(0.01, join_style="mitre")
+            top = extrude(tab, t - pc["thin_t"] + 0.01); top.apply_translation([0, 0, pc["thin_t"]]); cuts.append(top)
         with contextlib.suppress(Exception):               # no boolean engine (the browser build): the part stays plain
             mesh = trimesh.boolean.difference([mesh, *cuts], engine="manifold")
     if label is not None and labels == "groove":

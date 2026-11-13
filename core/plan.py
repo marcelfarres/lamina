@@ -734,8 +734,8 @@ def _slice_json(sl):
         "engages": sl.engages, "extents": [round(sl.bbox[2] - sl.bbox[0], 2), round(sl.bbox[3] - sl.bbox[1], 2)],
         "errors": sl.errors, "warnings": sl.warnings, "fixes": sl.fixes,
         "pieces": [{"label": pc.label, "place": list(pc.place), "bbox": [round(b, 3) for b in pc.bbox],
-                    "facets": [{"M": np.round(M, 6).tolist(), "rings": poly_coords(g), **({"hinge": h} if h else {}), **({"bevel": b} if b else {})}   # 3D view; hinge: how a folded panel's face unfolds, bevel: its grooved edges
-                               for (M, g), h, b in zip(pc.facets, sl.hinges or [None] * len(pc.facets), sl.bevels or [None] * len(pc.facets))],
+                    "facets": [{"M": np.round(M, 6).tolist(), "rings": poly_coords(g), **({"hinge": h} if h else {}), **({"bevel": b} if b else {}), **({"t": ft} if ft else {})}   # 3D view; hinge: how a folded panel's face unfolds, bevel: its grooved edges
+                               for (M, g), h, b, ft in zip(pc.facets, sl.hinges or [None] * len(pc.facets), sl.bevels or [None] * len(pc.facets), sl.facet_t or [None] * len(pc.facets))],
                     "kerfed": poly_coords(pc.kerfed),        # local 2D, kerf applied (per-piece export)
                     "placed": poly_coords(pc.placed),        # sheet coordinates, kerf applied
                     "lines": [[s, line_coords(l)[0]] for s, l in pc.placed_lines],   # fold and guide lines on the sheet
@@ -743,7 +743,8 @@ def _slice_json(sl):
                     "marks": [[round(m[0], 3), round(m[1], 3), m[2], round(mark_rot(m), 2)] for m in pc.placed_marks],
                     "kerfed_marks": [[round(m[0], 3), round(m[1], 3), m[2], round(mark_rot(m), 2)] for m in pc.marks],
                     "label_pos": pc.label_pos, "label_size": pc.label_size, "label_short": pc.label_short, "leader": pc.leader, "same": pc.same, "flipped": pc.flipped,
-                    **({"vees": [[round(float(x), 4) for x in v[:7]] + [bool(v[7])] for v in sl.vees]} if sl.vees else {}),   # printed folded panels: a V groove per fold
+                    **({"vees": [[round(float(x), 4) for x in v[:7]] + [bool(v[7])] for v in sl.vees]} if sl.vees else {}),
+                    **({"thin": [r for g in sl.thin for r in poly_coords(as_multi(g))], "thin_t": sl.thin_t} if sl.thin else {}),   # printed glue tabs: only the skin thick   # printed folded panels: a V groove per fold
                     "area": round(float(pc.geom.area), 3),   # net of holes and slots: × its slice's thickness × density = its weight
                     } for pc in sl.pieces],
     }

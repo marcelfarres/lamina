@@ -30,6 +30,7 @@ FOLDS = {"paper": 1, "card": 1.5, "cardboard": 7, "greyboard": 2, "polypropylene
 SQUISH = {"paper": 1, "card": 1, "fabric": 1, "cardboard": 1, "EVA foam": 0.7, "leather": 0.5, "greyboard": 0.3, "foam board": 0.3,
           "polypropylene": 0.1, "balsa": 0.1, "steel": 0, "stainless steel": 0, "aluminium": 0, "brass": 0, "copper": 0,
           "plywood": 0, "mdf": 0, "acrylic": 0, "basswood": 0, "PLA": 0, "PETG": 0}
+THIN_TABS = ("tab", "multitab", "diamond", "ticked", "gear")   # glue tabs a printed panel carries as thin flaps of its skin
 FOLDED_JOINTS = ("tab", "multitab", "diamond", "ticked", "gear", "tongue", "puzzle", "strip")   # a flap or bridge that bends
 MAX_HOLES = 60                        # holes along one seam (rivet / laced / strip)
 MAX_FACES = 4000                      # triangles this can unfold and lay out in a usable time
@@ -142,6 +143,9 @@ class Folded(Mode):
     def build(self, ctx):
         p = ctx.p; t = p["thickness"]; self.p = p; self.t = t; self.inside = p["score_side"] == "inside"
         self.hinged = bool(p["printed"]) and 0 < p["hinge"] < t        # printed with a living hinge at every fold
+        # … and its glue tabs as flaps of the skin alone: a tab as thick as the sheet would fold into the panel it glues to
+        self.thin_tabs = self.hinged and p["joint"] in THIN_TABS
+        self.mitres = self.hinged and (p["joint"] == "seam" or self.thin_tabs)     # seam edges cut to half the bend, face to face
         # Bound the face count itself, not the facet size. `facet` 0 means "keep every triangle", which made
         # target_faces return 0 and skipped this guard entirely — the one route into unfold() with no limit, so a
         # scanned mesh of 200 000 faces never came back and the server looked hung. Whichever way the count was
@@ -189,7 +193,7 @@ class Folded(Mode):
         through = back and p["edge_fit"] == "through" and p["joint"] in ("seam", "rivet", "laced")
         self.back = np.zeros(len(mesh.faces)); self.face_trims = {}; all_sides = {}
         give = SQUISH.get(p.get("material_kind") or p.get("material"))
-        mitred = self.hinged and p["joint"] == "seam"         # a printed seam edge is cut to half the bend: nothing left to collide
+        mitred = self.mitres                                  # a printed seam edge is cut to half the bend: nothing left to collide
         for k in seams:
             fa, fb = (int(x) for x in mesh.face_adjacency[k])
             va, vb = mesh.face_adjacency_edges[k]
@@ -233,7 +237,9 @@ class Folded(Mode):
         for j, k in enumerate(seams, 1):
             sides = all_sides[k]
             phi = self.interior_angle(k)
-            if p["joint"] == "seam":                          # a mitre: the half of a fold's groove that lies on each panel
+            # a mitre: the half of a fold's groove that lies on each panel. Outward seams only: at an inward one the two
+            # sheets move apart, and a mitre there would open a V on the outside and cut a glue tab off its panel
+            if self.mitres and convex[k]:
                 for s in sides:
                     self.vee(s["sl"], s["A"], s["B"], k, s["f"])
             extra += self.joint(j, k, sides, phi, convex[k])
@@ -271,6 +277,7 @@ class Folded(Mode):
                     sl.bevels.append(self.grooved.get(f))
             sl.hinges += [[at[f], 0, 0, 0, 0, 0, 1, 0] if f in at else None for f in sl.tab_of]    # a tab rides on its face
             sl.bevels += [None] * len(sl.tab_of)
+            sl.facet_t = [None] * len(sl.facets) + sl.tab_t
             sl.facets += sl.tab_facets
             if self.inside:                                   # the inside face up on the cutter: the net seen from inside
                 flip = lambda g: affinity.scale(g, -1, 1, origin=(0, 0))
@@ -278,6 +285,7 @@ class Folded(Mode):
                 sl.lines = [(s, flip(ln)) for s, ln in sl.lines]
                 sl.marks = [(-m[0], m[1], m[2], -mark_rot(m)) for m in sl.marks]
                 sl.vees = [[-v[0], v[1], -v[2], *v[3:]] for v in sl.vees]
+                sl.thin = [flip(g) for g in sl.thin]
         # the sheet's outer face lies on the model's surface and its thickness goes inwards, so the outside is one
         # surface; centred on the surface, every fold left a notch on the outside and the model grew by half a sheet
         for sl in slices + extra:
@@ -448,7 +456,7 @@ class Folded(Mode):
         plywood cracks along the score where 3 mm cardboard folds. Every face its own panel, joined by ribs, folds
         nothing."""
         p = self.p; kind = p.get("material_kind") or p.get("material"); most = FOLDS.get(kind)
-        if self.hinged and p["joint"] not in FOLDED_JOINTS:      # printed with a groove at every fold: the skin is what folds
+        if self.hinged and (p["joint"] not in FOLDED_JOINTS or self.thin_tabs):      # printed with a groove at every fold: the skin is what folds
             return False
         folds = sum(len(pn.folds) for pn in panels) + (len(seams) if p["joint"] in FOLDED_JOINTS else 0)
         if most is None or not folds or self.t <= most:
@@ -552,8 +560,12 @@ class Folded(Mode):
         """A tab drawn outside edge A→B of face a, shown in 3D folded flat against the inside of face b."""
         A, d, out, L = a["A"], a["d"], -a["n"], a["L"]
         pts = [b["lmid"] + (float(np.dot(P - A, d)) / L - 0.5) * L * b["ld"] + float(np.dot(P - A, out)) * b["ln"] for P in np.asarray(poly.exterior.coords)]
-        M = self.frames[b["f"]].copy(); M[:3, 3] -= M[:3, 2] * self.t          # just inside the mating panel
-        b["sl"].tab_facets.append((M, as_multi(Polygon(pts)))); b["sl"].tab_of.append(b["f"])
+        M = self.frames[b["f"]].copy(); h = self.p["hinge"]
+        if self.thin_tabs:                                    # a flap of the skin, folded round the edge onto the outside of the mating panel
+            M[:3, 3] += M[:3, 2] * (h / 2 + self.t / 2)         # (every facet is then sunk half a sheet, see build)
+        else:
+            M[:3, 3] -= M[:3, 2] * self.t                      # just inside the mating panel
+        b["sl"].tab_facets.append((M, as_multi(Polygon(pts)))); b["sl"].tab_of.append(b["f"]); b["sl"].tab_t.append(h if self.thin_tabs else None)
 
     # ---------------------------------------------------------------- joints
     def joint(self, j, k, sides, phi, convex):
@@ -652,7 +664,7 @@ class Folded(Mode):
             s["sl"].additions.append(loop)
             hole = circle(c, hole_d)
             s["sl"].cuts.append(hole)
-            s["sl"].tab_facets.append((self.frames[s["f"]], as_multi(s["sl"].pn.to_local(s["f"], loop.difference(hole))))); s["sl"].tab_of.append(s["f"])
+            s["sl"].tab_facets.append((self.frames[s["f"]], as_multi(s["sl"].pn.to_local(s["f"], loop.difference(hole))))); s["sl"].tab_of.append(s["f"]); s["sl"].tab_t.append(None)
         for s in sides:
             self.mark(s, j, p["font"] * 0.5)
         return []
@@ -750,6 +762,8 @@ class Folded(Mode):
                 break
         else:
             a["sl"].additions += polys
+            if self.thin_tabs:
+                a["sl"].thin += polys; a["sl"].thin_t = self.p["hinge"]
             # the hinge is scored across each tab's base, not along the whole seam edge: the rest of that edge is a cut,
             # and a score under a cut is wasted on the laser and invisible on the part
             a["sl"].lines += [(self.mv(convex), hl) for hl in hinges]

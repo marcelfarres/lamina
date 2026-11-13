@@ -72,7 +72,11 @@ narrower than its flat bottom) and the fold stops at the model's angle. The flat
 added to it, as the first version did, a 90° fold in 2 mm closed at 97° and a 45° fold at 57°. `fold stop` moves
 the stop a few degrees past or short of the model's angle, to tune a printer. With
 the plain `seam` joint each seam edge gets the half of that groove on its own panel (a mitre): the panels meet
-face to face, with room for glue. Mountain folds are grooved from the face up on the bed, valley folds from the
+face to face, with room for glue. Only outward seams are mitred: at an inward seam the sheets move apart. The glue
+tab joints (tab, multitab, diamond, ticked, gear) print their tabs as flaps of the skin alone (`thin` per piece):
+a tab as thick as the sheet would fold into the panel it glues to. The flap folds round the mitred edge onto the
+outside of the next panel. Tongue, puzzle and strip are not printed this way and keep the material error.
+Mountain folds are grooved from the face up on the bed, valley folds from the
 bed side. Edges between faces in one plane get no groove. The grooves travel in the plan with each piece (`vees`)
 and `core/solid.py` cuts them from the printed part; the browser build has no boolean engine and prints plain parts.
 The example `fold_test` (48 × 48 × 32 mm, 2 mm PETG) carries 45°, 76°, 80°, 90° and 104° folds and a valley edge.

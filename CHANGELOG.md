@@ -19,7 +19,8 @@ What changed in each release. The GitHub release for a version is this section, 
   fold's own angle: the thin skin left at the bottom is the hinge, and the fold stops when it reaches the model's
   shape. Three new settings on the Technique tab tune it: *hinge* (the skin's thickness), *hinge width* (the strip
   that bends) and *fold stop* (a few degrees past or short of the model's angle, to match your printer). With the plain *seam* joint the seam edges are mitred the same way, so thick panels meet face to face
-  for glue. A new example, *fold_test*, is a small box to print and fold: it opens in 2 mm PETG on one plate.
+  for glue. The glue-tab joints work too: each tab prints as a thin flap of the skin that folds onto the next panel.
+  A new example, *fold_test*, is a small box to print and fold: it opens in 2 mm PETG on one plate.
 - **Watch a folded panel fold up.** A new *fold* slider over the 3D view takes folded panels from flat to folded,
   every face turning about its own fold line. The recorded assembly video now ends with the panels folding up.
   Printed panels are drawn with their grooves and mitred edges, as they are exported.
