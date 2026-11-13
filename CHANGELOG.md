@@ -19,7 +19,8 @@ What changed in each release. The GitHub release for a version is this section, 
   crate (*layout* crossed). Two new examples open with it: the rings a drop leaves on water,
   as a fan on a round plate, a bonsai in its pot, and a dancer made of smooth blobs, crossed. A piece of a slice that does not reach the plate hangs from the
   slice beside it on three small flat spacers (side-by-side slices only), set edge-on so they hardly show from the front; a piece that no
-  neighbour can hold is left out and named in the notes, or kept with its error if you prefer.
+  neighbour can hold is left out and named in the notes, or kept with its error if you prefer. The spacing curve
+  works in every layout, and plate slots take the same inside-corner relief as every other slot, for a router.
 
 ## 0.3.2
 

@@ -212,6 +212,36 @@ def test_a_plaque_preset_names_its_own_gap_between_side_by_side_slices():
             assert "space" in pre["params"], name
 
 
+def test_plate_slots_get_the_inside_corner_relief_a_round_bit_needs(ball):
+    plain = build(ball, "plaque", {**BASE, "sink": 50, "plate": "circle"})
+    bone = build(ball, "plaque", {**BASE, "sink": 50, "plate": "circle", "relief": "dogbone", "tool_d": 3})
+    a, b = (shape(by_group(pl, "W")[0]).geoms[0] for pl in (plain, bone))
+    mid = lambda g: min((Polygon(r) for r in g.interiors), key=lambda q: q.centroid.distance(g.centroid))   # noqa: E731
+    slot, relieved = mid(a), mid(b)                                 # the slot nearest the middle of the plate, in both
+    assert len(slot.exterior.coords) == 5                           # a plain rectangle
+    assert relieved.contains(slot.buffer(-1e-6)) and relieved.area > slot.area + 4      # the same slot, with four ears
+    ears = relieved.difference(slot)
+    for x, y in slot.exterior.coords[:-1]:                          # an ear at every one of the four corners
+        assert ears.intersection(Polygon([(x - 1.6, y - 1.6), (x + 1.6, y - 1.6), (x + 1.6, y + 1.6), (x - 1.6, y + 1.6)])).area > 0.5
+
+
+def test_the_spacing_curve_spreads_a_fan_and_the_crossed_families(ball):
+    curve = {"spacing_vary": True, "spacing_curve": [[0, 5], [0.5, 30], [1, 5]], "spacing_min": 3, "spacing_max": 40}
+    fan = build(ball, "plaque", {**BASE, "layout": "radial", "planes": 8, "sink": 50, **curve})
+    assert fan["counts"]["errors"] == 0, fan["errors"]
+    rs = by_group(fan, "R")
+    assert len(rs) == 16
+    turns = sorted(float(np.degrees(np.arctan2(np.array(s["M"])[1, 0], np.array(s["M"])[0, 0]))) % 360 for s in rs)
+    steps = np.diff(turns)
+    assert steps.max() > 2 * steps.min()                            # close where the curve is low, wide where it is high
+    even = build(ball, "plaque", {**BASE, "layout": "radial", "planes": 8, "sink": 50})
+    assert min(shape(s).bounds[0] for s in rs) > min(shape(s).bounds[0] for s in by_group(even, "R"))   # closer planes need a wider hole
+    grid = build(ball, "plaque", {**BASE, "layout": "crossed", "nx": 6, "ny": 6, "sink": 50, **curve})
+    assert grid["counts"]["errors"] == 0, [s["errors"] for s in grid["slices"]]
+    xs = sorted(float(np.array(s["M"])[0, 3]) for s in by_group(grid, "X"))
+    assert len(xs) == 6 and np.ptp(np.diff(xs)) > 3                 # no longer evenly spread
+
+
 def test_slices_cannot_run_along_the_axis_the_plate_is_square_to(ball):
     plan = build(ball, "plaque", {**BASE, "back": "-z", "axis": "z"})
     assert plan["counts"]["slices"] == 0 and plan["errors"]

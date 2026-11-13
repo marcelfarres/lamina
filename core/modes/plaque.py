@@ -269,8 +269,17 @@ class Plaque(Stacked):
     def _fan(ctx, fr):
         # 2 × planes half-slices, 180 / planes apart. Their inner corners meet where the chord between two
         # neighbours is one slice wide, and their plate slots keep a wall between them a little further out.
-        p = ctx.p; n = p["planes"]; half = math.pi / (2 * n); slot_w = p["thickness"] + p["slot_offset"]
-        least = core_need(n, p["thickness"], p["slot_offset"])
+        p = ctx.p; n = p["planes"]; slot_w = p["thickness"] + p["slot_offset"]
+        # the planes' angles over half a turn: evenly, or as the spacing curve draws them (read in degrees, as radial's)
+        drawn = ctx.spaced("spacing_curve", 180.0, n, periodic=True, unit="deg")
+        turns = [180.0 * j / n for j in range(n)] if drawn is None else sorted(float(q) for q in drawn)
+        n = len(turns)
+        if not n:
+            return None
+        gaps = np.diff(turns + [turns[0] + 180.0])
+        n_tight = 180.0 / float(gaps.min())                             # as many planes as would be this close all round: what the hole must fit
+        half = math.pi / (2 * n_tight)
+        least = core_need(n_tight, p["thickness"], p["slot_offset"])
         r = p["radius"] or least
         if r < least - 1e-6:
             e = f"radius = {r:g} mm: {2 * n} half-slices of {p['thickness']:g} mm need a hole of at least {least:.1f} mm radius, or their inner ends collide"
@@ -281,7 +290,7 @@ class Plaque(Stacked):
         c = ctx.mid + fr.n_p * (fr.z0 - ctx.mid @ fr.n_p)               # the fan's centre, on the plate's front face
         slices = []
         for j in range(2 * n):
-            a = math.radians(p["angle"]) + 2 * half * j
+            a = math.radians(p["angle"] + turns[j % n] + 180.0 * (j // n))
             d = fr.Mp[:3, 0] * math.cos(a) + fr.Mp[:3, 1] * math.sin(a)   # the way this half-slice points: its local x
             lab = f"R-{j + 1}"
             slices.append(Slice(lab, "R", frame(c, np.cross(d, fr.n_p), up_hint=fr.n_p), ctx.thickness_of(lab)))
@@ -299,7 +308,8 @@ class Plaque(Stacked):
             reach = (fr.covered.vertices - ctx.mid) @ e
             L = float(np.ptp(reach)); c = float(reach.min() + reach.max()) / 2
             fam = []
-            for j, s in enumerate(ctx.positions(L, [p["thickness"]] * n)):
+            drawn = ctx.spaced("spacing_curve", L, n)                   # one curve, read along each family's own direction
+            for j, s in enumerate(ctx.positions(L, [p["thickness"]] * n) if drawn is None else [-L / 2 + q for q in drawn]):
                 lab = f"{name}-{j + 1}"
                 o = ctx.mid + e * (c + s + ctx.override("offset", lab))
                 fam.append(Slice(lab, name, frame(o + fr.n_p * (fr.z0 - o @ fr.n_p), e, up_hint=fr.n_p), ctx.thickness_of(lab), clip=as_multi(front)))
@@ -400,6 +410,14 @@ class Plaque(Stacked):
                     hw, ht = (w + so) / 2, (sl.thickness + so) / 2
                     edge = [(c - hw, -plate_t / 2), (c + hw, -plate_t / 2)]
                     slot = Polygon([*across(sl.M, Mp, edge, -ht), *across(sl.M, Mp, edge[::-1], ht)])
+                    r = p["tool_d"] / 2
+                    if r > 0 and p["relief"] != "square":
+                        # A round bit leaves the slot's four corners round and the square tooth stops short of them:
+                        # the same relief as every other slot, a bit-wide circle through each corner — dogbone on
+                        # the diagonal, a T-bone along the slot or across it.
+                        along, over = {"dogbone": (-r / math.sqrt(2), r / math.sqrt(2)), "tbone_h": (-r, 0.0)}.get(p["relief"], (0.0, r))
+                        slot = unary_union([slot, *[Point(*across(sl.M, Mp, [(c + sx * (hw + along), -plate_t / 2)], sz * (ht + over))[0]).buffer(r, 16)
+                                                    for sx in (1, -1) for sz in (1, -1)]])
                     out.append((box(c - w / 2, -plate_t, c + w / 2, 0.02), slot, tuple(to_world(sl.M, [(c, -plate_t / 2)])[0])))
         return out
 
