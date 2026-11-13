@@ -44,7 +44,9 @@ shapes and for rib / laced joints. `max_faces` caps panel size.
 
 Every mesh edge is exactly one of: fold (inside a panel, exported on the SCORE layer, mountain solid / valley
 dashed, dotted when `perforate`) or seam (numbered; the number is engraved beside the joint on **both** panels so
-the mating edges can be found on the cut sheet).
+the mating edges can be found on the cut sheet). A fold between two faces in one plane (less than 1° apart: the
+diagonal of a rectangle, the spokes of a hexagon cap) is not scored: the SCORE layer holds only the edges to bend.
+An edge whose two faces already lie side by side in a panel is a fold, never a seam.
 
 Complexity: O(faces × panel size) shapely unions per run; 300 faces ≈ 1 s per strategy.
 

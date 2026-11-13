@@ -142,6 +142,15 @@ def unfold_once(mesh, split, max_faces, max_dims, weights, local):
         # tolerance.
         pn.union = shapely.union_all(tris, grid_size=1e-6)
         panels.append(pn)
+    # A panel is grown as a tree, so an edge that closes a loop in it (the sixth spoke of a flat hexagon cap) was never
+    # walked. Where both of its faces already lie edge to edge in the layout the sheet is whole there: a fold like
+    # any other, not a seam asking for a joint on an edge nobody cuts.
+    own = {f: pn for pn in panels for f in pn.faces}
+    for k, (a, b) in enumerate(adj):
+        pn = own[a]
+        if k not in tree and own[b] is pn and all(
+                np.abs(pn.tri[a][faces[a].index(v)] - pn.tri[b][faces[b].index(v)]).max() < 1e-6 for v in aedges[k]):
+            pn.folds.append(k); tree.add(k)
     seams = [k for k in range(len(adj)) if k not in tree]
     return panels, seams
 

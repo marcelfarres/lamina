@@ -2,6 +2,15 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.3.3
+
+### Fixed
+
+- **Folded panels score only the edges you fold.** A flat face made of several triangles (a rectangle cut in two,
+  a hexagon cut in six) had a fold line on every inner edge, so the score layer could not go to an engraving tip
+  or a creasing tool as it was. Those lines are gone: the score layer now holds the real folds only. A few inner
+  edges of such a face were also numbered as seams although nothing is cut there; they no longer are.
+
 ## 0.3.2
 
 A model far too big for its material now stops at once and offers the size that can be cut, turning a model no
