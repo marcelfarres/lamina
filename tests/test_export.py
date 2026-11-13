@@ -9,8 +9,10 @@ import re
 import zipfile
 
 import ezdxf
+import numpy as np
 import trimesh
 from lxml import etree
+from shapely.geometry import Polygon
 
 from core.export import design_name, export
 from core.plan import build
@@ -409,14 +411,41 @@ def test_step_holds_one_closed_solid_per_flat_piece_of_a_part(tmp_path):
         edges = re.findall(r"(#\d+)=EDGE_CURVE", text)
         assert sorted(walked) == sorted((e, d) for e in edges for d in "TF"), mode
         assert text.count("=VERTEX_POINT") - len(edges) + text.count("=ADVANCED_FACE") == 2 * len(polys), mode
+        pts = np.array([[float(x) for x in m.split(",")] for m in re.findall(r"CARTESIAN_POINT\('',\(([^)]*)\)\)", text)])
+        assert np.allclose([pts.min(0), pts.max(0)], assembled(plan).bounds, atol=1e-6), mode   # where the STL stands
         one = polys[0][0]
         assert set(re.findall(r"MANIFOLD_SOLID_BREP\('([^']*)'", step_text(plan, one))) == {one}
-    cq = pytest.importorskip("cadquery", reason="the CAD kernel is an extra: uv sync --extra cad")   # the last one, stacked, read by OpenCascade
-    (tmp_path / "cube.step").write_text(text, encoding="ascii")
-    solids = cq.importers.importStep(str(tmp_path / "cube.step")).solids().vals()
-    assert len(solids) == len(polys) and all(s.isValid() for s in solids)
-    want = sum(g.area * t for _, g, t in polys)
-    assert abs(sum(s.Volume() for s in solids) - want) < 1e-6 * want           # positive: no solid is inside out
+    read = [(text, polys)]                                                    # the stacked one, for OpenCascade below
+    # a point given twice keeps its corner (it once lost both), names keep their letters, a line break cannot split a row
+    square = [[0, 0], [40, 0], [40, 0], [40, 0.0000001], [40, 30], [0, 30], [0, 0]]
+    hole = [[10, 10], [10, 20], [20, 20], [20, 10], [10, 10]]
+    for M in (np.eye(4), np.diag([-1.0, 1, 1, 1])):                           # as placed, and in a frame that mirrors
+        odd = {"slices": [{"thickness": 3, "pieces": [{"label": "Flügel 'A'", "facets": [{"M": M.tolist(), "rings": [[square, hole]]}]}]}]}
+        text = step_text(odd, name="a\nb")
+        assert text.count("=VERTEX_POINT") == 16 and text.count("=ADVANCED_FACE") == 10 and "PRODUCT('a b'" in text
+        assert "MANIFOLD_SOLID_BREP('Fl\\X2\\00FC\\X0\\gel ''A''" + "'," in text and text.isascii()
+        read.append((text, [("", Polygon(square, [hole]), 3)]))
+    cq = pytest.importorskip("cadquery", reason="the CAD kernel is an extra: uv sync --extra cad")   # read by OpenCascade
+    for text, polys in read:
+        (tmp_path / "it.step").write_text(text, encoding="ascii")
+        solids = cq.importers.importStep(str(tmp_path / "it.step")).solids().vals()
+        assert len(solids) == len(polys) and all(s.isValid() for s in solids)
+        want = sum(g.area * t for _, g, t in polys)
+        assert abs(sum(s.Volume() for s in solids) - want) < 1e-6 * want       # positive: no solid is inside out
+
+
+def test_the_command_line_writes_step_and_refuses_what_it_cannot_write(tmp_path):
+    """`--out x.step` writes solids named after the design, as the download does. A part that is not in the plan,
+    or no output at all, is an error said in words: it was an empty file that looked fine, and a crash."""
+    import pytest
+    from core import solid
+    plan = build(EXAMPLES / "cube.stl", "interlocked", {"nx": 2, "ny": 2, "autofix": "off"}, tmp_path / "plan")
+    solid.main([str(tmp_path / "plan.json"), "--out", str(tmp_path / "cube.step")])
+    assert f"PRODUCT('{design_name(plan)}'" in (tmp_path / "cube.step").read_text()
+    for bad in (["--out", str(tmp_path / "no.step"), "--part", "X-99"], []):
+        with pytest.raises(SystemExit):
+            solid.main([str(tmp_path / "plan.json"), *bad])
+    assert not (tmp_path / "no.step").exists()
 
 
 def test_every_file_carries_the_design_name_so_two_designs_never_mix(tmp_path):

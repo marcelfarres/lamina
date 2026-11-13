@@ -39,9 +39,14 @@ DIRECTION('',(1.,0.,0.))
 PRODUCT_RELATED_PRODUCT_CATEGORY('part','',(#4))"""
 
 
+MIN_EDGE = 1e-6     # mm: the shortest edge written; ten times what the 7 decimals of a coordinate tell apart
+
+
 def _text(s) -> str:
-    """A name as a STEP string: ASCII, with the quote and the backslash (STEP's own escape) doubled."""
-    return str(s).encode("ascii", "replace").decode().replace("\\", "\\\\").replace("'", "''")
+    """A name as a STEP string: the quote and the backslash (STEP's own escape) doubled, a letter outside ASCII in
+    STEP's X2 form so two names never become one, a control character (a line break would split the row) a space."""
+    one = lambda c, o: "''" if c == "'" else "\\\\" if c == "\\" else c if 32 <= o < 127 else " " if o < 160 else f"\\X2\\{o:04X}\\X0\\" if o < 0x10000 else f"\\X4\\{o:08X}\\X0\\"
+    return "".join(one(c, ord(c)) for c in str(s))
 
 
 def _xyz(v) -> str:
@@ -54,11 +59,13 @@ def _unit(v):
 
 
 def _ring(coords):
-    """A ring's corners (x, y) without the closing repeat and without the points that lie on a straight run: each
-    would split one flat wall into two with a line between them, and a repeated point has no wall at all."""
+    """A ring's corners (x, y) without the closing repeat, without a point that repeats the one before it (nearer
+    than MIN_EDGE: it has no wall, and written with 7 decimals the two would be one point) and without the points
+    that lie on a straight run: each would split one flat wall into two with a line between them."""
     p = np.asarray(coords, float)[:-1, :2]
+    p = p[np.linalg.norm(p - np.roll(p, 1, 0), axis=1) > MIN_EDGE]
     a, b = p - np.roll(p, 1, 0), np.roll(p, -1, 0) - p
-    return p[np.abs(a[:, 0] * b[:, 1] - a[:, 1] * b[:, 0]) > 1e-9 * np.maximum(np.linalg.norm(a, axis=1) * np.linalg.norm(b, axis=1), 1e-12)]
+    return p[np.abs(a[:, 0] * b[:, 1] - a[:, 1] * b[:, 0]) > 1e-9 * np.linalg.norm(a, axis=1) * np.linalg.norm(b, axis=1)]
 
 
 class _Step:

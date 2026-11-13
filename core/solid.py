@@ -323,6 +323,10 @@ def main(argv=None):
     ap.add_argument("--offset", type=float, default=0.2, help="print slot offset: slots this much wider than the material, in printed mm")
     a = ap.parse_args(argv)
     plan = json.loads(pathlib.Path(a.plan).read_text())
+    if not (a.out or a.proto or a.fit):
+        ap.error("nothing to write: give --out, --proto or --fit")
+    if a.part and a.part not in {pc["label"] for sl in plan["slices"] for pc in sl["pieces"]}:
+        ap.error(f"no part {a.part} in this plan")
     if a.fit:
         for f in fit_set(plan, a.fit, a.scale, a.labels, a.font, a.min_thick, a.offset, a.step):
             print(f)
@@ -334,8 +338,9 @@ def main(argv=None):
             print(f)
     else:
         if a.out.lower().endswith((".step", ".stp")):          # true solids for CAD; anything else is a mesh
+            from .export import design_name
             from .step import step_text
-            pathlib.Path(a.out).write_text(step_text(plan, a.part), encoding="ascii")
+            pathlib.Path(a.out).write_text(step_text(plan, a.part, design_name(plan)), encoding="ascii")
         else:
             assembled(plan, a.part).export(a.out)
         print(a.out)
