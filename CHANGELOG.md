@@ -20,6 +20,9 @@ The assembled model now also downloads as a STEP file, for CAD.
   a hexagon cut in six) had a fold line on every inner edge, so the score layer could not go to an engraving tip
   or a creasing tool as it was. Those lines are gone: the score layer now holds the real folds only. A few inner
   edges of such a face were also numbered as seams although nothing is cut there; they no longer are.
+- **Numbers in the narrow boxes show in full.** In inches and centimetres, a size or a curve point with four or more
+  digits could lose its last digit in the newest Chrome. The boxes that stand two or three in a row no longer have
+  the small up and down arrows, which took a fifth of the box, and the box where you type a new value is wider.
 
 ## 0.3.2
 
