@@ -338,6 +338,15 @@ S.labels = async () => {      // the vase's cut sheet, close: names in the singl
 await send("Page.reload"); await sleep(4000);              // a fresh tab: the last run may have left it mid-request
 await until("document.querySelector('#stats').textContent.includes('parts')");
 await js("document.querySelector('#pname').value='Lamina demo';document.querySelector('#pname').dispatchEvent(new Event('input'))");
+// plaque: the bonsai cut at half its depth, its slices standing on a back plate; then the plate's shape and thickness
+S.plaque = async () => {
+    await example("bonsai"); await mode("plaque"); await tab("technique");
+    await params({ layout: "parallel", back: "-y", axis: "x", sink: 27, margin: 4, space: 3, distribution: "distance", plate: "rounded", plate_margin: 20, plate_thickness: 0 }); await heal();
+    await view(58, 12, 1.0, 1.0); await project("plaque");
+    await techClip("plaque", 58, 12, 1.0, [["a round plate", () => set("plate", "circle")], ["the tree's own silhouette", () => set("plate", "silhouette")],
+        ["a shield", () => set("plate", "shield")], ["a 6 mm plate, teeth as long", () => set("plate_thickness", 6)],
+        ["back to 3 mm, a rounded rectangle", async () => { await set("plate_thickness", 0); await set("plate", "rounded"); }]]);
+};
 const want = process.argv.slice(2);
 for (const name of want.length ? want : Object.keys(S)) {
     if (!S[name]) { console.log("no scene", name); continue; }
