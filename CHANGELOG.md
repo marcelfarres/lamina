@@ -4,6 +4,16 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ## 0.3.3
 
+The assembled model now also downloads as a STEP file, for CAD.
+
+### Added
+
+- **Assembled STEP, for CAD.** The downloads have a new file, *assembled STEP*, beside the assembled STL. It holds
+  the same model as true solids: every part is a body with flat faces, named with its label, in its place in the
+  assembly. Fusion, FreeCAD and Onshape open it without the triangle lines an STL brings. A curved edge is still
+  made of the short straight segments of the cut files, so it shows as narrow flat strips. A model with many
+  stacked slices makes a large file. The command line writes it too: `--out model.step`.
+
 ### Fixed
 
 - **Folded panels score only the edges you fold.** A flat face made of several triangles (a rectangle cut in two,

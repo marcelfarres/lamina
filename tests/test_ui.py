@@ -1047,6 +1047,7 @@ def test_every_control_does_what_it_says_and_every_download_holds_the_plan(page,
     assert len(stl) == 84 + 50 * int.from_bytes(stl[80:84], "little") and int.from_bytes(stl[80:84], "little") > 100, "the STL is not whole"
     one = get(links["assembled STL"] + "?part=" + sorted(labels)[0]).body()     # one part alone, as the parts table offers it
     assert len(one) == 84 + 50 * int.from_bytes(one[80:84], "little") and 0 < len(one) < len(stl)
+    assert get(links["assembled STEP"]).body().count(b"MANIFOLD_SOLID_BREP('") >= len(labels), "the STEP misses parts"
     assert json.loads(get(links["plan.json"]).body())["counts"]["parts"] == p["counts"]["parts"]
     fit = zip_of(get(links[next(t for t in links if t.startswith("fit test SVG"))]).body())
     assert "README.txt" in fit.namelist() and len({n.split("/")[0] for n in fit.namelist() if "/" in n}) == 5
