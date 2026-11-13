@@ -3,6 +3,7 @@
 which opens in OrcaSlicer / PrusaSlicer as one named object per part, ready to arrange.
 
     uv run python -m core.solid working-files/egg.json --out working-files/egg_assembled.stl [--part X-3]
+    uv run python -m core.solid working-files/egg.json --out working-files/egg_assembled.step     # solids for CAD (core/step.py)
     uv run python -m core.solid working-files/egg.json --proto working-files/egg_proto --scale 0.5 --labels groove
     uv run python -m core.solid working-files/egg.json --fit working-files/egg_fit --step 0.1     # 5 slot offsets to try first
 """
@@ -38,20 +39,24 @@ def extrude(poly, height) -> trimesh.Trimesh:
     return trimesh.creation.extrude_triangulation(v, f, height)
 
 
-def piece_mesh(pc, thickness) -> trimesh.Trimesh:
-    """Every facet extruded by the thickness, centred on its plane, placed with its frame."""
-    parts = []
+def facet_polys(pc):
+    """Every flat polygon of a piece (holes included) with the frame that places it in the assembly."""
     for fc in pc["facets"]:
         M = np.array(fc["M"])
         for rings in fc["rings"]:
             poly = Polygon(rings[0], rings[1:])
-            if not poly.is_valid:
-                poly = poly.buffer(0)
-            if poly.is_empty:
-                continue
-            m = extrude(poly, thickness)
-            m.apply_translation([0, 0, -thickness / 2]); m.apply_transform(M)
-            parts.append(m)
+            for g in shapely.get_parts(poly if poly.is_valid else poly.buffer(0)):
+                if not g.is_empty:
+                    yield g, M
+
+
+def piece_mesh(pc, thickness) -> trimesh.Trimesh:
+    """Every facet extruded by the thickness, centred on its plane, placed with its frame."""
+    parts = []
+    for poly, M in facet_polys(pc):
+        m = extrude(poly, thickness)
+        m.apply_translation([0, 0, -thickness / 2]); m.apply_transform(M)
+        parts.append(m)
     return trimesh.util.concatenate(parts) if parts else trimesh.Trimesh()
 
 
@@ -328,7 +333,12 @@ def main(argv=None):
         for f in proto_set(plan, a.proto, a.scale, a.labels, a.font, a.min_thick, note=note):
             print(f)
     else:
-        assembled(plan, a.part).export(a.out); print(a.out)
+        if a.out.lower().endswith((".step", ".stp")):          # true solids for CAD; anything else is a mesh
+            from .step import step_text
+            pathlib.Path(a.out).write_text(step_text(plan, a.part), encoding="ascii")
+        else:
+            assembled(plan, a.part).export(a.out)
+        print(a.out)
 
 
 if __name__ == "__main__":

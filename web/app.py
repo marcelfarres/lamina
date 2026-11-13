@@ -11,6 +11,7 @@ GET  /api/session?client=<id>                                                  �
 GET  /api/progress?client=<id>                                                 → the stage the client's slice is in
 GET  /api/job/{client}/{job}/export?fmt=svg,dxf,pdf,eps&labels=1&per_piece=0&grouped=1   → zip of cut files
 GET  /api/job/{client}/{job}/stl?part=<label>                                  → assembled solid (or one part) as STL
+GET  /api/job/{client}/{job}/step?part=<label>                                 → the same as STEP: true solids for CAD
 """
 
 from __future__ import annotations
@@ -409,12 +410,23 @@ def job_fitcut(client: str, job: str, fmt: str = "svg,dxf", labels: int = 1, ste
 
 @app.get("/api/job/{client}/{job}/stl")
 def job_stl(client: str, job: str, part: str = ""):
+    return _solid_file(client, job, part, "stl", lambda plan: assembled(plan, part or None).export(file_type="stl"))
+
+
+@app.get("/api/job/{client}/{job}/step")
+def job_step(client: str, job: str, part: str = ""):
+    """The same model as true solids for CAD: flat faces, no triangles (see core.step)."""
+    from core.step import step_text
+
+    return _solid_file(client, job, part, "step", lambda plan: step_text(plan, part or None, design_name(plan)).encode("ascii"))
+
+
+def _solid_file(client, job, part, ext, make):
     _, plan = _plan(client, job)
     if part and part not in {pc["label"] for sl in plan["slices"] for pc in sl["pieces"]}:  # a label of the plan, or nothing: it names the file too
         raise HTTPException(404, "no such part")
-    data = assembled(plan, part or None).export(file_type="stl")
-    name = f"{design_name(plan)}_{plan['mode']}_{part or 'assembled'}.stl"
-    return Response(data, media_type="model/stl", headers={"Content-Disposition": f'attachment; filename="{name}"'})
+    name = f"{design_name(plan)}_{plan['mode']}_{part or 'assembled'}.{ext}"
+    return Response(make(plan), media_type=f"model/{ext}", headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
 def main():

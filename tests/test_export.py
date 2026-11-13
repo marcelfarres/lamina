@@ -391,6 +391,34 @@ def test_proto_set_3mf_reloads_with_one_named_geometry_per_part(tmp_path):
     assert set(scene.geometry.keys()) == expected_labels
 
 
+def test_step_holds_one_closed_solid_per_flat_piece_of_a_part(tmp_path):
+    """Asked for: the STL in Fusion is a million triangle lines that cannot be removed. The STEP holds each part as
+    a solid with flat faces. Read from the file's own text, with no CAD kernel: a solid per polygon of the plan,
+    named by its part; every edge walked once in each direction (the faces close, and agree on which side is out);
+    and Euler's count, V - E + F = 2 per solid (a through hole adds a handle and a loop on each flat face: they cancel)."""
+    import pytest
+    from core.solid import facet_polys
+    from core.step import step_text
+    for mode, prm in (("interlocked", {"nx": 2, "ny": 2}), ("folded", {}), ("stacked", {"distribution": "count", "count": 3})):
+        plan = build(EXAMPLES / "cube.stl", mode, {**prm, "autofix": "off"})
+        polys = [(pc["label"], g, sl["thickness"]) for sl in plan["slices"] for pc in sl["pieces"] for g, _ in facet_polys(pc)]
+        text = step_text(plan, name="it's a cube")
+        assert text.startswith("ISO-10303-21;") and text.rstrip().endswith("END-ISO-10303-21;") and "PRODUCT('it''s a cube'" in text
+        assert sorted(re.findall(r"MANIFOLD_SOLID_BREP\('([^']*)'", text)) == sorted(label for label, _, _ in polys), mode
+        walked = re.findall(r"ORIENTED_EDGE\('',\*,\*,(#\d+),\.([TF])\.\)", text)
+        edges = re.findall(r"(#\d+)=EDGE_CURVE", text)
+        assert sorted(walked) == sorted((e, d) for e in edges for d in "TF"), mode
+        assert text.count("=VERTEX_POINT") - len(edges) + text.count("=ADVANCED_FACE") == 2 * len(polys), mode
+        one = polys[0][0]
+        assert set(re.findall(r"MANIFOLD_SOLID_BREP\('([^']*)'", step_text(plan, one))) == {one}
+    cq = pytest.importorskip("cadquery", reason="the CAD kernel is an extra: uv sync --extra cad")   # the last one, stacked, read by OpenCascade
+    (tmp_path / "cube.step").write_text(text, encoding="ascii")
+    solids = cq.importers.importStep(str(tmp_path / "cube.step")).solids().vals()
+    assert len(solids) == len(polys) and all(s.isValid() for s in solids)
+    want = sum(g.area * t for _, g, t in polys)
+    assert abs(sum(s.Volume() for s in solids) - want) < 1e-6 * want           # positive: no solid is inside out
+
+
 def test_every_file_carries_the_design_name_so_two_designs_never_mix(tmp_path):
     """Asked for: two designs unzipped into one folder overwrote each other's sheet1.svg and cut-list.txt, and a
     part's file said nothing of whose part it was. Every file of a job starts with the design's name, the one its zip
