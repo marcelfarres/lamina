@@ -72,6 +72,17 @@ def test_cube_net():
         assert len(panels) == 1 and len(panels[0].faces) == 12 and len(seams) == 18 - 11, strategy
 
 
+def test_flat_faces_are_not_scored(tmp_path):
+    """A tube with hexagon caps, all triangles (bugs/039): 12 folds are bent, 18 edges lie inside a flat face. Only
+    the bent ones in the net are scored, and no edge inside a flat cap is a seam."""
+    stl = tmp_path / "hex_tube.stl"
+    trimesh.creation.cylinder(radius=30, height=120, sections=6).export(stl)
+    plan = build(stl, "folded", {"facet": 0, "joint": "seam", "autofix": "off", "thickness": 0.3})
+    (pc,) = [pc for s in plan["slices"] for pc in s["pieces"]]
+    assert len([1 for style, _ in pc["lines"] if style in ("solid", "dashed")]) == 7     # 18 bent edges − 11 seams
+    assert "1 panel(s), 11 seams" in " ".join(plan["notes"]), plan["notes"]              # was 13: two cap spokes
+
+
 def test_rib_angle_is_dihedral():
     """Rib for a cube edge must be cut at 90°."""
     plan = build(ROOT / "examples" / "cube.stl", "folded", {"facet": 0, "joint": "rib", "rib_w": 8, "inset": 4, "thickness": 1})

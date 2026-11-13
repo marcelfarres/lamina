@@ -14,6 +14,13 @@ The assembled model now also downloads as a STEP file, for CAD.
   made of the short straight segments of the cut files, so it shows as narrow flat strips. A model with many
   stacked slices makes a large file. The command line writes it too: `--out model.step`.
 
+### Fixed
+
+- **Folded panels score only the edges you fold.** A flat face made of several triangles (a rectangle cut in two,
+  a hexagon cut in six) had a fold line on every inner edge, so the score layer could not go to an engraving tip
+  or a creasing tool as it was. Those lines are gone: the score layer now holds the real folds only. A few inner
+  edges of such a face were also numbered as seams although nothing is cut there; they no longer are.
+
 ## 0.3.2
 
 A model far too big for its material now stops at once and offers the size that can be cut, turning a model no
