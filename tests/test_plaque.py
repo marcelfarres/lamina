@@ -5,7 +5,7 @@ import pytest
 import trimesh
 from shapely.geometry import MultiPolygon, Polygon
 
-from core.modes.plaque import SHAPES
+from core.modes.plaque import SHAPES, core_need
 from core.plan import build
 
 BASE = {"thickness": 3, "space": 3, "autofix": "off", "split": False, "sheet": [1000, 1000]}
@@ -20,6 +20,11 @@ def stl(tmp_path, mesh, name="m"):
 def shape(piece_or_slice):
     pcs = piece_or_slice.get("pieces", [piece_or_slice])
     return MultiPolygon([Polygon(r[0], r[1:]) for pc in pcs for r in pc["kerfed"]])
+
+
+def teeth_of(piece_or_slice):
+    """What of the slice lies below the plate's front face: its teeth."""
+    return shape(piece_or_slice).intersection(Polygon([(-1e4, -10), (1e4, -10), (1e4, -0.01), (-1e4, -0.01)]))
 
 
 def by_group(plan, g):
@@ -41,7 +46,7 @@ def test_every_slice_stands_on_the_plate_with_teeth_as_long_as_the_plate_is_thic
     for s in slices:
         g = shape(s)
         assert g.bounds[1] == pytest.approx(-5, abs=1e-6)           # the teeth end flush with the back of the plate
-        below = g.intersection(Polygon([(-1e4, -10), (1e4, -10), (1e4, -0.01), (-1e4, -0.01)]))
+        below = teeth_of(s)
         n = len(getattr(below, "geoms", [below]))
         assert n >= 2, f"{s['label']} has {n} tooth"
         teeth += n
@@ -54,7 +59,7 @@ def test_every_slice_stands_on_the_plate_with_teeth_as_long_as_the_plate_is_thic
 def test_teeth_are_spread_evenly_and_a_long_stretch_gets_more_of_them(ball):
     plan = build(ball, "plaque", {**BASE, "sink": 50, "tooth_spacing": 20, "tooth_width": 6})
     mid = max(by_group(plan, "S"), key=lambda s: s["extents"][0])   # the slice through the middle: about 100 mm on the plate
-    below = shape(mid).intersection(Polygon([(-1e4, -10), (1e4, -10), (1e4, -0.01), (-1e4, -0.01)]))
+    below = teeth_of(mid)
     xs = sorted(g.centroid.x for g in below.geoms)
     assert len(xs) >= 5
     assert np.ptp(np.diff(xs)) < 1e-3                               # the same step between every two teeth
@@ -149,11 +154,11 @@ def test_a_radial_fan_stands_round_a_hole_with_teeth_under_every_half_slice(ball
     assert plan["counts"]["errors"] == 0, plan["errors"]
     fan = by_group(plan, "R")
     assert len(fan) == 16 and not by_group(plan, "S")               # 8 planes, two half-slices each
-    least = 3 / 2 / np.tan(np.pi / 16)                              # where two neighbours' inner corners would meet
+    least = core_need(8, 3, 0)                                      # where two neighbours' inner corners would meet
     for s in fan:
         g = shape(s)
-        assert g.bounds[0] >= least - 1e-6                          # every half-slice ends outside the hole
-        below = g.intersection(Polygon([(-1e4, -10), (1e4, -10), (1e4, -0.01), (-1e4, -0.01)]))
+        assert g.bounds[0] >= least - 1e-3                          # every half-slice ends outside the hole (the plan rounds to 0.001 mm)
+        below = teeth_of(s)
         assert len(getattr(below, "geoms", [below])) >= 2
     turns = sorted(round(float(np.degrees(np.arctan2(np.array(s["M"])[1, 0], np.array(s["M"])[0, 0]))) % 360, 3) for s in fan)
     assert np.allclose(np.diff(turns), 22.5)                        # evenly round the centre
@@ -181,11 +186,9 @@ def test_crossed_slices_half_lap_into_each_other_and_both_families_stand_on_the_
     assert plan["counts"]["errors"] == 0, [s["errors"] for s in plan["slices"]]
     xs, ys = by_group(plan, "X"), by_group(plan, "Y")
     assert (len(xs), len(ys)) == (4, 5)
-    foot = Polygon([(-1e4, -10), (1e4, -10), (1e4, -0.01), (-1e4, -0.01)])
     for s in xs + ys:
         assert s["engages"], s["label"]                             # every slice is slotted onto the other family
-        g = shape(s)
-        teeth = g.intersection(foot)
+        teeth = teeth_of(s)
         assert len(getattr(teeth, "geoms", [teeth])) >= 2
     # the first family's slots open to the front, the second's to the plate: it drops on from the front
     top = lambda s: shape(s).bounds[3]                              # noqa: E731

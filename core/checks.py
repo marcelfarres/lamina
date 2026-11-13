@@ -16,7 +16,8 @@ from .geometry import (crossings, dowel_leverage, hole_reach, into, min_dims, pl
                        to_local, to_world)
 
 HELD_GROUPS = ("X", "Y", "R", "C", "W")     # regions in these groups must be held by a slot / dowel / the core ("W" = a plaque's back plate)
-STRUCTURAL = ("X", "Y", "R", "C", "S", "W")  # take part in the assembly-connectivity check (panels, pegs, strips, ribs do not)
+STRUCTURAL = ("X", "Y", "R", "C", "S")  # take part in the assembly-connectivity check (panels, pegs, strips, ribs do not)
+CONNECTED = STRUCTURAL + ("W",)         # … and a plaque's back plate does too; it is not a plane through the model, so it gets no section treatment
 LEVERAGE_WARN = 1.5    # placement aims for 0.8 (geometry.LEVERAGE_OK); past this a piece's far edge visibly wanders
 
 
@@ -199,7 +200,7 @@ def check_assembly(slices, p):
     """Every structural region must reach the main assembly through slots, connectors or glued contact.
     Nodes = (slice, region); edges = a slot / connector shared by two regions (matched by its world point), or two
     glued stacked regions that overlap. Disconnected groups get an error with fixes (add slices / delete)."""
-    struct = [s for s in slices if s.group in STRUCTURAL and s.profile is not None and not s.profile.is_empty]
+    struct = [s for s in slices if s.group in CONNECTED and s.profile is not None and not s.profile.is_empty]
     if len(struct) < 2:
         return
     idx = {s.label: i for i, s in enumerate(struct)}

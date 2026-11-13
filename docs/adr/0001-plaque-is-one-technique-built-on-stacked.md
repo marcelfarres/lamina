@@ -18,7 +18,8 @@ Plaque is one technique. Its plate settings (back, sink, plate thickness, plate 
 every layout. It reuses the code of the existing techniques and does not copy it:
 
 - `Plaque` is a subclass of `Stacked`. The plane positions come from `Stacked.planes`, and the spacers for floating
-  pieces come from `Stacked.connect`, through three hooks: `islands`, `seeds` and `side_step`.
+  pieces come from `Stacked.connect`. Plaque gives `connect` its islands, seeds, settings and side step as
+  arguments. It does not override `connect` or change `ctx.p`.
 - The plate is a part in a group of its own, `W`. `B` was not free: the page uses it for Radial's boundary planes.
 - A tooth is a link between a slice and the plate, not a cut. The checks count a link as a hold.
 
