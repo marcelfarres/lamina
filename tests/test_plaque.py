@@ -117,6 +117,38 @@ def test_a_piece_no_neighbour_can_hold_is_left_out_and_said_or_kept_with_its_err
     assert kept["counts"]["errors"] > 0 and not any("left out" in n for n in kept["notes"])
 
 
+def test_a_radial_fan_stands_round_a_hole_with_teeth_under_every_half_slice(ball):
+    plan = build(ball, "plaque", {**BASE, "layout": "radial", "planes": 8, "sink": 50, "plate": "circle"})
+    assert plan["counts"]["errors"] == 0, plan["errors"]
+    fan = by_group(plan, "R")
+    assert len(fan) == 16 and not by_group(plan, "S")               # 8 planes, two half-slices each
+    least = 3 / 2 / np.tan(np.pi / 16)                              # where two neighbours' inner corners would meet
+    for s in fan:
+        g = shape(s)
+        assert g.bounds[0] >= least - 1e-6                          # every half-slice ends outside the hole
+        below = g.intersection(Polygon([(-1e4, -10), (1e4, -10), (1e4, -0.01), (-1e4, -0.01)]))
+        assert len(getattr(below, "geoms", [below])) >= 2
+    turns = sorted(round(float(np.degrees(np.arctan2(np.array(s["M"])[1, 0], np.array(s["M"])[0, 0]))) % 360, 3) for s in fan)
+    assert np.allclose(np.diff(turns), 22.5)                        # evenly round the centre
+    plate = shape(by_group(plan, "W")[0])
+    assert len(plate.geoms) == 1 and sum(len(p.interiors) for p in plate.geoms) >= 32      # one piece, a slot for every tooth
+
+
+def test_a_hole_too_small_for_the_fan_is_an_error_with_the_radius_that_fits(ball):
+    plan = build(ball, "plaque", {**BASE, "layout": "radial", "planes": 8, "sink": 50, "radius": 2})
+    assert plan["counts"]["slices"] == 0 and "collide" in plan["errors"][0]
+    r = plan["fixes"][0]["options"][0]["set"]["radius"]
+    assert build(ball, "plaque", {**BASE, "layout": "radial", "planes": 8, "sink": 50, "radius": r})["counts"]["errors"] == 0
+
+
+def test_the_drop_example_is_one_body_and_slices_clean_as_a_fan():
+    from core.testmodels import droplet
+    assert droplet().body_count == 1                                # rings, column and bulb: nothing in the air
+    plan = build("examples/droplet.stl", "plaque", {**BASE, "layout": "radial", "plate": "circle"})
+    assert plan["counts"]["errors"] == 0 and plan["counts"]["warnings"] == 0
+    assert len(by_group(plan, "R")) == 24
+
+
 def test_slices_cannot_run_along_the_axis_the_plate_is_square_to(ball):
     plan = build(ball, "plaque", {**BASE, "back": "-z", "axis": "z"})
     assert plan["counts"]["slices"] == 0 and plan["errors"]

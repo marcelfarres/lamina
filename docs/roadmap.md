@@ -56,7 +56,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 ## Extras (not in the original)
 | Feature | Status | Notes |
 |---|---|---|
-| Plaque: slices standing on a back plate | 🟡 | `plaque`: the model cut off at a plate (`back`, `sink`), parallel slices with teeth through plate slots (`teeth`, `tooth_width`, `tooth_spacing`), the plate's own `plate_thickness` and outline (six shapes or the model's silhouette), floating pieces hung from the slice beside them on flat spacers. Still to come: a plate outline from an SVG or DXF file, the radial layout, the crossed layout |
+| Plaque: slices standing on a back plate | 🟡 | `plaque`: the model cut off at a plate (`back`, `sink`), slices side by side or in a radial fan (`layout`, `planes`, `angle`, `radius`) with teeth through plate slots (`teeth`, `tooth_width`, `tooth_spacing`), the plate's own `plate_thickness` and outline (six shapes or the model's silhouette), floating pieces hung from the slice beside them on flat spacers. Still to come: a plate outline from an SVG or DXF file, the crossed layout |
 | Per-slice thickness / position / angle | ✅ | `thick`, `offset`, `tilt`, `roll` (3D view or JSON) |
 | Asymmetric notch meeting point | ✅ | `notch_ratio` |
 | Auto-split oversize parts + joint | ✅ | puzzle tabs along the cut; `tab` width |

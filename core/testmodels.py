@@ -119,6 +119,38 @@ def hook():
     return trimesh.creation.sweep_polygon(Point(0, 0).buffer(9, 32), path, cap=True)
 
 
+def droplet():
+    """A drop falling into still water, for the plaque's radial layout: rings that fade outward on a disc, and one
+    column rising from the middle with a bulb on top — all one body, nothing in the air. A profile turned about z;
+    the column is thick enough to stand outside the hole a radial fan leaves in its middle. 100 across before the ×3."""
+    R, rn, rb = 50.0, 7.5, 10.0                         # the disc, the column's neck, the bulb
+    r = np.linspace(R, rn, 260)
+    z = 7 + 5.5 * np.cos(2 * np.pi * (r - rn) / 11.5) * np.exp(-(r - rn) / 38) + 30 * np.exp(-(r - rn) / 2.6)
+    top = float(z[-1]); cz = top + np.sqrt(rb ** 2 - rn ** 2)   # the bulb: a ball sitting on the neck
+    arc = [(rb * np.sin(a), cz - rb * np.cos(a)) for a in np.linspace(np.arcsin(rn / rb), np.pi, 40)]
+    prof = [(0.0, 0.0), (R, 0.0)] + [(float(a), float(b)) for a, b in zip(r, z)] + arc[1:-1] + [(0.0, cz + rb)]
+    return trimesh.creation.revolve(np.array(prof), sections=120)
+
+
+def bonsai():
+    """A bonsai in its pot, for the plaque: a trunk that leans one way and back, thinning as it climbs, two branches,
+    and flat pads of foliage at their ends. Stands along z with its back to −y; cut at half its depth it is a relief
+    of the tree on its plate. The trunk and branches are balls strung along a curve, each a little smaller."""
+    from scipy.interpolate import CubicSpline
+
+    def limb(pts, r0, r1, n):
+        pts = np.array(pts, float); t = np.linspace(0, 1, len(pts))
+        return [icosphere(2, r).apply_translation(c) for c, r in zip(CubicSpline(t, pts)(np.linspace(0, 1, n)), np.linspace(r0, r1, n))]
+
+    pad = lambda c, size: icosphere(3, 1).apply_scale(size).apply_translation(c)   # noqa: E731
+    pot = [box([44, 16, 8]).apply_translation([0, 0, 4]), box([48, 18, 3]).apply_translation([0, 0, 8.5])]
+    trunk = limb([(-5, 0, 9), (-10, 0, 19), (-2, 0, 28), (8, 0, 35), (6, 0, 45), (-2, 0, 53)], 5.5, 2.2, 46)
+    right = limb([(4, 0, 31), (13, 0, 31), (22, 0, 35)], 2.6, 1.6, 16)
+    left = limb([(7, 0, 41), (-4, 0, 41), (-15, 0, 44)], 2.4, 1.6, 18)
+    pads = [pad((-3, 0, 57), (15, 7.5, 6)), pad((25, 0, 38), (12, 7, 5)), pad((-19, 0, 47), (11, 7, 4.5)), pad((12, 0, 50), (8, 6, 4))]
+    return union(*pot, *trunk, *right, *left, *pads)
+
+
 MODELS = {
     # geometric
     "cube": lambda: box([60, 60, 60]),
@@ -144,6 +176,9 @@ MODELS = {
     "ripple": ripple,
     "berry": berry,
     "hook": hook,
+    # for the plaque
+    "droplet": droplet,
+    "bonsai": bonsai,
 }
 
 if __name__ == "__main__":

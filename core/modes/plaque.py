@@ -59,13 +59,22 @@ class Plaque(Stacked):
     title = "Plaque"
     description = ("The model cut off at a flat back plate, its slices standing on edge on the plate: each slice has teeth that go "
                    "through plate slots. `sink` sets how deep the model goes into the plate; what is behind the plate is left out.")
-    legend = ("W-1 = the back plate · X-3 = the 3rd slice across the plate, counted from the low end (Y- or Z- when the slices "
+    legend = ("W-1 = the back plate · R-5 = the 5th half-slice of a radial fan, counted round from `angle` · X-3 = the 3rd slice across the plate, counted from the low end (Y- or Z- when the slices "
               "run that way): its teeth go into the row of plate slots under it · X-3a = spacer a between X-3 and X-4, which "
               "holds a piece of one of them that does not reach the plate")
     params = [
         Param("back", "choice", "-z", "The side of the model that goes against the plate: the plate is square to this axis and the "
               "model sticks out of it the other way", choices=["-z", "+z", "-y", "+y", "-x", "+x"], label="back of the model"),
-        Param("axis", "choice", "x", "Slice direction (normal of the slices): one of the two axes that lie in the plate", choices=["x", "y", "z"]),
+        Param("layout", "choice", "parallel", "How the slices stand on the plate: parallel = side by side, one after another · "
+              "radial = a fan of half-slices round a centre (move it with `center`), their inner ends meeting round a small hole",
+              choices=["parallel", "radial"]),
+        Param("axis", "choice", "x", "Slice direction (normal of the slices): one of the two axes that lie in the plate", choices=["x", "y", "z"],
+              show_if=("layout", "parallel")),
+        Param("planes", "int", 12, "Radial: planes through the centre; each gives two half-slices", 2, 90, 1, show_if=("layout", "radial")),
+        Param("angle", "number", 0.0, "Radial: turn the whole fan about its centre (deg)", -90, 90, 1, unit="deg", show_if=("layout", "radial")),
+        Param("radius", "number", 0.0, "Radial: the radius of the hole in the middle of the fan, where the half-slices end (mm). "
+              "0 = the least that lets them all fit round it; under that least their inner ends collide", 0, 500, 0.5, unit="mm",
+              show_if=("layout", "radial")),
         Param("sink", "number", 0.0, "How far the model goes into the plate (mm), from its rearmost point: 0 = the model only touches "
               "the plate, more = more of its back is cut away. What is behind the plate's front face is left out", 0, 5000, 0.5, unit="mm"),
         Param("plate_thickness", "number", 0.0, "Thickness of the back plate's material (mm), which is also how long the teeth are: "
@@ -95,9 +104,9 @@ class Plaque(Stacked):
     def build(self, ctx):
         p = ctx.p
         p.update(FIXED)
-        k = "xyz".index(p["back"][1]); ax = "xyz".index(p["axis"])
+        k = "xyz".index(p["back"][1]); ax = "xyz".index(p["axis"]); radial = p["layout"] == "radial"
         n_p = ctx.ax[k] * (1.0 if p["back"][0] == "-" else -1.0)        # the plate's normal: out of the plate, toward the front
-        if ax == k:
+        if ax == k and not radial:
             e = f"the slices stand on the plate, so their direction cannot be {p['axis']}, the axis the plate is square to"
             ctx.errors.append(e)
             ctx.fixes.append({"error": e, "options": [{"title": f"slice along {a}", "set": {"axis": a}} for a in "xyz" if a != p["axis"]]})
@@ -110,39 +119,60 @@ class Plaque(Stacked):
             return []
         ctx.covered = ctx.mesh.slice_plane(n_p * z0, n_p)               # what is left of the model: coverage is measured on it
         ctx.clip = [(n_p * z0).tolist(), n_p.tolist()]
-        labels, pos, th, drawn = self.planes(ctx, ax)
-        slices = []
-        for lab, z, tk in zip(labels, pos, th):
-            o = ctx.mid + normal * (z + ctx.override("offset", lab))
-            slices.append(Slice(lab, "S", frame(o + n_p * (z0 - o @ n_p), normal, up_hint=n_p), tk))   # local y = height above the plate
-        slices = ctx.keep(slices)
-        self.profiles(ctx, slices)
-        front = box(-BIG, 0, BIG, BIG)
-        for sl in slices:
-            sl.raw = as_multi(sl.raw.intersection(front))
-        slices = [s for s in slices if not s.raw.is_empty]
-        ctx.rods = []
-        ctx.cover_r = self.cover_r(ctx, pos, drawn, ctx.ext[ax], len(slices))
-        if not slices:
-            return []
-
         # the plate: its frame has the model's up as its y, and x to the right of someone looking at the plaque
         up = ctx.ax[1] if k == 2 else ctx.ax[2]
         Mp = frame_xy(n_p * (z0 - plate_t / 2), np.cross(up, n_p), up)
+        mf = p["min_feature"]; slot_w = p["thickness"] + p["slot_offset"]
+        ctx.rods = []
+        if radial:
+            # 2 × planes half-slices, 180 / planes apart. Their inner corners meet where the chord between two
+            # neighbours is one slice wide, and their plate slots keep a wall between them a little further out.
+            n = p["planes"]; half = math.pi / (2 * n)
+            least = slot_w / 2 / math.tan(half) + 0.5
+            r = p["radius"] or least
+            if r < least - 1e-6:
+                e = f"radius = {r:g} mm: {2 * n} half-slices of {p['thickness']:g} mm need a hole of at least {least:.1f} mm radius, or their inner ends collide"
+                ctx.errors.append(e)
+                ctx.fixes.append({"error": e, "options": [{"title": f"radius {math.ceil(least * 2) / 2:g} mm", "set": {"radius": math.ceil(least * 2) / 2}},
+                                                          {"title": "radius automatic", "set": {"radius": 0}}]})
+                return []
+            c = ctx.mid + n_p * (z0 - ctx.mid @ n_p)                    # the fan's centre, on the plate's front face
+            slices = []
+            for j in range(2 * n):
+                a = math.radians(p["angle"]) + 2 * half * j
+                d = Mp[:3, 0] * math.cos(a) + Mp[:3, 1] * math.sin(a)   # the way this half-slice points: its local x
+                lab = f"R-{j + 1}"
+                slices.append(Slice(lab, "R", frame(c, np.cross(d, n_p), up_hint=n_p), ctx.thickness_of(lab)))
+            front = box(r, 0, BIG, BIG)
+            hub = Point(*to_local(Mp, [c])[0]).buffer((slot_w + mf) / 2 / math.sin(half) + 0.5, 64)   # no tooth nearer the centre than this
+            wall = 0.0
+        else:
+            labels, pos, th, drawn = self.planes(ctx, ax)
+            slices = []
+            for lab, z, tk in zip(labels, pos, th):
+                o = ctx.mid + normal * (z + ctx.override("offset", lab))
+                slices.append(Slice(lab, "S", frame(o + n_p * (z0 - o @ n_p), normal, up_hint=n_p), tk))   # local y = height above the plate
+            front = box(-BIG, 0, BIG, BIG); hub = Polygon()
+            ctx.cover_r = self.cover_r(ctx, pos, drawn, ctx.ext[ax], len(slices))
+            wall = (min(np.diff(pos)) if len(pos) > 1 else BIG) - slot_w
+        slices = ctx.keep(slices)
+        self.profiles(ctx, slices)
+        for sl in slices:
+            sl.raw = as_multi(sl.raw.intersection(front))
+        slices = [s for s in slices if not s.raw.is_empty]
+        if not slices:
+            return []
         shape = self.placed(silhouette(ctx.covered, Mp, p["plate_margin"]) if p["plate"] == "silhouette" else
                             outline(p["plate"], to_local(Mp, ctx.mesh.vertices[depth >= z0 - 1e-9]), p["plate_margin"]), p)
         plate = Slice("W-1", "W", Mp, plate_t); plate.raw = as_multi(shape)
 
         # teeth: every piece that stands on the plate, in every stretch where it does
-        mf = p["min_feature"]
-        step = min(np.diff(pos)) if len(pos) > 1 else BIG
         # Two neighbours' slots side by side leave a wall of plate as wide as the gap between the slices. Up to twice
         # the min feature that is a thin strip a tooth long, so every second slice's teeth sit a quarter step along,
         # beside the gaps of the slice before; under the min feature it is no wall, and a tooth still beside one of
         # the slice before is moved clear of it.
-        wall = step - (p["thickness"] + p["slot_offset"])
-        close, tight = wall <= 2 * mf, wall < mf
-        rim = shape.buffer(-mf)                                         # a tooth keeps a wall from the plate's edge
+        close, tight = wall <= 2 * mf, wall < mf and not radial
+        rim = shape.buffer(-mf).difference(hub)                         # a tooth keeps a wall from the plate's edge
         pieces, held, short, owner, beside = [], [], [], [], []
         for i, sl in enumerate(slices):
             mine, has, here = [], [], []
@@ -162,7 +192,7 @@ class Plaque(Stacked):
         # floating pieces: each hangs from a piece beside it that is held, by the plate or by its own neighbour
         joins = {}                                                      # index of the lower slice → the overlaps to join across
         need = (p["dowel_d"] + 2 * mf) ** 2                             # an overlap with room for a spacer and its walls
-        changed = True
+        changed = not radial            # a fan's neighbours stand at an angle to each other: no flat spacer goes between them
         while changed:
             changed = False
             for i in range(len(slices)):

@@ -18,4 +18,5 @@ The words Lamina uses for its parts. One word for one thing.
 - **Floating piece**: a piece of a slice that does not reach the plate.
 - **Spacer**: the small flat part that joins a floating piece to the slice beside it. It has a tooth at each end and a
   body as long as the gap between the two slices. Its flat face stands square to the plate.
+- **Fan**: the slices of the radial layout. Each is a half-slice: it starts at the hole in the middle and points outward.
 - **Layout**: how the slices are arranged on the plate: parallel, radial, or crossed.
