@@ -205,7 +205,8 @@ def test_a_plaque_preset_names_its_own_gap_between_side_by_side_slices():
     """The page keeps a setting by name when the technique changes, and stacked's `space` is 0: a plaque example that
     left `space` to its default opened with touching slices, twice as many as it was made for."""
     import json
-    presets = json.load(open("examples/presets.json", encoding="utf-8"))
+    import pathlib
+    presets = json.loads(pathlib.Path("examples/presets.json").read_text(encoding="utf-8"))
     for name, pre in presets.items():
         if name != "_" and pre["mode"] == "plaque" and pre["params"].get("layout", "parallel") == "parallel":
             assert "space" in pre["params"], name
