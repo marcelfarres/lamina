@@ -33,6 +33,8 @@ def test_slice_ghost_and_cut_files_without_a_server(jobs):
     status, headers, body = browser.handle("GET", f"api/job/{MINE}/{job}/export", "fmt=svg&labels=1", None)
     assert status == 200 and headers["content-disposition"].endswith('.zip"')
     assert any(n.endswith(".svg") for n in zipfile.ZipFile(io.BytesIO(body)).namelist())
+    status, headers, body = browser.handle("GET", f"api/job/{MINE}/{job}/step", "", None)       # solids for CAD: no kernel needed
+    assert status == 200 and body.startswith(b"ISO-10303-21;") and body.count(b"MANIFOLD_SOLID_BREP('") >= 3
     assert browser.handle("DELETE", "api/session", f"client={MINE}", None)[0] == 200 and not (jobs / MINE).exists()
 
 

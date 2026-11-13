@@ -244,6 +244,7 @@ uv run python -m core.plan examples/egg.stl --mode interlocked --set nx=5 ny=4 t
 uv run python -m core.export out/egg.json --out out/egg_cut --fmt svg dxf pdf eps --labels
 uv run python -m core.export out/egg.json --out out/egg_pieces --per-piece                  # one file per part
 uv run python -m core.solid out/egg.json --out out/egg.stl                                  # assembled solid; --part X-3 for one part
+uv run python -m core.solid out/egg.json --out out/egg.step                                 # the same as STEP: true solids for CAD
 uv run python -m core.solid out/egg.json --proto out/egg_proto --scale 0.5 --labels groove  # scaled 3D-print prototype set
 uv run python -m core.plan examples/egg.stl --mode folded --list-params                     # every parameter with its help text
 ```
@@ -351,7 +352,8 @@ does not slip through. It carries the most signal for stacked and folded work; d
   measure before committing to the whole set.
 - **Kerf compensation is off by default**: many machines compensate their own kerf, and compensating twice ruins
   the fit. Turn it on under Machine & cut compensation when yours does not.
-- **Solids**: STL of the assembled model or one part, and a **prototyping set** for test-printing a design: every part
+- **Solids**: STL of the assembled model or one part, the same as **STEP** for CAD (every part a body with flat
+  faces, no triangles: Fusion, FreeCAD, Onshape), and a **prototyping set** for test-printing a design: every part
   flat at a scale or target size, thickness raised to a printable minimum, label engraved as a groove or cut through,
   as one STL per part plus a 3MF that OrcaSlicer or PrusaSlicer opens as separate named objects. The label is bold,
   at least the letter height you ask for in printed millimetres (5 mm by default, whatever the scale), and sits
@@ -409,7 +411,7 @@ sheets are always the same plan. Hover a parameter name for its help.
 
 ```text
 web/app.py  (FastAPI)  ──▶  core/plan.py  ──▶  plan.json ──▶  core/export.py   SVG/DXF/PDF/EPS (OUTER, INNER, SCORE, LABEL)
-web/static/index.html         │                            ──▶  core/solid.py    assembled / per-part STL, 3MF prototype set
+web/static/index.html         │                            ──▶  core/solid.py    assembled / per-part STL, 3MF prototype set (core/step.py: the same as STEP)
 (three.js, live)              ▼                            ──▶  browser          3D view from the facets in plan.json
                      core/modes/*.py   one file per technique (plug-in): Slice objects with a frame + cuts (+ facets)
                      core/unfold.py    mesh → flat panels (greedy flattest-edge spanning tree, overlap-checked)
