@@ -2,6 +2,14 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.3.3
+
+### Fixed
+
+- **Numbers in the narrow boxes show in full.** In inches and centimetres, a size or a curve point with four or more
+  digits could lose its last digit in the newest Chrome. The boxes that stand two or three in a row no longer have
+  the small up and down arrows, which took a fifth of the box, and the box where you type a new value is wider.
+
 ## 0.3.2
 
 A model far too big for its material now stops at once and offers the size that can be cut, turning a model no
