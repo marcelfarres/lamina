@@ -80,7 +80,17 @@ t × t square at 90°. Paper gives; metal, wood and acrylic do not, and the part
 inner (the default) each outward seam edge is cut back by t · tan(bend / 2), so the inside edges of the two
 panels meet and the gap is on the outside. Holes, slots and seam numbers are measured from the new edge. Inward
 seams need nothing: their material moves apart. Joints with a tab or loop on the edge are not cut back, and
-printed panels are mitred instead (above). `outer` keeps the edges on the model's edge.
+printed panels are mitred instead (above). `outer` keeps the edges on the model's edge. A flat face of several
+triangles is cut back as one: the triangles that touch the edge only at its ends lose their corner tip too.
+
+What is left presses into the next panel: t · tan(bend / 2) less the cut-back (capped at 0.4 of the face's height,
+so a sliver keeps its middle; nothing with a tab joint). `SQUISH` in `core/modes/folded.py` gives the share of the
+thickness each material can crush at an edge (paper, card, cardboard 1; foam and leather less; metal, wood and
+hard plastic 0). Past it the panel warns, with the depth. A material not in the table is not checked.
+Measured on the examples in 3 mm steel, every face its own panel, by intersecting the panels' solids
+(working-files, 2026-11-13): cube, pyramid, wedge and fold_test go from 18–77 colliding pairs to 0; fold_lamp 204
+to 1 (1 mm³); egg 530 to 1; torus 359 to 54 (99 mm³ in all); cow 340 to 70; bowl 378 to 41. What remains is at
+saddle vertices, where panels that share only a corner meet, and on slivers the cap protects. Not yet handled.
 
 ## Windows
 `window` opens every face with a hole of its own shape, for a lamp shade or a lantern. The frame left around it is
@@ -93,6 +103,8 @@ Each panel face remembers the face it was unfolded from (`Panel.parent`). The pl
 its parent facet, the fold line on the model (a point and a direction) and the turn that lays it flat beside the
 parent. The 3D view's `fold` slider turns every face about its fold line by the share left, parents first: 0 % is
 the flat panel in the plane of its first face, 100 % the model. The recorded assembly video ends with it.
+A printed panel's facets carry their grooved edges (`bevel`); the view draws each face in six layers, each set in
+by what the V takes at that height, so grooves and mitres show as they are exported.
 
 Complexity: O(faces × panel size) shapely unions per run; 300 faces ≈ 1 s per strategy.
 

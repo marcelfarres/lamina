@@ -22,13 +22,16 @@ What changed in each release. The GitHub release for a version is this section, 
   for glue. A new example, *fold_test*, is a small box to print and fold: it opens in 2 mm PETG on one plate.
 - **Watch a folded panel fold up.** A new *fold* slider over the 3D view takes folded panels from flat to folded,
   every face turning about its own fold line. The recorded assembly video now ends with the panels folding up.
+  Printed panels are drawn with their grooves and mitred edges, as they are exported.
 - **Windows in folded panels.** A new setting, *window*, opens every face with a hole of its own shape, for lamp
   shades and lanterns. The frame it leaves is always wide enough for the folds and the joint. A new example,
   *fold_lamp*, is a twisted lamp shade that prints flat on one plate and folds up.
 - **Stiff panels now go together.** In metal, wood or acrylic, two panels that both reached the model's edge
   collided at their inside corners on every outward seam. Each such edge is now cut back by the sheet thickness ×
   tan(half the bend), so the inside edges meet. A new setting, *edge fit*, puts the edges back on the model's
-  edge (*outer*) for edges you bevel yourself.
+  edge (*outer*) for edges you bevel yourself. Where an edge cannot be cut back far enough, or a tab joint keeps it,
+  the panel now warns how far it presses into the next one. The limit depends on the material: paper, card,
+  cardboard and foam crush, steel, wood and hard plastic do not.
 - **Folded panels say when the sheet is too thick to fold.** A fold takes material off the inside of the bend, more
   the thicker the sheet and the sharper the bend. Where the folds around a face would need more than the whole face,
   the panel warns how many folds cannot close: use a thinner sheet, a bigger facet size, or a gentler curve. A curve

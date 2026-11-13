@@ -341,6 +341,7 @@ def test_folded_panels_printed_get_a_groove_at_every_fold_down_to_the_hinge_skin
     bends = {round(2 * np.degrees(np.arctan((v[6] - v[4] / 2) / (sl["thickness"] - v[5])))) for v in pc["vees"]}
     assert {45, 90, 104} <= bends                                       # each groove opened to its own fold
     assert {v[7] for v in pc["vees"]} == {True, False}                   # the valley edge closes on the other face
+    assert sum(len(fc.get("bevel", [])) for fc in pc["facets"]) == len(pc["vees"]) + sum(1 for fc in pc["facets"] if fc.get("hinge") and fc["hinge"][7])   # the 3D view draws every groove: a fold on both its faces
     proto_set(plan, tmp_path, labels="none")
     part = trimesh.load(tmp_path / "P-1.stl")
     assert part.is_watertight
@@ -360,6 +361,17 @@ def test_folded_stiff_panels_meet_at_their_inside_edges():
     job = {"thickness": 6, "material": "plywood", "facet": 0, "separate": True, "joint": "laced", "autofix": "off", "sheet": [1200, 800]}
     side = lambda fit: max(build(EXAMPLES / "cube.stl", "folded", {**job, "edge_fit": fit})["slices"][0]["extents"])   # noqa: E731
     assert np.isclose(side("outer"), 180, atol=0.05) and np.isclose(side("inner"), 168, atol=0.05)
+
+
+def test_folded_says_when_stiff_panels_still_press_into_each_other():
+    """A seam edge that is not cut back (a tab joint keeps its edge, or `edge fit` outer) presses t × tan(bend / 2) into
+    the next panel. Steel gives nothing, so the panel says so; cardboard crushes that much; cut back, nothing is left."""
+    job = {"thickness": 3, "facet": 0, "separate": True, "autofix": "off", "sheet": [1200, 800]}
+    pressed = lambda **kw: [w for sl in build(EXAMPLES / "cube.stl", "folded", {**job, **kw})["slices"] for w in sl["warnings"] if "press up to" in w]   # noqa: E731
+    steel = pressed(material="steel", joint="laced", edge_fit="outer")
+    assert len(steel) == 12 and "press up to 3.0 mm" in steel[0]
+    assert not pressed(material="steel", joint="laced")                          # edge fit inner, the default
+    assert not pressed(material="cardboard", joint="laced", edge_fit="outer")
 
 
 def test_folded_lamp_has_a_window_in_its_faces_and_unfolds_flat():
