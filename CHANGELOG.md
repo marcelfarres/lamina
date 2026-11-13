@@ -29,9 +29,10 @@ What changed in each release. The GitHub release for a version is this section, 
 - **Stiff panels now go together.** In metal, wood or acrylic, two panels that both reached the model's edge
   collided at their inside corners on every outward seam. Each such edge is now cut back by the sheet thickness ×
   tan(half the bend), so the inside edges meet. A new setting, *edge fit*, puts the edges back on the model's
-  edge (*outer*) for edges you bevel yourself. Where an edge cannot be cut back far enough, or a tab joint keeps it,
+  edge (*outer*) for edges you bevel yourself, or lets one panel of each seam run through to the edge and cuts only
+  the other (*through*), which closes the outside. Corners where several panels meet are trimmed too. Where an edge cannot be cut back far enough, or a tab joint keeps it,
   the panel now warns how far it presses into the next one. The limit depends on the material: paper, card,
-  cardboard and foam crush, steel, wood and hard plastic do not.
+  cardboard and foam crush, steel, wood and hard plastic do not. The warning offers a one-click fix: bigger triangles.
 - **Folded panels say when the sheet is too thick to fold.** A fold takes material off the inside of the bend, more
   the thicker the sheet and the sharper the bend. Where the folds around a face would need more than the whole face,
   the panel warns how many folds cannot close: use a thinner sheet, a bigger facet size, or a gentler curve. A curve

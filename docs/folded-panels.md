@@ -86,6 +86,14 @@ seams need nothing: their material moves apart. Joints with a tab or loop on the
 printed panels are mitred instead (above). `outer` keeps the edges on the model's edge. A flat face of several
 triangles is cut back as one: the triangles that touch the edge only at its ends lose their corner tip too.
 
+`through` cuts only one panel of each outward seam, the one with more room, until it clears the other's inside
+face: t · sin(bend) up to a right angle, t · tan(bend / 2) past it. The other runs to the model's edge, so the
+outside closes (fully at 90°) and one sheet shows its edge. Seam, rivet and laced joints; strip and rib use inner.
+
+Faces that share only a corner point are handled after the edges (`corners`): each pair's solids are intersected
+(manifold3d) and what they share is cut from the bigger face, seen along its normal. On a saddle the tip of one
+face otherwise lies inside the sheet of another. Without manifold3d (the browser build) the tips stay.
+
 What is left presses into the next panel: t · tan(bend / 2) less the cut-back (capped at 0.4 of the face's height,
 so a sliver keeps its middle; nothing with a tab joint). `SQUISH` in `core/modes/folded.py` gives the share of the
 thickness each material can crush at an edge (paper, card, cardboard 1; foam and leather less; metal, wood and

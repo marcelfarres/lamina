@@ -366,6 +366,32 @@ def test_folded_stiff_panels_meet_at_their_inside_edges():
     assert np.isclose(side("outer"), 180, atol=0.05) and np.isclose(side("inner"), 168, atol=0.05)
 
 
+def colliding_pairs(plan):
+    """Pairs of folded panels whose solids share volume (over 0.5 mm³): each facet one sheet deep, as the 3D view and
+    the STL have it, intersected with every facet of every other panel."""
+    import manifold3d as m3
+    from shapely.geometry import Polygon
+    from shapely.geometry.polygon import orient
+    solids = []
+    for i, sl in enumerate(plan["slices"]):
+        for fc in sl["pieces"][0]["facets"] if sl["group"] == "F" else []:
+            for rings in fc["rings"]:
+                ring = np.asarray(orient(Polygon(rings[0]), 1).exterior.coords)[:-1]
+                t = sl["thickness"]
+                solids.append((i, m3.Manifold.extrude(m3.CrossSection([ring]), t).translate([0, 0, -t / 2]).transform(np.array(fc["M"])[:3, :4])))
+    return sum(1 for a, (i, x) in enumerate(solids) for j, y in solids[a + 1:] if i != j and (x ^ y).volume() > 0.5)
+
+
+@pytest.mark.parametrize("model", ["cube", "pyramid", "fold_test"])
+def test_folded_stiff_panels_do_not_share_space(model):
+    """The proof that stiff panels go together: in 3 mm steel, every face its own panel, no two panels occupy the same
+    space with `edge fit` inner or through, where with outer (both edges on the model's edge) every seam collides."""
+    job = {"thickness": 3, "material": "steel", "facet": 0, "separate": True, "joint": "laced", "autofix": "off", "sheet": [3000, 2000], "printed": False}
+    pairs = lambda fit: colliding_pairs(build(EXAMPLES / f"{model}.stl", "folded", {**job, "edge_fit": fit}))   # noqa: E731
+    assert pairs("outer") > 10
+    assert pairs("inner") == 0 and pairs("through") == 0
+
+
 def test_folded_says_when_stiff_panels_still_press_into_each_other():
     """A seam edge that is not cut back (a tab joint keeps its edge, or `edge fit` outer) presses t × tan(bend / 2) into
     the next panel. Steel gives nothing, so the panel says so; cardboard crushes that much; cut back, nothing is left."""

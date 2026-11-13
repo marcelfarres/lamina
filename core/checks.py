@@ -344,6 +344,8 @@ def suggest_fixes(slices, p, ctx, mode):
                 opts = [fix(f"add a dowel at ({x:g} mm, {y:g} mm)", dowels=[*map(list, p["dowels"]), [x, y]])]
             elif "skipped" in w and "connection point" in w:
                 opts = [smaller, fix("fewer connection points", n_points=max(1, int(p.get("n_points", 2)) - 1))]
+            elif "press up to" in w and "too small to cut back" in w:
+                opts = [fix(f"bigger triangles (facet {(p.get('facet') or 10) * 1.5:g} mm)", facet=round((p.get("facet") or 10) * 1.5, 1))]
             elif "without a" in w and "seam" in w:
                 opts = [fix(f"bigger triangles (facet {p.get('facet', 15) * 1.5:g} mm)", facet=round(p.get("facet", 15) * 1.5, 1)),
                         fix("smaller joints", hole_d=round(max(1.0, p.get("hole_d", 2.5) * 0.7), 1), inset=round(max(1.0, p.get("inset", 4) * 0.7), 1))]
