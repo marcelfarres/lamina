@@ -5,7 +5,7 @@
 Layers / colours follow Slicer's Cut Layout convention:
   OUTER   blue    #0055ff   outer silhouette of each part
   INNER   green   #00aa00   interior cuts (slots, holes)
-  SCORE   yellow  #d4a800   fold lines (folded panels): solid = mountain, dashed = valley (dotted = perforate) — score, do not cut
+  SCORE   yellow  #d4a800   fold lines (folded panels): solid = mountain, dashed = valley, seen from the face up (dotted = perforate) — score, do not cut
   GUIDE   orange  #ff8800   the next layer's outline engraved on the slice below it (stacked, `next_outline`) — engrave, do not cut
   LABEL   red     #ff0000   part labels + leader lines + sheet border (engrave / do not cut). Every text is drawn in a
                             single-stroke font (core.font): open polylines the laser engraves in one pass, in every format

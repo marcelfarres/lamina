@@ -305,6 +305,29 @@ def test_folded_panels_in_a_material_that_does_not_fold_say_so_and_offer_ribs():
     assert fold_err(mine) and "plywood" in fold_err(mine)[0]
 
 
+def test_folded_sheet_lies_inside_the_surface_with_its_scores_on_the_inside():
+    """Asked for: the seams showed on the outside. The panels were centred on the model's surface, half a sheet proud,
+    with a notch on the outside of every fold, and the net was laid out seen from outside, so the scores and numbers
+    were engraved on the outside face. Now the outer face lies on the surface and, by default, the net is mirrored so
+    the inside face is up on the cutter: a cube's convex folds are valley lines seen from there."""
+    from core.solid import assembled
+    job = {"thickness": 3, "material": "cardboard", "facet": 0, "joint": "seam", "autofix": "off"}
+    plan = build(EXAMPLES / "cube.stl", "folded", job)
+    assert np.allclose(assembled(plan).bounds, [[-90] * 3, [90] * 3], atol=1e-3)    # not grown by half a sheet
+    folds = lambda plan: {s for sl in plan["slices"] if sl["group"] == "F" for pc in sl["pieces"] for s, _ in pc["kerfed_lines"]}   # noqa: E731
+    assert folds(plan) == {"dashed"}
+    assert folds(build(EXAMPLES / "cube.stl", "folded", {**job, "score_side": "outside"})) == {"solid"}
+
+
+def test_folded_says_when_the_sheet_is_too_thick_to_fold_round_the_curve():
+    """A sheet folded by θ gives up t·tan(θ/2) of the inside of the bend on each side of the fold: round a 5 mm
+    radius a 1.5 mm sheet closes, an 8 mm one cannot (a curve needs a radius bigger than the sheet)."""
+    job = {"size": [10, 0, 0], "material": "fabric", "facet": 2, "joint": "seam", "autofix": "off"}
+    closes = lambda t: not [w for sl in build(EXAMPLES / "sphere.stl", "folded", {**job, "thickness": t})["slices"]   # noqa: E731
+                            for w in sl["warnings"] if "cannot close" in w]
+    assert closes(1.5) and not closes(8)
+
+
 # the horse on the landing page: its body curve and a branch down each leg, from where it leaves the body to the hoof
 HORSE = {"size": [0, 300, 0], "thicken": 1, "round": 2, "thickness": 3, "slot_offset": 0.1, "plane": "yz", "count": 20, "spines": 1}
 HORSE_CURVE = [[-119, 11], [-89, 18], [-59, 23], [-14, 10], [16, 13], [50, 22], [76, 47], [91, 76], [106, 89], [136, 83]]

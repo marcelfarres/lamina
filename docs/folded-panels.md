@@ -46,6 +46,23 @@ Every mesh edge is exactly one of: fold (inside a panel, exported on the SCORE l
 dashed, dotted when `perforate`) or seam (numbered; the number is engraved beside the joint on **both** panels so
 the mating edges can be found on the cut sheet).
 
+## Which face is up, and how thick a sheet can fold
+The sheet's outer face lies on the model's surface and its thickness goes inwards, so the outside of the built model
+is one surface and keeps the model's size. Every fold closes on one face: the inside of a mountain (convex) fold, the
+outside of a valley (concave) fold.
+
+`score side` picks the face that is up on the cutter, and so the face that carries the scores and the seam numbers.
+`inside` (the default) mirrors the net: the scores and numbers are inside the model and the outside stays clean.
+`outside` lays the net as seen from outside, for a paper model printed on its outer side. Mountain and valley are
+read from the face that is up: seen from inside, a convex edge is a valley fold.
+
+Folded by an angle θ, a sheet of thickness t gives up t·tan(θ/2) of the closing face on each side of the fold. A
+triangle keeps some of that face while Σ dᵢ·Lᵢ ≤ 2·area over its fold edges (dᵢ is what edge i gives up, Lᵢ its
+length; a point's distance to edge i is 2·area·λᵢ/Lᵢ in barycentric coordinates). Past that, the folds around the
+face meet and it cannot be folded to the model's shape: on a curve this happens when the sheet is thicker than the
+curve's radius, a little sooner where the faces are narrow. Each panel says how many of its folds cannot close. The
+check runs only when the material folds at all (the material check comes first).
+
 Complexity: O(faces × panel size) shapely unions per run; 300 faces ≈ 1 s per strategy.
 
 ## Joints (core/modes/folded.py)
@@ -81,6 +98,10 @@ For cube, egg, torus, bowl (cavity), igea head (separate faces), Spot the cow (l
 - separate faces on a cube: ≥ 2 holes per seam side; on a 150-face egg with default sizes: > 100 ribs.
 - no two holes overlap on a 400-face head in separate mode; folded tabs add facets for the 3D view.
 - nothing "does not fit the sheet".
+
+In tests/test_modes.py: the built cube is exactly the model's size (the sheet lies inside the surface), its
+convex folds are valley lines with `score side` inside and mountain lines with outside, and a 5 mm sphere warns that
+its folds cannot close in an 8 mm sheet but not in a 1.5 mm one.
 
 Run: `uv run python tests/test_unfold.py`.
 

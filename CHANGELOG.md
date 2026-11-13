@@ -2,6 +2,23 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.3.3
+
+### Changed
+
+- **Folded panels keep their seams and scores on the inside.** The 3D view and the STL showed each panel centred on
+  the model's surface, half a sheet proud of it, with a notch on the outside of every fold. The sheet now lies inside
+  the surface, so the outside reads as one piece at the model's own size. The cut net is mirrored so the inside face
+  is up on the cutter: the score lines and seam numbers end up inside the model. A new switch on the Technique tab,
+  *score side*, puts them back on the outside, for a paper model printed on its outer side.
+
+### Added
+
+- **Folded panels say when the sheet is too thick to fold.** A fold takes material off the inside of the bend, more
+  the thicker the sheet and the sharper the bend. Where the folds around a face would need more than the whole face,
+  the panel warns how many folds cannot close: use a thinner sheet, a bigger facet size, or a gentler curve. A curve
+  needs a radius bigger than the sheet is thick.
+
 ## 0.3.2
 
 A model far too big for its material now stops at once and offers the size that can be cut, turning a model no

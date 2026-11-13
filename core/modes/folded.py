@@ -90,8 +90,9 @@ class Folded(Mode):
               "the matching edge on the other: find the same number on two parts and those two edges go together, the number "
               "reading along its edge · a cut edge with no number is an outside edge or one whose number had no room (the other "
               "side of the seam still carries it) · S-n = the connecting strip for seam n, R-n = the angle rib for seam n · on "
-              "the score layer a solid line is a mountain fold, a dashed line a valley fold; the short score across a tab's "
-              "base is where the tab folds, the rest of the outline is cut")
+              "the score layer a solid line is a mountain fold, a dashed line a valley fold, seen from the face that is up on "
+              "the cutter (the inside of the model unless `score side` says outside); the short score across a tab's base is "
+              "where the tab folds, the rest of the outline is cut")
     params = [
         Param("facet", "number", 15, "Detail: average triangle edge after simplification (mm). Bigger = fewer, simpler panels; joints need triangles a few times bigger than the joint. 0 = keep every triangle of the model", 0, 200, 1, unit="mm"),
         Param("separate", "bool", False, "Every face is its own panel (no folds): each triangle is cut alone and joined to its neighbours along every edge"),
@@ -106,12 +107,15 @@ class Folded(Mode):
         Param("rib_w", "number", 12.0, "Rib joint: arm width above the panel and tab width through the slot (mm); shrinks where the triangle is small", 2, 100, 0.5, unit="mm"),
         Param("rib_thick", "number", 0.0, "Rib material thickness (mm) when the ribs are cut from a different sheet; 0 = same as the panels. Slots in the panels follow it", 0, 20, 0.1, unit="mm", show_if=("joint", "rib")),
         Param("perforate", "bool", False, "Fold lines as dashed perforation instead of a continuous score (thick material)"),
+        Param("score_side", "choice", "inside", "The face of the sheet that is up on the cutter, and so carries the scores and "
+              "seam numbers: inside = the net is mirrored, they end up inside the model and the outside stays one clean "
+              "surface; outside = they show on the outside, as on a printed paper model", choices=["inside", "outside"]),
         Param("edge_labels", "bool", True, "Engrave the seam number beside every joint on both panels, so mating edges can be found"),
     ]
     hidden_common = ("notch_ratio", "notch_factor", "notch_angle", "relief", "tool_d", "margin", "tab", "offset", "tilt", "roll", "thick", "center", "skip")
 
     def build(self, ctx):
-        p = ctx.p; t = p["thickness"]; self.p = p; self.t = t
+        p = ctx.p; t = p["thickness"]; self.p = p; self.t = t; self.inside = p["score_side"] == "inside"
         # Bound the face count itself, not the facet size. `facet` 0 means "keep every triangle", which made
         # target_faces return 0 and skipped this guard entirely — the one route into unfold() with no limit, so a
         # scanned mesh of 200 000 faces never came back and the server looked hung. Whichever way the count was
@@ -147,7 +151,7 @@ class Folded(Mode):
                 fa = list(mesh.faces[mesh.face_adjacency[k][0]])
                 va, vb = mesh.face_adjacency_edges[k]
                 f = mesh.face_adjacency[k][0]
-                sl.lines.append((styles[0] if convex[k] else styles[1], LineString([pn.tri[f][fa.index(va)], pn.tri[f][fa.index(vb)]])))
+                sl.lines.append((self.mv(convex[k], styles), LineString([pn.tri[f][fa.index(va)], pn.tri[f][fa.index(vb)]])))
             slices.append(sl)
             for f in pn.faces:
                 owner[f] = sl
@@ -183,12 +187,56 @@ class Folded(Mode):
                 if not g.is_empty:
                     sl.facets.append((frames[f], g))
             sl.facets += sl.tab_facets
+            if self.inside:                                   # the inside face up on the cutter: the net seen from inside
+                flip = lambda g: affinity.scale(g, -1, 1, origin=(0, 0))
+                sl.raw = as_multi(flip(sl.raw)); sl.cuts = [flip(c) for c in sl.cuts]
+                sl.lines = [(s, flip(ln)) for s, ln in sl.lines]
+                sl.marks = [(-m[0], m[1], m[2], -mark_rot(m)) for m in sl.marks]
+        # the sheet's outer face lies on the model's surface and its thickness goes inwards, so the outside is one
+        # surface; centred on the surface, every fold left a notch on the outside and the model grew by half a sheet
+        for sl in slices + extra:
+            if sl.facets:
+                sl.facets = [(self.sunk(M), g) for M, g in sl.facets]
         n_panels = len(slices)
         if not p["separate"] and n_panels > 0.6 * len(mesh.faces):
             ctx.errors.append(f"unfolding gave {n_panels} panels for {len(mesh.faces)} faces — use a bigger facet size or enlarge the sheet")
-        self.check_folds(ctx, panels, seams)
+        if not self.check_folds(ctx, panels, seams):
+            self.check_closing(slices)
         ctx.notes_extra = f"unfolded {len(mesh.faces)} triangles into {n_panels} panel(s), {len(seams)} seams"
         return slices + extra
+
+    def check_closing(self, slices):
+        """A sheet of thickness t folded by θ gives up t·tan(θ/2) of its closing face on each side of the fold (the inside
+        of a mountain fold, the outside of a valley fold). A triangle keeps material on that face while Σ dᵢ·Lᵢ ≤ 2·area
+        over its fold edges (a point's distance to edge i is 2·area·λᵢ/Lᵢ). Past that the folds around a face meet: a
+        sheet thicker than the curve's radius, or faces too small for the sheet, cannot be folded to the model."""
+        m, t = self.mesh, self.t
+        L = np.linalg.norm(np.diff(m.vertices[m.face_adjacency_edges], axis=1)[:, 0], axis=1)
+        give = t * np.tan(np.minimum(m.face_adjacency_angles, math.pi * 0.999) / 2) * L
+        for sl in slices:
+            k = np.asarray(sl.pn.folds, int)
+            if not len(k):
+                continue
+            side = m.face_adjacency_convex[k].astype(int)     # the face that closes: 1 = the inside (mountain), 0 = the outside
+            need = np.zeros((2, len(m.faces)))
+            for f in m.face_adjacency[k].T:
+                np.add.at(need, (side, f), give[k])
+            stuck = (need[side[:, None], m.face_adjacency[k]] > 2 * m.area_faces[m.face_adjacency[k]]).any(1)
+            if stuck.any():
+                sl.warnings.append(f"{int(stuck.sum())} fold(s) cannot close in {t:g} mm sheet: folding takes t × tan(bend / 2) "
+                                   f"off the inside of the bend on each side of a fold, and here the folds around a face need "
+                                   f"more than the whole face. Use a thinner sheet or a bigger facet size, or round the model "
+                                   f"less tightly: a curve needs a radius bigger than the sheet is thick")
+
+    def sunk(self, M):
+        """Frame M moved half a sheet inwards: the centred extrusion then spans the surface to one thickness inside."""
+        M = M.copy(); M[:3, 3] -= M[:3, 2] * self.t / 2
+        return M
+
+    def mv(self, convex, styles=("solid", "dashed")):
+        """Mountain (styles[0]) or valley line for an edge, seen from the face up on the cutter: a convex edge folds as a
+        mountain seen from outside and as a valley seen from inside."""
+        return styles[0] if bool(convex) != self.inside else styles[1]
 
     def check_folds(self, ctx, panels, seams):
         """A fold line in a panel, or a joint whose tab or strip bends over the seam, needs a sheet that folds: 3 mm
@@ -197,7 +245,7 @@ class Folded(Mode):
         p = self.p; kind = p.get("material_kind") or p.get("material"); most = FOLDS.get(kind)
         folds = sum(len(pn.folds) for pn in panels) + (len(seams) if p["joint"] in FOLDED_JOINTS else 0)
         if most is None or not folds or self.t <= most:
-            return
+            return False
         why = "it does not fold, it cracks along the line" if most == 0 else f"it folds along a score up to about {most:g} mm"
         msg = (f"{folds} fold(s) in {self.t:g} mm {kind}: {why}. Cut every face as its own panel (separate) and join them with "
                f"a joint that needs no fold (rib, rivet or laced), or use a thinner or foldable material")
@@ -207,6 +255,7 @@ class Folded(Mode):
             fix["facet"] = math.ceil(math.sqrt(ctx.mesh.area / (0.433 * MAX_PANELS)))
         ctx.fixes = [{"error": msg, "options": [{"title": "every face its own panel, joined by ribs", "set": fix,
                                                  "note": "rigid panels, each rib cut at its seam's angle and slotted in from the back"}]}]
+        return True
 
     # ---------------------------------------------------------------- helpers
     @staticmethod
@@ -419,7 +468,8 @@ class Folded(Mode):
         def inward(f):
             c = m.triangles_center[f] - E; c -= np.dot(c, e) * e; return c / np.linalg.norm(c)
         dA, dB = inward(fa), inward(fb)
-        M = frame_xy(E, dA, -na)
+        # the rib is drawn about where the panels' mid-planes meet; they lie half a sheet inside the surface (see sunk)
+        M = frame_xy(E - t / (2 * max(1 + na @ nb, 0.1)) * (na + nb), dA, -na)
         dB2 = np.array([dB @ dA, dB @ -na]); nB2 = np.array([-nb @ dA, nb @ na])
         L = inset + tab + t * 2
 
@@ -493,8 +543,8 @@ class Folded(Mode):
             a["sl"].additions += polys
             # the hinge is scored across each tab's base, not along the whole seam edge: the rest of that edge is a cut,
             # and a score under a cut is wasted on the laser and invisible on the part
-            a["sl"].lines += [("solid" if convex else "dashed", hl) for hl in hinges]
-            a["sl"].lines += [("dashed", bl) for bl in bends]
+            a["sl"].lines += [(self.mv(convex), hl) for hl in hinges]
+            a["sl"].lines += [(self.mv(False), bl) for bl in bends]
             for poly in polys:
                 self.folded_tab(a, b, poly)
         self.mark(a, j, p["font"] * 0.5, on_tab=bool(polys) and polys[0] in a["sl"].additions)
