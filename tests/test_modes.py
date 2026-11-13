@@ -338,13 +338,14 @@ def test_folded_panels_printed_get_a_groove_at_every_fold_down_to_the_hinge_skin
     plan = build(EXAMPLES / "fold_test.stl", "folded", job)
     assert not plan["errors"] and plan["counts"]["errors"] == 0
     sl = plan["slices"][0]; pc = sl["pieces"][0]
-    bends = {round(2 * np.degrees(np.arctan((v[6] - v[4] / 2) / (sl["thickness"] - v[5])))) for v in pc["vees"]}
+    bends = {round(2 * np.degrees(np.arctan(v[6] / (sl["thickness"] - v[5])))) for v in pc["vees"]}     # the fold at which the walls meet
     assert {45, 90, 104} <= bends                                       # each groove opened to its own fold
     assert {v[7] for v in pc["vees"]} == {True, False}                   # the valley edge closes on the other face
     assert sum(len(fc.get("bevel", [])) for fc in pc["facets"]) == len(pc["vees"]) + sum(1 for fc in pc["facets"] if fc.get("hinge") and fc["hinge"][7])   # the 3D view draws every groove: a fold on both its faces
     proto_set(plan, tmp_path, labels="none")
     part = trimesh.load(tmp_path / "P-1.stl")
-    assert part.is_watertight
+    # closed: no edge with a face on one side only (two grooves that touch share an edge between four faces)
+    assert (np.unique(part.edges_sorted, axis=0, return_counts=True)[1] % 2 == 0).all() and part.volume > 0
     x0 = min(x for r in pc["kerfed"] for x, _ in r[0]); y0 = min(y for r in pc["kerfed"] for _, y in r[0])
     v = max((v for v in pc["vees"] if v[7]), key=lambda v: np.hypot(v[2] - v[0], v[3] - v[1]))
     mid = np.array([(v[0] + v[2]) / 2 - x0, (v[1] + v[3]) / 2 - y0]); along = np.array([v[2] - v[0], v[3] - v[1]])
@@ -352,6 +353,8 @@ def test_folded_panels_printed_get_a_groove_at_every_fold_down_to_the_hinge_skin
     under = sec[np.linalg.norm(sec[:, :2] - mid, axis=1) < v[4] / 2 + 0.01]
     assert np.isclose(under[:, 2].max(), job["hinge"], atol=0.02) and np.isclose(under[:, 2].min(), 0, atol=1e-3)
     assert "does not fold" in build(EXAMPLES / "fold_test.stl", "folded", {**job, "hinge": 0})["errors"][0]
+    tight = build(EXAMPLES / "fold_test.stl", "folded", {**job, "hinge_stop": -5})["slices"][0]["pieces"][0]["vees"]
+    assert {round(2 * np.degrees(np.arctan(v[6] / (sl["thickness"] - v[5])))) for v in tight} >= {40, 85, 99}   # every fold stops 5° sooner
 
 
 def test_folded_stiff_panels_meet_at_their_inside_edges():

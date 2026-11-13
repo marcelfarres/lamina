@@ -122,6 +122,9 @@ class Folded(Mode):
               "face for glue. Two layers (0.4 mm) is a good start; PETG bends, PLA is brittle and folds once. 0 = no groove", 0, 5, 0.05, unit="mm"),
         Param("hinge_w", "number", 0.4, "3D printed panels: width of the flat strip of skin at the bottom of each fold's groove (mm), "
               "the length that bends. Wider folds more easily and stops less sharply", 0, 5, 0.05, unit="mm", label="hinge width"),
+        Param("hinge_stop", "number", 0.0, "3D printed panels: where each fold stops, in degrees past (+) or short of (−) the "
+              "model's angle. 0 = the groove walls meet at the model's angle. Folds that go too far on your printer: set it "
+              "below 0 for a tighter groove; folds that stop short: above 0", -20, 20, 0.5, unit="deg", label="fold stop"),
         Param("edge_fit", "choice", "inner", "Where two panels meet at a seam. inner = at their inside edges: every outward seam "
               "edge is cut back by thickness × tan(bend / 2), so stiff sheet (metal, wood, acrylic) closes instead of its "
               "inside corners colliding, and the gap is on the outside; outer = the edges reach the model's edge (edges you "
@@ -345,7 +348,10 @@ class Folded(Mode):
         if not self.hinged or bend < math.radians(1):
             return
         h, g = self.p["hinge"], self.p["hinge_w"]
-        wide = g / 2 + (self.t - h) * math.tan(min(bend, math.pi * 0.999) / 2)
+        # the walls turn about the skin and meet when each has turned atan(half the opening / the depth): the opening
+        # is set by the bend alone. The flat bottom is inside it, not added to it (added, a 90° fold closed at 97°)
+        stop = min(max(bend + math.radians(self.p["hinge_stop"]), 0), math.pi * 0.999)
+        wide = max(g / 2, (self.t - h) * math.tan(stop / 2))
         top = bool(self.mesh.face_adjacency_convex[k]) == self.inside       # the closing face is the one up on the bed
         sl.vees.append([*map(float, a), *map(float, b), g, h, wide, top])
         for face in ([f] if f is not None else self.mesh.face_adjacency[k]):      # a fold grooves both of its faces
