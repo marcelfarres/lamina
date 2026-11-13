@@ -393,45 +393,94 @@ def test_proto_set_3mf_reloads_with_one_named_geometry_per_part(tmp_path):
     assert set(scene.geometry.keys()) == expected_labels
 
 
-def test_step_holds_one_closed_solid_per_flat_piece_of_a_part(tmp_path):
+def _step_rows(text):
+    """A STEP file's DATA section as {reference: entity}, and the two readers the tests need: what kind of entity a
+    reference names, and the references it holds in turn."""
+    rows = dict(re.findall(r"^(#\d+)=(.*);$", text, re.M))
+    return rows, lambda r: re.match(r"\(?([A-Z_0-9]+)", rows[r]).group(1), lambda r: re.findall(r"#\d+", rows[r])
+
+
+def _odd_plan(M):
+    """One part with a hole, its outline with a corner given three times (twice the same, once 0.1 nm away), a name
+    with a letter outside ASCII and a quote, placed with the frame M."""
+    square = [[0, 0], [40, 0], [40, 0], [40, 0.0000001], [40, 30], [0, 30], [0, 0]]
+    hole = [[10, 10], [10, 20], [20, 20], [20, 10], [10, 10]]
+    plan = {"slices": [{"thickness": 3, "pieces": [{"label": "Flügel 'A'", "facets": [{"M": np.asarray(M, float).tolist(), "rings": [[square, hole]]}]}]}]}
+    return plan, [("", Polygon(square, [hole]), 3)]
+
+
+def test_step_holds_one_closed_solid_per_flat_piece_of_a_part():
     """Asked for: the STL in Fusion is a million triangle lines that cannot be removed. The STEP holds each part as
     a solid with flat faces. Read from the file's own text, with no CAD kernel: a solid per polygon of the plan,
     named by its part; every edge walked once in each direction (the faces close, and agree on which side is out);
-    and Euler's count, V - E + F = 2 per solid (a through hole adds a handle and a loop on each flat face: they cancel)."""
-    import pytest
-    from core.solid import facet_polys
+    Euler's count, V - E + F = 2 per solid (a through hole adds a handle and a loop on each flat face: they cancel);
+    and the solids stand where the STL stands."""
+    from core.geometry import facet_polys
     from core.step import step_text
     for mode, prm in (("interlocked", {"nx": 2, "ny": 2}), ("folded", {}), ("stacked", {"distribution": "count", "count": 3})):
         plan = build(EXAMPLES / "cube.stl", mode, {**prm, "autofix": "off"})
         polys = [(pc["label"], g, sl["thickness"]) for sl in plan["slices"] for pc in sl["pieces"] for g, _ in facet_polys(pc)]
-        text = step_text(plan, name="it's a cube")
-        assert text.startswith("ISO-10303-21;") and text.rstrip().endswith("END-ISO-10303-21;") and "PRODUCT('it''s a cube'" in text
+        text = step_text(plan)
+        assert text.startswith("ISO-10303-21;") and text.rstrip().endswith("END-ISO-10303-21;")
         assert sorted(re.findall(r"MANIFOLD_SOLID_BREP\('([^']*)'", text)) == sorted(label for label, _, _ in polys), mode
         walked = re.findall(r"ORIENTED_EDGE\('',\*,\*,(#\d+),\.([TF])\.\)", text)
         edges = re.findall(r"(#\d+)=EDGE_CURVE", text)
         assert sorted(walked) == sorted((e, d) for e in edges for d in "TF"), mode
         assert text.count("=VERTEX_POINT") - len(edges) + text.count("=ADVANCED_FACE") == 2 * len(polys), mode
         pts = np.array([[float(x) for x in m.split(",")] for m in re.findall(r"CARTESIAN_POINT\('',\(([^)]*)\)\)", text)])
-        assert np.allclose([pts.min(0), pts.max(0)], assembled(plan).bounds, atol=1e-6), mode   # where the STL stands
+        assert np.allclose([pts.min(0), pts.max(0)], assembled(plan).bounds, atol=1e-6), mode
         one = polys[0][0]
         assert set(re.findall(r"MANIFOLD_SOLID_BREP\('([^']*)'", step_text(plan, one))) == {one}
-    read = [(text, polys)]                                                    # the stacked one, for OpenCascade below
-    # a point given twice keeps its corner (it once lost both), names keep their letters, a line break cannot split a row
-    square = [[0, 0], [40, 0], [40, 0], [40, 0.0000001], [40, 30], [0, 30], [0, 0]]
-    hole = [[10, 10], [10, 20], [20, 20], [20, 10], [10, 10]]
-    for M in (np.eye(4), np.diag([-1.0, 1, 1, 1])):                           # as placed, and in a frame that mirrors
-        odd = {"slices": [{"thickness": 3, "pieces": [{"label": "Flügel 'A'", "facets": [{"M": M.tolist(), "rings": [[square, hole]]}]}]}]}
-        text = step_text(odd, name="a\nb")
-        assert text.count("=VERTEX_POINT") == 16 and text.count("=ADVANCED_FACE") == 10 and "PRODUCT('a b'" in text
-        assert "MANIFOLD_SOLID_BREP('Fl\\X2\\00FC\\X0\\gel ''A''" + "'," in text and text.isascii()
-        read.append((text, [("", Polygon(square, [hole]), 3)]))
-    cq = pytest.importorskip("cadquery", reason="the CAD kernel is an extra: uv sync --extra cad")   # read by OpenCascade
-    for text, polys in read:
-        (tmp_path / "it.step").write_text(text, encoding="ascii")
+
+
+def test_step_hangs_its_solids_on_a_product_in_millimetres():
+    """What a CAD program follows to find the solids, followed here with no CAD kernel: every reference names a row;
+    the shape leads back to the product, named after the design; the solids stand in a frame, measured in mm."""
+    from core.step import step_text
+    plan = build(EXAMPLES / "cube.stl", "interlocked", {"nx": 2, "ny": 2, "autofix": "off"})
+    rows, kind, refs = _step_rows(step_text(plan, name="cube v1"))
+    assert all(x in rows for r in rows for x in refs(r))
+    (shown,) = [r for r in rows if kind(r) == "SHAPE_DEFINITION_REPRESENTATION"]
+    r, model = refs(shown)
+    for want in ("PRODUCT_DEFINITION_SHAPE", "PRODUCT_DEFINITION", "PRODUCT_DEFINITION_FORMATION", "PRODUCT"):
+        assert kind(r) == want
+        last, r = r, refs(r)[0]
+    assert rows[last].startswith("PRODUCT('cube v1','cube v1'")
+    frame, *solids, context = refs(model)
+    assert kind(model) == "ADVANCED_BREP_SHAPE_REPRESENTATION" and kind(frame) == "AXIS2_PLACEMENT_3D"
+    assert {kind(b) for b in solids} == {"MANIFOLD_SOLID_BREP"} and len(solids) == plan["counts"]["parts"]
+    assert rows[context].startswith("(GEOMETRIC_REPRESENTATION_CONTEXT(3)") and any(".MILLI.,.METRE." in rows[u] for u in refs(context))
+
+
+def test_step_keeps_a_repeated_corner_a_mirroring_frame_and_a_hostile_name():
+    """A point given twice keeps its corner (it once lost both, and the square came out a triangle), and one 0.1 nm
+    from it makes no edge. A frame that mirrors gives the same count. A name keeps its letters outside ASCII in
+    STEP's own escape, its quote doubled; a line break in the design's name cannot split a row."""
+    from core.step import step_text
+    for M in (np.eye(4), np.diag([-1.0, 1, 1, 1])):
+        text = step_text(_odd_plan(M)[0], name="a\nb")
+        assert text.count("=VERTEX_POINT") == 16 and text.count("=ADVANCED_FACE") == 10
+        assert "PRODUCT('a b'" in text and "MANIFOLD_SOLID_BREP('Fl\\X2\\00FC\\X0\\gel ''A''" + "'," in text and text.isascii()
+        rows, _, refs = _step_rows(text)
+        assert all(x in rows for r in rows for x in refs(r))
+
+
+def test_step_reads_back_as_valid_solids_in_a_cad_kernel(tmp_path):
+    """OpenCascade (CadQuery, the optional CAD extra) reads the files: as many solids as polygons, each valid, their
+    volume the outline's area times the thickness. A solid turned inside out would count negative."""
+    import pytest
+    from core.geometry import facet_polys
+    from core.step import step_text
+    cq = pytest.importorskip("cadquery", reason="the CAD kernel is an extra: uv sync --extra cad")
+    plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 3, "autofix": "off"})
+    cases = [(plan, [("", g, sl["thickness"]) for sl in plan["slices"] for pc in sl["pieces"] for g, _ in facet_polys(pc)])]
+    cases += [_odd_plan(M) for M in (np.eye(4), np.diag([-1.0, 1, 1, 1]))]
+    for plan, polys in cases:
+        (tmp_path / "it.step").write_text(step_text(plan), encoding="ascii")
         solids = cq.importers.importStep(str(tmp_path / "it.step")).solids().vals()
-        assert len(solids) == len(polys) and all(s.isValid() for s in solids)
+        assert len(solids) == len(polys) and all(b.isValid() for b in solids)
         want = sum(g.area * t for _, g, t in polys)
-        assert abs(sum(s.Volume() for s in solids) - want) < 1e-6 * want       # positive: no solid is inside out
+        assert abs(sum(b.Volume() for b in solids) - want) < 1e-6 * want
 
 
 def test_the_command_line_writes_step_and_refuses_what_it_cannot_write(tmp_path):

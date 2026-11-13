@@ -6,9 +6,10 @@ STL shows its triangles. Curved edges stay the polylines they are in the cut fil
     uv run python -m core.solid working-files/egg.json --out working-files/egg.step [--part X-3]
 """
 from __future__ import annotations
+from typing import NamedTuple
 import numpy as np
 from shapely.geometry.polygon import orient
-from .solid import facet_polys
+from .geometry import facet_polys
 
 HEAD = """ISO-10303-21;
 HEADER;
@@ -18,40 +19,31 @@ FILE_SCHEMA(('AUTOMOTIVE_DESIGN {{ 1 0 10303 214 1 1 1 1 }}'));
 ENDSEC;
 DATA;
 """
-# the product, millimetres, and the origin frame: #8 is what the shape hangs on, #13 its context, #14 its frame
-PRODUCT = """APPLICATION_CONTEXT('core data for automotive mechanical design processes')
-APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2000,#1)
-PRODUCT_CONTEXT('',#1,'mechanical')
-PRODUCT('{name}','{name}','',(#3))
-PRODUCT_DEFINITION_FORMATION('','',#4)
-PRODUCT_DEFINITION_CONTEXT('part definition',#1,'design')
-PRODUCT_DEFINITION('design','',#5,#6)
-PRODUCT_DEFINITION_SHAPE('','',#7)
-(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.))
-(NAMED_UNIT(*)PLANE_ANGLE_UNIT()SI_UNIT($,.RADIAN.))
-(NAMED_UNIT(*)SI_UNIT($,.STERADIAN.)SOLID_ANGLE_UNIT())
-UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-5),#9,'distance_accuracy_value','')
-(GEOMETRIC_REPRESENTATION_CONTEXT(3)GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#12))GLOBAL_UNIT_ASSIGNED_CONTEXT((#9,#10,#11))REPRESENTATION_CONTEXT('',''))
-AXIS2_PLACEMENT_3D('',#15,#16,#17)
-CARTESIAN_POINT('',(0.,0.,0.))
-DIRECTION('',(0.,0.,1.))
-DIRECTION('',(1.,0.,0.))
-PRODUCT_RELATED_PRODUCT_CATEGORY('part','',(#4))"""
-
-
 MIN_EDGE = 1e-6     # mm: the shortest edge written; ten times what the 7 decimals of a coordinate tell apart
 
 
 def _text(s) -> str:
     """A name as a STEP string: the quote and the backslash (STEP's own escape) doubled, a letter outside ASCII in
     STEP's X2 form so two names never become one, a control character (a line break would split the row) a space."""
-    one = lambda c, o: "''" if c == "'" else "\\\\" if c == "\\" else c if 32 <= o < 127 else " " if o < 160 else f"\\X2\\{o:04X}\\X0\\" if o < 0x10000 else f"\\X4\\{o:08X}\\X0\\"
-    return "".join(one(c, ord(c)) for c in str(s))
+    out = []
+    for c in str(s):
+        o = ord(c)
+        if c in "'\\":
+            out.append(c + c)
+        elif 32 <= o < 127:
+            out.append(c)
+        elif o < 160:
+            out.append(" ")
+        elif o < 0x10000:
+            out.append(f"\\X2\\{o:04X}\\X0\\")
+        else:
+            out.append(f"\\X4\\{o:08X}\\X0\\")
+    return "".join(out)
 
 
 def _xyz(v) -> str:
     """Reals as STEP wants them: always with the point, never an exponent. 7 decimals: 0.1 nm on a millimetre."""
-    return ",".join(f"{x + 0.0:.7f}".rstrip("0") for x in np.round(v, 7))
+    return ",".join(f"{x + 0.0:.7f}".rstrip("0") for x in np.round(np.asarray(v, float), 7))
 
 
 def _unit(v):
@@ -61,11 +53,18 @@ def _unit(v):
 def _ring(coords):
     """A ring's corners (x, y) without the closing repeat, without a point that repeats the one before it (nearer
     than MIN_EDGE: it has no wall, and written with 7 decimals the two would be one point) and without the points
-    that lie on a straight run: each would split one flat wall into two with a line between them."""
+    that lie on a straight run: each would split one flat wall into two with a line between them. By hand, not
+    shapely's simplify: the one that keeps a ring valid reads bad memory in the browser build's GEOS (3.12)."""
     p = np.asarray(coords, float)[:-1, :2]
     p = p[np.linalg.norm(p - np.roll(p, 1, 0), axis=1) > MIN_EDGE]
     a, b = p - np.roll(p, 1, 0), np.roll(p, -1, 0) - p
     return p[np.abs(a[:, 0] * b[:, 1] - a[:, 1] * b[:, 0]) > 1e-9 * np.linalg.norm(a, axis=1) * np.linalg.norm(b, axis=1)]
+
+
+class _Vertex(NamedTuple):
+    ref: str            # the VERTEX_POINT
+    point: str          # its CARTESIAN_POINT, which the lines and planes through it use too
+    at: np.ndarray      # where it is
 
 
 class _Step:
@@ -77,6 +76,29 @@ class _Step:
         self.rows.append(entity)
         return f"#{len(self.rows)}"
 
+    def product(self, name):
+        """The product the solids belong to, in millimetres. Returns what a shape hangs on, the context it is
+        measured in and the frame it stands in."""
+        add = self.add
+        app = add("APPLICATION_CONTEXT('core data for automotive mechanical design processes')")
+        add(f"APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2000,{app})")
+        mechanical = add(f"PRODUCT_CONTEXT('',{app},'mechanical')")
+        product = add(f"PRODUCT('{name}','{name}','',({mechanical}))")
+        add(f"PRODUCT_RELATED_PRODUCT_CATEGORY('part','',({product}))")
+        formation = add(f"PRODUCT_DEFINITION_FORMATION('','',{product})")
+        design = add(f"PRODUCT_DEFINITION_CONTEXT('part definition',{app},'design')")
+        definition = add(f"PRODUCT_DEFINITION('design','',{formation},{design})")
+        shape = add(f"PRODUCT_DEFINITION_SHAPE('','',{definition})")
+        mm = add("(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.))")
+        radian = add("(NAMED_UNIT(*)PLANE_ANGLE_UNIT()SI_UNIT($,.RADIAN.))")
+        steradian = add("(NAMED_UNIT(*)SI_UNIT($,.STERADIAN.)SOLID_ANGLE_UNIT())")
+        accuracy = add(f"UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-5),{mm},'distance_accuracy_value','')")
+        context = add(f"(GEOMETRIC_REPRESENTATION_CONTEXT(3)GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT(({accuracy}))"
+                      f"GLOBAL_UNIT_ASSIGNED_CONTEXT(({mm},{radian},{steradian}))REPRESENTATION_CONTEXT('',''))")
+        origin = add("CARTESIAN_POINT('',(0.,0.,0.))")
+        frame = add(f"AXIS2_PLACEMENT_3D('',{origin},{self.direction([0, 0, 1])},{self.direction([1, 0, 0])})")
+        return shape, context, frame
+
     def direction(self, v) -> str:
         """One DIRECTION per different direction: the walls of a part share a few, and the file is a quarter smaller."""
         key = _xyz(v)
@@ -84,26 +106,34 @@ class _Step:
             self.dirs[key] = self.add(f"DIRECTION('',({key}))")
         return self.dirs[key]
 
-    def vertex(self, p):
-        point = self.add(f"CARTESIAN_POINT('',({_xyz(p)}))")
-        return self.add(f"VERTEX_POINT('',{point})"), point, p
+    def vertex(self, at) -> _Vertex:
+        point = self.add(f"CARTESIAN_POINT('',({_xyz(at)}))")
+        return _Vertex(self.add(f"VERTEX_POINT('',{point})"), point, at)
 
     def edge(self, a, b) -> str:
         """The straight edge from vertex a to vertex b."""
-        d = b[2] - a[2]
-        vec = self.add(f"VECTOR('',{self.direction(_unit(d))},{_xyz([np.linalg.norm(d)])})")
-        return self.add(f"EDGE_CURVE('',{a[0]},{b[0]},{self.add(f'''LINE('',{a[1]},{vec})''')},.T.)")
+        d = b.at - a.at
+        vector = self.add(f"VECTOR('',{self.direction(_unit(d))},{_xyz([np.linalg.norm(d)])})")
+        line = self.add(f"LINE('',{a.point},{vector})")
+        return self.add(f"EDGE_CURVE('',{a.ref},{b.ref},{line},.T.)")
 
     def loop(self, edges) -> str:
         """A closed run of (edge, forward?) pairs, counter-clockwise seen from outside the solid."""
-        return self.add("EDGE_LOOP('',(%s))" % ",".join(self.add(f"ORIENTED_EDGE('',*,*,{e},.{'T' if fwd else 'F'}.)") for e, fwd in edges))
+        walked = [self.add(f"ORIENTED_EDGE('',*,*,{e},.{'T' if forward else 'F'}.)") for e, forward in edges]
+        return self.add(f"EDGE_LOOP('',({','.join(walked)}))")
 
-    def face(self, loops, origin, normal, ref) -> str:
-        """A flat face through the point `origin` (a vertex's): its outline first, then its holes; `normal` points
-        out of the solid, `ref` lies in the face."""
-        plane = self.add(f"PLANE('',{self.add(f'''AXIS2_PLACEMENT_3D('',{origin},{self.direction(normal)},{self.direction(ref)})''')})")
+    def face(self, loops, through, normal, ref) -> str:
+        """A flat face through the vertex `through`: its outline first, then its holes; `normal` points out of the
+        solid, `ref` lies in the face."""
+        axes = self.add(f"AXIS2_PLACEMENT_3D('',{through.point},{self.direction(normal)},{self.direction(ref)})")
+        plane = self.add(f"PLANE('',{axes})")
         bounds = [self.add(f"FACE_{'' if i else 'OUTER_'}BOUND('',{lp},.T.)") for i, lp in enumerate(loops)]
         return self.add(f"ADVANCED_FACE('',({','.join(bounds)}),{plane},.T.)")
+
+    def wall(self, a, b, bottom, rise_b, top, rise_a, up) -> str:
+        """The flat wall on the outline segment a → b: along the bottom, up at b, back along the top, down at a."""
+        along = _unit(b.at - a.at)
+        return self.face([self.loop([(bottom, True), (rise_b, True), (top, False), (rise_a, False)])], a, np.cross(along, up), along)
 
     def prism(self, name, poly, M, thickness):
         """One polygon (holes included) as a solid `thickness` thick, centred on its plane, placed with its frame M.
@@ -111,7 +141,7 @@ class _Step:
         M = np.asarray(M, float)
         mirrored = np.linalg.det(M[:3, :3]) < 0                         # a mirroring frame turns every ring over
         poly = orient(poly)                                             # outline counter-clockwise, holes clockwise
-        faces, tops, bottoms, up, ref = [], [], [], None, None
+        walls, top_loops, bottom_loops = [], [], []
         for k, ring in enumerate([poly.exterior, *poly.interiors]):
             p = _ring(ring.coords)
             if len(p) < 3:
@@ -120,27 +150,27 @@ class _Step:
                 continue
             p = p[::-1] if mirrored else p
             n = len(p)
-            B, T = ([self.vertex(q) for q in (np.c_[p, np.full(n, z), np.ones(n)] @ M.T)[:, :3]] for z in (-thickness / 2, thickness / 2))
-            if up is None:
-                up, ref = _unit(T[0][2] - B[0][2]), _unit(B[1][2] - B[0][2])
             nxt = [(i + 1) % n for i in range(n)]
-            eb, et, ev = ([self.edge(V[i], W[nxt[i] if V is W else i]) for i in range(n)] for V, W in ((B, B), (T, T), (B, T)))
-            for i in range(n):                                          # the wall on segment i: along the bottom, up, back along the top, down
-                along = _unit(B[nxt[i]][2] - B[i][2])
-                faces.append(self.face([self.loop([(eb[i], True), (ev[nxt[i]], True), (et[i], False), (ev[i], False)])], B[i][1], np.cross(along, up), along))
-            tops.append((self.loop([(e, True) for e in et]), T[0][1]))
-            bottoms.append((self.loop([(e, False) for e in reversed(eb)]), B[0][1]))
-        faces.append(self.face([lp for lp, _ in tops], tops[0][1], up, ref))
-        faces.append(self.face([lp for lp, _ in bottoms], bottoms[0][1], -up, ref))
-        return self.add(f"MANIFOLD_SOLID_BREP('{_text(name)}',{self.add('''CLOSED_SHELL('',(%s))''' % ','.join(faces))})")
+            bottom, top = ([self.vertex(at) for at in (np.c_[p, np.full(n, z), np.ones(n)] @ M.T)[:, :3]] for z in (-thickness / 2, thickness / 2))
+            bottom_edges = [self.edge(bottom[i], bottom[nxt[i]]) for i in range(n)]
+            top_edges = [self.edge(top[i], top[nxt[i]]) for i in range(n)]
+            rises = [self.edge(bottom[i], top[i]) for i in range(n)]
+            if k == 0:                                                  # the outline says which way is up, and where the flat faces lie
+                up, ref, on_top, on_bottom = _unit(top[0].at - bottom[0].at), _unit(bottom[1].at - bottom[0].at), top[0], bottom[0]
+            walls += [self.wall(bottom[i], bottom[nxt[i]], bottom_edges[i], rises[nxt[i]], top_edges[i], rises[i], up) for i in range(n)]
+            top_loops.append(self.loop([(e, True) for e in top_edges]))
+            bottom_loops.append(self.loop([(e, False) for e in reversed(bottom_edges)]))
+        faces = [*walls, self.face(top_loops, on_top, up, ref), self.face(bottom_loops, on_bottom, -up, ref)]
+        return self.add(f"MANIFOLD_SOLID_BREP('{_text(name)}',{self.add(f'''CLOSED_SHELL('',({','.join(faces)}))''')})")
 
 
 def step_text(plan, part=None, name="lamina") -> str:
     """The assembled model (or the one part labelled `part`) as a STEP file: one solid per flat piece of a part,
     named with the part's label, each where it sits in the assembly."""
-    s = _Step()
-    s.rows += PRODUCT.format(name=_text(name)).split("\n")
+    s, name = _Step(), _text(name)
+    shape, context, frame = s.product(name)
     solids = [b for sl in plan["slices"] for pc in sl["pieces"] if part is None or pc["label"] == part
               for poly, M in facet_polys(pc) if (b := s.prism(pc["label"], poly, M, sl["thickness"]))]
-    s.add(f"SHAPE_DEFINITION_REPRESENTATION(#8,{s.add('''ADVANCED_BREP_SHAPE_REPRESENTATION('',(%s),#13)''' % ','.join(['#14', *solids]))})")
-    return HEAD.format(name=_text(name)) + "".join(f"#{i}={row};\n" for i, row in enumerate(s.rows, 1)) + "ENDSEC;\nEND-ISO-10303-21;\n"
+    shown = s.add(f"ADVANCED_BREP_SHAPE_REPRESENTATION('',({','.join([frame, *solids])}),{context})")
+    s.add(f"SHAPE_DEFINITION_REPRESENTATION({shape},{shown})")
+    return HEAD.format(name=name) + "".join(f"#{i}={row};\n" for i, row in enumerate(s.rows, 1)) + "ENDSEC;\nEND-ISO-10303-21;\n"
