@@ -119,7 +119,7 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
   <h4>The workflow</h4>
   <ol>
     <li><b>Model</b> — upload your own (STL, OBJ, 3MF, PLY, OFF, GLB, STEP) or pick an example, then set how big you want the finished piece: type one of the <b>size</b> boxes and the other two follow the model's proportions. <b>turn</b> stands it the right way up.</li>
-    <li><b>Technique</b> — how the model is taken apart: stacked layers, interlocked slices, a radial fan, ribs along a curve, folded panels. Each has its own settings underneath.</li>
+    <li><b>Technique</b> — how the model is taken apart: stacked layers, interlocked slices, a radial fan, ribs along a curve, folded panels, a plaque on a back plate. Each has its own settings underneath.</li>
     <li><b>Sheet &amp; fit</b> — what you cut and on what: material and its density, thickness, sheet size (your machine's bed), and the cut compensation. PLA or PETG print the parts instead, nested on your printer's bed. Not on the list? Type any thickness or sheet size, or a material's density, and press <b>+</b> to keep it.</li>
     <li><b>Checks</b> — whether it holds together. Every error offers one-click fixes; press one and it re-slices.</li>
     <li><b>Export</b> — the cut files (SVG, DXF, PDF, EPS), a 3D-printable prototype, a fit test, the assembly key.</li>
@@ -1607,7 +1607,7 @@ async function init(){
   const applyPreset=()=>{const pr=PRESETS[$('#example').value];if(!pr)return;
     const FIT=[...new Set(MODES.flatMap(m=>m.common).filter(p=>p.group==='fit').map(p=>p.name))];
     const was=state.machine, fit=Object.fromEntries(FIT.filter(k=>!(k in pr.params)).map(k=>[k,structuredClone(state[k])]));   // what the preset names, it sets
-    setMode(pr.mode,false);for(const k of Object.keys(memo))delete memo[k];Object.assign(state,{rotate:[0,0,0],size:[0,0,0],scale:1,round:0,thicken:0,shrinkwrap:0,smooth:0,hollow:0,space:0},structuredClone(pr.params));
+    setMode(pr.mode,false);for(const k of Object.keys(memo))delete memo[k];Object.assign(state,{rotate:[0,0,0],size:[0,0,0],scale:1,round:0,thicken:0,shrinkwrap:0,smooth:0,hollow:0},structuredClone(pr.params));   // the gap between slices is the technique's own default (setMode): a plaque's is 3 mm, and a forced 0 made its slices touch
     if(pr.params.material)$('#material').onchange({target:{value:pr.params.material}});
     const m=state.material||'cardboard', next=pr.params.machine||(machineOf(was)?.cuts.includes(kind(m))?was:matOf(m).machine);
     if(next===was)Object.assign(state,fit); else applyMachine(next);
@@ -1661,7 +1661,7 @@ if(COUNT_URL){
 // What a report carries from here: the checks and the last steps in words — small enough to read in an issue — and
 // the project file, which is the whole data model and reopens the job exactly as it was, plus every step since the
 // model loaded (`trail`). The model is inside it only while the reporter leaves the box ticked.
-const TECHNIQUE={stacked:'Stacked slices',interlocked:'Interlocked slices',radial:'Radial slices',curve:'Curve (ribs)',folded:'Folded panels'};
+const TECHNIQUE={stacked:'Stacked slices',interlocked:'Interlocked slices',radial:'Radial slices',curve:'Curve (ribs)',folded:'Folded panels',plaque:'Plaque'};
 function reportSummary(version){
   const where=`lamina         ${version}, ${document.documentElement.dataset.static?'in the browser (Pyodide)':'against a local server'}`;
   // a hang is reported while it hangs: the result below is then the slice before it, not this one

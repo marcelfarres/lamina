@@ -202,6 +202,13 @@ S.folded = async () => {      // the cow mesh is y-up: rotate x 90° stands it u
     await techClip("folded", -60, 18, 0.9, [["laced", () => set("joint", "laced")], ["facet 25", () => set("facet", 25)], ["rib", () => set("joint", "rib")],
         ["tab", () => set("joint", "tab")], ["facet 15", () => set("facet", 15)]]);
 };
+S.plaque = async () => {      // the bonsai opens as a plaque; the camera stays in front of the plate: from behind, a plaque is a board with teeth
+    await example("bonsai"); await mode("plaque"); await tab("technique"); await heal();
+    await view(50, 10, 1.0, 1.0); await project("plaque");
+    // three changes only: each adds 24° of orbit, and past 170° the view is behind the plate
+    await techClip("plaque", 50, 10, 1.0, [["circle plate", () => set("plate", "circle")], ["silhouette plate", () => set("plate", "silhouette")],
+        ["rounded plate", () => set("plate", "rounded")]]);
+};
 S.rib = async () => {         // rib closeup: a pyramid keeps every face, so five long ribs at real fold angles, and nothing else in the frame
     await example("pyramid"); await mode("folded"); await tab("technique");
     await params({ joint: "rib", facet: 0, rib_w: 40, inset: 15, thickness: 1.5 }); await heal();   // ribs big enough to read on a 240 mm pyramid
@@ -338,15 +345,6 @@ S.labels = async () => {      // the vase's cut sheet, close: names in the singl
 await send("Page.reload"); await sleep(4000);              // a fresh tab: the last run may have left it mid-request
 await until("document.querySelector('#stats').textContent.includes('parts')");
 await js("document.querySelector('#pname').value='Lamina demo';document.querySelector('#pname').dispatchEvent(new Event('input'))");
-// plaque: the bonsai cut at half its depth, its slices standing on a back plate; then the plate's shape and thickness
-S.plaque = async () => {
-    await example("bonsai"); await mode("plaque"); await tab("technique");
-    await params({ layout: "parallel", back: "-y", axis: "x", sink: 27, margin: 4, space: 3, distribution: "distance", plate: "rounded", plate_margin: 20, plate_thickness: 0 }); await heal();
-    await view(58, 12, 1.0, 1.0); await project("plaque");
-    await techClip("plaque", 58, 12, 1.0, [["a round plate", () => set("plate", "circle")], ["the tree's own silhouette", () => set("plate", "silhouette")],
-        ["a shield", () => set("plate", "shield")], ["a 6 mm plate, teeth as long", () => set("plate_thickness", 6)],
-        ["back to 3 mm, a rounded rectangle", async () => { await set("plate_thickness", 0); await set("plate", "rounded"); }]]);
-};
 const want = process.argv.slice(2);
 for (const name of want.length ? want : Object.keys(S)) {
     if (!S[name]) { console.log("no scene", name); continue; }

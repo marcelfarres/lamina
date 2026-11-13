@@ -22,7 +22,7 @@
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://marcelfarres.github.io/lamina/">
 <meta property="og:title" content="Lamina — 3D models into flat cut parts">
-<meta property="og:description" content="A free replacement for Autodesk's discontinued Slicer for Fusion 360 — not the 3D-printing kind of slicing. Stacked, interlocked, radial, ribbed or folded flat parts for laser, router, plasma or vinyl cutters, with physical checks, one-click fixes and nesting.">
+<meta property="og:description" content="A free replacement for Autodesk's discontinued Slicer for Fusion 360 — not the 3D-printing kind of slicing. Stacked, interlocked, radial, ribbed, folded or plaque-mounted flat parts for laser, router, plasma or vinyl cutters, with physical checks, one-click fixes and nesting.">
 <!-- Open Graph needs an absolute URL: Slack, LinkedIn and Discord do not resolve a relative one, and the card
      renders with an empty image slot. Keep this in step with the Pages origin if the repo is ever renamed. -->
 <meta property="og:image" content="https://marcelfarres.github.io/lamina/media/hero.jpg">
@@ -292,26 +292,6 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
     </div>
   </article>
   <article class="tech">
-    <video src="media/plaque.mp4" poster="media/plaque_poster.jpg" width="1100" height="825" muted loop playsinline controls preload="none"
-           aria-label="A bonsai cut at half its depth, its slices standing on a back plate, orbiting from the front round to the back where the teeth come through; then a round plate, a plate the shape of the tree, a shield, and a thicker plate"></video>
-    <div>
-      <h3>Plaque</h3>
-      <p>A piece for the wall. The model is cut off at a flat back plate and its slices stand on edge on the plate,
-      like a trophy on a shield. Every slice has teeth that go through slots in the plate and end flush with its back,
-      at least two for each stretch that stands on it, evenly spread. You choose which side of the model goes against
-      the plate and how deep it sinks in; what is behind the plate is left out.</p>
-      <p>The slices stand <b>side by side</b>, as a <b>fan</b> round a centre, or as <b>two crossed families</b>
-      slotted into each other. The plate has its own thickness and its own shape: circle, ellipse, rectangle, rounded
-      rectangle, hexagon, shield, the model's silhouette, or a shape you drew, from an SVG or DXF file. A piece of a
-      slice that does not reach the plate hangs from the slice beside it on three small flat spacers set edge-on.</p>
-      <p class="clip"><b>In the clip:</b> the bundled bonsai in 3 mm sheet, 36 slices 3 mm apart, seen from the front
-      round to the back, where the teeth come through; then a round plate, a plate the shape of the tree, a shield, and
-      a 6 mm plate with teeth as long.</p>
-      <p class="clip"><b>Parameters:</b> back of the model · sink · layout · plate shape, margin, size, scale, mirror,
-      turn and offset · plate thickness · teeth, tooth width and spacing · slice count or spacing, or a spacing curve.</p>
-    </div>
-  </article>
-  <article class="tech">
     <video src="media/curve.mp4" poster="media/curve_poster.jpg" width="1100" height="825" muted loop playsinline controls preload="none"
            aria-label="Ribs following a curve along a horse's back and up its neck, with a branch of ribs down each leg, orbiting; then 8, 12 and 20 ribs, and the head control point moved up and back down"></video>
     <div>
@@ -351,6 +331,26 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
       coarser 25 mm facet, ribs at that facet, tabs again, and back to 15 mm.</p>
       <p class="clip"><b>Parameters:</b> facet size · growth strategy and faces per panel · joint · hole, inset,
       spacing and tab sizes · rib width and material · perforated folds · seam numbers on both panels.</p>
+    </div>
+  </article>
+  <article class="tech">
+    <video src="media/plaque.mp4" poster="media/plaque_poster.jpg" width="1100" height="825" muted loop playsinline controls preload="none"
+           aria-label="A bonsai tree in slices that stand on edge on a flat back plate, seen from the front while the view turns; then the plate as a circle, as the tree's own outline, and as a rounded rectangle again"></video>
+    <div>
+      <h3>Plaque</h3>
+      <p>A piece for the wall. The model is cut off at a flat back plate, and its slices stand on edge on that plate,
+      like a trophy head on a shield. Each slice has teeth that go through slots in the plate and end flush with its
+      back, so the plate holds everything. You choose which side of the model goes against the plate and how deep the
+      model sinks into it; what is behind the plate is left out. The slices can stand side by side, fan out round a
+      centre, or cross each other. A piece of a slice that does not reach the plate hangs from the slice beside it
+      on flat spacers.</p>
+      <p>The plate is a circle, an ellipse, a rectangle, a rounded rectangle, a hexagon or a shield fitted round the
+      model, the model's own silhouette, or an outline you draw and load as an SVG or DXF file. The bundled
+      <b>bonsai</b>, <b>droplet</b> and <b>figure</b> open this way.</p>
+      <p class="clip"><b>In the clip:</b> the bonsai in 3 mm slices side by side, 3 mm apart, on a rounded plate, sunk 27 mm into
+      it; then the plate as a circle, as the tree's own silhouette, and rounded again.</p>
+      <p class="clip"><b>Parameters:</b> back of the model · sink · layout (side by side, radial, crossed) · plate
+      shape, margin, size, offset and rotation · plate thickness · teeth per slice, tooth width and spacing.</p>
     </div>
   </article>
 </div></section>
