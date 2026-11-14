@@ -13,7 +13,8 @@ from shapely.ops import unary_union
 from shapely.strtree import STRtree
 from . import Mode, Param, register
 from ..model import Slice
-from ..geometry import as_multi, circle, mark_box, mark_rot, rect_along, frame_xy
+from ..geometry import as_multi, circle, rect_along, frame_xy
+from ..labels import mark_box, mark_rot
 from ..mesh import simplify
 from ..unfold import unfold
 

@@ -9,7 +9,8 @@ from shapely.ops import unary_union
 from . import MAX_SLICES, Mode, Param, register, spacing_params
 from ..model import ABC
 from ..model import Slice
-from ..geometry import dowel, dowel_leverage, hole_reach, LEVERAGE_OK, mark_box, mark_rot, rect_along, as_multi, as_lines, section_polygons, frame_xy, into, to_local
+from ..geometry import dowel, dowel_leverage, hole_reach, LEVERAGE_OK, rect_along, as_multi, as_lines, section_polygons, frame_xy, into, to_local
+from ..labels import mark_box, mark_rot
 
 _dist = lambda a, b: math.hypot(a[0] - b[0], a[1] - b[1])   # noqa: E731
 

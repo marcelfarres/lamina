@@ -424,6 +424,7 @@ web/static/index.html         │                            ──▶  core/sol
                      core/checks.py    physical checks and auto-fix
                      core/split.py     split oversize parts with puzzle tabs      core/nest.py  outline nesting
                      core/geometry.py  frames, mesh sections → shapely polygons, dowel shapes
+                     core/labels.py    the room a label takes, where it fits on a part, where it goes on the sheet
                      core/mesh.py      the model loaded, sized, mended, kept for the next slice    core/remesh.py  modify form
                      core/identical.py which parts are one part in several copies    core/progress.py  stages and their timing
 ```

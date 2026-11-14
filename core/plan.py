@@ -11,7 +11,8 @@ from shapely.ops import unary_union
 from . import progress as bar
 from .progress import DETAIL, progress
 from .modes import load_all, Ctx
-from .geometry import section_polygons, as_multi, poly_coords, line_coords, mark_box, mark_rot, min_dims, orient_arrows, trim_thin
+from .geometry import section_polygons, as_multi, poly_coords, line_coords, min_dims, trim_thin
+from .labels import mark_box, mark_rot, orient_arrows
 from .checks import STRUCTURAL, check_plan, suggest_fixes, crossing_suggestions
 from .split import split_slice, fits_rotated, islands
 from .nest import nest

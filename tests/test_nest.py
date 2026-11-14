@@ -243,7 +243,7 @@ def test_a_layer_in_separate_islands_is_cut_as_separate_parts(tmp_path):
 def test_one_sheet_is_as_long_as_the_parts_and_their_labels():
     """`one_sheet` reports the strip at the length it took: the topmost part's label, placed above it, is on the sheet
     too, not past its end where the cut file would clip it."""
-    from core.geometry import label_box
+    from core.labels import label_box
     plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 3, "autofix": "off", "one_sheet": True, "font": 10})
     font = plan["params"]["font"]
     for pc in (pc for sl in plan["slices"] for pc in sl["pieces"]):
@@ -289,7 +289,7 @@ def test_labels_sit_on_their_part_or_in_free_space_and_overlap_nothing(model, mo
     other label, with a leader line that crosses no other part. Nothing here was short of room (no crowded note)."""
     import shapely
     from shapely.geometry import LineString
-    from core.geometry import label_box, label_rect, mark_box
+    from core.labels import label_box, label_rect, mark_box
     plan = build(EXAMPLES / f"{model}.stl", mode, {**params, "autofix": "off"})
     assert not [n for n in plan["notes"] if "no free spot" in n], plan["notes"]
     font, tag, m = plan["params"]["font"], plan["label_tag"], plan["params"]["sheet_margin"]

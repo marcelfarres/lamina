@@ -648,7 +648,7 @@ def test_folded_seam_numbers_sit_on_material_clear_of_cuts_and_folds_and_tabs_fo
     the fold lines and the other numbers; a hinge is scored across each tab's base alone, never along the seam under
     a cut. A seam with no room for its number says so in the panel's warnings instead of engraving it over a fold."""
     from shapely.geometry import LineString, MultiPolygon, Polygon
-    from core.geometry import mark_box
+    from core.labels import mark_box
     plan = build(EXAMPLES / "cube.stl", "folded", {"size": [90, 0, 0], "joint": "ticked", "facet": 0, "inset": 6, "spacing": 30,
                                                    "thickness": 1, "autofix": "off"})
     font = plan["params"]["font"]
@@ -684,7 +684,7 @@ def test_orientation_arrows_are_two_lines_inside_every_part_clear_of_its_marks()
     """`orient_mark` engraves two arrows at the middle of each part, the same two directions on every part, inside the
     material and touching no dowel number; off, a part carries none."""
     from shapely.geometry import LineString, MultiPolygon, Polygon
-    from core.geometry import mark_box
+    from core.labels import mark_box
     params = {"distribution": "count", "count": 3, "autofix": "off", "connect": "dowel"}
     on = build(EXAMPLES / "cube.stl", "stacked", {**params, "orient_mark": True})
     off = build(EXAMPLES / "cube.stl", "stacked", params)

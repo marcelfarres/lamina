@@ -12,7 +12,8 @@ from shapely.strtree import STRtree
 from . import Param, register
 from .stacked import ABC_LOWER, Stacked, hole_mark
 from ..model import Slice
-from ..geometry import as_lines, as_multi, frame, frame_xy, mark_box, mark_rot, rot_about, to_local, to_world
+from ..geometry import as_lines, as_multi, frame, frame_xy, rot_about, to_local, to_world
+from ..labels import mark_box, mark_rot
 from ..notch import interlock
 from ..plate import SHAPES, plate_shape
 
