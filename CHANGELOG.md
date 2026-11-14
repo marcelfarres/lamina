@@ -4,29 +4,35 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ## 0.3.3
 
-### Changed
-
-- **Folded jobs come out different from 0.3.2. Re-slice an old folded project and its cut files change:**
-  - the net is mirrored, so the score lines and seam numbers are cut on the inside face (*score side*: *outside* brings
-    the old layout back), and mountain and valley lines swap with it;
-  - with a seam, rivet, laced, strip or rib joint, every outward seam edge is cut back a little so stiff panels close
-    (*edge fit*: *outer* brings the old edges back);
-  - a net can be laid out differently, because two faces are no longer placed edge to edge unless they join on the model.
-- **Folded panels keep their seams and scores on the inside.** The 3D view and the STL showed each panel centred on
-  the model's surface, half a sheet proud of it, with a notch on the outside of every fold. The sheet now lies inside
-  the surface, so the outside reads as one piece at the model's own size. The cut net is mirrored so the inside face
-  is up on the cutter: the score lines and seam numbers end up inside the model. A new switch on the Technique tab,
-  *score side*, puts them back on the outside, for a paper model printed on its outer side.
-
-### Fixed
-
-- **A folded face no longer lands against a face it does not belong to.** Unfolded, a wall could come to lie with
-  its far side exactly on another edge of the same panel. The outline then joined the two, a cut was lost, and the
-  wall was held on two sides and could not fold. The net is now laid out so that two faces lie edge to edge only
-  where they join on the model.
+A new technique, Plaque, stands the slices of a model on a back plate, for the wall. The assembled model now also
+downloads as a STEP file, for CAD.
+Folded panels can be 3D printed flat and folded up along a groove at every fold, and a re-sliced folded job now
+comes out different: see Changed.
 
 ### Added
 
+- **Assembled STEP, for CAD.** The downloads have a new file, *assembled STEP*, beside the assembled STL. It holds
+  the same model as true solids: every part is a body with flat faces, named with its label, in its place in the
+  assembly. Fusion, FreeCAD and Onshape open it without the triangle lines an STL brings. A curved edge is still
+  made of the short straight segments of the cut files, so it shows as narrow flat strips. A model with many
+  stacked slices makes a large file. The command line writes it too: `--out model.step`.
+- **Plaque: a new technique for wall pieces.** The model is cut off at a flat back plate and its slices stand on edge
+  on the plate, like a trophy head on a shield. Each slice has teeth that go through slots in the plate and end flush
+  with its back. You choose which side of the model goes against the plate, how deep the model sinks into it (what is
+  behind the plate is left out), how many teeth each slice gets and how wide they are; long slices get more teeth,
+  evenly spread. The plate has its own material thickness and its own shape: circle, ellipse, rectangle, rounded
+  rectangle, hexagon, shield, the model's own silhouette, or a shape of your own from an SVG or DXF file (closed shapes
+  inside it are cut out of the plate), with a margin, a size, a scale, a mirror, a turn and an offset to place the
+  model in it. The slices
+  are spread with the same controls as Stacked Slices, or stand as a fan round a centre (*layout* radial), their inner
+  ends meeting round a small hole whose radius you can set, or as two families slotted into each other like an egg
+  crate (*layout* crossed). Two new examples open with it: the rings a drop leaves on water,
+  as a fan on a round plate, a bonsai in its pot, and a dancer made of smooth blobs, crossed. A piece of a slice that does not reach the plate hangs from the
+  slice beside it on up to three small flat spacers, in the side-by-side layout and in the fan, set edge-on so they hardly show from the front; a piece that no
+  neighbour can hold is left out, named in the notes and, when it is big enough to matter, given as a warning on its
+  slice; or kept with its error if you prefer. A hanging piece with room for fewer than three spacers
+  is flagged on its slice, with what gives it room: fewer slices, thinner material or a smaller spacer. The spacing curve
+  works in every layout, and plate slots take the same inside-corner relief as every other slot, for a router.
 - **Printed panels that fold.** PLA and PETG do not fold along a score, so folded panels in a printed material
   stopped with an error. Now the panel prints at its full thickness with a V groove along every fold, cut to that
   fold's own angle: the thin skin left at the bottom is the hinge, and the fold stops when it reaches the model's
@@ -51,6 +57,42 @@ What changed in each release. The GitHub release for a version is this section, 
   the thicker the sheet and the sharper the bend. Where the folds around a face would need more than the whole face,
   the panel warns how many folds cannot close: use a thinner sheet, a bigger facet size, or a gentler curve. A curve
   needs a radius bigger than the sheet is thick.
+
+### Changed
+
+- **Folded jobs come out different from 0.3.2. Re-slice an old folded project and its cut files change:**
+  - the net is mirrored, so the score lines and seam numbers are cut on the inside face (*score side*: *outside* brings
+    the old layout back), and mountain and valley lines swap with it;
+  - with a seam, rivet, laced, strip or rib joint, every outward seam edge is cut back a little so stiff panels close
+    (*edge fit*: *outer* brings the old edges back);
+  - a net can be laid out differently, because two faces are no longer placed edge to edge unless they join on the model.
+- **Folded panels keep their seams and scores on the inside.** The 3D view and the STL showed each panel centred on
+  the model's surface, half a sheet proud of it, with a notch on the outside of every fold. The sheet now lies inside
+  the surface, so the outside reads as one piece at the model's own size. The cut net is mirrored so the inside face
+  is up on the cutter: the score lines and seam numbers end up inside the model. A new switch on the Technique tab,
+  *score side*, puts them back on the outside, for a paper model printed on its outer side.
+
+### Fixed
+
+- **Folded panels score only the edges you fold.** A flat face made of several triangles (a rectangle cut in two,
+  a hexagon cut in six) had a fold line on every inner edge, so the score layer could not go to an engraving tip
+  or a creasing tool as it was. Those lines are gone: the score layer now holds the real folds only. A few inner
+  edges of such a face were also numbered as seams although nothing is cut there; they no longer are.
+- **Numbers in the narrow boxes show in full.** In inches and centimetres, a size or a curve point with four or more
+  digits could lose its last digit in the newest Chrome. The boxes that stand two or three in a row no longer have
+  the small up and down arrows, which took a fifth of the box, and the box where you type a new value is wider.
+- **A drawn spacing curve that fits exactly the most slices Lamina cuts is sliced.** A curve laying exactly 500 slices
+  along the model was refused as too many, the same as a curve that runs out before the model's end.
+- **A slice no longer fails now and then while it nests the parts.** On a busy computer, laying the parts on the
+  sheets could stop with an error and no result; slicing again usually worked. The parts are now laid out without
+  that failure.
+- **Two folded-panel jobs sliced at the same moment no longer mix.** On a shared server, when two people sliced
+  folded panels at the same time, one of them could get panels that belonged to the other model. Each slice now works
+  on its own.
+- **A folded face no longer lands against a face it does not belong to.** Unfolded, a wall could come to lie with
+  its far side exactly on another edge of the same panel. The outline then joined the two, a cut was lost, and the
+  wall was held on two sides and could not fold. The net is now laid out so that two faces lie edge to edge only
+  where they join on the model.
 
 ## 0.3.2
 

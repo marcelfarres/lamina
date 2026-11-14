@@ -48,7 +48,7 @@ def label_codes(labels, seed: str) -> dict:
 class Slice:
     label: str                 # Slicer-style "Axis-Index" e.g. "X-3", "Z-6", "R-2a", "C-4", "P-12" (panel), "S-7" (strip),
                                # "Z-3a" (the peg or spacer a between Z-3 and Z-4: a connector is named after its lower slice)
-    group: str                 # "S" stacked, "X"/"Y" interlocked families, "R" radial half-slice, "C" core disc,
+    group: str                 # "S" stacked, "X"/"Y" interlocked families, "R" radial half-slice, "C" core disc, "W" a plaque's back plate,
                                # "F" folded panel, "J" joint part (strip / rib), "P" alignment peg / spacer
     M: np.ndarray              # 4x4 local->world; slice lies on local z=0, local x/y are the drawing axes
     thickness: float

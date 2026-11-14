@@ -673,10 +673,11 @@ def test_folded_seam_numbers_sit_on_material_clear_of_cuts_and_folds_and_tabs_fo
 def test_a_dense_net_numbers_its_seams_in_seconds_not_minutes():
     """A rounded-off model folds into a net whose panels each carry hundreds of seam numbers to keep apart: the cube
     thickened by 50 took 155–175 s before 0.3.0 shipped (15 s in 0.2.5), testing each spot against every number,
-    cut and fold one by one (bugs/028); about 38 s since. The numbers are all still placed."""
+    cut and fold one by one (bugs/028); about 38 s since. The numbers are all still placed: 779 for its 467 seams
+    (1340 while the 346 edges inside its flat faces still counted as seams, bugs/039)."""
     plan = build(EXAMPLES / "cube.stl", "folded", {"thickness": 6, "thicken": 50})
     marks = [m for sl in plan["slices"] for pc in sl["pieces"] for m in pc["marks"]]
-    assert len(marks) > 1000 and all(m[2].isdigit() for m in marks)
+    assert len(marks) > 700 and all(m[2].isdigit() for m in marks)
 
 
 def test_orientation_arrows_are_two_lines_inside_every_part_clear_of_its_marks():
@@ -757,6 +758,19 @@ def test_the_spacing_curve_stops_at_the_cap_too():
     plan = build(EXAMPLES / "egg.stl", "stacked", {"size": [0, 0, 3000], "thickness": 3, "autofix": "off", "spacing_vary": True,
                                                    "spacing_fix": "curve", "spacing_curve": [[0, 3], [0.5, 3], [1, 3]], "spacing_min": 3})
     assert plan["counts"]["slices"] == 0 and any("spacing curve lays 500 slices" in e for e in plan["errors"]), plan["errors"]
+
+
+def test_a_spacing_curve_of_exactly_the_cap_is_sliced(monkeypatch):
+    """A curve that lays exactly MAX_SLICES slices and reaches the model's end is not over the cap (037: the walk was cut
+    at the cap, so exactly the cap and cut short looked the same and both were refused)."""
+    import core.modes
+    monkeypatch.setattr(core.modes, "MAX_SLICES", 20)
+    params = {"size": [0, 0, 60], "thickness": 3, "autofix": "off", "connect": "none", "spacing_vary": True,
+              "spacing_fix": "curve", "spacing_curve": [[0, 3], [0.5, 3], [1, 3]], "spacing_min": 3}
+    plan = build(EXAMPLES / "egg.stl", "stacked", params)           # 60 mm at 3 mm: exactly 20
+    assert plan["counts"]["slices"] == 20 and not plan["errors"], plan["errors"]
+    over = build(EXAMPLES / "egg.stl", "stacked", {**params, "size": [0, 0, 63]})   # 21: one past
+    assert over["counts"]["slices"] == 0 and over["errors"]
 
 
 def test_size_is_the_model_s_own_whichever_way_it_is_turned():

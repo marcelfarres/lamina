@@ -54,6 +54,10 @@ class Curve(Mode):
                    "lock the ribs together. A leg, arm or tail takes a branch: ribs square to it and a spine of its own that "
                    "reaches back into the body and slots into the body's ribs (shift+alt-click its tip to add one).")
 
+    @staticmethod
+    def fit(p):
+        return {"distribution": "count", "count": min(p["count"], 3)}, 0.0
+
     def crossing_fix(self, ctx, sl, point):
         """A rib region nothing holds needs another spine through it; a spine region needs another rib. A branch's
         parts (R2-3, K2) are spaced by its own length, which neither changes."""

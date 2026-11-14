@@ -283,45 +283,36 @@ def svg_doc(items, width, height, labels, border=False, font=4.0, units="mm", ti
     size = min(font, margin * 0.6)
     if title and size >= 1.5:
         sheet.append(text_path(title, glyphs(title, size, size * 0.5, height - margin / 2, anchor="start")))
+    def cut_layers(lines):
+        """The cut, guide and score layers of `lines`, each a group; a layer with nothing on it is left out."""
+        return [row for layer in ("OUTER", "INNER", "GUIDE", "SCORE")
+                if (on := [s for s in lines if s[0] == layer]) for row in layer_group(layer, on)]
+
+    def engraved(its, lines):
+        """What `its` put on the LABEL layer: the orientation arrows, then the marks and the label with its leader line."""
+        if not labels:
+            return []
+        body = [f'<path d="{d_of(pts)}"/>' for lay, pts, *_ in lines if lay == "LABEL"]
+        for text, sts, leader in texts(its, font):
+            body.append(text_path(text, sts))
+            if leader:
+                (ax, ay), (bx, by) = leader
+                body.append(f'<line x1="{ax:.2f}" y1="{height - ay:.2f}" x2="{bx:.2f}" y2="{height - by:.2f}"/>')
+        return body
+
+    def drawing(its, first=()):
+        """The layers of `its`, then one LABEL group of `first` and what they engrave, when there is any."""
+        lines = list(strokes(its))
+        body = [*first, *engraved(its, lines)]
+        return cut_layers(lines) + (label_group(body) if body else [])
+
     if grouped:
         if sheet:
             out += ['<g class="sheet">'] + label_group(sheet) + ["</g>"]
         for it in items:
-            out.append(f'<g class="piece" data-label="{html.escape(it.key, quote=True)}">')
-            lines = list(strokes([it]))
-            for layer in ("OUTER", "INNER", "GUIDE", "SCORE"):
-                on = [s for s in lines if s[0] == layer]
-                if not on:                                            # a layer with nothing on it is left out
-                    continue
-                out += layer_group(layer, on)
-            if labels:
-                # the orientation arrows, then the marks and the label with its leader line
-                body = [f'<path d="{d_of(pts)}"/>' for lay, pts, *_ in lines if lay == "LABEL"]
-                for text, sts, leader in texts([it], font):
-                    body.append(text_path(text, sts))
-                    if leader:
-                        (ax, ay), (bx, by) = leader
-                        body.append(f'<line x1="{ax:.2f}" y1="{height - ay:.2f}" x2="{bx:.2f}" y2="{height - by:.2f}"/>')
-                if body:
-                    out += label_group(body)
-            out.append("</g>")
+            out += [f'<g class="piece" data-label="{html.escape(it.key, quote=True)}">'] + drawing([it]) + ["</g>"]
     else:
-        lines = list(strokes(items))
-        for layer in ("OUTER", "INNER", "GUIDE", "SCORE"):
-            on = [s for s in lines if s[0] == layer]
-            if not on:
-                continue
-            out += layer_group(layer, on)
-        body = list(sheet)
-        if labels:
-            body += [f'<path d="{d_of(pts)}"/>' for lay, pts, *_ in lines if lay == "LABEL"]
-            for text, sts, leader in texts(items, font):
-                body.append(text_path(text, sts))
-                if leader:
-                    (ax, ay), (bx, by) = leader
-                    body.append(f'<line x1="{ax:.2f}" y1="{height - ay:.2f}" x2="{bx:.2f}" y2="{height - by:.2f}"/>')
-        if body:
-            out += label_group(body)
+        out += drawing(items, sheet)
     out.append("</svg>")
     return "\n".join(out)
 

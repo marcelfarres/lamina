@@ -31,7 +31,7 @@ const ready = (async () => {
     if (artifact) { try { model = py.FS.readFile(artifact).slice() } catch (e) { model = null } }
     postMessage({progress: text, frac, model}, model ? [model.buffer] : []);
   });
-  py.runPython('import core.plan; core.plan.report = report');
+  py.runPython('import core.progress; core.progress.report = report');
   say('');
   return {py, handle};
 })().catch(err => { postMessage({progress: 'Python could not be loaded — ' + err, failed: true}); throw err });

@@ -6,7 +6,6 @@ shrink is reported per panel. Tabs are shown in the 3D view folded onto the pane
 from __future__ import annotations
 import math
 import numpy as np
-import trimesh
 import shapely
 from shapely import affinity
 from shapely.geometry import Polygon, LineString
@@ -15,6 +14,7 @@ from shapely.strtree import STRtree
 from . import Mode, Param, register
 from ..model import Slice
 from ..geometry import as_multi, circle, mark_box, mark_rot, rect_along, frame_xy
+from ..mesh import simplify
 from ..unfold import unfold
 
 JOINTS = ["seam", "tab", "multitab", "diamond", "ticked", "gear", "tongue", "puzzle", "rivet", "laced", "loops", "strip", "rib"]
@@ -32,7 +32,8 @@ SQUISH = {"paper": 1, "card": 1, "fabric": 1, "cardboard": 1, "EVA foam": 0.7, "
           "plywood": 0, "mdf": 0, "acrylic": 0, "basswood": 0, "PLA": 0, "PETG": 0}
 THIN_TABS = ("tab", "multitab", "diamond", "ticked", "gear")   # glue tabs a printed panel carries as thin flaps of its skin
 FOLDED_JOINTS = ("tab", "multitab", "diamond", "ticked", "gear", "tongue", "puzzle", "strip")   # a flap or bridge that bends
-MAX_HOLES = 60                        # holes along one seam (rivet / laced / strip)
+FLAT = math.radians(1)                # two faces closer to one plane than this are one flat piece: no score between them
+MAX_HOLES = 60                       # holes along one seam (rivet / laced / strip)
 MAX_FACES = 4000                      # triangles this can unfold and lay out in a usable time
 MAX_PANELS = 400                      # …and parts, when `separate` makes every triangle one (see build)
 JOINT_HELP = ("seam = plain edge (glue / sew) · tab = one glue tab · multitab = several small tabs · diamond = triangular ticks · "
@@ -51,32 +52,6 @@ def target_faces(mesh, facet):
     return max(12, int(mesh.area / (0.433 * facet * facet)))
 
 
-def cluster(m, cell):
-    """Vertex clustering (Rossignac–Borrel): every vertex snaps to the mean of its grid cell and faces that fold flat
-    go. Panels come out a little more angular than with quadric decimation, but it is plain numpy — the browser
-    build, which has no fast-simplification wheel, decimates with this."""
-    _, inv = np.unique(np.floor(m.vertices / cell).astype(np.int64), axis=0, return_inverse=True); inv = inv.ravel()
-    v = np.zeros((inv.max() + 1, 3)); np.add.at(v, inv, m.vertices); v /= np.bincount(inv)[:, None]
-    f = inv[m.faces]; f = f[(f[:, 0] != f[:, 1]) & (f[:, 1] != f[:, 2]) & (f[:, 0] != f[:, 2])]
-    out = trimesh.Trimesh(v, f, process=True); out.update_faces(out.unique_faces())
-    return out
-
-
-def simplify(mesh, target):
-    m = mesh.copy()
-    if target and len(m.faces) > target:
-        try:
-            import fast_simplification
-            pts, faces = fast_simplification.simplify(np.asarray(m.vertices, np.float32), np.asarray(m.faces, np.int32), target_count=int(target))
-            m = trimesh.Trimesh(pts, faces, process=True)
-        except ImportError:
-            m = cluster(m, math.sqrt(m.area / (0.433 * target)))   # a cell per target-sized equilateral triangle
-    m.merge_vertices()
-    m.update_faces(m.nondegenerate_faces()); m.remove_unreferenced_vertices()
-    trimesh.repair.fix_normals(m)
-    return m
-
-
 def edge_geom(tri, ia, ib):
     """Edge A→B of a 2D triangle and the unit normal pointing into the triangle."""
     A, B = tri[ia], tri[ib]; C = tri[3 - ia - ib]
@@ -90,6 +65,7 @@ def edge_geom(tri, ia, ib):
 @register
 class Folded(Mode):
     name = "folded"
+    surface = True
     title = "Folded Panels"
     description = ("Unfolds the surface into flat panels with fold (score) lines, joined at the seams by tabs, holes, "
                    "strips or ribs. Works on any closed shape (heads, animals): cavities and undercuts just become more seams.")
@@ -178,7 +154,7 @@ class Folded(Mode):
             sl = Slice(f"P-{i + 1}", "F", frames[pn.faces[0]], t)
             sl.pn = pn
             sl.raw = as_multi(pn.union.buffer(0))
-            for k in pn.folds:
+            for k in self.creases(pn):
                 fa = list(mesh.faces[mesh.face_adjacency[k][0]])
                 va, vb = mesh.face_adjacency_edges[k]
                 f = mesh.face_adjacency[k][0]
@@ -464,7 +440,7 @@ class Folded(Mode):
         p = self.p; kind = p.get("material_kind") or p.get("material"); most = FOLDS.get(kind)
         if self.hinged and (p["joint"] not in FOLDED_JOINTS or self.thin_tabs):      # printed with a groove at every fold: the skin is what folds
             return False
-        folds = sum(len(pn.folds) for pn in panels) + (len(seams) if p["joint"] in FOLDED_JOINTS else 0)
+        folds = sum(len(self.creases(pn)) for pn in panels) + (len(seams) if p["joint"] in FOLDED_JOINTS else 0)
         if most is None or not folds or self.t <= most:
             return False
         why = "it does not fold, it cracks along the line" if most == 0 else f"it folds along a score up to about {most:g} mm"
@@ -480,6 +456,11 @@ class Folded(Mode):
         return True
 
     # ---------------------------------------------------------------- helpers
+    def creases(self, pn):
+        """The panel's edges that are bent. The triangles of one flat face (a rectangle's diagonal, a hexagon's
+        spokes) are joined edges too, but there is nothing to fold there and so nothing to score."""
+        return [k for k in pn.folds if self.mesh.face_adjacency_angles[k] >= FLAT]
+
     @staticmethod
     def usable_sheet(p):
         """Panel size limit for the unfolder: the sheet minus margins, minus room for glue tabs that grow the outline."""
