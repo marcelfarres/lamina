@@ -173,7 +173,7 @@ What makes more models buildable comes first; polish and speed after.
      0.2.2), and the horse's ear fix gave 1.26 for a promised 1.0. The way through is probably a rule for when a
      dowel someone placed may move the automatic ones near it, at every layer it passes, and not a threshold.
      `tests/test_modify.py::test_a_bunched_piece_is_offered_the_dowel_that_holds_it` and
-     `tests/test_ui.py::test_the_dowel_the_spread_check_offers_lands_where_it_says` are the cases to keep passing,
+     `tests/ui/test_edit3d.py::test_the_dowel_the_spread_check_offers_lands_where_it_says` are the cases to keep passing,
      plus a hole count for the hoof.
    - **Tab connectors are not measured.** `connect=tab` uses the same placement, but the spread check only looks at
      dowels; pegs and spacers bunched in the middle of a big layer are not said.
