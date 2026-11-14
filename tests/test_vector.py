@@ -153,3 +153,24 @@ def test_a_file_saved_on_windows_reads_the_same():
     svg = '<svg xmlns="http://www.w3.org/2000/svg" width="20mm" height="10mm" viewBox="0 0 20 10"><rect width="20" height="10"/></svg>'
     c, _ = outlines("﻿" + svg.replace(">", ">\r\n"))
     assert c.area == pytest.approx(200, rel=1e-6)
+
+
+def test_files_written_by_inkscape_read_as_the_plate_that_was_drawn():
+    """tests/data/inkscape_plate.svg and .dxf, saved by Inkscape 1.4.4 from one drawing: a 200 x 120 mm rectangle with
+    15 mm corners in a moved layer, a 6 mm-radius hanging hole, a 20 x 10 mm ellipse, the word "plate" and an open
+    guide line. In the SVG the text is text and is left out. The DXF export turns the letters into outlines, which
+    are closed shapes inside the plate and so are cut out of it, with the two holes."""
+    import pathlib
+    from shapely.geometry import Polygon
+    data = pathlib.Path(__file__).parent / "data"
+    want = 200 * 120 - (4 - math.pi) * 15 ** 2
+    hang, window = math.pi * 6 ** 2, math.pi * 20 * 10
+    svg, said = outlines((data / "inkscape_plate.svg").read_text(encoding="utf-8"))
+    assert Polygon(svg.exterior).area == pytest.approx(want, rel=0.005)
+    assert svg.bounds[2] - svg.bounds[0] == pytest.approx(200, abs=0.05) and svg.bounds[3] - svg.bounds[1] == pytest.approx(120, abs=0.05)
+    assert sorted(Polygon(r).area for r in svg.interiors) == pytest.approx([hang, window], rel=0.01)
+    assert "text ignored" in said and any("open line" in n for n in said)
+    dxf, _ = outlines((data / "inkscape_plate.dxf").read_text(encoding="utf-8"))
+    holes = sorted(Polygon(r).area for r in dxf.interiors)
+    assert Polygon(dxf.exterior).area == pytest.approx(want, rel=0.005)
+    assert holes[-2:] == pytest.approx([hang, window], rel=0.02) and len(holes) == 7      # the two, and five letters
