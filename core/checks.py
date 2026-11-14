@@ -346,7 +346,9 @@ def suggest_fixes(slices, p, ctx, mode):
             elif "skipped" in w and "connection point" in w:
                 opts = [smaller, fix("fewer connection points", n_points=max(1, int(p.get("n_points", 2)) - 1))]
             elif "press up to" in w and "too small to cut back" in w:
-                opts = [fix(f"bigger triangles (facet {(p.get('facet') or 10) * 1.5:g} mm)", facet=round((p.get("facet") or 10) * 1.5, 1))]
+                # the cut-back takes up to 0.4 of a face's height: a face under 2.5 × the sheet (more at a sharp seam) is too small for it
+                opts = [fix(f"merge the faces under {4 * t:g} mm into their neighbours", min_face=round(4 * t, 1)),
+                        fix(f"bigger triangles (facet {(p.get('facet') or 10) * 1.5:g} mm)", facet=round((p.get("facet") or 10) * 1.5, 1))]
             elif "without a" in w and "seam" in w:
                 opts = [fix(f"bigger triangles (facet {p.get('facet', 15) * 1.5:g} mm)", facet=round(p.get("facet", 15) * 1.5, 1)),
                         fix("smaller joints", hole_d=round(max(1.0, p.get("hole_d", 2.5) * 0.7), 1), inset=round(max(1.0, p.get("inset", 4) * 0.7), 1))]

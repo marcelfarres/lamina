@@ -471,6 +471,27 @@ def test_folded_cut_back_never_makes_a_panel_too_small(joint):
     assert any("press up to" in w for sl in plan["slices"] for w in sl["warnings"])
 
 
+def test_folded_merges_only_the_faces_too_small_for_the_sheet():
+    """Asked for: a fix for faces too small to cut back that does not coarsen the whole model. `min_face` closes up the
+    faces under that height and leaves the rest: on the cow, no face is left under it, most of the model's faces
+    stay, and the press warning offers it."""
+    from core.mesh import merge_small, simplify
+    from core.modes.folded import target_faces
+    mesh = trimesh.load(EXAMPLES / "cow.stl", force="mesh")
+    coarse = simplify(mesh, target_faces(mesh, 15))
+    height = lambda m: 2 * m.area_faces / np.linalg.norm(m.triangles - np.roll(m.triangles, -1, axis=1), axis=2).max(1)   # noqa: E731
+    assert (height(coarse) < 4).any()
+    merged = merge_small(coarse, 4)
+    assert not (height(merged) < 4).any() and len(merged.faces) > 0.6 * len(coarse.faces)
+    job = {"rotate": [90, 0, 0], "joint": "laced", "facet": 15, "strategy": "area", "thickness": 1, "material": "steel", "material_kind": "steel"}
+    plan = build(EXAMPLES / "cow.stl", "folded", job)
+    offers = [o for sl in plan["slices"] for f in sl["fixes"] if "press up to" in f["error"] for o in f["options"]]
+    assert any(o["set"].get("min_face") == 4 for o in offers)
+    fixed = build(EXAMPLES / "cow.stl", "folded", {**job, "min_face": 4})
+    pressed = lambda q: sum(1 for sl in q["slices"] for w in sl["warnings"] if "press up to" in w)   # noqa: E731
+    assert fixed["counts"]["errors"] == 0 and pressed(fixed) < pressed(plan)
+
+
 def test_folded_says_when_stiff_panels_still_press_into_each_other():
     """A seam edge that is not cut back (a tab joint keeps its edge, or `edge fit` outer) presses t × tan(bend / 2) into
     the next panel. Steel gives nothing, so the panel says so; cardboard crushes that much; cut back, nothing is left."""

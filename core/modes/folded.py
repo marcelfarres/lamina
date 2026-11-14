@@ -14,7 +14,7 @@ from shapely.strtree import STRtree
 from . import Mode, Param, register
 from ..model import Slice, Groove
 from ..geometry import as_multi, circle, mark_box, mark_rot, min_dims, rect_along, frame_xy
-from ..mesh import simplify
+from ..mesh import simplify, merge_small
 from ..unfold import unfold, closing_shortfall
 
 JOINTS = ["seam", "tab", "multitab", "diamond", "ticked", "gear", "tongue", "puzzle", "rivet", "laced", "loops", "strip", "rib"]
@@ -96,6 +96,9 @@ class Folded(Mode):
               "where the tab folds, the rest of the outline is cut")
     params = [
         Param("facet", "number", 15, "Detail: average triangle edge after simplification (mm). Bigger = fewer, simpler panels; joints need triangles a few times bigger than the joint. 0 = keep every triangle of the model", 0, 200, 1, unit="mm"),
+        Param("min_face", "number", 0.0, "Merge the faces too small to work with into their neighbours: a face whose least height is "
+              "under this (mm) is closed up along its shortest edge, and the rest of the model stays as it is. 0 = keep every "
+              "face. For a model where a few small faces carry warnings and a bigger facet size would lose detail everywhere", 0, 100, 0.5, unit="mm", label="merge faces under"),
         Param("separate", "bool", False, "Every face is its own panel (no folds): each triangle is cut alone and joined to its neighbours along every edge"),
         Param("strategy", "choice", "auto", "How panels grow: flat = flattest fold first; strip = long strips along the model's axis; area = big faces first; auto = try all and keep the fewest, most compact panels (≤ 800 faces)", choices=["auto", "flat", "strip", "area"], show_if=("separate", False)),
         Param("max_faces", "int", 0, "Max triangles per panel (0 = as many as fit the sheet without overlapping)", 0, 5000, 1, show_if=("separate", False)),
@@ -165,6 +168,8 @@ class Folded(Mode):
                               f"triangles so you can still see the result.")
             target = cap
         mesh = simplify(ctx.mesh, target)
+        if p["min_face"]:
+            mesh = merge_small(mesh, p["min_face"])
         self.mesh = mesh
         ctx.cover_r = t                                       # coverage: surface points within the sheet thickness of a panel
         frames, local, panels, seams = unfold(mesh, p["separate"], p["max_faces"], self.usable_sheet(p), p["strategy"])

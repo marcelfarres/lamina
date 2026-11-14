@@ -119,6 +119,20 @@ Measured on the examples in 3 mm steel, every face its own panel, by intersectin
 to 1 (1 mm³); egg 530 to 1; torus 359 to 54 (99 mm³ in all); cow 340 to 70; bowl 378 to 41. What remains is at
 saddle vertices, where panels that share only a corner meet, and on slivers the cap protects. Not yet handled.
 
+## Faces too small for the sheet
+The cut-back takes at most 0.4 of a face's height, so a face lower than about 2.5 sheets (more at a sharp seam)
+cannot be cut back all the way and carries the press warning. The warning offers two fixes. *Bigger triangles*
+raises `facet` and makes the whole model coarser. *Merge the faces under 4 × the sheet* sets `min_face`
+(`merge_small` in `core/mesh.py`): after the model is simplified, each face whose least height is under `min_face`
+has its shortest edge closed up to its middle, the smallest faces first, until no such face is left. The other
+faces do not move, except those that share a corner with a merged face.
+
+Measured on the cow in 1 mm steel, laced, facet 15, `min_face` 4 (2026-11-14): 408 faces become 282, the 66 faces
+under 4 mm become 0, the press warnings go from 6 to 0, all warnings from 84 to 62, errors stay 0. The model is
+1.2 mm shorter. On the bowl 2012 faces become 1994 and on the torus 1092 become 1036; both stay closed.
+Limits: the shortest edge is closed whatever it is, so a flat wide triangle with no short edge is pulled out of
+shape and not removed, and an edge on the rim of an open surface moves that rim.
+
 ## A model thinner than two sheets
 The sheet lies inside the surface, one thickness deep. Where the model itself is thinner than two sheets (a fin, an
 ear, a thin shell), the sheet under one side runs into the sheet under the other. `check_walls` sends one ray from

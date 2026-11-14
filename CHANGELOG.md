@@ -9,6 +9,9 @@ What changed in each release. The GitHub release for a version is this section, 
 - **Two more folded examples.** *fold_box* is a six-sided box with a turned lid, printed flat in PETG and folded up:
   every fold has its own angle. *fold_lantern* is the lamp shade at 420 mm for 3 mm plywood: 72 separate pieces,
   each with a window and lacing holes, numbered on the inside.
+- **Merge only the faces that are too small.** A new folded setting, *merge faces under*, closes up the faces
+  lower than the size you give and leaves the rest of the model as it is. The warning about panels of stiff sheet
+  that press into each other now offers it as a fix, beside bigger triangles, which make the whole model coarser.
 
 ### Changed
 
