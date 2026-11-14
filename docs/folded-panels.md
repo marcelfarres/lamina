@@ -35,6 +35,8 @@ Greedy spanning tree with a priority per edge:
    image). Accept it if the union's area equals the sum (no overlap — tested on the union, because GEOS' intersection
    misses fans that wrap past 360° at saddle vertices) and the panel still fits the sheet. Otherwise the edge becomes
    a seam.
+   It is also refused when it would lie edge to edge (within 0.01 mm, for over 1 mm, away from a shared corner)
+   against a face that is not its neighbour on the model: the outline would join the two along that line.
 4. Repeat until nothing can be attached; start the next panel.
 5. `auto` runs flat, strip, area and two randomised flat orders, and keeps the fewest panels / most compact result.
 

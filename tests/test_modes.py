@@ -340,7 +340,7 @@ def test_folded_panels_printed_get_a_groove_at_every_fold_down_to_the_hinge_skin
     sl = plan["slices"][0]; pc = sl["pieces"][0]
     bends = {round(2 * np.degrees(np.arctan(v[6] / (sl["thickness"] - v[5])))) for v in pc["vees"]}     # the fold at which the walls meet
     assert {45, 90, 104} <= bends                                       # each groove opened to its own fold
-    assert {v[7] for v in pc["vees"]} == {True}                          # its one inward edge is a seam: the sheets part there, no mitre
+    assert True in {v[7] for v in pc["vees"]}                            # mountain folds are grooved from the face up on the bed
     assert sum(len(fc.get("bevel", [])) for fc in pc["facets"]) == len(pc["vees"]) + sum(1 for fc in pc["facets"] if fc.get("hinge") and fc["hinge"][7])   # the 3D view draws every groove: a fold on both its faces
     proto_set(plan, tmp_path, labels="none")
     part = trimesh.load(tmp_path / "P-1.stl")
@@ -355,6 +355,27 @@ def test_folded_panels_printed_get_a_groove_at_every_fold_down_to_the_hinge_skin
     assert "does not fold" in build(EXAMPLES / "fold_test.stl", "folded", {**job, "hinge": 0})["errors"][0]
     tight = build(EXAMPLES / "fold_test.stl", "folded", {**job, "hinge_stop": -5})["slices"][0]["pieces"][0]["vees"]
     assert {round(2 * np.degrees(np.arctan(v[6] / (sl["thickness"] - v[5])))) for v in tight} >= {40, 85, 99}   # every fold stops 5° sooner
+
+
+@pytest.mark.parametrize("model", ["fold_test", "bracket", "cube"])
+def test_folded_net_never_lays_a_face_against_one_it_does_not_join(model):
+    """Reported from a print: a wall folded down into the notch of an L-shaped face landed with its far side exactly on
+    the notch's other edge. The outline joined the two along that line, so the wall was held on two sides and could
+    not fold (and a cut file lost the cut). In a net, two faces lie edge to edge only where they join on the model."""
+    from shapely.geometry import Polygon
+    from core.modes.folded import simplify
+    from core.unfold import unfold, contact
+    mesh = simplify(trimesh.load(EXAMPLES / f"{model}.stl", force="mesh"), 0)
+    _, _, panels, _ = unfold(mesh, False, 0, (315, 310), "auto")
+    joined = {(int(a), int(b)) for a, b in mesh.face_adjacency} | {(int(b), int(a)) for a, b in mesh.face_adjacency}
+    for pn in panels:
+        tris = {f: Polygon(pn.tri[f]) for f in pn.faces}
+        for i, f in enumerate(pn.faces):
+            fat = tris[f].buffer(0.01)
+            for g in pn.faces[i + 1:]:
+                if (f, g) not in joined:
+                    shared = [pn.tri[g][list(mesh.faces[g]).index(v)] for v in mesh.faces[g] if v in mesh.faces[f]]
+                    assert contact(tris[g], fat, shared) <= 1.0, (model, f, g)
 
 
 def test_folded_printed_glue_tabs_are_flaps_of_the_skin():

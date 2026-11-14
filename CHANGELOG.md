@@ -12,6 +12,13 @@ What changed in each release. The GitHub release for a version is this section, 
   is up on the cutter: the score lines and seam numbers end up inside the model. A new switch on the Technique tab,
   *score side*, puts them back on the outside, for a paper model printed on its outer side.
 
+### Fixed
+
+- **A folded face no longer lands against a face it does not belong to.** Unfolded, a wall could come to lie with
+  its far side exactly on another edge of the same panel. The outline then joined the two, a cut was lost, and the
+  wall was held on two sides and could not fold. The net is now laid out so that two faces lie edge to edge only
+  where they join on the model.
+
 ### Added
 
 - **Printed panels that fold.** PLA and PETG do not fold along a score, so folded panels in a printed material

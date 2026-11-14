@@ -80,6 +80,15 @@ def edge_weights(mesh, strategy, rng=None):
     return w
 
 
+def contact(tri, fat, corners):
+    """How far (mm) triangle `tri`'s outline runs within a hair of another face (`fat`, that face grown by the hair),
+    not counting the 2 mm round the corners the two share: two faces that meet at a sharp point run close there."""
+    near = tri.boundary.intersection(fat)
+    for c in corners:
+        near = near.difference(shapely.Point(c).buffer(2))
+    return near.length
+
+
 def unfold_once(mesh, split, max_faces, max_dims, weights, local):
     adj, aedges = mesh.face_adjacency, mesh.face_adjacency_edges
     nb = defaultdict(list)
@@ -121,6 +130,14 @@ def unfold_once(mesh, split, max_faces, max_dims, weights, local):
                               & (boxes[:, 1] < b[3] - 1e-9) & (boxes[:, 3] > b[1] + 1e-9))[0]
             if any(poly.intersection(tris[i]).area > 1e-4 for i in near):
                 continue                                    # would overlap → seam
+            # … and it may not lie against a face that is not its neighbour on the model: laid edge to edge, the outline
+            # joins the two along that line, a cut is lost, and the face is held on two sides and cannot fold
+            touch = np.nonzero((boxes[:, 0] <= b[2] + 1e-6) & (boxes[:, 2] >= b[0] - 1e-6)
+                               & (boxes[:, 1] <= b[3] + 1e-6) & (boxes[:, 3] >= b[1] - 1e-6))[0]
+            mates = {f2 for _, f2, _ in nb[to]}
+            fat = poly.buffer(0.01)                              # two edges meet only to rounding: within a hair of each other
+            if any(pn.faces[i] not in mates and contact(tris[i], fat, [tri[fb.index(v)] for v in fb if v in faces[pn.faces[i]]]) > 1.0 for i in touch):
+                continue                                    # → seam
             if max_dims:
                 # a panel whose axis-aligned box fits the sheet certainly fits; only when it does not is the
                 # minimum rotated rectangle worth computing (it may still fit at an angle)
