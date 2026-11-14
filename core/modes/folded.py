@@ -14,7 +14,7 @@ from shapely.strtree import STRtree
 from dataclasses import dataclass, field
 from . import Mode, Param, register
 from ..model import Issue, Slice
-from ..geometry import as_multi, circle, rect_along, frame_xy, poly_coords
+from ..geometry import as_multi, circle, min_dims, rect_along, frame_xy, poly_coords
 from ..labels import mark_box, mark_rot
 from ..mesh import simplify
 from ..unfold import unfold
@@ -231,15 +231,21 @@ class Folded(Mode):
             bend = float(mesh.face_adjacency_angles[k])
             outward = convex[k] and bend > math.radians(1)
             need = t * math.tan(min(bend, math.radians(150)) / 2) if outward else 0
-            cut = dict.fromkeys((0, 1), min(need, *(0.4 * s.h for s in all_sides[k])) if back else 0)   # never most of a face: a sliver of a triangle keeps its middle
             if through and outward:
-                # the face with more room is cut back until it clears the other's inside face: t·sin(bend) up to a right
-                # angle (its inside corner lands on that face), t·tan(bend / 2) past it; the other runs to the model's edge
+                # one face is cut back until it clears the other's inside face: t·sin(bend) up to a right angle (its
+                # inside corner lands on that face), t·tan(bend / 2) past it; the other runs to the model's edge
                 need = t * math.sin(bend) if bend <= math.pi / 2 else need
+            # Only what the sheet cannot take up itself is cut. Paper, card and cardboard crush at a seam (SQUISH): cut
+            # back like steel, a small panel in 1 mm card fell under the minimum part size, and a laced job that was
+            # clean in 0.3.2 came back with errors. A material that crushes through its whole thickness is never cut
+            # back, at any angle; nor is one that is not listed, which gives as it always did.
+            over = 0.0 if give is None or give >= 1 else max(0.0, need - give * t)
+            cut = dict.fromkeys((0, 1), min(over, *(0.4 * s.h for s in all_sides[k])) if back else 0)   # never most of a face: a sliver of a triangle keeps its middle
+            if through and outward:                           # the face with more room is the one cut
                 i = int(all_sides[k][1].h > all_sides[k][0].h)
-                cut = {i: min(need, 0.4 * all_sides[k][i].h), 1 - i: 0}
-            left = need - max(cut.values())
-            if give is not None and not mitred and left > give * t + 0.05:      # what is left presses into the other panel
+                cut = {i: min(over, 0.4 * all_sides[k][i].h), 1 - i: 0}
+            left = over - max(cut.values())
+            if not mitred and left > 0.05:                    # what is left presses into the other panel
                 for s in all_sides[k]:
                     s.sl.pressed.append(left)
             for i, s in enumerate(all_sides[k]):
@@ -262,6 +268,10 @@ class Folded(Mode):
             if trims:
                 # opened by a hair: the tip of a sharp triangle between two cut-back edges is left as a thread of no width
                 sl.raw = as_multi(sl.raw.difference(unary_union(trims)).buffer(-0.01, join_style="mitre").buffer(0.01, join_style="mitre"))
+                # … and a corner cut against a neighbour can leave a crumb beside the panel: no part, it goes
+                whole = [g for g in sl.raw.geoms if g.area >= 0.25 * p["min_feature"] ** 2]
+                if whole and len(whole) < len(sl.raw.geoms):
+                    sl.raw = as_multi(unary_union(whole))
         self.windows(slices)
         extra = []
         for j, k in enumerate(seams, 1):
@@ -285,8 +295,8 @@ class Folded(Mode):
                                          f"use fewer triangles (`simplify`), a bigger model, or smaller hole_d / inset / rib_w", "no-joint"))
             if sl.pressed:
                 kind = p.get("material_kind") or p.get("material")
-                sl.warnings.append(Issue(f"{len(sl.pressed)} seam edge(s) press up to {max(sl.pressed):.1f} mm into the next panel, and {t:g} mm {kind} "
-                                         f"gives {give * t:.1f} mm: the panels will not close there. "
+                sl.warnings.append(Issue(f"{len(sl.pressed)} seam edge(s) press up to {max(sl.pressed):.1f} mm into the next panel, beyond the "
+                                         f"{give * t:.1f} mm that {t:g} mm {kind} gives: the panels will not close there. "
                                          + ("Use a joint with no tab on the edge (seam, rivet, laced, strip, rib) with `edge fit` inner, so the edge is cut back"
                                             if not back else "The faces there are too small to cut back that far: use a thinner sheet or a bigger facet size"),
                                          "press", cut_back=bool(back)))     # the facet-size fix is for faces too small to cut back
@@ -720,8 +730,6 @@ class Folded(Mode):
                 s.sl.skipped.setdefault("rib slot", []).append(j)
                 self.mark(s, j, p["font"] * 0.5)
             return []
-        for s, sl_ in zip(sides, slots):
-            self.add_cut(s, sl_); self.mark(s, j, inset - s.back + tab + p["font"] * 0.45)   # mark() adds the cut-back itself
         # rib frame: origin = edge midpoint, x = into panel A along its surface, y = into the model (−normal A), z ∥ edge
         m = self.mesh; fa, fb = (int(x) for x in m.face_adjacency[k]); va, vb = m.face_adjacency_edges[k]
         E = m.vertices[[va, vb]].mean(0); e = m.vertices[vb] - m.vertices[va]; e /= np.linalg.norm(e)
@@ -742,6 +750,13 @@ class Folded(Mode):
         nA2 = np.array([0.0, 1.0]); dA2 = np.array([1.0, 0.0])
         corner = Polygon([nA2 * t / 2, nA2 * (t / 2 + w), nB2 * (t / 2 + w), nB2 * t / 2])
         rib = unary_union([arm(dA2, nA2), arm(dB2, nB2), corner]).buffer(0)
+        if max(min_dims(rib)) < p["min_part"]:               # on a small face the rib shrinks with it: too small to cut and handle, it is no joint
+            for s in sides:
+                s.sl.skipped.setdefault("rib big enough to handle", []).append(j)
+                self.mark(s, j, p["font"] * 0.5)
+            return []
+        for s, sl_ in zip(sides, slots):
+            self.add_cut(s, sl_); self.mark(s, j, inset - s.back + tab + p["font"] * 0.45)   # mark() adds the cut-back itself
         sl = Slice(f"R-{j}", "J", M, tr, note=f"{phi:.0f}°")
         sl.raw = as_multi(rib)
         sl.marks.append((float(L * 0.5), float(t / 2 + w * 0.5), str(j)))
