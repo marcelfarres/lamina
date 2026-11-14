@@ -12,10 +12,10 @@ from shapely.geometry import Polygon, LineString
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
 from . import Mode, Param, register
-from ..model import Slice
+from ..model import Slice, Groove
 from ..geometry import as_multi, circle, mark_box, mark_rot, rect_along, frame_xy
 from ..mesh import simplify
-from ..unfold import unfold
+from ..unfold import unfold, closing_shortfall
 
 JOINTS = ["seam", "tab", "multitab", "diamond", "ticked", "gear", "tongue", "puzzle", "rivet", "laced", "loops", "strip", "rib"]
 # The thickest sheet of each material that folds along a score line (mm); 0 = it does not fold at all, it cracks or
@@ -30,6 +30,24 @@ FOLDS = {"paper": 1, "card": 1.5, "cardboard": 7, "greyboard": 2, "polypropylene
 SQUISH = {"paper": 1, "card": 1, "fabric": 1, "cardboard": 1, "EVA foam": 0.7, "leather": 0.5, "greyboard": 0.3, "foam board": 0.3,
           "polypropylene": 0.1, "balsa": 0.1, "steel": 0, "stainless steel": 0, "aluminium": 0, "brass": 0, "copper": 0,
           "plywood": 0, "mdf": 0, "acrylic": 0, "basswood": 0, "PLA": 0, "PETG": 0}
+BACK_ON_ITSELF = 0.1                  # 1 + cos(angle between two faces' normals) under this: they fold back on each other
+SCORE = ("solid", "dashed")           # a mountain and a valley line that is scored, never perforated (a tab's base)
+
+
+def notch_width(bend, depth, land=0.0, stop=0.0):
+    """What a fold by `bend` (rad, a number or an array) takes off the closing face on each side of its line, in a
+    sheet `depth` deep above its skin: depth·tan(bend / 2), the half opening of the V whose walls meet at that bend
+    (they turn about the skin, each by atan(half the opening / the depth)). `stop` moves the bend it closes at;
+    `land`, a printed groove's flat bottom, lies inside the opening and is its least width. None under FLAT."""
+    bend = np.asarray(bend, float)
+    return np.where(bend > FLAT, np.maximum(land / 2, depth * np.tan(np.clip(bend + stop, 0, math.pi * 0.999) / 2)), 0.0)
+
+
+def closes_at(wide, depth):
+    """The bend (rad) at which the walls of a groove `wide` to each side and `depth` deep meet."""
+    return 2 * math.atan(wide / depth)
+
+
 THIN_TABS = ("tab", "multitab", "diamond", "ticked", "gear")   # glue tabs a printed panel carries as thin flaps of its skin
 FOLDED_JOINTS = ("tab", "multitab", "diamond", "ticked", "gear", "tongue", "puzzle", "strip")   # a flap or bridge that bends
 FLAT = math.radians(1)                # two faces closer to one plane than this are one flat piece: no score between them
@@ -96,12 +114,12 @@ class Folded(Mode):
         Param("hinge", "number", 0.4, "3D printed panels (PLA, PETG): the skin left at every fold (mm). The panel prints at its "
               "full thickness with a V groove along each fold, cut to that fold's own angle: it folds to the model's shape and "
               "stops there, and with the plain `seam` joint the seam edges are mitred the same way, so the panels meet face to "
-              "face for glue. Two layers (0.4 mm) is a good start; PETG bends, PLA is brittle and folds once. 0 = no groove", 0, 5, 0.05, unit="mm"),
+              "face for glue. Two layers (0.4 mm) is a good start; PETG bends, PLA is brittle and folds once. 0 = no groove", 0, 5, 0.05, unit="mm", show_if=("printed", True)),
         Param("hinge_w", "number", 0.4, "3D printed panels: width of the flat strip of skin at the bottom of each fold's groove (mm), "
-              "the length that bends. Wider folds more easily and stops less sharply", 0, 5, 0.05, unit="mm", label="hinge width"),
+              "the length that bends. Wider folds more easily and stops less sharply", 0, 5, 0.05, unit="mm", label="hinge width", show_if=("printed", True)),
         Param("hinge_stop", "number", 0.0, "3D printed panels: where each fold stops, in degrees past (+) or short of (−) the "
               "model's angle. 0 = the groove walls meet at the model's angle. Folds that go too far on your printer: set it "
-              "below 0 for a tighter groove; folds that stop short: above 0", -20, 20, 0.5, unit="deg", label="fold stop"),
+              "below 0 for a tighter groove; folds that stop short: above 0", -20, 20, 0.5, unit="deg", label="fold stop", show_if=("printed", True)),
         Param("edge_fit", "choice", "inner", "Where two panels meet at a seam. inner = at their inside edges: every outward seam "
               "edge is cut back by thickness × tan(bend / 2), so stiff sheet (metal, wood, acrylic) closes instead of its "
               "inside corners colliding, and an open V is left on the outside; through = one panel runs to the model's edge "
@@ -119,6 +137,12 @@ class Folded(Mode):
     def build(self, ctx):
         p = ctx.p; t = p["thickness"]; self.p = p; self.t = t; self.inside = p["score_side"] == "inside"
         self.hinged = bool(p["printed"]) and 0 < p["hinge"] < t        # printed with a living hinge at every fold
+        if p["printed"] and p["hinge"] >= t:
+            ctx.errors.append(f"hinge {p['hinge']:g} mm is not thinner than the {t:g} mm sheet: there is nothing to cut a groove "
+                              f"in, so no fold is grooved. Set `hinge` below the sheet thickness")
+        # the groove's skin, flat bottom and stop; all 0 for a sheet that is not grooved, where notch() is the plain t·tan(bend / 2)
+        self.skin, self.land, self.stop = (p["hinge"], p["hinge_w"], math.radians(p["hinge_stop"])) if self.hinged else (0.0, 0.0, 0.0)
+        self.styles = ("dashed", "dotted") if p["perforate"] else SCORE     # a mountain and a valley fold line
         # … and its glue tabs as flaps of the skin alone: a tab as thick as the sheet would fold into the panel it glues to
         self.thin_tabs = self.hinged and p["joint"] in THIN_TABS
         self.mitres = self.hinged and (p["joint"] == "seam" or self.thin_tabs)     # seam edges cut to half the bend, face to face
@@ -146,7 +170,6 @@ class Folded(Mode):
         frames, local, panels, seams = unfold(mesh, p["separate"], p["max_faces"], self.usable_sheet(p), p["strategy"])
         self.frames, self.local = frames, local
         convex = mesh.face_adjacency_convex
-        styles = ("dashed", "dotted") if p["perforate"] else ("solid", "dashed")     # mountain, valley
         slices, owner = [], {}
         self.face_cuts = {}                                   # face → cuts inside it (collision checks)
         self.grooved = {}                                     # face → its grooved edges in the face's own frame, for the 3D view
@@ -158,8 +181,8 @@ class Folded(Mode):
                 fa = list(mesh.faces[mesh.face_adjacency[k][0]])
                 va, vb = mesh.face_adjacency_edges[k]
                 f = mesh.face_adjacency[k][0]
-                sl.lines.append((self.mv(convex[k], styles), LineString([pn.tri[f][fa.index(va)], pn.tri[f][fa.index(vb)]])))
-                self.vee(sl, pn.tri[f][fa.index(va)], pn.tri[f][fa.index(vb)], k)
+                sl.lines.append((self.fold_line(convex[k]), LineString([pn.tri[f][fa.index(va)], pn.tri[f][fa.index(vb)]])))
+                self.groove(sl, pn.tri[f][fa.index(va)], pn.tri[f][fa.index(vb)], k)
             slices.append(sl)
             for f in pn.faces:
                 owner[f] = sl
@@ -213,11 +236,6 @@ class Folded(Mode):
         for j, k in enumerate(seams, 1):
             sides = all_sides[k]
             phi = self.interior_angle(k)
-            # a mitre: the half of a fold's groove that lies on each panel. Outward seams only: at an inward one the two
-            # sheets move apart, and a mitre there would open a V on the outside and cut a glue tab off its panel
-            if self.mitres and convex[k]:
-                for s in sides:
-                    self.vee(s["sl"], s["A"], s["B"], k, s["f"])
             extra += self.joint(j, k, sides, phi, convex[k])
         # additions (tabs) → raw; facets for the 3D view: the profile of every face in its own frame (+ folded tabs)
         for sl in slices:
@@ -256,12 +274,7 @@ class Folded(Mode):
             sl.facet_t = [None] * len(sl.facets) + sl.tab_t
             sl.facets += sl.tab_facets
             if self.inside:                                   # the inside face up on the cutter: the net seen from inside
-                flip = lambda g: affinity.scale(g, -1, 1, origin=(0, 0))
-                sl.raw = as_multi(flip(sl.raw)); sl.cuts = [flip(c) for c in sl.cuts]
-                sl.lines = [(s, flip(ln)) for s, ln in sl.lines]
-                sl.marks = [(-m[0], m[1], m[2], -mark_rot(m)) for m in sl.marks]
-                sl.vees = [[-v[0], v[1], -v[2], *v[3:]] for v in sl.vees]
-                sl.thin = [flip(g) for g in sl.thin]
+                sl.mirror()
         # the sheet's outer face lies on the model's surface and its thickness goes inwards, so the outside is one
         # surface; centred on the surface, every fold left a notch on the outside and the model grew by half a sheet
         for sl in slices + extra:
@@ -276,33 +289,31 @@ class Folded(Mode):
         n_panels = len(slices)
         if not p["separate"] and n_panels > 0.6 * len(mesh.faces):
             ctx.errors.append(f"unfolding gave {n_panels} panels for {len(mesh.faces)} faces — use a bigger facet size or enlarge the sheet")
-        if not self.check_folds(ctx, panels, seams):
+        said = len(ctx.errors)
+        self.check_folds(ctx, panels, seams)
+        if len(ctx.errors) == said:                           # a sheet that does not fold at all has said so: how far it folds is moot
             self.check_closing(slices)
         ctx.notes_extra = f"unfolded {len(mesh.faces)} triangles into {n_panels} panel(s), {len(seams)} seams"
         return slices + extra
 
+    def notch(self, bend):
+        """What a fold by `bend` takes off the closing face on each side of its line (mm): half the opening of a printed
+        groove, or, in a sheet that is not grooved, the t·tan(bend / 2) the fold itself needs. See notch_width."""
+        return notch_width(bend, self.t - self.skin, self.land, self.stop)
+
     def check_closing(self, slices):
-        """A sheet of thickness t folded by θ gives up t·tan(θ/2) of its closing face on each side of the fold (the inside
-        of a mountain fold, the outside of a valley fold). A triangle keeps material on that face while Σ dᵢ·Lᵢ ≤ 2·area
-        over its fold edges (a point's distance to edge i is 2·area·λᵢ/Lᵢ). Past that the folds around a face meet: a
-        sheet thicker than the curve's radius, or faces too small for the sheet, cannot be folded to the model."""
-        m, t = self.mesh, self.t
+        """The folds that cannot close (unfold.closing_shortfall): a sheet thicker than the curve's radius, or faces too
+        small for the sheet, cannot be folded to the model."""
+        m = self.mesh
         L = np.linalg.norm(np.diff(m.vertices[m.face_adjacency_edges], axis=1)[:, 0], axis=1)
-        bend = np.minimum(m.face_adjacency_angles, math.pi * 0.999)
-        give = t * np.tan(bend / 2) * L
-        if self.hinged:                                       # a printed groove: as deep as the sheet less its skin, plus half its flat bottom
-            give = ((t - self.p["hinge"]) * np.tan(bend / 2) + self.p["hinge_w"] / 2 * (bend > math.radians(1))) * L
-        for sl in slices:
-            k = np.asarray(sl.pn.folds, int)
-            if not len(k):
-                continue
-            side = m.face_adjacency_convex[k].astype(int)     # the face that closes: 1 = the inside (mountain), 0 = the outside
-            need = np.zeros((2, len(m.faces)))
-            for f in m.face_adjacency[k].T:
-                np.add.at(need, (side, f), give[k])
-            stuck = (need[side[:, None], m.face_adjacency[k]] > 2 * m.area_faces[m.face_adjacency[k]]).any(1)
-            if stuck.any():
-                sl.warnings.append(f"{int(stuck.sum())} fold(s) cannot close in {t:g} mm sheet: folding takes t × tan(bend / 2) "
+        folds = [np.asarray(sl.pn.folds, int) for sl in slices]
+        if not sum(map(len, folds)):
+            return
+        stuck = closing_shortfall(m, self.notch(m.face_adjacency_angles) * L, np.concatenate(folds)); at = 0
+        for sl, f in zip(slices, folds):
+            n = int(stuck[at:at + len(f)].sum()); at += len(f)
+            if n:
+                sl.warnings.append(f"{n} fold(s) cannot close in {self.t:g} mm sheet: folding takes depth × tan(bend / 2) "
                                    f"off the inside of the bend on each side of a fold, and here the folds around a face need "
                                    f"more than the whole face. Use a thinner sheet or a bigger facet size, or round the model "
                                    f"less tightly: a curve needs a radius bigger than the sheet is thick")
@@ -317,17 +328,15 @@ class Folded(Mode):
         p = self.p                                            # and what the joint's holes or slots reach in from the edge
         holes = lambda h: min(p["inset"], 0.2 * h) + min(p["hole_d"], 0.3 * h) / 2      # noqa: E731
         slot = lambda h: min(p["inset"], 0.1 * h) + min(p["rib_w"], max(0.22 * h, 2 * self.t))   # noqa: E731
-        if self.hinged:
-            bend = np.minimum(m.face_adjacency_angles, math.pi * 0.999)
-            give = ((self.t - self.p["hinge"]) * np.tan(bend / 2) + self.p["hinge_w"] / 2) * (bend > math.radians(1))
+        if self.hinged:                                       # a groove on each of its edges
             for f in m.face_adjacency.T:
-                np.maximum.at(room, f, give)
+                np.maximum.at(room, f, self.notch(m.face_adjacency_angles))
         for sl in slices:
             for f in sl.pn.faces:
                 tri = Polygon(sl.pn.tri[f]); r = 2 * tri.area / tri.length            # the inscribed circle's radius
                 h = 2 * tri.area / max(np.linalg.norm(np.diff(np.vstack([sl.pn.tri[f], sl.pn.tri[f][:1]]), axis=0), axis=1))   # the least height
                 joint = {"rivet": holes, "laced": holes, "strip": holes, "rib": slot}.get(self.p["joint"], lambda h: 0)(h)   # as fit_sizes shrinks them
-                frame = max((1 - share) * r, 1.25 * self.p["min_feature"] + room[f] + joint)      # a quarter over: the thin-spot check measures to the hair
+                frame = max((1 - share) * r, 1.35 * self.p["min_feature"] + room[f] + joint)      # a third over: the thin-spot check measures to the hair (at 1.25 five frames of the lamp were flagged)
                 hole = tri.buffer(-frame, join_style="mitre")
                 if hole.is_empty or hole.geom_type != "Polygon" or 2 * hole.area / hole.length < self.p["min_feature"] / 2:
                     continue                                                        # no room for a window worth cutting
@@ -392,24 +401,19 @@ class Folded(Mode):
         M = h(pg.R[g], pg.t[g]) @ W @ np.linalg.inv(h(pf.R[f], pf.t[f]))
         return affinity.affine_transform(geom, [M[0, 0], M[0, 1], M[1, 0], M[1, 1], M[0, 2], M[1, 2]])
 
-    def vee(self, sl, a, b, k, f=None):
-        """The V groove a printed panel gets along edge a→b (a fold, or a seam edge to mitre) of adjacency k: opened to
-        the edge's bend, on the face that closes (the inside of a convex edge), down to the hinge skin. An edge
-        between faces in one plane bends nothing and gets none."""
-        bend = float(self.mesh.face_adjacency_angles[k])
-        if not self.hinged or bend < math.radians(1):
+    def groove(self, sl, a, b, k, f=None):
+        """The V groove a printed panel gets along edge a→b (a fold, or a seam edge to mitre: then `f` is the one face it
+        lies on) of adjacency k: opened to the edge's bend (notch), on the face that closes (the inside of a convex
+        edge), down to the skin. An edge between faces in one plane bends nothing and gets none."""
+        m = self.mesh; wide = float(self.notch(m.face_adjacency_angles[k]))
+        if not self.hinged or not wide:
             return
-        h, g = self.p["hinge"], self.p["hinge_w"]
-        # the walls turn about the skin and meet when each has turned atan(half the opening / the depth): the opening
-        # is set by the bend alone. The flat bottom is inside it, not added to it (added, a 90° fold closed at 97°)
-        stop = min(max(bend + math.radians(self.p["hinge_stop"]), 0), math.pi * 0.999)
-        wide = max(g / 2, (self.t - h) * math.tan(stop / 2))
-        top = bool(self.mesh.face_adjacency_convex[k]) == self.inside       # the closing face is the one up on the bed
-        sl.vees.append([*map(float, a), *map(float, b), g, h, wide, top])
-        for face in ([f] if f is not None else self.mesh.face_adjacency[k]):      # a fold grooves both of its faces
-            fl = list(self.mesh.faces[face]); va, vb = self.mesh.face_adjacency_edges[k]
+        top = bool(m.face_adjacency_convex[k]) == self.inside       # the closing face is the one up on the bed
+        sl.grooves.append(Groove(tuple(map(float, a)), tuple(map(float, b)), self.land, self.skin, wide, top))
+        for face in ([f] if f is not None else m.face_adjacency[k]):      # a fold grooves both of its faces
+            fl = list(m.faces[face]); va, vb = m.face_adjacency_edges[k]
             la, lb = self.local[face][fl.index(va)], self.local[face][fl.index(vb)]
-            self.grooved.setdefault(int(face), []).append([*(round(float(x), 4) for x in (*la, *lb)), round(wide, 4), 1 if self.mesh.face_adjacency_convex[k] else -1])
+            self.grooved.setdefault(int(face), []).append([*(round(float(x), 4) for x in (*la, *lb)), round(wide, 4), 1 if m.face_adjacency_convex[k] else -1])
 
     def hinge(self, pn, f, at):
         """How the 3D view unfolds face f: the facet it hangs from, the fold line between them (a point and a direction,
@@ -425,35 +429,50 @@ class Folded(Mode):
 
     def sunk(self, M):
         """Frame M moved half a sheet inwards: the centred extrusion then spans the surface to one thickness inside."""
-        M = M.copy(); M[:3, 3] -= M[:3, 2] * self.t / 2
+        M = M.copy(); M[:3, 3] += self.mid(M[:3, 2])
         return M
 
-    def mv(self, convex, styles=("solid", "dashed")):
-        """Mountain (styles[0]) or valley line for an edge, seen from the face up on the cutter: a convex edge folds as a
-        mountain seen from outside and as a valley seen from inside."""
-        return styles[0] if bool(convex) != self.inside else styles[1]
+    def mid(self, n):
+        """From a point on the model's surface to the middle of the sheet under it, for a face with outward normal n."""
+        return -n * self.t / 2
+
+    def mid_edge(self, E, na, nb):
+        """Where the mid-planes of two faces meet, for their shared edge at E on the surface: E moved by both faces'
+        offsets, further the sharper the edge (not past BACK_ON_ITSELF, where the two fold back on each other)."""
+        return E + (self.mid(na) + self.mid(nb)) / max(1 + na @ nb, BACK_ON_ITSELF)
+
+    def mountain(self, convex):
+        """Whether an edge folds as a mountain seen from the face up on the cutter: a convex edge does seen from outside,
+        and is a valley seen from inside."""
+        return bool(convex) != self.inside
+
+    def fold_line(self, convex):
+        """The line style of a panel's fold: scored, or perforated when asked."""
+        return self.styles[0 if self.mountain(convex) else 1]
+
+    def tab_line(self, convex):
+        """The line style of a tab's base or its second bend: always a score."""
+        return SCORE[0 if self.mountain(convex) else 1]
 
     def check_folds(self, ctx, panels, seams):
         """A fold line in a panel, or a joint whose tab or strip bends over the seam, needs a sheet that folds: 3 mm
         plywood cracks along the score where 3 mm cardboard folds. Every face its own panel, joined by ribs, folds
         nothing."""
         p = self.p; kind = p.get("material_kind") or p.get("material"); most = FOLDS.get(kind)
-        if self.hinged and (p["joint"] not in FOLDED_JOINTS or self.thin_tabs):      # printed with a groove at every fold: the skin is what folds
-            return False
-        folds = sum(len(self.creases(pn)) for pn in panels) + (len(seams) if p["joint"] in FOLDED_JOINTS else 0)
+        # what has to fold as a sheet: a panel's folds unless they are grooved (then the skin folds), and a joint's tab or
+        # strip over each seam unless it is a thin printed flap
+        folds = (0 if self.hinged else sum(len(self.creases(pn)) for pn in panels)) + (len(seams) if p["joint"] in FOLDED_JOINTS and not self.thin_tabs else 0)
         if most is None or not folds or self.t <= most:
-            return False
+            return
         why = "it does not fold, it cracks along the line" if most == 0 else f"it folds along a score up to about {most:g} mm"
         msg = (f"{folds} fold(s) in {self.t:g} mm {kind}: {why}. Cut every face as its own panel (separate) and join them with "
-               f"a joint that needs no fold (rib, rivet or laced), or use a thinner or foldable material"
-               + (". Printed, the plain `seam` joint with a `hinge` skin folds along a groove at every fold" if p["printed"] else ""))
+               f"a joint that needs no fold (rib, rivet or laced), or use a thinner or foldable material")
         ctx.errors.append(msg)
         fix = {"separate": True, "joint": "rib"}
         if (target_faces(ctx.mesh, p["facet"]) or len(ctx.mesh.faces)) > MAX_PANELS:    # each face is a part now: as few as build cuts
             fix["facet"] = math.ceil(math.sqrt(ctx.mesh.area / (0.433 * MAX_PANELS)))
         ctx.fixes = [{"error": msg, "options": [{"title": "every face its own panel, joined by ribs", "set": fix,
                                                  "note": "rigid panels, each rib cut at its seam's angle and slotted in from the back"}]}]
-        return True
 
     # ---------------------------------------------------------------- helpers
     def creases(self, pn):
@@ -547,7 +566,7 @@ class Folded(Mode):
         """A tab drawn outside edge A→B of face a, shown in 3D folded flat against the inside of face b."""
         A, d, out, L = a["A"], a["d"], -a["n"], a["L"]
         pts = [b["lmid"] + (float(np.dot(P - A, d)) / L - 0.5) * L * b["ld"] + float(np.dot(P - A, out)) * b["ln"] for P in np.asarray(poly.exterior.coords)]
-        M = self.frames[b["f"]].copy(); h = self.p["hinge"]
+        M = self.frames[b["f"]].copy(); h = self.skin
         if self.thin_tabs:                                    # a flap of the skin, folded round the edge onto the outside of the mating panel
             M[:3, 3] += M[:3, 2] * (h / 2 + self.t / 2)         # (every facet is then sunk half a sheet, see build)
         else:
@@ -557,6 +576,11 @@ class Folded(Mode):
     # ---------------------------------------------------------------- joints
     def joint(self, j, k, sides, phi, convex):
         p = self.p; jt = p["joint"]
+        # a mitre: the half of a fold's groove that lies on each panel. Outward seams only: at an inward one the two
+        # sheets move apart, and a mitre there would open a V on the outside and cut a glue tab off its panel
+        if self.mitres and convex:
+            for s in sides:
+                self.groove(s["sl"], s["A"], s["B"], k, s["f"])
         if jt in ("rivet", "laced", "strip"):
             return self.holes(j, sides, phi, convex)
         if jt == "loops":
@@ -676,8 +700,7 @@ class Folded(Mode):
         def inward(f):
             c = m.triangles_center[f] - E; c -= np.dot(c, e) * e; return c / np.linalg.norm(c)
         dA, dB = inward(fa), inward(fb)
-        # the rib is drawn about where the panels' mid-planes meet; they lie half a sheet inside the surface (see sunk)
-        M = frame_xy(E - t / (2 * max(1 + na @ nb, 0.1)) * (na + nb), dA, -na)
+        M = frame_xy(self.mid_edge(E, na, nb), dA, -na)           # the rib is drawn about where the panels' mid-planes meet
         dB2 = np.array([dB @ dA, dB @ -na]); nB2 = np.array([-nb @ dA, nb @ na])
         L = inset + tab + t * 2
 
@@ -755,11 +778,11 @@ class Folded(Mode):
         else:
             a["sl"].additions += polys
             if self.thin_tabs:
-                a["sl"].thin += polys; a["sl"].thin_t = self.p["hinge"]
+                a["sl"].thin += polys; a["sl"].thin_t = self.skin
             # the hinge is scored across each tab's base, not along the whole seam edge: the rest of that edge is a cut,
             # and a score under a cut is wasted on the laser and invisible on the part
-            a["sl"].lines += [(self.mv(convex), hl) for hl in hinges]
-            a["sl"].lines += [(self.mv(False), bl) for bl in bends]
+            a["sl"].lines += [(self.tab_line(convex), hl) for hl in hinges]
+            a["sl"].lines += [(self.tab_line(False), bl) for bl in bends]     # a tongue's second bend: a valley from outside
             for poly in polys:
                 self.folded_tab(a, b, poly)
         self.mark(a, j, p["font"] * 0.5, on_tab=bool(polys) and polys[0] in a["sl"].additions)

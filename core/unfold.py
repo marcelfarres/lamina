@@ -194,6 +194,20 @@ def unfold(mesh, split=False, max_faces=0, max_dims=None, strategy="flat"):
     return frames, local, panels, seams
 
 
+def closing_shortfall(mesh, give, folds):
+    """Which of the fold edges `folds` (adjacency indices) cannot close. `give[k]` is what fold k takes off the closing
+    face of each of its two faces, times its length (mm²): the inside of a mountain fold, the outside of a valley
+    fold. A triangle keeps some of a face while Σ over its folds on that face ≤ 2 · its area (a point's distance to
+    edge i is 2·area·λᵢ/Lᵢ in barycentric coordinates); past that the folds round it meet. Folds only: a seam edge
+    is cut back or mitred, which is checked where that is done."""
+    k = np.asarray(folds, int)
+    side = mesh.face_adjacency_convex[k].astype(int)        # the face that closes: 1 = the inside, 0 = the outside
+    need = np.zeros((2, len(mesh.faces)))
+    for f in mesh.face_adjacency[k].T:
+        np.add.at(need, (side, f), give[k])
+    return (need[side[:, None], mesh.face_adjacency[k]] > 2 * mesh.area_faces[mesh.face_adjacency[k]]).any(1)
+
+
 def refold_error(mesh, frames, local, panels):
     """Test helper. A layout folds back into the mesh iff (a) every layout triangle is congruent to its 3D face and
     (b) the two faces of every fold share the edge endpoints in the layout. Returns the worst deviation in mm."""

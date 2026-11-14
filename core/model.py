@@ -3,9 +3,24 @@ from __future__ import annotations
 import random
 import zlib
 from dataclasses import dataclass, field
+from typing import NamedTuple
 from pathlib import Path
 import numpy as np
 from shapely.geometry import MultiPolygon
+
+class Groove(NamedTuple):
+    """A V groove a printed folded panel gets along a fold or a seam edge, in the panel's flat net (mm)."""
+    a: tuple        # the line's two ends
+    b: tuple
+    land: float     # width of the flat bottom
+    skin: float     # what is left under the bottom: the hinge
+    wide: float     # half the opening at the face it is cut from
+    top: bool       # cut from the face up on the bed (else from the bed side)
+
+    def json(self):
+        return {"a": [round(float(x), 4) for x in self.a], "b": [round(float(x), 4) for x in self.b],
+                "land": round(float(self.land), 4), "skin": round(float(self.skin), 4), "wide": round(float(self.wide), 4), "top": bool(self.top)}
+
 
 ABC = "ABCDEFGHJKLMNPQRSTUVWXYZ"        # no I or O: engraved at 4 mm they are a 1 and a 0
 
@@ -82,7 +97,7 @@ class Slice:
     room_tabs: int = -1                 # … and how many tabs it had when that was last worked out
     mark_boxes: list = field(default_factory=list)  # folded: the room each of `marks` takes, boxed once (cached)
     reduced: int = 0                    # folded: joints made smaller than asked
-    vees: list = field(default_factory=list)        # folded, printed: [x0, y0, x1, y1, land, skin, half width, top] a V groove per fold and seam edge
+    grooves: list = field(default_factory=list)     # folded, printed: a Groove per fold and per mitred seam edge
     hinges: list | None = None                      # folded: per facet, [parent facet, point xyz, axis xyz, unfold angle] or None: how the 3D view folds it
     bevels: list | None = None                      # folded, printed: per facet, [[x0, y0, x1, y1, width, closing face (1 inside, -1 outside)]] its grooved edges
     pressed: list = field(default_factory=list)     # folded: how far (mm) each seam edge of this panel still presses into its neighbour
@@ -94,6 +109,18 @@ class Slice:
     facet_t: list | None = None                     # folded: per facet, that thickness or None
     tab_of: list = field(default_factory=list)      # folded: the face each of `tab_facets` lies on
     tab_facets: list = field(default_factory=list)  # folded: the tabs as the 3D view shows them, folded onto their panel
+
+    def mirror(self):
+        """The slice seen from its other face: everything it holds in flat-net coordinates turned over (x → −x), and
+        what was worked out from them forgotten. Folded panels cut with their inside face up are built seen from
+        outside and mirrored once, here. (Their strips and ribs are parts of their own and lie either way up.)"""
+        from shapely import affinity
+        flip = lambda g: affinity.scale(g, -1, 1, origin=(0, 0))   # noqa: E731
+        self.raw = flip(self.raw); self.cuts = [flip(c) for c in self.cuts]; self.thin = [flip(g) for g in self.thin]
+        self.lines = [(style, flip(ln)) for style, ln in self.lines]
+        self.marks = [(-m[0], m[1], m[2], -(m[3] if len(m) > 3 else 0.0)) for m in self.marks]
+        self.grooves = [g._replace(a=(-g.a[0], g.a[1]), b=(-g.b[0], g.b[1])) for g in self.grooves]
+        self.mark_boxes = []; self.room = None; self.taken = None
 
     @property
     def bbox(self):

@@ -305,6 +305,13 @@ def _oversize(slices, p, sheet0, mesh, ctx):
     return len(over) + 1
 
 
+def _printed_json(sl):
+    """What a printed folded panel carries beyond its outline, for core.solid to cut: a groove per fold and mitred seam
+    edge, and its glue tabs with the thickness they keep. Nothing for any other part. (A folded net is one piece.)"""
+    return {**({"grooves": [g.json() for g in sl.grooves]} if sl.grooves else {}),
+            **({"thin": [r for g in sl.thin for r in poly_coords(as_multi(g))], "thin_t": sl.thin_t} if sl.thin else {})}
+
+
 def _slice_json(sl):
     """A slice and its pieces as the plan carries them: the page, the 3D view, the checks and the export read this."""
     return {
@@ -321,8 +328,7 @@ def _slice_json(sl):
                     "marks": [[round(m[0], 3), round(m[1], 3), m[2], round(mark_rot(m), 2)] for m in pc.placed_marks],
                     "kerfed_marks": [[round(m[0], 3), round(m[1], 3), m[2], round(mark_rot(m), 2)] for m in pc.marks],
                     "label_pos": pc.label_pos, "label_size": pc.label_size, "label_short": pc.label_short, "leader": pc.leader, "same": pc.same, "flipped": pc.flipped,
-                    **({"vees": [[round(float(x), 4) for x in v[:7]] + [bool(v[7])] for v in sl.vees]} if sl.vees else {}),
-                    **({"thin": [r for g in sl.thin for r in poly_coords(as_multi(g))], "thin_t": sl.thin_t} if sl.thin else {}),   # printed glue tabs: only the skin thick   # printed folded panels: a V groove per fold
+                    **_printed_json(sl),
                     "area": round(float(pc.geom.area), 3),   # net of holes and slots: × its slice's thickness × density = its weight
                     } for pc in sl.pieces],
     }

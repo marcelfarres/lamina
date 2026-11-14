@@ -8,7 +8,7 @@ which opens in OrcaSlicer / PrusaSlicer as one named object per part, ready to a
     uv run python -m core.solid working-files/egg.json --fit working-files/egg_fit --step 0.1     # 5 slot offsets to try first
 """
 from __future__ import annotations
-import argparse, contextlib, json, pathlib, tempfile
+import argparse, json, pathlib, tempfile
 import numpy as np
 import trimesh
 from shapely import affinity
@@ -124,6 +124,15 @@ def label_inside(geom, text, min_h, inset=1.0):
     return None
 
 
+def has_boolean() -> bool:
+    """Whether solids can be cut from each other here (manifold3d): the browser build has no wheel for it."""
+    try:
+        import manifold3d  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
 def vee(a, b, land, skin, wide, top, t) -> trimesh.Trimesh:
     """The V groove along a→b to take out of a part `t` thick: `land` wide at the bottom, `skin` above the far face,
     `wide` to each side where it opens on the top face (or the bottom one)."""
@@ -146,20 +155,26 @@ def proto_part(pc, thickness, scale, labels, font, min_thick):
     if label is not None and labels == "hole":
         geom = geom.difference(label)
     mesh = trimesh.util.concatenate([extrude(g, t) for g in shapely.get_parts(geom) if g.area > 0])
-    if pc.get("vees") or pc.get("thin"):                  # a printed folded panel: a groove at every fold, its skin the hinge
+    plain = []                                             # what this part should have had cut into it and has not: no boolean engine
+    if pc.get("grooves") or pc.get("thin"):               # a printed folded panel: a groove at every fold, its skin the hinge
         move = lambda x, y: (x * scale - x0, y * scale - y0)   # noqa: E731
-        cuts = [vee(move(*v[0:2]), move(*v[2:4]), v[4], v[5], v[6], v[7], t) for v in pc.get("vees", [])]
+        cuts = [vee(move(*g["a"]), move(*g["b"]), g["land"] * scale, g["skin"] * scale, g["wide"] * scale, g["top"], t) for g in pc.get("grooves", [])]
         for rings in pc.get("thin", []):                    # the glue tabs keep only the skin: everything above it goes
             tab = Polygon([move(x, y) for x, y in rings[0]]).buffer(0.01, join_style="mitre")
-            top = extrude(tab, t - pc["thin_t"] + 0.01); top.apply_translation([0, 0, pc["thin_t"]]); cuts.append(top)
-        with contextlib.suppress(Exception):               # no boolean engine (the browser build): the part stays plain
+            top = extrude(tab, t - pc["thin_t"] * scale + 0.01); top.apply_translation([0, 0, pc["thin_t"] * scale]); cuts.append(top)
+        if has_boolean():
             mesh = trimesh.boolean.difference([mesh, *cuts], engine="manifold")
+        else:
+            plain.append("fold grooves")
     if label is not None and labels == "groove":
         depth = min(t * 0.5, 0.6)
         groove = trimesh.util.concatenate([extrude(g, depth + 0.01) for g in shapely.get_parts(label) if g.area > 0])
         groove.apply_translation([0, 0, t - depth])
-        with contextlib.suppress(Exception):               # engine missing (the browser build): leave the part plain;
+        if has_boolean():
             mesh = trimesh.boolean.difference([mesh, groove], engine="manifold")   # named, or trimesh may wait on a Blender it finds
+        else:
+            plain.append("label")
+    mesh.metadata["plain"] = plain
     return mesh, label is not None or labels == "none"
 
 
@@ -229,7 +244,9 @@ def proto_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2
     files, unlabeled = [], []
     scene = trimesh.Scene()
     plates = {} if plan["params"].get("printed") and abs(scale - 1) < 1e-9 else None
+    plain = set()                                          # what could not be cut into the parts here
     for pc, m, _, labeled in _plate(plan, scene, scale, labels, font, min_thick, plates=plates):
+        plain.update(m.metadata.get("plain", ()))
         if not labeled:
             unlabeled.append(pc["label"])
         f = out_dir / f"{pc['label']}.stl"; m.export(f); files.append(f)
@@ -239,6 +256,9 @@ def proto_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2
             f.write_bytes(sc.export(file_type="3mf"))
             files.append(f)
     lines = [note] if note else []
+    if plain:                                              # said, not hidden: a folded panel without its grooves does not fold
+        lines.append(f"this build cannot cut solids (no manifold3d, as in the browser): the parts were exported WITHOUT their {' and '.join(sorted(plain))}. "
+                     "Printed folded panels need the grooves to fold: export them from the installed app")
     if unlabeled:
         lines.append(_unlabeled_note(unlabeled, font))
     return _readme(out_dir, lines, files)

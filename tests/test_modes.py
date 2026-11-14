@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 import trimesh
 
-from core.modes.folded import JOINTS
+from core.modes.folded import JOINTS, closes_at
 from core.plan import build
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -338,23 +338,25 @@ def test_folded_panels_printed_get_a_groove_at_every_fold_down_to_the_hinge_skin
     plan = build(EXAMPLES / "fold_test.stl", "folded", job)
     assert not plan["errors"] and plan["counts"]["errors"] == 0
     sl = plan["slices"][0]; pc = sl["pieces"][0]
-    bends = {round(2 * np.degrees(np.arctan(v[6] / (sl["thickness"] - v[5])))) for v in pc["vees"]}     # the fold at which the walls meet
+    stops = lambda grooves: {round(np.degrees(closes_at(g["wide"], sl["thickness"] - g["skin"]))) for g in grooves}   # noqa: E731  the fold at which the walls meet
+    bends = stops(pc["grooves"])
     assert {45, 90, 104} <= bends                                       # each groove opened to its own fold
-    assert True in {v[7] for v in pc["vees"]}                            # mountain folds are grooved from the face up on the bed
-    assert sum(len(fc.get("bevel", [])) for fc in pc["facets"]) == len(pc["vees"]) + sum(1 for fc in pc["facets"] if fc.get("hinge") and fc["hinge"][7])   # the 3D view draws every groove: a fold on both its faces
+    assert True in {g["top"] for g in pc["grooves"]}                            # mountain folds are grooved from the face up on the bed
+    assert sum(len(fc.get("bevel", [])) for fc in pc["facets"]) == len(pc["grooves"]) + sum(1 for fc in pc["facets"] if fc.get("hinge") and fc["hinge"][7])   # the 3D view draws every groove: a fold on both its faces
     proto_set(plan, tmp_path, labels="none")
     part = trimesh.load(tmp_path / "P-1.stl")
     # closed: no edge with a face on one side only (two grooves that touch share an edge between four faces)
     assert (np.unique(part.edges_sorted, axis=0, return_counts=True)[1] % 2 == 0).all() and part.volume > 0
     x0 = min(x for r in pc["kerfed"] for x, _ in r[0]); y0 = min(y for r in pc["kerfed"] for _, y in r[0])
-    v = max((v for v in pc["vees"] if v[7]), key=lambda v: np.hypot(v[2] - v[0], v[3] - v[1]))
-    mid = np.array([(v[0] + v[2]) / 2 - x0, (v[1] + v[3]) / 2 - y0]); along = np.array([v[2] - v[0], v[3] - v[1]])
+    g = max((g for g in pc["grooves"] if g["top"]), key=lambda g: np.hypot(g["b"][0] - g["a"][0], g["b"][1] - g["a"][1]))
+    a, b = np.array(g["a"]), np.array(g["b"])
+    mid = (a + b) / 2 - [x0, y0]; along = b - a
     sec = part.section(plane_origin=[*mid, 0], plane_normal=[*along, 0]).vertices
-    under = sec[np.linalg.norm(sec[:, :2] - mid, axis=1) < v[4] / 2 + 0.01]
+    under = sec[np.linalg.norm(sec[:, :2] - mid, axis=1) < g["land"] / 2 + 0.01]
     assert np.isclose(under[:, 2].max(), job["hinge"], atol=0.02) and np.isclose(under[:, 2].min(), 0, atol=1e-3)
     assert "does not fold" in build(EXAMPLES / "fold_test.stl", "folded", {**job, "hinge": 0})["errors"][0]
-    tight = build(EXAMPLES / "fold_test.stl", "folded", {**job, "hinge_stop": -5})["slices"][0]["pieces"][0]["vees"]
-    assert {round(2 * np.degrees(np.arctan(v[6] / (sl["thickness"] - v[5])))) for v in tight} >= {40, 85, 99}   # every fold stops 5° sooner
+    tight = build(EXAMPLES / "fold_test.stl", "folded", {**job, "hinge_stop": -5})["slices"][0]["pieces"][0]["grooves"]
+    assert stops(tight) >= {40, 85, 99}   # every fold stops 5° sooner
 
 
 @pytest.mark.parametrize("model", ["fold_test", "bracket", "cube"])
@@ -455,7 +457,7 @@ def test_folded_lamp_has_a_window_in_its_faces_and_unfolds_flat():
     assert plan["counts"]["errors"] == 0 and plan["counts"]["warnings"] == 0
     pc = max((sl["pieces"][0] for sl in plan["slices"]), key=lambda pc: len(pc["facets"]))
     assert sum(len(poly) - 1 for poly in pc["kerfed"]) > 40                 # windows: holes in the net
-    assert {v[7] for v in pc["vees"]} == {True, False}                      # valley folds are grooved from the other face
+    assert {g["top"] for g in pc["grooves"]} == {True, False}                      # valley folds are grooved from the other face
 
     def turn(h, s):                                                        # as the page's applyFold builds it
         p, d, u = np.array(h[1:4]), np.array(h[4:7]), (1 - s) * h[7]
