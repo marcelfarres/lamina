@@ -31,6 +31,9 @@ downloads as a STEP file, for CAD.
   slice; or kept with its error if you prefer. A hanging piece with room for fewer than three spacers
   is flagged on its slice, with what gives it room: fewer slices, thinner material or a smaller spacer. The spacing curve
   works in every layout, and plate slots take the same inside-corner relief as every other slot, for a router.
+- **A Reddit community.** [r/Lamina3D](https://www.reddit.com/r/Lamina3D) is a place to show what you built, ask for
+  help and say what Lamina should do next. It is linked beside the Discord in the app's header, on the Export tab,
+  on the landing page and in the README.
 
 ### Fixed
 
