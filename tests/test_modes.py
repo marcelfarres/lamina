@@ -387,6 +387,7 @@ def test_folded_printed_glue_tabs_are_flaps_of_the_skin():
     assert plan["counts"]["errors"] == 0
     pc = plan["slices"][0]["pieces"][0]
     assert len(pc["thin"]) >= 10 and pc["thin_t"] == 0.4
+    assert all(len(poly) == 1 for poly in pc["kerfed"])                    # no tab touches the panel or another tab: that would close a hole and hold it on two sides
     assert sum(1 for fc in pc["facets"] if fc.get("t") == 0.4) == len(pc["thin"])        # the 3D view draws them thin
     import tempfile
     with tempfile.TemporaryDirectory() as d:

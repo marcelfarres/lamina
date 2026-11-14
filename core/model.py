@@ -86,6 +86,8 @@ class Slice:
     hinges: list | None = None                      # folded: per facet, [parent facet, point xyz, axis xyz, unfold angle] or None: how the 3D view folds it
     bevels: list | None = None                      # folded, printed: per facet, [[x0, y0, x1, y1, width, closing face (1 inside, -1 outside)]] its grooved edges
     pressed: list = field(default_factory=list)     # folded: how far (mm) each seam edge of this panel still presses into its neighbour
+    taken: object = None                            # folded: the panel and the tabs it has so far (cached), what a new tab may not touch
+    taken_tabs: int = -1
     thin: list = field(default_factory=list)        # folded, printed: the glue tabs, printed only as thick as the hinge skin
     thin_t: float = 0.0                             # … and that thickness
     tab_t: list = field(default_factory=list)       # folded: the thickness of each of `tab_facets` when it is not the sheet's (a thin printed tab)

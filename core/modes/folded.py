@@ -753,12 +753,17 @@ class Folded(Mode):
                 else:                                 # diamond / ticked
                     polys.append(Polygon([A + d * (c - hw) * L, A + d * (c + hw) * L, A + d * c * L + out * h]))
                     hinges.append(LineString([A + d * (c - hw) * L, A + d * (c + hw) * L]))
-        # a tab may not land on the panel itself (concave layouts): the other side gets it, else it is a plain seam
+        # a tab may not land on the panel itself (concave layouts), nor touch it or another tab anywhere but along its
+        # own edge (the outline would join them and hold the tab on two sides): the other side gets it, else it is a plain seam
+        sl = a["sl"]
+        if sl.taken is None or sl.taken_tabs != len(sl.additions):          # the panel with the tabs it has so far
+            sl.taken = unary_union([sl.raw, *sl.additions]); sl.taken_tabs = len(sl.additions)
+        base = LineString([A, A + d * L]).buffer(0.6)
         for poly in polys:
-            if poly.intersection(a["sl"].raw).area > 0.02 * poly.area:
+            if poly.intersection(sl.raw).area > 0.02 * poly.area or poly.buffer(0.3).intersection(sl.taken).difference(base).area > 0.05:
                 if not swapped:
                     return self.tabs(j, [b, a], jt, convex, swapped=True)
-                a["sl"].warnings.append(f"seam {j}: tab would overlap the panel on either side — reduced to a plain seam (lower tab_h)")
+                a["sl"].warnings.append(f"seam {j}: tab would overlap or touch the panel on either side — reduced to a plain seam (lower tab_h)")
                 break
         else:
             a["sl"].additions += polys
