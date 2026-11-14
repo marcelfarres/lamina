@@ -459,6 +459,18 @@ def test_folded_soft_sheet_is_not_cut_back_at_its_seams(joint, material):
     assert not errs, errs[:3]
 
 
+@pytest.mark.parametrize("joint", ["laced", "rib"])
+def test_folded_cut_back_never_makes_a_panel_too_small(joint):
+    """The same cow in 1 mm steel: cut back at its seams, some small panels fell under the minimum part and feature
+    sizes (7 errors). The cut-back is never what makes a panel too small: such a panel keeps its edges and warns how
+    far it presses into its neighbours."""
+    plan = build(EXAMPLES / "cow.stl", "folded", {"rotate": [90, 0, 0], "joint": joint, "facet": 15, "strategy": "area", "thickness": 1,
+                                                 "material": "steel", "material_kind": "steel"})
+    errs = [f"{sl['label']}: {e}" for sl in plan["slices"] for e in sl["errors"]] + plan["errors"]
+    assert not errs, errs[:3]
+    assert any("press up to" in w for sl in plan["slices"] for w in sl["warnings"])
+
+
 def test_folded_says_when_stiff_panels_still_press_into_each_other():
     """A seam edge that is not cut back (a tab joint keeps its edge, or `edge fit` outer) presses t × tan(bend / 2) into
     the next panel. Steel gives nothing, so the panel says so; cardboard crushes that much; cut back, nothing is left."""

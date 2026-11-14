@@ -232,15 +232,29 @@ class Folded(Mode):
                     self.face_trims.setdefault(s["f"], []).append(strip); self.back[s["f"]] = max(self.back[s["f"]], d)
                     s["back"] = d                            # holes, slots and numbers are measured from the new edge
         self.corners(owner)
+
+        def small(geom):                                      # as core.checks reads a part: any region too small or too thin
+            return geom.is_empty or any(max(d) < p["min_part"] or min(d) < p["min_feature"] for d in map(min_dims, geom.geoms))
         for sl in slices:
             trims = [g for f in sl.pn.faces for g in self.face_trims.get(f, ())]
             if trims:
+                was = sl.raw
                 # opened by a hair: the tip of a sharp triangle between two cut-back edges is left as a thread of no width
                 sl.raw = as_multi(sl.raw.difference(unary_union(trims)).buffer(-0.01, join_style="mitre").buffer(0.01, join_style="mitre"))
                 # … and a corner cut against a neighbour can leave a crumb beside the panel: no part, it goes
                 whole = [g for g in sl.raw.geoms if g.area >= 0.25 * p["min_feature"] ** 2]
                 if whole and len(whole) < len(sl.raw.geoms):
                     sl.raw = as_multi(unary_union(whole))
+                # The cut-back is never what makes a panel too small to cut: a panel it would take under the minimum
+                # part or feature size keeps its edges, and says how far it then presses into its neighbours.
+                if small(sl.raw) and not small(was):
+                    sl.raw = was; sl.pressed.append(max(self.back[f] for f in sl.pn.faces))
+                    for f in sl.pn.faces:
+                        self.face_trims.pop(f, None); self.back[f] = 0
+                    for k in seams:
+                        for side in all_sides[k]:
+                            if side["sl"] is sl:
+                                side.pop("back", None)
         self.windows(slices)
         extra = []
         for j, k in enumerate(seams, 1):
