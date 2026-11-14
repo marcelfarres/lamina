@@ -14,6 +14,7 @@ from shapely.geometry import Polygon
 from shapely.ops import unary_union
 
 import core.nest as nest
+import core.nofit as nofit
 from core.plan import build
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -366,8 +367,8 @@ def test_two_turns_of_a_part_never_drop_the_same_kept_union():
 
     rect = lambda w, h: np.array([(0, 0), (w, 0), (w, h), (0, h)], float)   # noqa: E731
     ask = lambda sh, c: sh.spot([c], (0.0, 0.0, c[2, 0], c[2, 1]))          # noqa: E731
-    sh = nest.Sheet(600, 400, 5)
-    sh.convex.append(nest._edges(rect(100, 100)))
+    sh = nofit.Sheet(600, 400, 5)
+    sh.convex.append(nofit._edges(rect(100, 100)))
     sh.nfp = Slow()
     for i in range(16):                                    # the 16 it keeps
         ask(sh, rect(10 + i, 10))
