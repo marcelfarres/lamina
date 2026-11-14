@@ -1098,6 +1098,21 @@ def test_an_example_starts_every_technique_from_its_defaults(page):
         assert st[k] == defaults[k], (k, st[k], defaults[k])
 
 
+def test_an_example_opens_with_its_technique_s_own_gap_between_slices(page):
+    """Reported: the bonsai plaque was "missing some slices from the branches and the sides of the pot". An example
+    opened with space forced to 0 on top of its technique's defaults, so a plaque's slices touched (70 of them) and
+    nine pieces no neighbour had room to hold were left out. The gap is the technique's default unless the preset
+    names one: 3 mm for a plaque, 35 slices and the plate."""
+    page.click('nav button[data-t="model"]')
+    page.select_option("#example", "bonsai"); settle(page)
+    assert page.evaluate("() => window.__t.state().space") == 3
+    pl = plan(page)
+    assert pl["counts"]["slices"] == 36 and pl["counts"]["errors"] == 0, pl["counts"]
+    assert "9 floating piece(s) left out" not in " ".join(pl["notes"]), pl["notes"]
+    page.select_option("#example", "vase"); settle(page)                    # a technique whose default is touching slices keeps it
+    assert page.evaluate("() => window.__t.state().space") == 0
+
+
 def test_a_drag_while_a_slice_runs_turns_the_view_not_the_model(page):
     """Reported: the statue "is not there if you move it before it is complete". Picked from the list on the Model
     tab, the turn rings still had the last model's size, and a drag across the middle of the view to look round

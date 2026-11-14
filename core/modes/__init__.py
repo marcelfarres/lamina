@@ -16,6 +16,7 @@ MAX_SLICES = 500                      # the count slider's ceiling, and the ceil
 
 # Param.type → what the UI renders
 #   number | int | choice | bool | text
+#   file          a file picked in the form, kept as its text (an SVG or DXF outline)   value: the file's text
 #   vec2 / vec3   two / three number boxes                      value: [x, y(, z)]
 #   points        table of 2D points (+ alt-click in the 3D view) value: [[x, y], …]
 #   lines3        table of 3D lines start→end                   value: [[[x,y,z],[x,y,z]], …]
@@ -266,6 +267,7 @@ class Ctx:
         self.core_d_min = None    # radial: the smallest core the half-slices allow
         self.spacing = []         # the drawn spacing curves' outcome, for the graph: [{param, positions, length, unit, scale}]
         self.stack, self.common_pts = [], None   # stacked: the layers in order, and the dowel points they all share (cached)
+        self.clip = None          # plaque: [point, normal] of the plate's front face — the 3D view shows the model in front of it only, and coverage is measured on that
 
     def override(self, key, label, default=0.0):
         return float(dict(self.p[key]).get(label, default))

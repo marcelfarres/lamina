@@ -31,7 +31,7 @@ No install, no account, nothing uploaded — the Python runs in your own browser
 **[Landing page with screenshots and clips](https://marcelfarres.github.io/lamina/?ref=github-readme)** ·
 [parity with the original, option by option](docs/roadmap.md) · [how the unfolding works](docs/folded-panels.md)
 
-## The five ways to build a model
+## The six ways to build a model
 
 Each one is a clip on the [landing page](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques);
 the stills below are the same scenes.
@@ -41,6 +41,7 @@ the stills below are the same scenes.
 | [![Stacked: parallel slices with dowels](docs/media/stacked_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Stacked** — parallel sections, touching or spaced, held by dowels, pegs or spacers | [![Interlocked: two slotted families forming an egg-crate](docs/media/interlocked_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Interlocked** — two slotted families, egg-crate |
 | [![Radial: half-slices fanned around an axis with locking rings](docs/media/radial_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Radial** — half-slices around an axis, locked by rings | [![Curve: ribs following a curve through the model](docs/media/curve_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Curve** — ribs that follow a bend, not the grid |
 | [![Folded: a surface unfolded into flat panels with score lines](docs/media/folded_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#folded)<br>**Folded** — the surface unfolded flat, papercraft nets as Pepakura makes them, with 13 joint types | [![A cube net cut with the tongue joint](docs/media/joint_tongue.png)](https://marcelfarres.github.io/lamina/?ref=github-readme#folded)<br>**Thirteen joints** — seam, tab, gear, tongue, puzzle, laced… |
+| [![Plaque: a bonsai in slices standing on a flat back plate](docs/media/plaque_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Plaque** — for the wall: the model cut off at a back plate, its slices standing on the plate, held by teeth through plate slots | |
 | [![Radial with an axis through each ball of a dumbbell, at right angles to each other, and the plane between them at the neck](docs/media/axes_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Radial, an axis per lobe** — a fan per ball, one spine through all of them | [![The plane between two lobes of the snowman selected and tilted](docs/media/lobes_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#editing)<br>**Where lobes meet** — a plane you select, move and tilt like any slice |
 
 ## What it checks, and what you get
@@ -251,9 +252,9 @@ uv run python -m core.plan examples/egg.stl --mode folded --list-params         
 
 ## What it does
 
-### Five construction techniques
+### Six construction techniques
 
-The original's six techniques as five modes: its *3D Slices* is stacked with `surface=outer`.
+The original's six techniques as five modes (its *3D Slices* is stacked with `surface=outer`), and one of Lamina's own, `plaque`.
 
 | mode | what you get | parts |
 |---|---|---|
@@ -261,6 +262,7 @@ The original's six techniques as five modes: its *3D Slices* is stacked with `su
 | `interlocked` | two slotted families, egg-crate; notch ratio / flare / relief; grid rotation; extra slices at chosen positions | `X-n`, `Y-n` |
 | `radial` | half-slices around an axis (move it with `center`, turn the fan with `angle`) locked by horizontal ring slices with radial slots; ring count or spacing. **Several axes**: a fan per lobe — an axis through each of a dumbbell's balls, one per ball of a snowman, tilted to follow it. Neighbouring lobes are parted by a flat plane between their axes — a translucent part in the 3D view that you click and move or tilt like any slice — so the fans never run into each other, and a **spine** — one full plane through every axis, cut whole and slotted into every ring — ties the lobes together: automatic, found from how the axes lie (on one line, any number; on one plane, exactly one; on no plane, an error naming the fix). Every axis is drawn in the 3D view where it passes through the model: drag it whole or by either end (it stays on the plane the other axes share, so the spine survives the drag), alt-click the model for a parallel axis through that point, `+` to split one in two, alt-click an axis to remove it | `R-na/b` (`R2-na/b` per axis), rings `Z-n`, spines `SP-n` |
 | `curve` | ribs perpendicular to a curve through the model (its centre line by default, following the body across the plane too; drag the blue dots, alt-click to add or remove one, or type them in the `curve` table), so they follow a bend instead of staying parallel; locked together by spine slices. The turn between neighbouring ribs is limited so they do not meet inside the model. **Branches**: a straight line per leg, arm or tail, each with ribs square to it and a spine of its own that reaches back into the body and slots into the body's ribs, so a horse's legs are held instead of cut across by body ribs. Shift+alt-click a hoof to add one, drag its ends, alt-click it to remove it; a branch that starts past the body's ribs is an error, not a loose leg | `R-n`, spines `K-n`; branch 2: ribs `R2-n`, spine `K2`, joint `J-2` |
+| `plaque` | the model cut off at a flat back plate (`back`, `sink`), its slices standing on edge on the plate, side by side, as a radial fan round a centre hole, or as two crossed families half-lapped into each other (`layout`, `planes`, `radius`, `nx`, `ny`), with teeth through plate slots (`teeth`, `tooth_width`, `tooth_spacing`); the plate has its own `plate_thickness` and outline (circle, ellipse, rectangle, rounded, hexagon, shield, the model's silhouette, or an SVG / DXF file placed with `plate_scale`, `plate_mirror`, `plate_rotation`, `plate_offset`); a piece that does not reach the plate hangs from the slice beside it on flat spacers | `W-1` (plate), `X-n`, `X-na`, `R-n`, `Y-n` |
 | `folded` | surface unfolded into flat panels with score lines (strategies flat / strip / area, or auto); thirteen joints: seam, tab, multitab, diamond, ticked, gear, tongue, puzzle, rivet, laced, loops, strip, rib, each sized to its triangle; **separate** mode cuts every triangle alone. The model need not be closed: panels are cut from the surface, so a clothing pattern, a mask or a shell with a neck hole is panelled as it is — its boundary edges stay open and carry no joints | `P-n`, strips `S-n`, ribs `R-n` |
 
 Common to all: model `rotate` (three angles) and slicing `center`, per-slice `offset` / `tilt` / `roll` / `thick` /
