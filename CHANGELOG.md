@@ -28,7 +28,8 @@ downloads as a STEP file, for CAD.
   as a fan on a round plate, a bonsai in its pot, and a dancer made of smooth blobs, crossed. A piece of a slice that does not reach the plate hangs from the
   slice beside it on up to three small flat spacers, in the side-by-side layout and in the fan, set edge-on so they hardly show from the front; a piece that no
   neighbour can hold is left out, named in the notes and, when it is big enough to matter, given as a warning on its
-  slice; or kept with its error if you prefer. The spacing curve
+  slice; or kept with its error if you prefer. A hanging piece with room for fewer than three spacers
+  is flagged on its slice, with what gives it room: fewer slices, thinner material or a smaller spacer. The spacing curve
   works in every layout, and plate slots take the same inside-corner relief as every other slot, for a router.
 
 ### Fixed
