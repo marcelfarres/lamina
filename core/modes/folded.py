@@ -208,6 +208,10 @@ class Folded(Mode):
             if trims:
                 # opened by a hair: the tip of a sharp triangle between two cut-back edges is left as a thread of no width
                 sl.raw = as_multi(sl.raw.difference(unary_union(trims)).buffer(-0.01, join_style="mitre").buffer(0.01, join_style="mitre"))
+                # … and a corner cut against a neighbour can leave a crumb beside the panel: no part, it goes
+                whole = [g for g in sl.raw.geoms if g.area >= 0.25 * p["min_feature"] ** 2]
+                if whole and len(whole) < len(sl.raw.geoms):
+                    sl.raw = as_multi(unary_union(whole))
         self.windows(slices)
         extra = []
         for j, k in enumerate(seams, 1):
