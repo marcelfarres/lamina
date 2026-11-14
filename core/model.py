@@ -44,6 +44,29 @@ def label_codes(labels, seed: str) -> dict:
     return {lab: pool[i % len(pool)] for i, lab in enumerate(sorted(set(labels)))}
 
 
+# What a check's finding can be, for the code that offers its fixes; a kind is added here and nowhere else.
+KINDS = ("floats", "gap", "no-crossing", "not-connected",      # a region nothing holds: LOOSE
+         "blocked", "cut-apart", "size", "collide",           # the other errors with a fix
+         "bridge", "thin-spot", "island", "hole-wall", "bunched", "press", "no-joint")   # warnings with a fix
+LOOSE = KINDS[:4]
+
+
+class Issue(str):
+    """A check's finding: the sentence the user reads, and, for the code that offers its fixes, what kind of finding it
+    is (one of KINDS) and what it is about (`about`: the region, the other slice's label …). A str, so the plan, the
+    page and every test read it as before; a plain str is a finding with no fix."""
+    def __new__(cls, text, kind="", **about):
+        if kind and kind not in KINDS:
+            raise ValueError(f"unknown kind of finding: {kind}")
+        self = super().__new__(cls, text)
+        self.kind, self.about = kind, about
+        return self
+
+
+def kind_of(finding) -> str:
+    return getattr(finding, "kind", "")
+
+
 @dataclass
 class Slice:
     label: str                 # Slicer-style "Axis-Index" e.g. "X-3", "Z-6", "R-2a", "C-4", "P-12" (panel), "S-7" (strip),

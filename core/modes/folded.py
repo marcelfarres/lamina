@@ -12,7 +12,7 @@ from shapely.geometry import Polygon, LineString
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
 from . import Mode, Param, register
-from ..model import Slice
+from ..model import Issue, Slice
 from ..geometry import as_multi, circle, rect_along, frame_xy
 from ..labels import mark_box, mark_rot
 from ..mesh import simplify
@@ -228,14 +228,15 @@ class Folded(Mode):
                     sl.warnings.append(f"{len(set(js))} seam number(s) left off — no room beside the edge for a legible one (seams {ids}): "
                                        f"the other side of each seam still carries it; a smaller font or a bigger facet size gives them room")
                     continue
-                sl.warnings.append(f"{len(set(js))} seam(s) without a {what} — no room inside the triangle even after shrinking the joint (seams {ids}): "
-                                   f"use fewer triangles (`simplify`), a bigger model, or smaller hole_d / inset / rib_w")
+                sl.warnings.append(Issue(f"{len(set(js))} seam(s) without a {what} — no room inside the triangle even after shrinking the joint (seams {ids}): "
+                                         f"use fewer triangles (`simplify`), a bigger model, or smaller hole_d / inset / rib_w", "no-joint"))
             if sl.pressed:
                 kind = p.get("material_kind") or p.get("material")
-                sl.warnings.append(f"{len(sl.pressed)} seam edge(s) press up to {max(sl.pressed):.1f} mm into the next panel, and {t:g} mm {kind} "
-                                   f"gives {give * t:.1f} mm: the panels will not close there. "
-                                   + ("Use a joint with no tab on the edge (seam, rivet, laced, strip, rib) with `edge fit` inner, so the edge is cut back"
-                                      if not back else "The faces there are too small to cut back that far: use a thinner sheet or a bigger facet size"))
+                sl.warnings.append(Issue(f"{len(sl.pressed)} seam edge(s) press up to {max(sl.pressed):.1f} mm into the next panel, and {t:g} mm {kind} "
+                                         f"gives {give * t:.1f} mm: the panels will not close there. "
+                                         + ("Use a joint with no tab on the edge (seam, rivet, laced, strip, rib) with `edge fit` inner, so the edge is cut back"
+                                            if not back else "The faces there are too small to cut back that far: use a thinner sheet or a bigger facet size"),
+                                         "press", cut_back=bool(back)))     # the facet-size fix is for faces too small to cut back
             if sl.reduced:
                 sl.warnings.append(f"{sl.reduced} joint(s) made smaller than asked to fit their triangle — fine for paper, check strength for metal")
             if sl.additions:
