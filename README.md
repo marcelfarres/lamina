@@ -466,7 +466,7 @@ The `test` workflow runs the suite on every push and pull request; `docker` and 
 and `pages` deploys nothing until the built site has sliced with every technique in a real browser.
 
 Two of them drive a real browser, because that is where the bugs people report actually live:
-[tests/test_ui.py](tests/test_ui.py) runs the app against a real server and does what a person does — fills every
+[tests/ui](tests/ui) runs the app against a real server and does what a person does — fills every
 box of every technique and checks each value reached the plan, walks the undo history end to end and back, uploads
 a broken model, saves and reopens a project, downloads the cut files — and fails on any uncaught JavaScript error
 or a status line that never settles. [tests/test_e2e_site.py](tests/test_e2e_site.py) does the same for the
@@ -484,7 +484,7 @@ uv run pytest tests -n auto             # pipeline, nesting, checks, export, the
 uv run --with pytest-cov pytest --cov=core --cov=web --cov-report=term-missing   # coverage: 88 % of core + web
 uv run python tests/browser_env.py working-files/jobs   # the whole matrix without the compiled extras Pyodide lacks
 uv run playwright install chromium
-LAMINA_UI=1 uv run pytest tests/test_ui.py   # the app itself, driven like a person: every parameter, undo, no number cut off (20 min)
+LAMINA_UI=1 uv run pytest tests/ui   # the app itself, driven like a person: every parameter, undo, no number cut off (20 min)
 python deploy/build_site.py
 LAMINA_E2E=1 uv run pytest tests/test_e2e_site.py   # the built site, end to end, in Chromium
 uv run python tests/test_unfold.py      # folded-panel correctness: refold, area, seams, joints (a few minutes)
@@ -503,7 +503,7 @@ core/        planner, modes, unfold, notch, checks, nest, split, export, solid
 web/         FastAPI app + single-page UI (vendored three.js)
 examples/    24 test models: 18 synthetic + a scanned head, a porcelain horse statue, three animals and the bunny (terms in examples/README.md)
 docs/        index.html + media/ (the GitHub Pages site), roadmap.md, folded-panels.md, original-slicer-reference.md
-tests/       pytest suite, test_ui.py (the app in a browser), test_unfold.py, run_matrix.py
+tests/       pytest suite, ui/ (the app in a browser), test_unfold.py, run_matrix.py
 ```
 
 ### Serving the docs

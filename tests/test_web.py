@@ -15,8 +15,7 @@ CUBE = {"mode": "stacked", "example": "cube", "params": '{"distribution":"count"
 
 
 @pytest.fixture
-def api(tmp_path, monkeypatch):
-    monkeypatch.setattr(webapp, "JOBS", tmp_path)      # jobs go to the test's own directory, not the repo's
+def api(jobs):
     return TestClient(webapp.app)
 
 

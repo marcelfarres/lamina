@@ -1728,7 +1728,7 @@ window.laminaFeedback?.({bug:async withModel=>{
  material:async()=>({summary:JSON.stringify({material:state.material,base:kind(state.material),density_g_cm3:dens(),thickness:state.thickness,thicknesses:ls('slicer_thick',{})[state.material]||[],sheet:state.sheet,
   sheets:ls('slicer_sheets',[]).filter(s=>!s[2]||s[2]===fam()).map(([n,s])=>[n,s]),units:state.units},null,1)})});
 
-// test and capture hook (tests/test_ui.py, scripts/media/capture.mjs)
+// test and capture hook (tests/ui, scripts/media/capture.mjs)
 window.__t={sizeAxes:()=>sizeAxes(),target:()=>controls.target,banner:()=>banner.visible?banner.userData.text:'',parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>plan,job:()=>job,
   fold:s=>{$('#fold').value=s;applyFold();renderer.render(scene,camera)},
   idle:()=>!timer&&!busy,   // no change waiting out its debounce, no slice running: what a test or a capture waits for

@@ -16,12 +16,6 @@ MINE = "0" * 32
 PARAMS = '{"distribution":"count","count":3,"autofix":"off"}'
 
 
-@pytest.fixture
-def jobs(tmp_path, monkeypatch):
-    monkeypatch.setattr(webapp, "JOBS", tmp_path)
-    return tmp_path
-
-
 def test_slice_ghost_and_cut_files_without_a_server(jobs):
     status, _, body = browser.handle("GET", "api/modes", "", None)
     assert status == 200 and json.loads(body)[0]["name"]
