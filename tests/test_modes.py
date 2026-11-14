@@ -819,3 +819,64 @@ def test_a_preview_windows_will_not_let_go_of_never_fails_the_slice(tmp_path, mo
     plan = build(EXAMPLES / "egg.stl", "stacked", params, mesh_out=out)
     assert plan["counts"]["slices"] == 3 and out.read_bytes() == first   # sliced; the last preview stays
     assert not list(tmp_path.glob("model.*.stl"))                        # and no half-written file is left beside it
+
+
+def test_a_plan_file_windows_will_not_let_go_of_is_written_on_the_next_try(tmp_path, monkeypatch):
+    """Seen in the page suite on Windows (042): the page was still reading the last plan.json when the next slice wrote
+    it in place, the write failed with OSError [Errno 22], and the slice with it. The plan is now written beside and
+    swapped in, tried again while Windows refuses; refused for good, the slice fails with a message that says what
+    holds it, and the plan that was there stays whole."""
+    import os
+    import shutil
+    import core.plan as P
+    refusals = {"n": 0}
+    real_replace, real_copy = os.replace, shutil.copyfile
+    def locked(limit):
+        def replace(a, b):
+            if refusals["n"] < limit and str(b).endswith("plan.json"):
+                refusals["n"] += 1
+                raise OSError(22, "Invalid argument", str(b))
+            return real_replace(a, b)
+        def copy(a, b, **k):
+            if refusals["n"] < limit and str(b).endswith("plan.json"):
+                refusals["n"] += 1
+                raise OSError(22, "Invalid argument", str(b))
+            return real_copy(a, b, **k)
+        monkeypatch.setattr(P.os, "replace", replace); monkeypatch.setattr(P.shutil, "copyfile", copy)
+    out = tmp_path / "plan"
+    params = {"distribution": "count", "count": 3, "autofix": "off"}
+    locked(3)                                   # the swap, the copy, the swap: the copy after it gets through
+    build(EXAMPLES / "cube.stl", "stacked", params, out=out)
+    first = json.loads((tmp_path / "plan.json").read_text())
+    assert first["counts"]["slices"] == 3 and refusals["n"] == 3
+    refusals["n"] = 0; locked(10**6)            # never let go
+    with pytest.raises(OSError, match="keeps that file open"):
+        build(EXAMPLES / "egg.stl", "stacked", {**params, "count": 4}, out=out)
+    assert json.loads((tmp_path / "plan.json").read_text()) == first     # the last plan is whole, not half the new one
+    assert not list(tmp_path.glob("plan.*.json"))                        # and nothing is left beside it
+
+
+def test_a_plan_file_another_program_has_mapped_is_written_when_it_lets_go(tmp_path):
+    """042 as it really happens: a search indexer, a drive sync or a virus scanner maps the last plan.json into memory to
+    read it, and while it is mapped Windows refuses both to rewrite the file and to swap another in. Held here for a
+    third of a second by a real mapping: the slice waits and its plan lands. (On Linux a mapping holds nothing, and
+    the write goes through at once.)"""
+    import mmap
+    import threading
+    params = {"distribution": "count", "count": 3, "autofix": "off"}
+    out = tmp_path / "plan"
+    build(EXAMPLES / "cube.stl", "stacked", params, out=out)
+    target = tmp_path / "plan.json"
+    held = threading.Event(); let_go = threading.Event()
+
+    def hold():
+        with open(target, "rb") as f, mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ):
+            held.set()
+            let_go.wait(10)
+    t = threading.Thread(target=hold); t.start(); held.wait(10)
+    threading.Timer(0.35, let_go.set).start()
+    try:
+        build(EXAMPLES / "cube.stl", "stacked", {**params, "count": 4}, out=out)
+    finally:
+        let_go.set(); t.join()
+    assert json.loads(target.read_text())["counts"]["slices"] == 4

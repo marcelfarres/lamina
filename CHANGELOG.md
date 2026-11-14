@@ -89,6 +89,9 @@ comes out different: see Changed.
   the small up and down arrows, which took a fifth of the box, and the box where you type a new value is wider.
 - **A drawn spacing curve that fits exactly the most slices Lamina cuts is sliced.** A curve laying exactly 500 slices
   along the model was refused as too many, the same as a curve that runs out before the model's end.
+- **A slice no longer fails on Windows because its result file was still being read.** Slicing again right after
+  a slice could stop with the error 'Invalid argument' and no result. The result is now written beside the old one and
+  swapped in, and tried again while Windows holds the file.
 - **A slice no longer fails now and then while it nests the parts.** On a busy computer, laying the parts on the
   sheets could stop with an error and no result; slicing again usually worked. The parts are now laid out without
   that failure.
