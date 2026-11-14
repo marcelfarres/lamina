@@ -10,7 +10,8 @@ from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
 from . import Param, register
-from .stacked import ABC_LOWER, Stacked, hole_mark
+from .connectors import ABC_LOWER, Connectors, Layer, hole_mark
+from .stacked import Stacked
 from ..model import Slice
 from ..geometry import as_lines, as_multi, frame, frame_xy, rot_about, to_local, to_world
 from ..labels import mark_box, mark_rot
@@ -268,7 +269,7 @@ class Plaque(Stacked):
         slices = []
         for lab, z, tk in zip(labels, pos, th):
             o = ctx.mid + normal * (z + ctx.override("offset", lab))
-            slices.append(Slice(lab, "S", frame(o + fr.n_p * (fr.z0 - o @ fr.n_p), normal, up_hint=fr.n_p), tk))   # local y = height above the plate
+            slices.append(Layer(lab, "S", frame(o + fr.n_p * (fr.z0 - o @ fr.n_p), normal, up_hint=fr.n_p), tk))   # local y = height above the plate
         ctx.cover_r = self.cover_r(ctx, pos, drawn, ctx.ext[ax], len(slices))
         return Layout(slices, box(-BIG, 0, BIG, BIG), Polygon(), (min(np.diff(pos)) if len(pos) > 1 else BIG) - (p["thickness"] + p["slot_offset"]),
                       chain=True, spacers=Plaque._flat_spacers)
@@ -301,7 +302,7 @@ class Plaque(Stacked):
             a = math.radians(p["angle"] + turns[j % n] + 180.0 * (j // n))
             d = fr.Mp[:3, 0] * math.cos(a) + fr.Mp[:3, 1] * math.sin(a)   # the way this half-slice points: its local x
             lab = f"R-{j + 1}"
-            slices.append(Slice(lab, "R", frame(c, np.cross(d, fr.n_p), up_hint=fr.n_p), ctx.thickness_of(lab)))
+            slices.append(Layer(lab, "R", frame(c, np.cross(d, fr.n_p), up_hint=fr.n_p), ctx.thickness_of(lab)))
         hub = Point(*to_local(fr.Mp, [c])[0]).buffer((slot_w + p["min_feature"]) / 2 / math.sin(half) + 0.5, 64)   # no tooth nearer the centre than this
         return Layout(slices, box(r, 0, BIG, BIG), hub, 0.0, chain=True, cyclic=True, spacers=Plaque._fan_spacers)
 
@@ -320,7 +321,7 @@ class Plaque(Stacked):
             for j, s in enumerate(ctx.positions(L, [p["thickness"]] * n) if drawn is None else [-L / 2 + q for q in drawn]):
                 lab = f"{name}-{j + 1}"
                 o = ctx.mid + e * (c + s + ctx.override("offset", lab))
-                fam.append(Slice(lab, name, frame(o + fr.n_p * (fr.z0 - o @ fr.n_p), e, up_hint=fr.n_p), ctx.thickness_of(lab), clip=as_multi(front)))
+                fam.append(Layer(lab, name, frame(o + fr.n_p * (fr.z0 - o @ fr.n_p), e, up_hint=fr.n_p), ctx.thickness_of(lab), clip=as_multi(front)))
             fams.append(ctx.keep(fam))
         clash = {}                      # slice → the stretches of its foot (from, to) where a slice of the other family stands
         for mine, other in ((fams[0], fams[1]), (fams[1], fams[0])):
@@ -415,8 +416,8 @@ class Plaque(Stacked):
 
     def _flat_spacers(self, ctx, slices, holds, after):
         """The parallel layout's spacers: stacked's connector placer, given the areas to hold."""
-        return self.connect(ctx, slices, settings={**ctx.p, **FIXED}, islands=lambda a, b: holds.get(a.label, []), seeds=edge_seeds,
-                            side_step=0.0, typed=False)                 # side_step 0: two joins that share a piece share its area out, so a spacer goes where it is put
+        return Connectors(ctx, slices, settings={**ctx.p, **FIXED}, islands=lambda a, b: holds.get(a.label, []), seeds=edge_seeds,
+                          side_step=0.0, typed=False).run()             # side_step 0: two joins that share a piece share its area out, so a spacer goes where it is put
 
     def _fan_spacers(self, ctx, slices, holds, after):
         """A fan's spacers, edge-on: slice a and the next slice b stand alpha apart about the axis, so a point (r, h) of a lies
@@ -472,7 +473,7 @@ class Plaque(Stacked):
                             s.marks.remove(m)
                             hole_mark(s, next(c for k2, c in s.cutkeys.items() if s.cutnames[k2].split("-", 1)[1] == m[2]), m[2], p["font"])
                         hole_mark(s, g, name.split("-", 1)[1], p["font"])
-                    sp = Slice(name, "P", frame_xy(mid, a.M[:3, 1], pb - pa), t)    # x along the plate's normal, y along the chord: square to the plate
+                    sp = Layer(name, "P", frame_xy(mid, a.M[:3, 1], pb - pa), t)    # x along the plate's normal, y along the chord: square to the plate
                     L = body + 2 * tabs
                     strip = box(-tw / 2, -L / 2, tw / 2, L / 2)
                     sp.raw = as_multi(unary_union([strip, box(-d / 2, -body / 2, d / 2, body / 2)]) if body > mf else strip)

@@ -274,7 +274,6 @@ class Ctx:
         self.rods, self.curve3d, self.curve_pts, self.axes3d, self.bounds3d = [], None, None, None, []
         self.core_d_min = None    # radial: the smallest core the half-slices allow
         self.spacing = []         # the drawn spacing curves' outcome, for the graph: [{param, positions, length, unit, scale}]
-        self.stack, self.common_pts = [], None   # stacked: the layers in order, and the dowel points they all share (cached)
         self.clip = None          # plaque: [point, normal] of the plate's front face — the 3D view shows the model in front of it only, and coverage is measured on that
 
     def override(self, key, label, default=0.0):
