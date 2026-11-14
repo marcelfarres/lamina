@@ -40,6 +40,8 @@ downloads as a STEP file, for CAD.
 - **Numbers in the narrow boxes show in full.** In inches and centimetres, a size or a curve point with four or more
   digits could lose its last digit in the newest Chrome. The boxes that stand two or three in a row no longer have
   the small up and down arrows, which took a fifth of the box, and the box where you type a new value is wider.
+- **A drawn spacing curve that fits exactly the most slices Lamina cuts is sliced.** A curve laying exactly 500 slices
+  along the model was refused as too many, the same as a curve that runs out before the model's end.
 
 ## 0.3.2
 
