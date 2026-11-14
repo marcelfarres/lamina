@@ -819,3 +819,13 @@ def test_a_preview_windows_will_not_let_go_of_never_fails_the_slice(tmp_path, mo
     plan = build(EXAMPLES / "egg.stl", "stacked", params, mesh_out=out)
     assert plan["counts"]["slices"] == 3 and out.read_bytes() == first   # sliced; the last preview stays
     assert not list(tmp_path.glob("model.*.stl"))                        # and no half-written file is left beside it
+
+
+def test_what_a_technique_hands_the_view_is_fresh_for_every_build():
+    """The view's defaults are made anew for each context: the rods one build appends to are that build's own, and a
+    build that hands the view nothing gets the defaults, not the last build's rods."""
+    params = {"distribution": "count", "count": 4, "autofix": "off", "connect": "dowel"}
+    first = build(EXAMPLES / "cube.stl", "stacked", params)
+    second = build(EXAMPLES / "cube.stl", "stacked", params)
+    assert first["rods"] and second["rods"] == first["rods"] and second["rods"] is not first["rods"]
+    assert build(EXAMPLES / "cube.stl", "stacked", {**params, "connect": "none"})["rods"] == []

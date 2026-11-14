@@ -220,7 +220,7 @@ class Plaque(Stacked):
         fr = self._frame(ctx)
         if fr is None:
             return []
-        ctx.rods = []
+        ctx.view["rods"] = []
         lay = {"radial": self._fan, "crossed": self._crossed}.get(p["layout"], self._parallel)(ctx, fr)
         if lay is None:
             return []
@@ -258,7 +258,7 @@ class Plaque(Stacked):
         if z0 >= depth.max() - 1e-6:
             ctx.errors.append(f"sink = {p['sink']:g} mm is the whole depth of the model ({np.ptp(depth):.0f} mm): nothing is left in front of the plate")
             return None
-        ctx.clip = [(n_p * z0).tolist(), n_p.tolist()]
+        ctx.view["clip"] = [(n_p * z0).tolist(), n_p.tolist()]
         up = ctx.ax[1] if k == 2 else ctx.ax[2]
         Mp = frame_xy(n_p * (z0 - plate_t / 2), np.cross(up, n_p), up)
         return Frame(Mp, n_p, up, z0, plate_t, depth, ctx.mesh.slice_plane(n_p * z0, n_p))

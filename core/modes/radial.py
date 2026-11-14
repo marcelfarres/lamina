@@ -214,9 +214,9 @@ class Radial(Mode):
         axes = self._axes(ctx)
         # where each axis runs, for the 3D view to draw and for its ends to be dragged — the single default axis
         # included, so it can be taken hold of before `axes` has ever been filled in
-        ctx.axes3d = [[(O - u * h).tolist(), (O + u * h).tolist()] for O, u, h, _ in axes]
+        ctx.view["axes3d"] = [[(O - u * h).tolist(), (O + u * h).tolist()] for O, u, h, _ in axes]
         several = len(axes) > 1
-        lobes, ctx.bounds3d = self._parted(ctx, axes)
+        lobes, ctx.view["bounds3d"] = self._parted(ctx, axes)
         # the spine: automatic for several axes — without one nothing joins a fan to the next and the lobes part
         kind, n_s, off, flat = self._layout(axes, t)
         n_sp = p["spine"] or (1 if several else 0)
@@ -245,7 +245,7 @@ class Radial(Mode):
                               f"can plan: fewer radial planes, fewer rings, or fewer axes")
             return []
         halves, rings, ring_i = [], [], 0
-        ctx.core_d_min = 0.0
+        ctx.view["core_d_min"] = 0.0
         for i, (O, u, h, e1) in enumerate(axes):
             # the planes of this fan, minus the ones a spine already is: that sheet is cut whole instead of in halves
             fan = []
@@ -256,7 +256,7 @@ class Radial(Mode):
                     fan.append((k, radial, nrm))
             need = axis_room(len(fan), t, p["slot_offset"])                  # the kept slices have to fit around the axis
             core_r = (p["core_d"] or need) / 2
-            ctx.core_d_min = max(ctx.core_d_min, need)
+            ctx.view["core_d_min"] = max(ctx.view["core_d_min"], need)
             if p["core_d"] and p["core_d"] < need - 1e-6:
                 ctx.errors.append(f"core_d = {p['core_d']:g} mm is too small: {2 * len(fan)} half-slices of {t:g} mm collide at the axis — core_d must be ≥ {need:.0f} mm (or fewer radial planes, or thinner material)")
             if p["hole_d"] and p["hole_d"] > 2 * core_r - 2 * p["min_feature"]:
