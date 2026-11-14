@@ -33,7 +33,7 @@ input,select,button{font:inherit}input,select{width:100%;padding:4px 6px;border:
 .vec{display:flex;gap:4px}.vec input{min-width:0}.vec small{align-self:center;color:var(--muted)}
 .rows{display:flex;flex-direction:column;gap:3px}.rows .r{display:flex;gap:3px;align-items:center}.rows .r input{min-width:0}.rows .r small{color:var(--muted);min-width:44px}
 button.small{padding:3px 8px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:4px;cursor:pointer;font-size:12px;white-space:nowrap}button.small:hover{border-color:var(--acc)}button.small:disabled{opacity:.35;cursor:default;border-color:var(--line)}button.x{padding:2px 6px;color:var(--muted)}
-.chips{display:flex;flex-wrap:wrap;gap:4px;align-items:center}.chip{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:1px 8px;font-size:12px}.chip b{cursor:pointer;color:var(--muted);margin-left:4px}.chips input{width:70px;padding:2px 6px}
+.chips{display:flex;flex-wrap:wrap;gap:4px;align-items:center}.chip{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:1px 8px;font-size:12px}.chip b{cursor:pointer;color:var(--muted);margin-left:4px}.chips input{width:78px;padding:2px 6px}
 .hint{color:var(--muted);font-size:11px}h3.sub{font-size:12px;font-weight:600;margin:12px 0 1px;color:var(--ink)}p.hint.sub{margin:0 0 4px}
 .bar select{padding:1px 4px;width:auto}
 .modes{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}.modes button{padding:6px 9px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:4px;cursor:pointer;font-size:12px}.modes button.on{background:var(--acc);border-color:var(--acc);color:#fff}
@@ -50,6 +50,7 @@ button.small{padding:3px 8px;border:1px solid var(--line);background:var(--panel
 #busy_steps li.done{color:var(--ok)}#busy_steps li.done::before{content:'✓ '}
 #busy_steps li.now{color:var(--warn);font-weight:500}#busy_steps li.now::before{content:'▸ '}
 .bar{position:absolute;left:10px;top:8px;display:flex;gap:10px;align-items:center;font-size:12px;color:var(--muted);background:#0f1012cc;padding:5px 8px;border-radius:5px;flex-wrap:wrap}.bar label{display:flex;gap:5px;align-items:center}.bar input[type=range]{width:90px}.bar button{padding:2px 8px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:4px;cursor:pointer;font-size:11px}
+.bar label[hidden]{display:none}   /* `.bar label` sets a display, which beat the hidden attribute: the fold slider showed on every job */
 /* the steps slider is a scrubber through the build order: wider than the other sliders so each layer gets its own
    stretch of track, and with a live counter beside it to read off which step you have landed on */
 .bar input#steps{width:250px}.bar .stepsval{min-width:52px;text-align:center;font-variant-numeric:tabular-nums;color:var(--ink)}
@@ -85,9 +86,9 @@ button.small{padding:3px 8px;border:1px solid var(--line);background:var(--panel
 .sheet svg g[class]{stroke-width:1.2px;vector-effect:non-scaling-stroke}
 .sheet svg g[class] *{vector-effect:non-scaling-stroke}
 .sl{display:flex;gap:6px;align-items:center}.sl input[type=range]{flex:1;min-width:60px}.sl input[type=number]{width:74px;flex:none}
-/* a slider drives these boxes, so the spin buttons only hide the digits */
-.sl input[type=number],#sel input[type=number]{appearance:textfield;-moz-appearance:textfield}
-.sl input[type=number]::-webkit-inner-spin-button,.sl input[type=number]::-webkit-outer-spin-button,#sel input[type=number]::-webkit-inner-spin-button,#sel input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+/* a slider drives these boxes, and x y z or a table's values stand two or three in a row: the spin buttons only hide the digits */
+.sl input[type=number],#sel input[type=number],.vec input[type=number],.rows .r input[type=number]{appearance:textfield;-moz-appearance:textfield}
+.sl input[type=number]::-webkit-inner-spin-button,.sl input[type=number]::-webkit-outer-spin-button,#sel input[type=number]::-webkit-inner-spin-button,#sel input[type=number]::-webkit-outer-spin-button,.vec input[type=number]::-webkit-inner-spin-button,.vec input[type=number]::-webkit-outer-spin-button,.rows .r input[type=number]::-webkit-inner-spin-button,.rows .r input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 h2 button.reset{float:right;text-transform:none;letter-spacing:0;font-size:11px;padding:1px 7px;margin-top:-3px}
 #view{display:flex;flex-direction:column}#view.only3d #lower{display:none}#view.only3d #v3d{flex:1 1 auto}#view.only2d #v3d{display:none}#view.only2d #lower{flex:1}
 .dl{display:flex;flex-wrap:wrap;gap:6px}.dl.rows{flex-direction:column}.dl .r{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin-bottom:4px}.dl a{padding:6px 10px;border:1px solid var(--line);border-radius:4px;text-decoration:none;color:var(--ink);font-size:12px;background:var(--panel2)}.dl a:hover{border-color:var(--acc)}
@@ -119,7 +120,7 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
   <h4>The workflow</h4>
   <ol>
     <li><b>Model</b> — upload your own (STL, OBJ, 3MF, PLY, OFF, GLB, STEP) or pick an example, then set how big you want the finished piece: type one of the <b>size</b> boxes and the other two follow the model's proportions. <b>turn</b> stands it the right way up.</li>
-    <li><b>Technique</b> — how the model is taken apart: stacked layers, interlocked slices, a radial fan, ribs along a curve, folded panels. Each has its own settings underneath.</li>
+    <li><b>Technique</b> — how the model is taken apart: stacked layers, interlocked slices, a radial fan, ribs along a curve, folded panels, a plaque on a back plate. Each has its own settings underneath.</li>
     <li><b>Sheet &amp; fit</b> — what you cut and on what: material and its density, thickness, sheet size (your machine's bed), and the cut compensation. PLA or PETG print the parts instead, nested on your printer's bed. Not on the list? Type any thickness or sheet size, or a material's density, and press <b>+</b> to keep it.</li>
     <li><b>Checks</b> — whether it holds together. Every error offers one-click fixes; press one and it re-slices.</li>
     <li><b>Export</b> — the cut files (SVG, DXF, PDF, EPS), a 3D-printable prototype, a fit test, the assembly key.</li>
@@ -162,7 +163,7 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
 <span class="sp"></span><span id="dot" title="green = ready · orange = slicing · red = error"></span><span id="status"></span>
 <label style="font-size:12px;color:var(--muted)">view <select id="viewmode"><option value="both">3D + sheets</option><option value="only3d">3D only</option><option value="only2d">sheets only</option></select></label>
 <label style="font-size:12px;color:var(--muted)">units <select id="unit"><option>mm</option><option>cm</option><option>in</option></select></label>
-<a class="kofi" href="https://marcelfarres.github.io/lamina/?ref=app" target="_blank" rel="noopener" data-tip="What Lamina does, every technique explained, how to run it yourself">docs</a><a class="kofi" href="https://github.com/marcelfarres/lamina" target="_blank" rel="noopener" data-tip="Source code, issues, releases (AGPL-3.0)">GitHub</a><a class="kofi" href="https://discord.gg/N66bCQxmt3" target="_blank" rel="noopener" data-tip="Questions, ideas and builds: the Lamina Discord, where other people cutting with it can answer too">Discord</a>
+<a class="kofi" href="https://marcelfarres.github.io/lamina/?ref=app" target="_blank" rel="noopener" data-tip="What Lamina does, every technique explained, how to run it yourself">docs</a><a class="kofi" href="https://github.com/marcelfarres/lamina" target="_blank" rel="noopener" data-tip="Source code, issues, releases (AGPL-3.0)">GitHub</a><a class="kofi" href="https://discord.gg/N66bCQxmt3" target="_blank" rel="noopener" data-tip="Questions, ideas and builds: the Lamina Discord, where other people cutting with it can answer too">Discord</a><a class="kofi" href="https://www.reddit.com/r/Lamina3D" target="_blank" rel="noopener" data-tip="r/Lamina3D on Reddit: show what you built, ask for help, say what Lamina should do next">Reddit</a>
 <a class="kofi" data-feedback href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml" target="_blank" rel="noopener" data-tip="Something came out wrong? Write a sentence here and the report fills in the rest: the technique, every setting, what the checks said, the steps you took since loading the model, and the model saved ready to attach unless you untick that box. It then opens a prefilled email or the GitHub issue form for you to send — email needs no account.">report a problem</a>
 <a class="kofi" href="https://ko-fi.com/marcelfarres" target="_blank" rel="noopener" data-tip="Lamina is free and always will be — no account, no paid tier, and none of that depends on donations. If you would like to support the work and can comfortably afford it, a coffee is very welcome. No pressure.">♥ support Lamina on Ko-fi</a></header>
 <main>
@@ -233,7 +234,8 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
       <p class="hint" style="margin:10px 0 4px">Once it is cut and built, please
         <a data-feedback="made" href="https://github.com/marcelfarres/lamina/issues/new?template=made.yml" target="_blank" rel="noopener">send me a photo</a>
         — with your OK it goes in the <a href="https://marcelfarres.github.io/lamina/?ref=app#made" target="_blank" rel="noopener">gallery</a>,
-        credited as you like — or post it with <b>#lamina3dapp</b> on Instagram or X, or on the
+        credited as you like — or post it with <b>#lamina3dapp</b> on Instagram or X, in
+        <a href="https://www.reddit.com/r/Lamina3D" target="_blank" rel="noopener">r/Lamina3D</a> on Reddit, or on the
         <a href="https://discord.gg/N66bCQxmt3" target="_blank" rel="noopener">Lamina Discord</a>.</p>
       <h2 id="pr_title">Prototyping (3D print)</h2>
       <div class="f protoonly"><span class="k" data-tip="Scale factor for the printed prototype (parts and thickness scale together; thickness never goes below min thickness). With PLA or PETG as the material the print is the job itself, so picking one sets this to 1">scale</span><input type="number" id="pr_scale" value="0.5" min="0.05" max="5" step="0.05"></div>
@@ -250,7 +252,7 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
 </aside>
 <section class="view" id="view">
   <div id="v3d">
-    <div class="bar"><label><input type="checkbox" id="ghost" checked> model</label><label>explode <input type="range" id="explode" min="1" max="3" step="0.05" value="1"></label><label>steps <input type="range" id="steps" min="0" max="1" step="1" value="1"><span id="steps_val" class="stepsval" title="step shown of the build order">1 / 1</span></label><label>look <select id="look"><option value="group">by family</option><option>cardboard</option><option>paper</option><option>plywood</option><option>steel</option><option>brass</option><option>copper</option><option>plastic</option><option>foam</option></select></label><label title="transparency of folded panels, to see the connectors inside">panels <input type="range" id="opacity" min="0.1" max="1" step="0.05" value="1"></label><button id="fit">fit view</button></div>
+    <div class="bar"><label><input type="checkbox" id="ghost" checked> model</label><label>explode <input type="range" id="explode" min="1" max="3" step="0.05" value="1"></label><label>steps <input type="range" id="steps" min="0" max="1" step="1" value="1"><span id="steps_val" class="stepsval" title="step shown of the build order">1 / 1</span></label><label id="foldl" hidden title="folded panels from flat (0 %) to folded (100 %): every face turns about its own fold line">fold <input type="range" id="fold" min="0" max="1" step="0.01" value="1"><span id="fold_val" class="stepsval">100 %</span></label><label>look <select id="look"><option value="group">by family</option><option>cardboard</option><option>paper</option><option>plywood</option><option>steel</option><option>brass</option><option>copper</option><option>plastic</option><option>foam</option></select></label><label title="transparency of folded panels, to see the connectors inside">panels <input type="range" id="opacity" min="0.1" max="1" step="0.05" value="1"></label><button id="fit">fit view</button></div>
     <div id="sel" hidden></div>
     <div id="busy" hidden><span id="busy_txt">slicing…</span><div class="bar"><i></i></div><ol id="busy_steps"></ol><span id="busy_note"></span></div>
     <details id="hint"><summary>drag = orbit · wheel = zoom · right-drag = pan · <span>all controls</span></summary><dl>
@@ -372,7 +374,7 @@ const SHEETS={
   foam:[['20 × 30 in · 508 × 762 mm',inch(20,30)],['32 × 40 in · 813 × 1016 mm',inch(32,40)],['40 × 60 in · 1016 × 1524 mm',inch(40,60)],['A2 · 594 × 420 mm',[594,420]],['A1 · 841 × 594 mm',[841,594]],['A0 · 1189 × 841 mm',[1189,841]],['1000 × 2000 mm',[1000,2000]]],
   // print beds: one sheet is one plate
   print:[['180 × 180 mm bed',[180,180]],['220 × 220 mm bed',[220,220]],['250 × 210 mm bed',[250,210]],['256 × 256 mm bed',[256,256]],['300 × 300 mm bed',[300,300]],['325 × 320 mm bed',[325,320]],['350 × 350 mm bed',[350,350]]]};
-const COLORS={X:0xd9a760,Y:0x7fb0d9,S:0xd9c080,R:0x8fd08f,C:0xc07070,F:0xc9a0e0,J:0xf0c060,P:0x9a9a9a,B:0x4fd1ff};
+const COLORS={X:0xd9a760,Y:0x7fb0d9,S:0xd9c080,R:0x8fd08f,C:0xc07070,F:0xc9a0e0,J:0xf0c060,P:0x9a9a9a,B:0x4fd1ff,W:0x0072b2};
 const LOOKS={cardboard:[0xb98a5a,.9,0],paper:[0xf2f0e6,.95,0],plywood:[0xd9b98a,.7,0],steel:[0xaab2bb,.35,.8],plastic:[0x6fb7e8,.25,.05],brass:[0xc9a44c,.3,.85],copper:[0xc27a52,.3,.85],foam:[0x45484f,.95,0]};
 const PLANE_IDX={xz:[0,2],yz:[1,2],xy:[0,1]};
 let MODES=[],mode=null,state={},job=null,plan=null,seq=0,timer=null,pendingFile=null,srcFile=null,unit='mm',selected=null,busy=false,busySince=0;
@@ -445,6 +447,7 @@ function field(p){
         // so typing one dimension tells you the other two instead of leaving three zeros that mean three things
         :`<span class="vec">${[...Array(n)].map((_,i)=>`<small>${lab[i]}</small>${num(id+'_'+i,(v||[])[p.name==='size'?sizeAxes()[i]:i]||(p.name==='size'?null:0),p,`data-vec="${p.name}" data-i="${i}" ${p.name==='size'?`placeholder="${plan?+(+show(p,plan.bbox[i])).toPrecision(3):'auto'}"`:''}`)}`).join('')}</span>`}
   else if(p.type==='text')inp=`<input id="${id}" value="${esc(v)}">`;
+  else if(p.type==='file')inp=`<span><input type="file" id="${id}" accept=".svg,.dxf"><small class="hint">${v?'a file is loaded':'no file yet'}</small></span>`;   // kept as its text
   else if(p.type==='curve')inp=`<span class="hint">drawn in the graph under the 3D view</span>`;
   else if(p.type==='points')inp=`<div class="rows" id="${id}">${(v||[]).map((q,i)=>`<div class="r"><small>${i+1}</small><input type="number" step="any" value="${show(p,q[0])}" data-pt="${p.name}" data-i="${i}" data-j="0"><input type="number" step="any" value="${show(p,q[1])}" data-pt="${p.name}" data-i="${i}" data-j="1"><button class="small x" data-del="${p.name}" data-i="${i}">×</button></div>`).join('')}<div class="r"><button class="small" data-add="${p.name}">+ point</button><span class="hint">or alt-click in the 3D view</span></div></div>`;
   else if(p.type==='lines3')inp=`<div class="rows" id="${id}">${(v||[]).length?`<div class="r hint"><small></small>${['x','y','z'].map(a=>`<span style="flex:1;text-align:center">${a} (${unit})</span>`).join('')}<span style="flex:0 0 24px"></span></div>`:''}${(v||[]).map((l,i)=>[0,1].map(e=>`<div class="r"><small>${e?'end':`${i+1} start`}</small>${[0,1,2].map(j=>`<input type="number" step="any" value="${show(p,l[e][j])}" data-ln="${p.name}" data-i="${i}" data-e="${e}" data-j="${j}" title="${e?'end':'start'} ${'xyz'[j]}">`).join('')}<span style="flex:0 0 24px">${e?'':`<button class="small x" data-del="${p.name}" data-i="${i}">×</button>`}</span></div>`).join('')).join('')}<div class="r"><button class="small" data-add="${p.name}">${{axes:'+ split an axis',branches:'+ branch'}[p.name]||'+ line'}</button><span class="hint">${{axes:'or alt-click the model for a parallel axis · drag them in the 3D view',branches:'or shift+alt-click a hoof, hand or tail tip · drag the ends in the 3D view · alt-click one to remove it'}[p.name]||'one straight dowel per line · or alt-click the model: a line up through that point'}</span></div></div>`;
@@ -571,6 +574,7 @@ $('#tabs').addEventListener('input',e=>{
   if(t.dataset.chip)return;
   const p=allParams().find(p=>'p_'+p.name===t.id); if(!p)return;
   if(p.name==='units'){unit=t.value;return applyUnit()}   // the Sheet tab's units box is the toolbar's, not a second one
+  if(p.type==='file'){const f=t.files[0], hint=t.parentElement.querySelector('small'); if(f)f.text().then(x=>{setVal(p.name,x); if(hint)hint.textContent='a file is loaded'}); return}
   if(p.type==='bool')setVal(p.name,t.checked); else if(p.type==='choice'||p.type==='text')setVal(p.name,t.value); else setVal(p.name,t.value===''?p.default:fromU(p,+t.value));
   if(t.closest('#g-model'))fitted=false;
 });
@@ -946,11 +950,20 @@ function renderGuides(){
 function render3D(modelUrl){
   parts.clear(); let i=0;
   for(const s of plan.slices)for(const pc of s.pieces){
-    const geos=[];
-    for(const fc of pc.facets)for(const r of fc.rings){const g=new THREE.ExtrudeGeometry(shape(r),{depth:s.thickness,bevelEnabled:false});g.translate(0,0,-s.thickness/2);g.applyMatrix4(mat4(fc.M));geos.push(g)}
+    const geos=[],own=[];   // own: the facet each solid was extruded from, for the fold slider
+    pc.facets.forEach((fc,fi)=>{for(const r of fc.rings){
+      // a printed panel's face is drawn as it is exported: in layers, each set in from its grooved edges by what the V takes at that height
+      const t=fc.t||s.thickness,n=fc.bevel?6:1,skin=plan.params.hinge||0;   // fc.t: a thin printed tab
+      for(let j=0;j<n;j++){const z=-t/2+(j+.5)*t/n;let ext=r[0];
+        for(const [x0,y0,x1,y1,w,side] of fc.bevel||[]){const d=w*Math.min(1,Math.max(0,(side>0?t/2-skin-z:z+t/2-skin)/(t-skin)));if(d>1e-6)ext=clipEdge(ext,x0,y0,x1,y1,d)}
+        if(ext.length<3)continue;
+        const g=new THREE.ExtrudeGeometry(shape([ext,...r.slice(1)]),{depth:t/n,bevelEnabled:false});g.translate(0,0,-t/2+j*t/n);g.applyMatrix4(mat4(fc.M));geos.push(g);own.push(fi)}}});
     if(!geos.length)continue;
     const m=new THREE.Mesh(mergeGeos(geos),new THREE.MeshStandardMaterial({color:COLORS[s.group]||0xaaaaaa,roughness:.7,metalness:.05}));
     m.userData={slice:s.label,piece:pc.label,group:s.group,i:i++,origin:new THREE.Vector3(s.M[0][3],s.M[1][3],s.M[2][3]),normal:new THREE.Vector3(s.M[0][2],s.M[1][2],s.M[2][2]),bad:s.errors.length>0};
+    if(pc.facets.some(f=>f.hinge)){let o=0;   // a folded panel: where each facet's vertices are, to swing them about their fold lines
+      m.userData.fold={base:m.geometry.attributes.position.array.slice(),hinges:pc.facets.map(f=>f.hinge||null),
+        ranges:geos.map((g,j)=>{const n=g.index?g.index.count:g.attributes.position.count,r=[o,n,own[j]];o+=n;return r})}}
     parts.add(m);
   }
   // the plane between two lobes, or at a branch's joint, is a part too — translucent, outside the build order (i = -1 keeps it on every
@@ -968,8 +981,9 @@ function render3D(modelUrl){
     parts.add(m);
   }
   applyLook(); renderGuides();
-  $('#steps').max=i; $('#steps').value=i; applyExplode();
+  $('#steps').max=i; $('#steps').value=i; applyExplode(); applyFold();
   if(!ghostLive)showGhost(modelUrl);   // already shown mid-build: the same mesh, and fetching it again is not free
+  clipGhost();
   ghost.visible=$('#ghost').checked; dirty=true;
   if(selected){const m=parts.children.find(c=>c.userData.slice===selected);m?highlight(m):deselect()}
   if(!fitted){fitView();fitted=true}
@@ -977,6 +991,9 @@ function render3D(modelUrl){
 // The translucent model behind the parts, loaded on its own: the build finishes with the mesh a second or two in and
 // says so, so the 3D view fills with your model while the slices are still being worked out instead of staying empty
 // until the last sheet is nested. Until there are parts, the view frames the model itself.
+// A plaque leaves out what is behind its plate: the ghost is cut at the plate's front face (plan.clip = [point, normal]).
+function clipGhost(){const c=plan?.clip, pl=c?[new THREE.Plane(new THREE.Vector3(...c[1]),-(c[0][0]*c[1][0]+c[0][1]*c[1][1]+c[0][2]*c[1][2]))]:null;
+  renderer.localClippingEnabled=true; for(const m of ghost.children){m.material.clippingPlanes=pl;m.material.needsUpdate=true} dirty=true}
 function showGhost(modelUrl){
   if(!modelUrl||modelUrl===ghostUrl)return;
   if(ghostUrl?.startsWith('blob:'))URL.revokeObjectURL(ghostUrl);   // the browser build hands over the mesh itself
@@ -984,7 +1001,7 @@ function showGhost(modelUrl){
   new STLLoader().load(modelUrl,g=>{
     smoothNormals(g);
     ghost.clear(); ghost.add(new THREE.Mesh(g,new THREE.MeshStandardMaterial({color:0x8899aa,transparent:true,opacity:.18,depthWrite:false})));
-    ghost.visible=$('#ghost').checked;
+    ghost.visible=$('#ghost').checked; clipGhost();
     if(!fitted&&!parts.children.length)fitView();       // not `fitted = true`: the parts get their own fit when they land
     dirty=true});
 }
@@ -1001,6 +1018,12 @@ function smoothNormals(g,crease=30){
     for(const j of at.get(key(i)))if(n[i]*n[j]+n[i+1]*n[j+1]+n[i+2]*n[j+2]>cos){x+=n[j];y+=n[j+1];z+=n[j+2]}
     const l=Math.hypot(x,y,z)||1;out[i]=x/l;out[i+1]=y/l;out[i+2]=z/l}
   g.setAttribute('normal',new THREE.BufferAttribute(out,3))}
+// A ring with what lies within `d` of the line a→b cut off, on the ring's own side of it (Sutherland–Hodgman, one edge).
+function clipEdge(ring,x0,y0,x1,y1,d){const L=Math.hypot(x1-x0,y1-y0);let nx=-(y1-y0)/L,ny=(x1-x0)/L,cx=0,cy=0;for(const [x,y] of ring){cx+=x;cy+=y}
+  if(((cx/ring.length-x0)*nx+(cy/ring.length-y0)*ny)<0){nx=-nx;ny=-ny}
+  const dist=([x,y])=>(x-x0)*nx+(y-y0)*ny-d,out=[];
+  ring.forEach((p,i)=>{const q=ring[(i+1)%ring.length],a=dist(p),b=dist(q);if(a>=0)out.push(p);if((a>=0)!==(b>=0)){const k=a/(a-b);out.push([p[0]+(q[0]-p[0])*k,p[1]+(q[1]-p[1])*k])}});
+  return out}
 function mergeGeos(geos){
   const ngs=geos.map(g=>g.index?g.toNonIndexed():g),n=ngs.reduce((a,g)=>a+g.attributes.position.array.length,0),pos=new Float32Array(n),nor=new Float32Array(n);let o=0;
   for(const g of ngs){pos.set(g.attributes.position.array,o);nor.set(g.attributes.normal.array,o);o+=g.attributes.position.array.length}
@@ -1022,12 +1045,24 @@ function showBanner(text){
   const dist=60,half=dist*Math.tan(camera.fov*Math.PI/360),w=half*2*camera.aspect;   // the view at `dist` in front of the camera
   banner.position.set(0,half*0.72,-dist); banner.scale.set(Math.min(w*0.9,half*2.4),Math.min(w*0.9,half*2.4)*96/1024,1); banner.visible=true;
 }
+// Folded panels from flat to folded: every face hangs from the face it was unfolded from and turns about the fold
+// line between them, so at 0 a panel lies flat in the plane of its first face and at 1 it is the model. A face's
+// parent always comes before it in the list, so one pass builds every face's motion from its parent's.
+function applyFold(){const s=+$('#fold').value,v=new THREE.Vector3();let any=false;
+  for(const m of parts.children){const f=m.userData.fold;if(!f)continue;any=true;const D=[];
+    f.hinges.forEach((h,i)=>{D[i]=new THREE.Matrix4();if(!h||!D[h[0]])return;
+      D[i].copy(D[h[0]]).multiply(new THREE.Matrix4().makeTranslation(h[1],h[2],h[3])).multiply(new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(h[4],h[5],h[6]),(1-s)*h[7])).multiply(new THREE.Matrix4().makeTranslation(-h[1],-h[2],-h[3]))});
+    const pos=m.geometry.attributes.position;
+    for(const [o,n,fi] of f.ranges)for(let j=o;j<o+n;j++){v.fromArray(f.base,3*j).applyMatrix4(D[fi]);pos.setXYZ(j,v.x,v.y,v.z)}
+    pos.needsUpdate=true;m.geometry.computeVertexNormals();m.geometry.computeBoundingSphere();m.geometry.computeBoundingBox()}
+  $('#foldl').hidden=!any; ghost.visible=$('#ghost').checked&&!(any&&s<1);   // the model would stand in the unfolded panel
+  $('#fold_val').textContent=Math.round(s*100)+' %'; dirty=true}
 function applyExplode(){const e=+$('#explode').value,st=$('#steps'),k=+st.value;for(const m of parts.children){if(m.userData.group==='B')continue;m.position.copy(m.userData.origin).multiplyScalar(e-1);m.visible=m.userData.i<k}
   const going=k<+st.max&&parts.children.find(m=>m.userData.i===k-1); showBanner(going?`step ${k} / ${+st.max}  ·  ${(plan&&plan.label_tag?plan.label_tag+' ':'')}${going.userData.piece}`:'');
   $('#steps_val').textContent=`${k} / ${+st.max||0}`;   // the step counter, live while the slider is dragged
   const s=selected&&parts.children.find(c=>c.userData.slice===selected); if(s)drawGizmo(s);   // the handles ride with the part
   dirty=true}
-$('#explode').oninput=$('#steps').oninput=applyExplode; $('#ghost').onchange=()=>{ghost.visible=$('#ghost').checked;dirty=true}; $('#fit').onclick=()=>{fitView();dirty=true}; $('#look').onchange=$('#opacity').oninput=applyLook;
+$('#explode').oninput=$('#steps').oninput=applyExplode; $('#fold').oninput=applyFold; $('#ghost').onchange=()=>{ghost.visible=$('#ghost').checked;dirty=true}; $('#fit').onclick=()=>{fitView();dirty=true}; $('#look').onchange=$('#opacity').oninput=applyLook;
 // The build order as a video: the steps slider played into a MediaRecorder reading the canvas the view already
 // draws. Nothing is uploaded and nothing is rendered twice — the file is made in the page and saved from it.
 async function recordAssembly(el){
@@ -1039,7 +1074,10 @@ async function recordAssembly(el){
   const done=new Promise(r=>rec.onstop=r);
   el.textContent='recording the assembly…'; rec.start();
   const hold=Math.min(700,Math.max(90,4000/max));
+  const fo=$('#fold'), folds=!$('#foldl').hidden;
+  if(folds){fo.value=0;applyFold()}   // a folded job: the panels go in flat, then fold up
   for(let k=0;k<=max;k++){st.value=k;applyExplode();await new Promise(r=>setTimeout(r,hold))}
+  if(folds)for(let k=0;k<=90;k++){fo.value=k/90;applyFold();await new Promise(r=>setTimeout(r,33))}
   await new Promise(r=>setTimeout(r,700)); rec.stop(); await done;
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob(chunks,{type:'video/webm'}));
@@ -1421,6 +1459,7 @@ function renderDownloads(){ // the labels checkbox applies to every cut file; th
   // every file says what it is for: eight buttons in a row left the reader to know which program wants which format
   const rows=r=>r.map(([t,u,use])=>`<div class="r"><a href="${u}">${t}</a>${use?`<span class="hint">${use}</span>`:''}</div>`).join('');
   const more=[['assembled STL',`${b}/stl`,'the whole model built from its parts, as one 3D file: to look at it or render it in another program'],
+    ['assembled STEP',`${b}/step`,'the same model as true solids, for CAD (Fusion, FreeCAD, Onshape): every part a body with flat faces, not a triangle mesh'],
     ['plan.json',`jobs/${CLIENT}/${job}/plan.json`,'everything Lamina worked out, for scripts and other tools']];
   $('#dl_title').textContent=state.printed?'The parts':'2 · The parts';
   if(state.printed){$('#dl').innerHTML=rows(more);return}
@@ -1467,7 +1506,7 @@ function renderReport(){
   // query string already names them, so nothing extra has to be tracked to know it.
   $('#dl').onclick=e=>{const a=e.target.closest('a');if(!a)return;
     const href=a.getAttribute('href')||'', q=new URLSearchParams(href.split('?')[1]||'');
-    const fmts=(q.get('fmt')?q.get('fmt').split(','):/\/stl$/.test(href)?['stl']:/plan\.json/.test(href)?['plan-json']:[]).map(f=>/fitcut/.test(href)?'fit-'+f:f);
+    const fmts=(q.get('fmt')?q.get('fmt').split(','):[href.split('?')[0].split('/').pop().replace('.','-')]).map(f=>/fitcut/.test(href)?'fit-'+f:f);
     fmts.forEach(f=>countUse('export',f+(q.get('per_piece')?'-per-piece':'')))};
   // one row per different part: its own size, how many to cut, and which pieces come off it
   const size=pc=>[pc.bbox[2]-pc.bbox[0],pc.bbox[3]-pc.bbox[1]].map(inU).join('×');
@@ -1601,7 +1640,7 @@ async function init(){
   const applyPreset=()=>{const pr=PRESETS[$('#example').value];if(!pr)return;
     const FIT=[...new Set(MODES.flatMap(m=>m.common).filter(p=>p.group==='fit').map(p=>p.name))];
     const was=state.machine, fit=Object.fromEntries(FIT.filter(k=>!(k in pr.params)).map(k=>[k,structuredClone(state[k])]));   // what the preset names, it sets
-    setMode(pr.mode,false);for(const k of Object.keys(memo))delete memo[k];Object.assign(state,{rotate:[0,0,0],size:[0,0,0],scale:1,round:0,thicken:0,shrinkwrap:0,smooth:0,hollow:0,space:0},structuredClone(pr.params));
+    setMode(pr.mode,false);for(const k of Object.keys(memo))delete memo[k];Object.assign(state,{rotate:[0,0,0],size:[0,0,0],scale:1,round:0,thicken:0,shrinkwrap:0,smooth:0,hollow:0},structuredClone(pr.params));   // the gap between slices is the technique's own default (setMode): a plaque's is 3 mm, and a forced 0 made its slices touch
     if(pr.params.material)$('#material').onchange({target:{value:pr.params.material}});
     const m=state.material||'cardboard', next=pr.params.machine||(machineOf(was)?.cuts.includes(kind(m))?was:matOf(m).machine);
     if(next===was)Object.assign(state,fit); else applyMachine(next);
@@ -1655,7 +1694,7 @@ if(COUNT_URL){
 // What a report carries from here: the checks and the last steps in words — small enough to read in an issue — and
 // the project file, which is the whole data model and reopens the job exactly as it was, plus every step since the
 // model loaded (`trail`). The model is inside it only while the reporter leaves the box ticked.
-const TECHNIQUE={stacked:'Stacked slices',interlocked:'Interlocked slices',radial:'Radial slices',curve:'Curve (ribs)',folded:'Folded panels'};
+const TECHNIQUE={stacked:'Stacked slices',interlocked:'Interlocked slices',radial:'Radial slices',curve:'Curve (ribs)',folded:'Folded panels',plaque:'Plaque'};
 function reportSummary(version){
   const where=`lamina         ${version}, ${document.documentElement.dataset.static?'in the browser (Pyodide)':'against a local server'}`;
   // a hang is reported while it hangs: the result below is then the slice before it, not this one
@@ -1692,6 +1731,7 @@ window.laminaFeedback?.({bug:async withModel=>{
 
 // test and capture hook (tests/test_ui.py, scripts/media/capture.mjs)
 window.__t={sizeAxes:()=>sizeAxes(),target:()=>controls.target,banner:()=>banner.visible?banner.userData.text:'',parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>plan,job:()=>job,
+  fold:s=>{$('#fold').value=s;applyFold();renderer.render(scene,camera)},
   idle:()=>!timer&&!busy,   // no change waiting out its debounce, no slice running: what a test or a capture waits for
   ghost:()=>ghost.children,ghostUrl:()=>ghostUrl,pivot:()=>pivot3&&rnd(pivot3),
   screen:p=>{const q=new THREE.Vector3(p[0],p[1],p[2]).project(camera),r=renderer.domElement.getBoundingClientRect();

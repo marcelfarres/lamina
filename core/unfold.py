@@ -52,6 +52,7 @@ class Panel:
         self.tri = {}              # face → (3,2) layout coordinates
         self.union = None          # shapely polygon of the layout
         self.folds = []            # adjacency indices of the fold edges inside the panel
+        self.parent = {}           # face → (the face it was laid out from, the adjacency index of the fold between them)
 
     def to_local(self, f, geom):
         """Layout geometry → the face's own 2D frame (inverse rigid transform)."""
@@ -77,6 +78,15 @@ def edge_weights(mesh, strategy, rng=None):
     if rng is not None:
         w = w + rng.uniform(0, 0.15, len(w))
     return w
+
+
+def contact(tri, fat, corners):
+    """How far (mm) triangle `tri`'s outline runs within a hair of another face (`fat`, that face grown by the hair),
+    not counting the 2 mm round the corners the two share: two faces that meet at a sharp point run close there."""
+    near = tri.boundary.intersection(fat)
+    for c in corners:
+        near = near.difference(shapely.Point(c).buffer(2))
+    return near.length
 
 
 def unfold_once(mesh, split, max_faces, max_dims, weights, local):
@@ -120,6 +130,14 @@ def unfold_once(mesh, split, max_faces, max_dims, weights, local):
                               & (boxes[:, 1] < b[3] - 1e-9) & (boxes[:, 3] > b[1] + 1e-9))[0]
             if any(poly.intersection(tris[i]).area > 1e-4 for i in near):
                 continue                                    # would overlap → seam
+            # … and it may not lie against a face that is not its neighbour on the model: laid edge to edge, the outline
+            # joins the two along that line, a cut is lost, and the face is held on two sides and cannot fold
+            touch = np.nonzero((boxes[:, 0] <= b[2] + 1e-6) & (boxes[:, 2] >= b[0] - 1e-6)
+                               & (boxes[:, 1] <= b[3] + 1e-6) & (boxes[:, 3] >= b[1] - 1e-6))[0]
+            mates = {f2 for _, f2, _ in nb[to]}
+            fat = poly.buffer(0.01)                              # two edges meet only to rounding: within a hair of each other
+            if any(pn.faces[i] not in mates and contact(tris[i], fat, [tri[fb.index(v)] for v in fb if v in faces[pn.faces[i]]]) > 1.0 for i in touch):
+                continue                                    # → seam
             if max_dims:
                 # a panel whose axis-aligned box fits the sheet certainly fits; only when it does not is the
                 # minimum rotated rectangle worth computing (it may still fit at an angle)
@@ -133,7 +151,7 @@ def unfold_once(mesh, split, max_faces, max_dims, weights, local):
             visited.add(to); pn.faces.append(to)
             pn.R[to], pn.t[to], pn.tri[to] = R, t, tri
             tris.append(poly); boxes = np.vstack([boxes, b]); pts.append(tri)
-            pn.folds.append(k); tree.add(k)
+            pn.folds.append(k); tree.add(k); pn.parent[to] = (fr, k)
             for a2, f2, k2 in nb[to]:
                 if f2 not in visited:
                     heapq.heappush(heap, (a2, to, f2, k2))
@@ -142,6 +160,15 @@ def unfold_once(mesh, split, max_faces, max_dims, weights, local):
         # tolerance.
         pn.union = shapely.union_all(tris, grid_size=1e-6)
         panels.append(pn)
+    # A panel is grown as a tree, so an edge that closes a loop in it (the sixth spoke of a flat hexagon cap) was never
+    # walked. Where both of its faces already lie edge to edge in the layout the sheet is whole there: a fold like
+    # any other, not a seam asking for a joint on an edge nobody cuts.
+    own = {f: pn for pn in panels for f in pn.faces}
+    for k, (a, b) in enumerate(adj):
+        pn = own[a]
+        if k not in tree and own[b] is pn and all(
+                np.abs(pn.tri[a][faces[a].index(v)] - pn.tri[b][faces[b].index(v)]).max() < 1e-6 for v in aedges[k]):
+            pn.folds.append(k); tree.add(k)
     seams = [k for k in range(len(adj)) if k not in tree]
     return panels, seams
 

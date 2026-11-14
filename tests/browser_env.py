@@ -33,6 +33,7 @@ def main(jobs):
     call("GET", f"api/job/{MINE}/ex_egg/export", "fmt=svg,dxf,pdf,eps&labels=1")
     call("GET", f"api/job/{MINE}/ex_egg/export", "fmt=svg&per_piece=1")
     call("GET", f"api/job/{MINE}/ex_egg/stl")
+    assert call("GET", f"api/job/{MINE}/ex_egg/step").count(b"MANIFOLD_SOLID_BREP('") > 0
     call("GET", f"api/job/{MINE}/ex_egg/proto", "scale=0.5&labels=groove")
     call("GET", f"jobs/{MINE}/ex_egg/model.stl")
     data = (ROOT / "examples" / "pear.stl").read_bytes()   # an upload: not watertight, so it goes through the shrinkwrap

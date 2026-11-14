@@ -305,6 +305,184 @@ def test_folded_panels_in_a_material_that_does_not_fold_say_so_and_offer_ribs():
     assert fold_err(mine) and "plywood" in fold_err(mine)[0]
 
 
+def test_folded_sheet_lies_inside_the_surface_with_its_scores_on_the_inside():
+    """Asked for: the seams showed on the outside. The panels were centred on the model's surface, half a sheet proud,
+    with a notch on the outside of every fold, and the net was laid out seen from outside, so the scores and numbers
+    were engraved on the outside face. Now the outer face lies on the surface and, by default, the net is mirrored so
+    the inside face is up on the cutter: a cube's convex folds are valley lines seen from there."""
+    from core.solid import assembled
+    job = {"thickness": 3, "material": "cardboard", "facet": 0, "joint": "seam", "autofix": "off"}
+    plan = build(EXAMPLES / "cube.stl", "folded", job)
+    assert np.allclose(assembled(plan).bounds, [[-90] * 3, [90] * 3], atol=1e-3)    # not grown by half a sheet
+    folds = lambda plan: {s for sl in plan["slices"] if sl["group"] == "F" for pc in sl["pieces"] for s, _ in pc["kerfed_lines"]}   # noqa: E731
+    assert folds(plan) == {"dashed"}
+    assert folds(build(EXAMPLES / "cube.stl", "folded", {**job, "score_side": "outside"})) == {"solid"}
+
+
+def test_folded_says_when_the_sheet_is_too_thick_to_fold_round_the_curve():
+    """A sheet folded by θ gives up t·tan(θ/2) of the inside of the bend on each side of the fold: round a 5 mm
+    radius a 1.5 mm sheet closes, an 8 mm one cannot (a curve needs a radius bigger than the sheet)."""
+    job = {"size": [10, 0, 0], "material": "fabric", "facet": 2, "joint": "seam", "autofix": "off"}
+    closes = lambda t: not [w for sl in build(EXAMPLES / "sphere.stl", "folded", {**job, "thickness": t})["slices"]   # noqa: E731
+                            for w in sl["warnings"] if "cannot close" in w]
+    assert closes(1.5) and not closes(8)
+
+
+def test_folded_panels_printed_get_a_groove_at_every_fold_down_to_the_hinge_skin(tmp_path):
+    """Asked for: print the panels thick and still fold them. PETG does not fold along a score, but printed it can
+    carry a V groove at every fold, cut to the fold's own angle, with a thin skin left as the hinge. The bundled
+    fold_test opens that way: no error, and under the middle of a groove the printed part is the skin and no more."""
+    from core.solid import proto_set
+    pr = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["fold_test"]
+    job = {**pr["params"], "material_kind": "PETG", "autofix": "off"}
+    plan = build(EXAMPLES / "fold_test.stl", "folded", job)
+    assert not plan["errors"] and plan["counts"]["errors"] == 0
+    sl = plan["slices"][0]; pc = sl["pieces"][0]
+    bends = {round(2 * np.degrees(np.arctan(v[6] / (sl["thickness"] - v[5])))) for v in pc["vees"]}     # the fold at which the walls meet
+    assert {45, 90, 104} <= bends                                       # each groove opened to its own fold
+    assert True in {v[7] for v in pc["vees"]}                            # mountain folds are grooved from the face up on the bed
+    assert sum(len(fc.get("bevel", [])) for fc in pc["facets"]) == len(pc["vees"]) + sum(1 for fc in pc["facets"] if fc.get("hinge") and fc["hinge"][7])   # the 3D view draws every groove: a fold on both its faces
+    proto_set(plan, tmp_path, labels="none")
+    part = trimesh.load(tmp_path / "P-1.stl")
+    # closed: no edge with a face on one side only (two grooves that touch share an edge between four faces)
+    assert (np.unique(part.edges_sorted, axis=0, return_counts=True)[1] % 2 == 0).all() and part.volume > 0
+    x0 = min(x for r in pc["kerfed"] for x, _ in r[0]); y0 = min(y for r in pc["kerfed"] for _, y in r[0])
+    v = max((v for v in pc["vees"] if v[7]), key=lambda v: np.hypot(v[2] - v[0], v[3] - v[1]))
+    mid = np.array([(v[0] + v[2]) / 2 - x0, (v[1] + v[3]) / 2 - y0]); along = np.array([v[2] - v[0], v[3] - v[1]])
+    sec = part.section(plane_origin=[*mid, 0], plane_normal=[*along, 0]).vertices
+    under = sec[np.linalg.norm(sec[:, :2] - mid, axis=1) < v[4] / 2 + 0.01]
+    assert np.isclose(under[:, 2].max(), job["hinge"], atol=0.02) and np.isclose(under[:, 2].min(), 0, atol=1e-3)
+    assert "does not fold" in build(EXAMPLES / "fold_test.stl", "folded", {**job, "hinge": 0})["errors"][0]
+    tight = build(EXAMPLES / "fold_test.stl", "folded", {**job, "hinge_stop": -5})["slices"][0]["pieces"][0]["vees"]
+    assert {round(2 * np.degrees(np.arctan(v[6] / (sl["thickness"] - v[5])))) for v in tight} >= {40, 85, 99}   # every fold stops 5° sooner
+
+
+@pytest.mark.parametrize("model", ["fold_test", "bracket", "cube"])
+def test_folded_net_never_lays_a_face_against_one_it_does_not_join(model):
+    """Reported from a print: a wall folded down into the notch of an L-shaped face landed with its far side exactly on
+    the notch's other edge. The outline joined the two along that line, so the wall was held on two sides and could
+    not fold (and a cut file lost the cut). In a net, two faces lie edge to edge only where they join on the model."""
+    from shapely.geometry import Polygon
+    from core.modes.folded import simplify
+    from core.unfold import unfold, contact
+    mesh = simplify(trimesh.load(EXAMPLES / f"{model}.stl", force="mesh"), 0)
+    _, _, panels, _ = unfold(mesh, False, 0, (315, 310), "auto")
+    joined = {(int(a), int(b)) for a, b in mesh.face_adjacency} | {(int(b), int(a)) for a, b in mesh.face_adjacency}
+    for pn in panels:
+        tris = {f: Polygon(pn.tri[f]) for f in pn.faces}
+        for i, f in enumerate(pn.faces):
+            fat = tris[f].buffer(0.01)
+            for g in pn.faces[i + 1:]:
+                if (f, g) not in joined:
+                    shared = [pn.tri[g][list(mesh.faces[g]).index(v)] for v in mesh.faces[g] if v in mesh.faces[f]]
+                    assert contact(tris[g], fat, shared) <= 1.0, (model, f, g)
+
+
+def test_folded_printed_glue_tabs_are_flaps_of_the_skin():
+    """A glue tab as thick as a printed sheet would fold into the panel it glues to. Printed, a tab keeps only the
+    hinge skin: a thin flap on a mitred seam, shown on the outside of the panel it folds onto."""
+    from core.solid import proto_set
+    pr = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["fold_test"]
+    plan = build(EXAMPLES / "fold_test.stl", "folded", {**pr["params"], "material_kind": "PETG", "joint": "tab", "tab_h": 8, "autofix": "off"})
+    assert plan["counts"]["errors"] == 0
+    pc = plan["slices"][0]["pieces"][0]
+    assert len(pc["thin"]) >= 10 and pc["thin_t"] == 0.4
+    assert all(len(poly) == 1 for poly in pc["kerfed"])                    # no tab touches the panel or another tab: that would close a hole and hold it on two sides
+    assert sum(1 for fc in pc["facets"] if fc.get("t") == 0.4) == len(pc["thin"])        # the 3D view draws them thin
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        proto_set(plan, d, labels="none")
+        part = trimesh.load(pathlib.Path(d) / "P-1.stl")
+    assert part.body_count == 1                                            # every tab still hangs on its panel
+    x0 = min(x for r in pc["kerfed"] for x, _ in r[0]); y0 = min(y for r in pc["kerfed"] for _, y in r[0])
+    for rings in pc["thin"]:
+        mid = np.mean(rings[0], axis=0) - [x0, y0]
+        near = part.vertices[np.linalg.norm(part.vertices[:, :2] - mid, axis=1) < 2.5]
+        assert len(near) == 0 or near[:, 2].max() < 0.41                    # nothing above the skin inside a tab
+
+
+def test_folded_stiff_panels_meet_at_their_inside_edges():
+    """Asked for: in metal or wood the panels did not go together. Two square-cut panels that both reach the model's
+    edge share the corner on every outward seam, and stiff sheet has nowhere to go. Each seam edge is cut back by
+    t × tan(bend / 2): on a cube in 6 mm sheet that is 6 mm off every side of every face."""
+    job = {"thickness": 6, "material": "plywood", "facet": 0, "separate": True, "joint": "laced", "autofix": "off", "sheet": [1200, 800]}
+    side = lambda fit: max(build(EXAMPLES / "cube.stl", "folded", {**job, "edge_fit": fit})["slices"][0]["extents"])   # noqa: E731
+    assert np.isclose(side("outer"), 180, atol=0.05) and np.isclose(side("inner"), 168, atol=0.05)
+
+
+def colliding_pairs(plan):
+    """Pairs of folded panels whose solids share volume (over 0.5 mm³): each facet one sheet deep, as the 3D view and
+    the STL have it, intersected with every facet of every other panel."""
+    import manifold3d as m3
+    from shapely.geometry import Polygon
+    from shapely.geometry.polygon import orient
+    solids = []
+    for i, sl in enumerate(plan["slices"]):
+        for fc in sl["pieces"][0]["facets"] if sl["group"] == "F" else []:
+            for rings in fc["rings"]:
+                ring = np.asarray(orient(Polygon(rings[0]), 1).exterior.coords)[:-1]
+                t = sl["thickness"]
+                solids.append((i, m3.Manifold.extrude(m3.CrossSection([ring]), t).translate([0, 0, -t / 2]).transform(np.array(fc["M"])[:3, :4])))
+    return sum(1 for a, (i, x) in enumerate(solids) for j, y in solids[a + 1:] if i != j and (x ^ y).volume() > 0.5)
+
+
+@pytest.mark.parametrize("model", ["cube", "pyramid", "fold_test"])
+def test_folded_stiff_panels_do_not_share_space(model):
+    """The proof that stiff panels go together: in 3 mm steel, every face its own panel, no two panels occupy the same
+    space with `edge fit` inner or through, where with outer (both edges on the model's edge) every seam collides."""
+    job = {"thickness": 3, "material": "steel", "facet": 0, "separate": True, "joint": "laced", "autofix": "off", "sheet": [3000, 2000], "printed": False}
+    pairs = lambda fit: colliding_pairs(build(EXAMPLES / f"{model}.stl", "folded", {**job, "edge_fit": fit}))   # noqa: E731
+    assert pairs("outer") > 10
+    assert pairs("inner") == 0 and pairs("through") == 0
+
+
+@pytest.mark.parametrize("joint", ["laced", "rib", "tab"])
+@pytest.mark.parametrize("material", [{}, {"material": "cardboard", "material_kind": "cardboard"}], ids=["unnamed", "cardboard"])
+def test_folded_soft_sheet_is_not_cut_back_at_its_seams(joint, material):
+    """Found by the release's media run: the landing page's cow in 1 mm card, laced, came back with 9 errors where
+    0.3.2 had none. Cut back at every seam like stiff sheet, its small panels fell under the minimum part size. Card
+    crushes at a seam, so it is cut as before; and a rib too small to handle is left out, not cut as a bad part."""
+    plan = build(EXAMPLES / "cow.stl", "folded", {"rotate": [90, 0, 0], "joint": joint, "facet": 15, "strategy": "area", "thickness": 1, **material})
+    errs = [f"{sl['label']}: {e}" for sl in plan["slices"] for e in sl["errors"]] + plan["errors"]
+    assert not errs, errs[:3]
+
+
+def test_folded_says_when_stiff_panels_still_press_into_each_other():
+    """A seam edge that is not cut back (a tab joint keeps its edge, or `edge fit` outer) presses t × tan(bend / 2) into
+    the next panel. Steel gives nothing, so the panel says so; cardboard crushes that much; cut back, nothing is left."""
+    job = {"thickness": 3, "facet": 0, "separate": True, "autofix": "off", "sheet": [1200, 800]}
+    pressed = lambda **kw: [w for sl in build(EXAMPLES / "cube.stl", "folded", {**job, **kw})["slices"] for w in sl["warnings"] if "press up to" in w]   # noqa: E731
+    steel = pressed(material="steel", joint="laced", edge_fit="outer")
+    assert len(steel) == 12 and "press up to 3.0 mm" in steel[0]
+    assert not pressed(material="steel", joint="laced")                          # edge fit inner, the default
+    assert not pressed(material="cardboard", joint="laced", edge_fit="outer")
+
+
+def test_folded_lamp_has_a_window_in_its_faces_and_unfolds_flat():
+    """The bundled lamp shade: `window` opens its faces and leaves a frame the grooves fit in (no warning), and the
+    hinges the 3D view folds it by lay every face of a panel in the plane of the panel's first face at fold 0."""
+    pr = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["fold_lamp"]
+    plan = build(EXAMPLES / "fold_lamp.stl", "folded", {**pr["params"], "material_kind": "PETG", "autofix": "off"})
+    assert plan["counts"]["errors"] == 0 and plan["counts"]["warnings"] == 0
+    pc = max((sl["pieces"][0] for sl in plan["slices"]), key=lambda pc: len(pc["facets"]))
+    assert sum(len(poly) - 1 for poly in pc["kerfed"]) > 40                 # windows: holes in the net
+    assert {v[7] for v in pc["vees"]} == {True, False}                      # valley folds are grooved from the other face
+
+    def turn(h, s):                                                        # as the page's applyFold builds it
+        p, d, u = np.array(h[1:4]), np.array(h[4:7]), (1 - s) * h[7]
+        K = np.array([[0, -d[2], d[1]], [d[2], 0, -d[0]], [-d[1], d[0], 0]])
+        R = np.eye(3) + np.sin(u) * K + (1 - np.cos(u)) * K @ K
+        M = np.eye(4); M[:3, :3] = R; M[:3, 3] = p - R @ p
+        return M
+    D, normals = [], []
+    for fc in pc["facets"]:
+        h = fc.get("hinge")
+        D.append(D[h[0]] @ turn(h, 0) if h else np.eye(4))
+        normals.append(D[-1][:3, :3] @ np.array(fc["M"])[:3, 2])
+    assert sum(1 for fc in pc["facets"] if fc.get("hinge")) == len(pc["facets"]) - 1
+    assert np.allclose(normals, normals[0], atol=1e-3)                       # flat: every face looks the same way
+
+
 # the horse on the landing page: its body curve and a branch down each leg, from where it leaves the body to the hoof
 HORSE = {"size": [0, 300, 0], "thicken": 1, "round": 2, "thickness": 3, "slot_offset": 0.1, "plane": "yz", "count": 20, "spines": 1}
 HORSE_CURVE = [[-119, 11], [-89, 18], [-59, 23], [-14, 10], [16, 13], [50, 22], [76, 47], [91, 76], [106, 89], [136, 83]]
@@ -506,10 +684,11 @@ def test_folded_seam_numbers_sit_on_material_clear_of_cuts_and_folds_and_tabs_fo
 def test_a_dense_net_numbers_its_seams_in_seconds_not_minutes():
     """A rounded-off model folds into a net whose panels each carry hundreds of seam numbers to keep apart: the cube
     thickened by 50 took 155–175 s before 0.3.0 shipped (15 s in 0.2.5), testing each spot against every number,
-    cut and fold one by one (bugs/028); about 38 s since. The numbers are all still placed."""
+    cut and fold one by one (bugs/028); about 38 s since. The numbers are all still placed: 779 for its 467 seams
+    (1340 while the 346 edges inside its flat faces still counted as seams, bugs/039)."""
     plan = build(EXAMPLES / "cube.stl", "folded", {"thickness": 6, "thicken": 50})
     marks = [m for sl in plan["slices"] for pc in sl["pieces"] for m in pc["marks"]]
-    assert len(marks) > 1000 and all(m[2].isdigit() for m in marks)
+    assert len(marks) > 700 and all(m[2].isdigit() for m in marks)
 
 
 def test_orientation_arrows_are_two_lines_inside_every_part_clear_of_its_marks():
@@ -592,6 +771,19 @@ def test_the_spacing_curve_stops_at_the_cap_too():
     assert plan["counts"]["slices"] == 0 and any("spacing curve lays 500 slices" in e for e in plan["errors"]), plan["errors"]
 
 
+def test_a_spacing_curve_of_exactly_the_cap_is_sliced(monkeypatch):
+    """A curve that lays exactly MAX_SLICES slices and reaches the model's end is not over the cap (037: the walk was cut
+    at the cap, so exactly the cap and cut short looked the same and both were refused)."""
+    import core.modes
+    monkeypatch.setattr(core.modes, "MAX_SLICES", 20)
+    params = {"size": [0, 0, 60], "thickness": 3, "autofix": "off", "connect": "none", "spacing_vary": True,
+              "spacing_fix": "curve", "spacing_curve": [[0, 3], [0.5, 3], [1, 3]], "spacing_min": 3}
+    plan = build(EXAMPLES / "egg.stl", "stacked", params)           # 60 mm at 3 mm: exactly 20
+    assert plan["counts"]["slices"] == 20 and not plan["errors"], plan["errors"]
+    over = build(EXAMPLES / "egg.stl", "stacked", {**params, "size": [0, 0, 63]})   # 21: one past
+    assert over["counts"]["slices"] == 0 and over["errors"]
+
+
 def test_size_is_the_model_s_own_whichever_way_it_is_turned():
     """size 30 along z stays the model's z: stood up along x (up axis) or turned a quarter about y, the model keeps
     the same three extents, and the 30 lies along the view axis the turn put it on."""
@@ -638,3 +830,64 @@ def test_a_preview_windows_will_not_let_go_of_never_fails_the_slice(tmp_path, mo
     plan = build(EXAMPLES / "egg.stl", "stacked", params, mesh_out=out)
     assert plan["counts"]["slices"] == 3 and out.read_bytes() == first   # sliced; the last preview stays
     assert not list(tmp_path.glob("model.*.stl"))                        # and no half-written file is left beside it
+
+
+def test_a_plan_file_windows_will_not_let_go_of_is_written_on_the_next_try(tmp_path, monkeypatch):
+    """Seen in the page suite on Windows (042): the page was still reading the last plan.json when the next slice wrote
+    it in place, the write failed with OSError [Errno 22], and the slice with it. The plan is now written beside and
+    swapped in, tried again while Windows refuses; refused for good, the slice fails with a message that says what
+    holds it, and the plan that was there stays whole."""
+    import os
+    import shutil
+    import core.plan as P
+    refusals = {"n": 0}
+    real_replace, real_copy = os.replace, shutil.copyfile
+    def locked(limit):
+        def replace(a, b):
+            if refusals["n"] < limit and str(b).endswith("plan.json"):
+                refusals["n"] += 1
+                raise OSError(22, "Invalid argument", str(b))
+            return real_replace(a, b)
+        def copy(a, b, **k):
+            if refusals["n"] < limit and str(b).endswith("plan.json"):
+                refusals["n"] += 1
+                raise OSError(22, "Invalid argument", str(b))
+            return real_copy(a, b, **k)
+        monkeypatch.setattr(P.os, "replace", replace); monkeypatch.setattr(P.shutil, "copyfile", copy)
+    out = tmp_path / "plan"
+    params = {"distribution": "count", "count": 3, "autofix": "off"}
+    locked(3)                                   # the swap, the copy, the swap: the copy after it gets through
+    build(EXAMPLES / "cube.stl", "stacked", params, out=out)
+    first = json.loads((tmp_path / "plan.json").read_text())
+    assert first["counts"]["slices"] == 3 and refusals["n"] == 3
+    refusals["n"] = 0; locked(10**6)            # never let go
+    with pytest.raises(OSError, match="keeps that file open"):
+        build(EXAMPLES / "egg.stl", "stacked", {**params, "count": 4}, out=out)
+    assert json.loads((tmp_path / "plan.json").read_text()) == first     # the last plan is whole, not half the new one
+    assert not list(tmp_path.glob("plan.*.json"))                        # and nothing is left beside it
+
+
+def test_a_plan_file_another_program_has_mapped_is_written_when_it_lets_go(tmp_path):
+    """042 as it really happens: a search indexer, a drive sync or a virus scanner maps the last plan.json into memory to
+    read it, and while it is mapped Windows refuses both to rewrite the file and to swap another in. Held here for a
+    third of a second by a real mapping: the slice waits and its plan lands. (On Linux a mapping holds nothing, and
+    the write goes through at once.)"""
+    import mmap
+    import threading
+    params = {"distribution": "count", "count": 3, "autofix": "off"}
+    out = tmp_path / "plan"
+    build(EXAMPLES / "cube.stl", "stacked", params, out=out)
+    target = tmp_path / "plan.json"
+    held = threading.Event(); let_go = threading.Event()
+
+    def hold():
+        with open(target, "rb") as f, mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ):
+            held.set()
+            let_go.wait(10)
+    t = threading.Thread(target=hold); t.start(); held.wait(10)
+    threading.Timer(0.35, let_go.set).start()
+    try:
+        build(EXAMPLES / "cube.stl", "stacked", {**params, "count": 4}, out=out)
+    finally:
+        let_go.set(); t.join()
+    assert json.loads(target.read_text())["counts"]["slices"] == 4

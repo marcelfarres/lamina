@@ -28,6 +28,11 @@ def closest(A0, A1, B0, B1):
     return A0 + s * u, B0 + t * v
 
 
+def axis_room(n, t, slot_offset):
+    """The least core diameter that lets `n` planes (2 × n half-slices) of `t` mm fit around the axis."""
+    return 2 * (n * (t + slot_offset) / math.pi + t)
+
+
 @register
 class Radial(Mode):
     name = "radial"
@@ -241,7 +246,7 @@ class Radial(Mode):
                 nrm = np.cross(u, radial)
                 if not any(abs(nrm @ s) > COINCIDENT for s in spines):
                     fan.append((k, radial, nrm))
-            need = 2 * (len(fan) * (t + p["slot_offset"]) / math.pi + t)     # the kept slices have to fit around the axis
+            need = axis_room(len(fan), t, p["slot_offset"])                  # the kept slices have to fit around the axis
             core_r = (p["core_d"] or need) / 2
             ctx.core_d_min = max(ctx.core_d_min, need)
             if p["core_d"] and p["core_d"] < need - 1e-6:
@@ -336,6 +341,12 @@ class Radial(Mode):
             for i in sorted({g.lobe for g in rings} - held):
                 ctx.errors.append(f"spine: no ring of lobe {i + 1} can reach the spine without cutting it apart — "
                                   f"move that axis so one of its rings sits nearer the neck, or add a ring")
+
+    @staticmethod
+    def fit(p):
+        """Every half-slice wedges at once, so the count stays and the stand-in grows to give them room round the
+        core; two rings show the joint."""
+        return {"rings": "count", "ring_count": min(p["ring_count"], 2)}, 2 * axis_room(p["count"], p["thickness"], p["slot_offset"])
 
     def crossing_fix(self, ctx, sl, point):
         if sl.group != "R":

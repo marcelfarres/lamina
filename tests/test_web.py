@@ -104,6 +104,9 @@ def test_the_solid_downloads_of_a_job(api):
     job = api.post("/api/slice", data={"client": MINE, **CUBE}).json()["job"]
     stl = api.get(f"/api/job/{MINE}/{job}/stl")
     assert stl.status_code == 200 and len(stl.content) > 84                       # binary STL: header + triangles
+    step = api.get(f"/api/job/{MINE}/{job}/step")                                 # the same as solids, for CAD
+    assert step.status_code == 200 and step.content.startswith(b"ISO-10303-21;") and ".step" in step.headers["content-disposition"]
+    assert api.get(f"/api/job/{MINE}/{job}/step", params={"part": "no such"}).status_code == 404
     names = lambda r: zipfile.ZipFile(io.BytesIO(r.content)).namelist()
     same = names(api.get(f"/api/job/{MINE}/{job}/proto", params={"scale": 1, "offset": 0}))
     assert "plate.3mf" in same and "README.txt" not in same                     # the job as it is: nothing to say

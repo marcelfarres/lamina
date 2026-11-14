@@ -1,7 +1,7 @@
 """Record the landing page's stills and clips from the running app, and encode them into docs/media.
 
-    uv run --with playwright python scripts/media/record.py            every scene
-    uv run --with playwright python scripts/media/record.py axes lobes only these
+    uv run python scripts/media/record.py            every scene
+    uv run python scripts/media/record.py axes lobes only these
 
 Starts the app on a free port and Playwright's Chromium with remote debugging, runs capture.mjs against it (the
 scenes: which example, which parameters, which clip), then make_media.py (crop, scale, h264). The same on Windows,

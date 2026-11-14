@@ -1,6 +1,6 @@
 [project]
 name = "lamina3d"           # "lamina" on PyPI is somebody else's
-version = "0.3.2"
+version = "0.3.3"
 readme = "README.md"
 license = "AGPL-3.0-or-later"
 description = "Lamina: free Slicer for Fusion 360 alternative. Turns 3D models into flat cut parts (stacked, interlocked, radial, ribbed, folded panels) for laser, CNC, plasma and vinyl cutters"
@@ -61,6 +61,7 @@ cad = ["cadquery"]          # STEP / IGES / BREP import:  uv sync --extra cad
 [dependency-groups]
 dev = [
     "httpx2>=2.13",
+    "playwright>=1.65.1",
     "pytest>=8",
     "pytest-timeout>=2.4.0",
     "pytest-xdist>=3.8.0",

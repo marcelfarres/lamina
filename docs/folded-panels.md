@@ -35,6 +35,8 @@ Greedy spanning tree with a priority per edge:
    image). Accept it if the union's area equals the sum (no overlap — tested on the union, because GEOS' intersection
    misses fans that wrap past 360° at saddle vertices) and the panel still fits the sheet. Otherwise the edge becomes
    a seam.
+   It is also refused when it would lie edge to edge (within 0.01 mm, for over 1 mm, away from a shared corner)
+   against a face that is not its neighbour on the model: the outline would join the two along that line.
 4. Repeat until nothing can be attached; start the next panel.
 5. `auto` runs flat, strip, area and two randomised flat orders, and keeps the fewest panels / most compact result.
 
@@ -44,7 +46,90 @@ shapes and for rib / laced joints. `max_faces` caps panel size.
 
 Every mesh edge is exactly one of: fold (inside a panel, exported on the SCORE layer, mountain solid / valley
 dashed, dotted when `perforate`) or seam (numbered; the number is engraved beside the joint on **both** panels so
-the mating edges can be found on the cut sheet).
+the mating edges can be found on the cut sheet). A fold between two faces in one plane (less than 1° apart: the
+diagonal of a rectangle, the spokes of a hexagon cap) is not scored: the SCORE layer holds only the edges to bend.
+An edge whose two faces already lie side by side in a panel is a fold, never a seam.
+
+## Which face is up, and how thick a sheet can fold
+The sheet's outer face lies on the model's surface and its thickness goes inwards, so the outside of the built model
+is one surface and keeps the model's size. Every fold closes on one face: the inside of a mountain (convex) fold, the
+outside of a valley (concave) fold.
+
+`score side` picks the face that is up on the cutter, and so the face that carries the scores and the seam numbers.
+`inside` (the default) mirrors the net: the scores and numbers are inside the model and the outside stays clean.
+`outside` lays the net as seen from outside, for a paper model printed on its outer side. Mountain and valley are
+read from the face that is up: seen from inside, a convex edge is a valley fold.
+
+Folded by an angle θ, a sheet of thickness t gives up t·tan(θ/2) of the closing face on each side of the fold. A
+triangle keeps some of that face while Σ dᵢ·Lᵢ ≤ 2·area over its fold edges (dᵢ is what edge i gives up, Lᵢ its
+length; a point's distance to edge i is 2·area·λᵢ/Lᵢ in barycentric coordinates). Past that, the folds around the
+face meet and it cannot be folded to the model's shape: on a curve this happens when the sheet is thicker than the
+curve's radius, a little sooner where the faces are narrow. Each panel says how many of its folds cannot close. The
+check runs only when the material folds at all (the material check comes first).
+
+## Printed panels: a groove at every fold
+A printed material (PLA, PETG) does not fold along a score. Printed, the panel can be thick and still fold: with
+`hinge` above 0 every fold gets a V groove on the face that closes, cut down to a skin `hinge` thick (the living
+hinge) with a flat bottom `hinge w` wide. The walls turn about the skin and meet when each has turned
+atan(half the opening / the depth), so the groove opens 2 · (t − hinge) · tan(bend / 2) wide at the face (never
+narrower than its flat bottom) and the fold stops at the model's angle. The flat bottom lies inside that opening:
+added to it, as the first version did, a 90° fold in 2 mm closed at 97° and a 45° fold at 57°. `fold stop` moves
+the stop a few degrees past or short of the model's angle, to tune a printer. With
+the plain `seam` joint each seam edge gets the half of that groove on its own panel (a mitre): the panels meet
+face to face, with room for glue. Only outward seams are mitred: at an inward seam the sheets move apart. The glue
+tab joints (tab, multitab, diamond, ticked, gear) print their tabs as flaps of the skin alone (`thin` per piece):
+a tab as thick as the sheet would fold into the panel it glues to. The flap folds round the mitred edge onto the
+outside of the next panel. Tongue, puzzle and strip are not printed this way and keep the material error.
+Mountain folds are grooved from the face up on the bed, valley folds from the
+bed side. Edges between faces in one plane get no groove. The grooves travel in the plan with each piece (`vees`)
+and `core/solid.py` cuts them from the printed part; the browser build has no boolean engine and exports plain parts,
+and the first panel carries a warning that says so.
+The example `fold_test` (48 × 48 × 32 mm, 2 mm PETG) carries 45°, 76°, 80°, 90° and 104° folds and a valley edge.
+
+## Stiff sheet: seams meet at the inside edges
+Two square-cut panels that both reach the model's edge occupy the same corner on every outward (convex) seam: a
+t × t square at 90°. Paper gives; metal, wood and acrylic do not, and the part cannot close. With `edge fit` =
+inner (the default) each outward seam edge is cut back by t · tan(bend / 2), so the inside edges of the two
+panels meet and the gap is on the outside. Holes, slots and seam numbers are measured from the new edge. Inward
+seams need nothing: their material moves apart. Joints with a tab or loop on the edge are not cut back, and
+printed panels are mitred instead (above). `outer` keeps the edges on the model's edge. A flat face of several
+triangles is cut back as one: the triangles that touch the edge only at its ends lose their corner tip too.
+
+`through` cuts only one panel of each outward seam, the one with more room, until it clears the other's inside
+face: t · sin(bend) up to a right angle, t · tan(bend / 2) past it. The other runs to the model's edge, so the
+outside closes (fully at 90°) and one sheet shows its edge. Seam, rivet and laced joints; strip and rib use inner.
+
+Faces that share only a corner point are handled after the edges (`corners`): each pair's solids are intersected
+(manifold3d) and what they share is cut from the bigger face, seen along its normal. On a saddle the tip of one
+face otherwise lies inside the sheet of another. Without manifold3d (the browser build) the tips stay.
+
+Only what the sheet cannot take up itself is cut: the cut-back is t · tan(bend / 2) less the material's crush
+(`SQUISH` × t). Paper, card, cardboard and fabric crush through their whole thickness and are never cut back, nor
+is a material that is not listed; cut back like steel, the small panels of a laced cow in 1 mm card fell under
+the minimum part size. A rib too small to cut and handle (under `min_part` both ways) is left out and reported.
+
+What is left presses into the next panel: t · tan(bend / 2) less the cut-back (capped at 0.4 of the face's height,
+so a sliver keeps its middle; nothing with a tab joint). `SQUISH` in `core/modes/folded.py` gives the share of the
+thickness each material can crush at an edge (paper, card, cardboard 1; foam and leather less; metal, wood and
+hard plastic 0). Past it the panel warns, with the depth. A material not in the table is not checked.
+Measured on the examples in 3 mm steel, every face its own panel, by intersecting the panels' solids
+(working-files, 2026-11-13): cube, pyramid, wedge and fold_test go from 18–77 colliding pairs to 0; fold_lamp 204
+to 1 (1 mm³); egg 530 to 1; torus 359 to 54 (99 mm³ in all); cow 340 to 70; bowl 378 to 41. What remains is at
+saddle vertices, where panels that share only a corner meet, and on slivers the cap protects. Not yet handled.
+
+## Windows
+`window` opens every face with a hole of its own shape, for a lamp shade or a lantern. The frame left around it is
+what the share asks for and never less than 1.25 × the minimum feature width, plus what the face's grooves or
+cut-back edges take, plus the reach of the joint's holes or slots. A face too small for that stays whole.
+The example `fold_lamp` uses it: a twisted, swelling tube of 72 triangles, printed in 2 mm PETG on one plate.
+
+## The fold slider
+Each panel face remembers the face it was unfolded from (`Panel.parent`). The plan gives every facet a `hinge`:
+its parent facet, the fold line on the model (a point and a direction) and the turn that lays it flat beside the
+parent. The 3D view's `fold` slider turns every face about its fold line by the share left, parents first: 0 % is
+the flat panel in the plane of its first face, 100 % the model. The recorded assembly video ends with it.
+A printed panel's facets carry their grooved edges (`bevel`); the view draws each face in six layers, each set in
+by what the V takes at that height, so grooves and mitres show as they are exported.
 
 Complexity: O(faces × panel size) shapely unions per run; 300 faces ≈ 1 s per strategy.
 
@@ -81,6 +166,10 @@ For cube, egg, torus, bowl (cavity), igea head (separate faces), Spot the cow (l
 - separate faces on a cube: ≥ 2 holes per seam side; on a 150-face egg with default sizes: > 100 ribs.
 - no two holes overlap on a 400-face head in separate mode; folded tabs add facets for the 3D view.
 - nothing "does not fit the sheet".
+
+In tests/test_modes.py: the built cube is exactly the model's size (the sheet lies inside the surface), its
+convex folds are valley lines with `score side` inside and mountain lines with outside, and a 5 mm sphere warns that
+its folds cannot close in an 8 mm sheet but not in a 1.5 mm one.
 
 Run: `uv run python tests/test_unfold.py`.
 

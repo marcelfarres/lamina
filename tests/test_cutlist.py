@@ -23,7 +23,7 @@ def test_the_same_outline_is_not_the_same_part_with_its_holes_or_its_marks_elsew
     so are two strips alike in outline with another seam number engraved, or the same number elsewhere on the strip."""
     from shapely.geometry import MultiPolygon
     from core.model import Piece, Slice
-    from core.plan import mark_identical
+    from core.identical import mark_identical
     slab = lambda hx, grow=0: MultiPolygon([box(-grow, -grow, 200 + grow, 100 + grow).difference(Point(hx, 50).buffer(3))])
     parent = Slice("Z-1", "S", np.eye(4), 3.0)
     piece = lambda lab, g, marks=(): Piece(lab, g, parent, [], list(marks), kerfed=g)

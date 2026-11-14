@@ -2,6 +2,7 @@
   "_": "The technique and parameters each bundled example opens with: the shape's best construction, standing the right way up, sliced without an error. Keys are parameter names as the UI holds them; `rotate` turns y-up scans upright; per-slice keys (`thick`, `offset`, `grow`) name slice labels. Every preset names its material thickness, so one example never inherits the last one's stock.",
   "blob":      {"mode": "radial",      "params": {"thickness": 3, "count": 8, "ring_count": 4, "round": 3, "trim_thin": true}},
   "bowl":      {"mode": "radial",      "params": {"thickness": 3, "count": 14, "ring_count": 8}},
+  "bonsai":    {"mode": "plaque",      "params": {"thickness": 3, "layout": "parallel", "back": "-y", "axis": "x", "space": 3, "distribution": "distance", "sink": 27, "margin": 4, "plate": "rounded", "plate_margin": 20}},
   "bracket":   {"mode": "interlocked", "params": {"thickness": 3, "nx": 5, "ny": 4}},
   "bunny":     {"mode": "stacked",     "params": {"thickness": 3, "rotate": [90, 0, 0], "axis": "z", "connect": "dowel", "dowel_d": 4, "placement": "random", "n_points": 2, "round": 2, "thicken": 2, "margin": 4}},
   "cone":      {"mode": "radial",      "params": {"thickness": 3, "count": 8, "ring_count": 4, "trim_thin": true}},
@@ -9,6 +10,7 @@
   "cow_spot":  {"mode": "stacked",     "params": {"thickness": 3, "axis": "z", "connect": "dowel", "dowel_d": 3, "placement": "random", "n_points": 1, "round": 3, "thicken": 1}},
   "cube":      {"mode": "radial",      "params": {"thickness": 3, "count": 8, "ring_count": 4}},
   "cylinder":  {"mode": "interlocked", "params": {"thickness": 3, "nx": 7, "ny": 5, "trim_thin": true}},
+  "droplet":   {"mode": "plaque",      "params": {"thickness": 3, "layout": "radial", "planes": 36, "angle": 1, "back": "-z", "plate": "circle", "plate_margin": 3}},
   "dumbbell":  {"mode": "radial",      "params": {"thickness": 3, "count": 8, "ring_count": 4, "spine": 1, "axes": [[[-72, 0, -108], [72, 0, -108]], [[0, 0, 36], [0, 0, 180]]]}},
   "egg":       {"mode": "radial",      "params": {"thickness": 3, "count": 8, "ring_count": 5}},
   "head_igea": {"mode": "radial",      "params": {"thickness": 3, "rotate": [90, 0, 0], "count": 14, "ring_count": 6, "round": 3, "smooth": 6}},
@@ -32,7 +34,12 @@
                 "spacing_curve": [[0, 36], [0.4, 28], [0.75, 12], [1, 8]], "spacing_curve_y": [[0, 25], [1, 25]], "spacing_min": 3, "spacing_max": 40}},
   "berry":     {"mode": "radial",      "params": {"thickness": 3, "count": 10, "ring_count": 4, "smooth": 10, "spacing_vary": true,
                 "spacing_curve": [[0, 10], [0.2, 14], [0.5, 42], [0.8, 14], [1, 10]], "spacing_min": 5, "spacing_max": 60}},
+  "figure":    {"mode": "plaque",      "params": {"thickness": 3, "layout": "crossed", "nx": 13, "ny": 21, "back": "-y", "sink": 40, "plate": "rectangle", "plate_margin": 25, "trim_thin": true}},
   "hook":      {"mode": "curve",       "params": {"thickness": 3, "plane": "xz", "count": 14, "spines": 1,
                 "curve": [[-120, -126], [-60, -126], [0, -126], [42, -108], [66, -60], [78, 0], [78, 60], [78, 120]],
-                "spacing_vary": true, "spacing_curve": [[0, 34], [0.3, 30], [0.5, 9], [0.7, 30], [1, 34]], "spacing_min": 3, "spacing_max": 60}}
+                "spacing_vary": true, "spacing_curve": [[0, 34], [0.3, 30], [0.5, 9], [0.7, 30], [1, 34]], "spacing_min": 3, "spacing_max": 60}},
+  "fold_test": {"mode": "folded", "params": {"material": "PETG", "printed": true, "machine": "bambu_h2c", "sheet": [325, 320], "thickness": 2, "kerf": 0,
+                "facet": 0, "joint": "seam", "hinge": 0.4, "hinge_w": 0.4}},
+  "fold_lamp": {"mode": "folded", "params": {"material": "PETG", "printed": true, "machine": "bambu_h2c", "sheet": [325, 320], "thickness": 2, "kerf": 0,
+                "facet": 0, "strategy": "strip", "joint": "seam", "hinge": 0.4, "hinge_w": 0.4, "window": 0.6, "edge_labels": false}}
 }

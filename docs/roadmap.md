@@ -42,6 +42,11 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Folded: Simplify Form | ✅ | `facet` (target average triangle edge, mm) |
 | Folded: Optimize Panels (reduce panel vertices) | ⬜ | panel outlines keep every triangle vertex; harmless for laser cutting |
 | Folded: Perforate | ✅ | `perforate` (dotted score lines) |
+| Folded: printed living hinge | ✅ | `hinge`, `hinge_w`: printed panels get a V groove per fold, cut to the fold's angle, and mitred seam edges; example `fold_test` |
+| Folded: fold slider | ✅ | the 3D view folds each panel from flat to the model about its own fold lines; the assembly video ends with it |
+| Folded: windows | ✅ | `window`: a hole the shape of each face, the frame sized for folds and joints; example `fold_lamp` |
+| Folded: seams in stiff sheet | ✅ | `edge_fit` inner: outward seam edges cut back by t · tan(bend / 2) so the inside edges meet |
+| Folded: score side | ✅ | `score_side`: inside (default; the net mirrored, scores and seam numbers inside the model) or outside; the sheet lies inside the surface; a warning when folds cannot close in the sheet thickness |
 | Folded: Split Panels | ✅ | `separate` (every triangle cut alone) |
 | Folded: unfolding quality | ✅ | strategies flat / strip / area / auto (best of several runs), joints sized to their triangles, tabs shown folded in 3D — see docs/folded-panels.md for the papers |
 | Folded: Add / Remove seams by clicking an edge | ⬜ | seams are chosen automatically (flattest-edge unfolding); `max_faces` limits panel size |
@@ -56,6 +61,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 ## Extras (not in the original)
 | Feature | Status | Notes |
 |---|---|---|
+| Plaque: slices standing on a back plate | ✅ | `plaque`: the model cut off at a plate (`back`, `sink`), slices side by side, in a radial fan or as two crossed families (`layout`, `planes`, `angle`, `radius`, `nx`, `ny`) with teeth through plate slots (`teeth`, `tooth_width`, `tooth_spacing`), the plate's own `plate_thickness` and outline (six shapes, the model's silhouette, or an SVG / DXF file read by `core/vector.py`, placed with `plate_scale`, `plate_mirror`, `plate_rotation`, `plate_offset`), floating pieces hung from the slice beside them on flat spacers. The spacing curve spreads every layout (read in degrees for the fan, one curve for both crossed families) and plate slots take the inside-corner `relief`. Floating pieces hang on spacers in the side-by-side layout and in the fan (each fan spacer as long as the chord at its radius, its slot wider for the slant; a note above 10° between neighbours), and the crossing slices hold them in a crossed plaque. Limit: a small piece in the middle of a chain shares its area between two joins and often takes one spacer for each, with a note |
 | Per-slice thickness / position / angle | ✅ | `thick`, `offset`, `tilt`, `roll` (3D view or JSON) |
 | Asymmetric notch meeting point | ✅ | `notch_ratio` |
 | Auto-split oversize parts + joint | ✅ | puzzle tabs along the cut; `tab` width |
@@ -78,6 +84,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Scale-check bar | ✅ | 10 cm or 4 in bar on the first sheet with room and as its own piece file, to cut and measure first |
 | Kerf compensation toggle | ✅ | `compensate`, off by default: machines that compensate their own kerf must not be compensated twice |
 | Solid output (STL of assembled model / single part) | ✅ | pure trimesh |
+| Solid output as STEP (true solids for CAD, flat faces) | ✅ | `core/step.py` writes the text itself, no CAD kernel, so the browser build has it too |
 | Test set | ✅ | 17 synthetic shapes (the dumbbell — two spheres on a neck — is the case for an axis per lobe) + 5 scanned (a head, three animals, the bunny); regression matrix; unfold and pipeline tests |
 
 ## §4 Get Plans / export

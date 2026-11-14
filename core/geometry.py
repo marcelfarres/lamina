@@ -455,3 +455,15 @@ def _trim_thin(region, mf):
         if cut is not None and len(cut.geoms) == len(region.geoms) and not cut.is_empty:
             region = cut; n += 1
     return region, n
+
+
+def facet_polys(pc):
+    """Every flat polygon of a piece (holes included) with the frame that places it in the assembly, and its own
+    thickness where that is not the part's (a folded panel's thin printed tab), else None."""
+    for fc in pc["facets"]:
+        M = np.array(fc["M"])
+        for rings in fc["rings"]:
+            poly = Polygon(rings[0], rings[1:])
+            for g in shapely.get_parts(poly if poly.is_valid else poly.buffer(0)):
+                if not g.is_empty:
+                    yield g, M, fc.get("t")

@@ -61,6 +61,10 @@ class Interlocked(Mode):
         ctx.cover_r = max(L1 / max(1, n1), L2 / max(1, n2)) / 2 + p["thickness"]
         return fams[0] + fams[1]
 
+    @staticmethod
+    def fit(p):
+        return {"distribution": "count", "nx": min(p["nx"], 4), "ny": min(p["ny"], 4)}, 0.0
+
     def crossing_fix(self, ctx, sl, point):
         """A slice of the other family through `point` would hold it."""
         up, a1, a2, e1, e2, eu = self.axes(ctx)

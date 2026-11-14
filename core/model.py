@@ -48,7 +48,7 @@ def label_codes(labels, seed: str) -> dict:
 class Slice:
     label: str                 # Slicer-style "Axis-Index" e.g. "X-3", "Z-6", "R-2a", "C-4", "P-12" (panel), "S-7" (strip),
                                # "Z-3a" (the peg or spacer a between Z-3 and Z-4: a connector is named after its lower slice)
-    group: str                 # "S" stacked, "X"/"Y" interlocked families, "R" radial half-slice, "C" core disc,
+    group: str                 # "S" stacked, "X"/"Y" interlocked families, "R" radial half-slice, "C" core disc, "W" a plaque's back plate,
                                # "F" folded panel, "J" joint part (strip / rib), "P" alignment peg / spacer
     M: np.ndarray              # 4x4 local->world; slice lies on local z=0, local x/y are the drawing axes
     thickness: float
@@ -82,6 +82,17 @@ class Slice:
     room_tabs: int = -1                 # … and how many tabs it had when that was last worked out
     mark_boxes: list = field(default_factory=list)  # folded: the room each of `marks` takes, boxed once (cached)
     reduced: int = 0                    # folded: joints made smaller than asked
+    vees: list = field(default_factory=list)        # folded, printed: [x0, y0, x1, y1, land, skin, half width, top] a V groove per fold and seam edge
+    hinges: list | None = None                      # folded: per facet, [parent facet, point xyz, axis xyz, unfold angle] or None: how the 3D view folds it
+    bevels: list | None = None                      # folded, printed: per facet, [[x0, y0, x1, y1, width, closing face (1 inside, -1 outside)]] its grooved edges
+    pressed: list = field(default_factory=list)     # folded: how far (mm) each seam edge of this panel still presses into its neighbour
+    taken: object = None                            # folded: the panel and the tabs it has so far (cached), what a new tab may not touch
+    taken_tabs: int = -1
+    thin: list = field(default_factory=list)        # folded, printed: the glue tabs, printed only as thick as the hinge skin
+    thin_t: float = 0.0                             # … and that thickness
+    tab_t: list = field(default_factory=list)       # folded: the thickness of each of `tab_facets` when it is not the sheet's (a thin printed tab)
+    facet_t: list | None = None                     # folded: per facet, that thickness or None
+    tab_of: list = field(default_factory=list)      # folded: the face each of `tab_facets` lies on
     tab_facets: list = field(default_factory=list)  # folded: the tabs as the 3D view shows them, folded onto their panel
 
     @property

@@ -2,6 +2,108 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.3.3
+
+A new technique, Plaque, stands the slices of a model on a back plate, for the wall. The assembled model now also
+downloads as a STEP file, for CAD.
+Folded panels can be 3D printed flat and folded up along a groove at every fold, and a re-sliced folded job now
+comes out different: see Changed.
+
+### Added
+
+- **Assembled STEP, for CAD.** The downloads have a new file, *assembled STEP*, beside the assembled STL. It holds
+  the same model as true solids: every part is a body with flat faces, named with its label, in its place in the
+  assembly. Fusion, FreeCAD and Onshape open it without the triangle lines an STL brings. A curved edge is still
+  made of the short straight segments of the cut files, so it shows as narrow flat strips. A model with many
+  stacked slices makes a large file. The command line writes it too: `--out model.step`.
+- **Plaque: a new technique for wall pieces.** Lamina cuts the model off at a flat back plate. The slices stand on
+  edge on the plate, like a trophy head on a shield. Each slice has teeth that go through slots in the plate and end
+  flush with its back. You choose which side of the model goes against the plate and how deep the model sinks into
+  it. What is behind the plate is left out. You set the fewest teeth for each slice and how wide they are. A long
+  slice gets more teeth, spread evenly.
+- **Three ways to stand the slices on the plate.** Side by side, with the same spacing controls as Stacked Slices.
+  As a fan round a centre, where the inner ends meet round a small hole that you can size. Or as two families that
+  slot into each other like an egg crate. The spacing curve works in all three.
+- **The plate has its own material and its own shape.** Its thickness is set apart from the slices, and the teeth
+  are as long as the plate is thick. The shape is a circle, ellipse, rectangle, rounded rectangle, hexagon or
+  shield, the model's own silhouette, or a shape you drew, from an SVG or DXF file. Closed shapes inside a drawn
+  plate are cut out of it: a hanging hole, or a name. Margin, size, scale, mirror, turn and offset place the model
+  on the plate. For a router, plate slots get the same inside-corner relief as every other slot.
+- **A piece that does not reach the plate hangs from the slice beside it.** Lamina joins it with up to three small
+  flat spacers, set edge-on so they hardly show from the front. This works side by side and in the fan. A piece
+  with room for fewer than three spacers gets a warning on its slice, with what gives it room: fewer slices, thinner
+  material or a smaller spacer. A piece that no slice can hold is left out, and its slice says so. You can also keep
+  such pieces, with their error.
+- **Three new examples for Plaque.** The rings a drop leaves on water, as a fan on a round plate. A bonsai in its
+  pot. A dancer made of smooth blobs, with crossed slices.
+- **Printed panels that fold.** PLA and PETG do not fold along a score, so folded panels in a printed material
+  stopped with an error. Now the panel prints at its full thickness with a V groove along every fold, cut to that
+  fold's own angle: the thin skin left at the bottom is the hinge, and the fold stops when it reaches the model's
+  shape. Three new settings on the Technique tab tune it: *hinge* (the skin's thickness), *hinge width* (the strip
+  that bends) and *fold stop* (a few degrees past or short of the model's angle, to match your printer). With the plain *seam* joint the seam edges are mitred the same way, so thick panels meet face to face
+  for glue. The glue-tab joints work too: each tab prints as a thin flap of the skin that folds onto the next panel.
+  A new example, *fold_test*, is a small box to print and fold: it opens in 2 mm PETG on one plate.
+- **Watch a folded panel fold up.** A new *fold* slider over the 3D view takes folded panels from flat to folded,
+  every face turning about its own fold line. The recorded assembly video now ends with the panels folding up.
+  Printed panels are drawn with their grooves and mitred edges, as they are exported.
+- **Windows in folded panels.** A new setting, *window*, opens every face with a hole of its own shape, for lamp
+  shades and lanterns. The frame it leaves is always wide enough for the folds and the joint. A new example,
+  *fold_lamp*, is a twisted lamp shade that prints flat on one plate and folds up.
+- **Stiff panels now go together.** In metal, wood or acrylic, two panels that both reached the model's edge
+  collided at their inside corners on every outward seam. Each such edge is now cut back by the sheet thickness ×
+  tan(half the bend), so the inside edges meet. A new setting, *edge fit*, puts the edges back on the model's
+  edge (*outer*) for edges you bevel yourself, or lets one panel of each seam run through to the edge and cuts only
+  the other (*through*), which closes the outside. Corners where several panels meet are trimmed too. Where an edge cannot be cut back far enough, or a tab joint keeps it,
+  the panel now warns how far it presses into the next one. The limit depends on the material: paper, card,
+  cardboard and foam crush, steel, wood and hard plastic do not. The warning offers a one-click fix: bigger triangles.
+- **Folded panels say when the sheet is too thick to fold.** A fold takes material off the inside of the bend, more
+  the thicker the sheet and the sharper the bend. Where the folds around a face would need more than the whole face,
+  the panel warns how many folds cannot close: use a thinner sheet, a bigger facet size, or a gentler curve. A curve
+  needs a radius bigger than the sheet is thick.
+- **A Reddit community.** [r/Lamina3D](https://www.reddit.com/r/Lamina3D) is a place to show what you built, ask for
+  help and say what Lamina should do next. It is linked beside the Discord in the app's header, on the Export tab,
+  on the landing page and in the README.
+
+### Changed
+
+- **Folded jobs come out different from 0.3.2. Re-slice an old folded project and its cut files change:**
+  - the net is mirrored, so the score lines and seam numbers are cut on the inside face (*score side*: *outside* brings
+    the old layout back), and mountain and valley lines swap with it;
+  - in stiff sheet (metal, wood, acrylic, hard plastic) with a seam, rivet, laced, strip or rib joint, every outward
+    seam edge is cut back a little so the panels close (*edge fit*: *outer* brings the old edges back). Paper, card,
+    cardboard and fabric crush at a seam and are cut as before;
+  - a net can be laid out differently, because two faces are no longer placed edge to edge unless they join on the model.
+- **Folded panels keep their seams and scores on the inside.** The 3D view and the STL showed each panel centred on
+  the model's surface, half a sheet proud of it, with a notch on the outside of every fold. The sheet now lies inside
+  the surface, so the outside reads as one piece at the model's own size. The cut net is mirrored so the inside face
+  is up on the cutter: the score lines and seam numbers end up inside the model. A new switch on the Technique tab,
+  *score side*, puts them back on the outside, for a paper model printed on its outer side.
+
+### Fixed
+
+- **Folded panels score only the edges you fold.** A flat face made of several triangles (a rectangle cut in two,
+  a hexagon cut in six) had a fold line on every inner edge, so the score layer could not go to an engraving tip
+  or a creasing tool as it was. Those lines are gone: the score layer now holds the real folds only. A few inner
+  edges of such a face were also numbered as seams although nothing is cut there; they no longer are.
+- **Numbers in the narrow boxes show in full.** In inches and centimetres, a size or a curve point with four or more
+  digits could lose its last digit in the newest Chrome. The boxes that stand two or three in a row no longer have
+  the small up and down arrows, which took a fifth of the box, and the box where you type a new value is wider.
+- **A drawn spacing curve that fits exactly the most slices Lamina cuts is sliced.** A curve laying exactly 500 slices
+  along the model was refused as too many, the same as a curve that runs out before the model's end.
+- **A slice no longer fails on Windows because its result file was still being read.** Slicing again right after
+  a slice could stop with the error 'Invalid argument' and no result. The result is now written beside the old one and
+  swapped in, and tried again while Windows holds the file.
+- **A slice no longer fails now and then while it nests the parts.** On a busy computer, laying the parts on the
+  sheets could stop with an error and no result; slicing again usually worked. The parts are now laid out without
+  that failure.
+- **Two folded-panel jobs sliced at the same moment no longer mix.** On a shared server, when two people sliced
+  folded panels at the same time, one of them could get panels that belonged to the other model. Each slice now works
+  on its own.
+- **A folded face no longer lands against a face it does not belong to.** Unfolded, a wall could come to lie with
+  its far side exactly on another edge of the same panel. The outline then joined the two, a cut was lost, and the
+  wall was held on two sides and could not fold. The net is now laid out so that two faces lie edge to edge only
+  where they join on the model.
+
 ## 0.3.2
 
 A model far too big for its material now stops at once and offers the size that can be cut, turning a model no

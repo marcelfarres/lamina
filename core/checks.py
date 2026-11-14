@@ -15,8 +15,9 @@ from shapely.strtree import STRtree
 from .geometry import (crossings, dowel_leverage, hole_reach, into, min_dims, plane_plane_line, rect_along, thin_spots,
                        to_local, to_world)
 
-HELD_GROUPS = ("X", "Y", "R", "C")     # regions in these groups must be held by a slot / dowel / the core
+HELD_GROUPS = ("X", "Y", "R", "C", "W")     # regions in these groups must be held by a slot / dowel / the core ("W" = a plaque's back plate)
 STRUCTURAL = ("X", "Y", "R", "C", "S")  # take part in the assembly-connectivity check (panels, pegs, strips, ribs do not)
+CONNECTED = STRUCTURAL + ("W",)         # … and a plaque's back plate does too; it is not a plane through the model, so it gets no section treatment
 LEVERAGE_WARN = 1.5    # placement aims for 0.8 (geometry.LEVERAGE_OK); past this a piece's far edge visibly wanders
 
 
@@ -59,7 +60,7 @@ def check_slice(sl, p):
                                f"move the slice (offset), or accept and handle with care")
         # engagement: a region must be held by something (a slot, a dowel, the core) unless it is the only region of a stacked slice
         if sl.group in HELD_GROUPS or (sl.group == "S" and len(regions) > 1):
-            held = any(reg.intersects(c) for c in sl.cuts)
+            held = any(reg.intersects(c) for c in sl.cuts) or any(reg.intersects(g) for _, g, _ in sl.links)   # a plaque's tooth is a link, not a cut
             if not held and sl.group != "S":
                 sl.errors.append(f"{tag} floats — no slot or dowel holds it: add a crossing slice through it, move this slice, or delete it")
             elif not held and p.get("space", 0) > 0:     # stacked with a gap: nothing touches, so an island without a connector hangs in the air
@@ -199,7 +200,7 @@ def check_assembly(slices, p):
     """Every structural region must reach the main assembly through slots, connectors or glued contact.
     Nodes = (slice, region); edges = a slot / connector shared by two regions (matched by its world point), or two
     glued stacked regions that overlap. Disconnected groups get an error with fixes (add slices / delete)."""
-    struct = [s for s in slices if s.group in STRUCTURAL and s.profile is not None and not s.profile.is_empty]
+    struct = [s for s in slices if s.group in CONNECTED and s.profile is not None and not s.profile.is_empty]
     if len(struct) < 2:
         return
     idx = {s.label: i for i, s in enumerate(struct)}
@@ -344,6 +345,8 @@ def suggest_fixes(slices, p, ctx, mode):
                 opts = [fix(f"add a dowel at ({x:g} mm, {y:g} mm)", dowels=[*map(list, p["dowels"]), [x, y]])]
             elif "skipped" in w and "connection point" in w:
                 opts = [smaller, fix("fewer connection points", n_points=max(1, int(p.get("n_points", 2)) - 1))]
+            elif "press up to" in w and "too small to cut back" in w:
+                opts = [fix(f"bigger triangles (facet {(p.get('facet') or 10) * 1.5:g} mm)", facet=round((p.get("facet") or 10) * 1.5, 1))]
             elif "without a" in w and "seam" in w:
                 opts = [fix(f"bigger triangles (facet {p.get('facet', 15) * 1.5:g} mm)", facet=round(p.get("facet", 15) * 1.5, 1)),
                         fix("smaller joints", hole_d=round(max(1.0, p.get("hole_d", 2.5) * 0.7), 1), inset=round(max(1.0, p.get("inset", 4) * 0.7), 1))]
