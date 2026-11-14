@@ -436,6 +436,17 @@ def test_folded_stiff_panels_do_not_share_space(model):
     assert pairs("inner") == 0 and pairs("through") == 0
 
 
+@pytest.mark.parametrize("joint", ["laced", "rib", "tab"])
+@pytest.mark.parametrize("material", [{}, {"material": "cardboard", "material_kind": "cardboard"}], ids=["unnamed", "cardboard"])
+def test_folded_soft_sheet_is_not_cut_back_at_its_seams(joint, material):
+    """Found by the release's media run: the landing page's cow in 1 mm card, laced, came back with 9 errors where
+    0.3.2 had none. Cut back at every seam like stiff sheet, its small panels fell under the minimum part size. Card
+    crushes at a seam, so it is cut as before; and a rib too small to handle is left out, not cut as a bad part."""
+    plan = build(EXAMPLES / "cow.stl", "folded", {"rotate": [90, 0, 0], "joint": joint, "facet": 15, "strategy": "area", "thickness": 1, **material})
+    errs = [f"{sl['label']}: {e}" for sl in plan["slices"] for e in sl["errors"]] + plan["errors"]
+    assert not errs, errs[:3]
+
+
 def test_folded_says_when_stiff_panels_still_press_into_each_other():
     """A seam edge that is not cut back (a tab joint keeps its edge, or `edge fit` outer) presses t × tan(bend / 2) into
     the next panel. Steel gives nothing, so the panel says so; cardboard crushes that much; cut back, nothing is left."""

@@ -103,6 +103,11 @@ Faces that share only a corner point are handled after the edges (`corners`): ea
 (manifold3d) and what they share is cut from the bigger face, seen along its normal. On a saddle the tip of one
 face otherwise lies inside the sheet of another. Without manifold3d (the browser build) the tips stay.
 
+Only what the sheet cannot take up itself is cut: the cut-back is t · tan(bend / 2) less the material's crush
+(`SQUISH` × t). Paper, card, cardboard and fabric crush through their whole thickness and are never cut back, nor
+is a material that is not listed; cut back like steel, the small panels of a laced cow in 1 mm card fell under
+the minimum part size. A rib too small to cut and handle (under `min_part` both ways) is left out and reported.
+
 What is left presses into the next panel: t · tan(bend / 2) less the cut-back (capped at 0.4 of the face's height,
 so a sliver keeps its middle; nothing with a tab joint). `SQUISH` in `core/modes/folded.py` gives the share of the
 thickness each material can crush at an edge (paper, card, cardboard 1; foam and leather less; metal, wood and
