@@ -96,27 +96,14 @@ class Slice:
     cutnames: dict = field(default_factory=dict)  # stacked: the same key → its dowel's name (Z-3a), so a rod carried up keeps its name
     inner: MultiPolygon | None = None   # stacked: raw eroded by min_feature, where a cut keeps a full wall (cached)
     dowel_room: list = field(default_factory=list)  # stacked: where a rod through this slice and a neighbour can go (checks)
-    radial: np.ndarray | None = None    # radial half-slice: the way it points out from the axis
-    lobe: int = 0                       # radial: which axis's lobe the part belongs to
-    pn: object = None                   # folded: the Panel this slice is cut from
-    additions: list = field(default_factory=list)   # folded: tabs added to the panel's outline
-    skipped: dict = field(default_factory=dict)     # folded: what → seams whose joint found no room
-    room: MultiPolygon | None = None    # folded: the panel with its tabs so far, a hair in, where a seam number may go (cached)
-    room_tabs: int = -1                 # … and how many tabs it had when that was last worked out
-    mark_boxes: list = field(default_factory=list)  # folded: the room each of `marks` takes, boxed once (cached)
-    reduced: int = 0                    # folded: joints made smaller than asked
-    vees: list = field(default_factory=list)        # folded, printed: [x0, y0, x1, y1, land, skin, half width, top] a V groove per fold and seam edge
-    hinges: list | None = None                      # folded: per facet, [parent facet, point xyz, axis xyz, unfold angle] or None: how the 3D view folds it
-    bevels: list | None = None                      # folded, printed: per facet, [[x0, y0, x1, y1, width, closing face (1 inside, -1 outside)]] its grooved edges
-    pressed: list = field(default_factory=list)     # folded: how far (mm) each seam edge of this panel still presses into its neighbour
-    taken: object = None                            # folded: the panel and the tabs it has so far (cached), what a new tab may not touch
-    taken_tabs: int = -1
-    thin: list = field(default_factory=list)        # folded, printed: the glue tabs, printed only as thick as the hinge skin
-    thin_t: float = 0.0                             # … and that thickness
-    tab_t: list = field(default_factory=list)       # folded: the thickness of each of `tab_facets` when it is not the sheet's (a thin printed tab)
-    facet_t: list | None = None                     # folded: per facet, that thickness or None
-    tab_of: list = field(default_factory=list)      # folded: the face each of `tab_facets` lies on
-    tab_facets: list = field(default_factory=list)  # folded: the tabs as the 3D view shows them, folded onto their panel
+
+    def piece_extra(self) -> dict:
+        """What this slice adds to each of its pieces in the plan, beyond what every slice has."""
+        return {}
+
+    def facet_extra(self, i) -> dict:
+        """What this slice adds to its i-th facet in the plan (a technique whose parts are not one flat slice)."""
+        return {}
 
     @property
     def bbox(self):

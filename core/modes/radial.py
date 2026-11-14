@@ -5,6 +5,7 @@ into each other, and a spine (one full plane through every axis, cut whole and s
 lobes together.
 Assembly: stack the rings on a pole or jig, then slide each half-slice in from the outside."""
 import math
+from dataclasses import dataclass
 import numpy as np
 from shapely.geometry import Polygon
 from shapely.ops import unary_union
@@ -31,6 +32,13 @@ def closest(A0, A1, B0, B1):
 def axis_room(n, t, slot_offset):
     """The least core diameter that lets `n` planes (2 × n half-slices) of `t` mm fit around the axis."""
     return 2 * (n * (t + slot_offset) / math.pi + t)
+
+
+@dataclass
+class RadialSlice(Slice):
+    """A half-slice or a ring of a radial fan, with what the slotting needs to know about it."""
+    radial: np.ndarray | None = None    # the half-slice's direction out from the axis
+    lobe: int = 0                       # which axis's lobe the part belongs to
 
 
 @register
@@ -258,7 +266,7 @@ class Radial(Mode):
                 for half, sgn in (("a", 1), ("b", -1)):
                     lab = f"{tag}-{k + 1}{half}"
                     M = ctx.frame(lab, O, nrm, up_hint=u)      # local x = ±radial, local y = the axis
-                    sl = Slice(lab, "R", M, ctx.thickness_of(lab))
+                    sl = RadialSlice(lab, "R", M, ctx.thickness_of(lab))
                     sx = np.sign(np.dot(M[:3, 0], radial)) * sgn   # which local-x side is this half
                     # its own side of the axis, past the core; with several axes its own lobe — up to the planes
                     # between it and its neighbours, however long its line is drawn — else the stretch of the axis
@@ -271,7 +279,7 @@ class Radial(Mode):
             labs = [f"Z-{ring_i + j + 1}" for j in range(nr)]; ring_i += nr
             th = [ctx.thickness_of(l) for l in labs]
             for lab, z, tk in zip(labs, ctx.positions(2 * h, th), th):
-                sl = Slice(lab, "C", ctx.frame(lab, O + u * z, u, up_hint=e1), tk)
+                sl = RadialSlice(lab, "C", ctx.frame(lab, O + u * z, u, up_hint=e1), tk)
                 sl.lobe = i
                 if several:                                   # a ring of one ball must not run on into the other
                     sl.clip = as_multi(self._owned(sl.M, lobes[i], big))
