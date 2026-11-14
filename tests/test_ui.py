@@ -1272,11 +1272,13 @@ def test_a_folded_job_folds_up_at_the_end_of_its_steps(page):
     shown = lambda name: page.evaluate("n => { const e = document.querySelector(`[data-p=${n}]`); return !!e && getComputedStyle(e).display !== 'none' }", name)   # noqa: E731
     page.click('nav button[data-t="technique"]')
     assert not shown("hinge")                                              # the egg in cardboard: nothing printed
+    assert not page.is_visible("#foldl")                                  # … and nothing to fold: no fold slider
     page.click('nav button[data-t="model"]')
     page.select_option("#example", "fold_test")
     page.wait_for_timeout(1500); settle(page)
     page.click('nav button[data-t="technique"]')
     assert shown("hinge") and shown("hinge_w") and shown("hinge_stop")
+    assert page.is_visible("#foldl")
     parts = plan(page)["counts"]["parts"]; n = int(page.get_attribute("#steps", "max"))
     assert n == parts + 20
     state = lambda: page.evaluate("() => [+document.querySelector('#fold').value, window.__t.banner()]")   # noqa: E731
