@@ -376,7 +376,7 @@ const SHEETS={
 const COLORS={X:0xd9a760,Y:0x7fb0d9,S:0xd9c080,R:0x8fd08f,C:0xc07070,F:0xc9a0e0,J:0xf0c060,P:0x9a9a9a,B:0x4fd1ff,W:0x0072b2};
 const LOOKS={cardboard:[0xb98a5a,.9,0],paper:[0xf2f0e6,.95,0],plywood:[0xd9b98a,.7,0],steel:[0xaab2bb,.35,.8],plastic:[0x6fb7e8,.25,.05],brass:[0xc9a44c,.3,.85],copper:[0xc27a52,.3,.85],foam:[0x45484f,.95,0]};
 const PLANE_IDX={xz:[0,2],yz:[1,2],xy:[0,1]};
-let MODES=[],mode=null,state={},job=null,plan=null,seq=0,timer=null,pendingFile=null,srcFile=null,unit='mm',selected=null,busy=false,busySince=0;
+let MODES=[],PROJECT_VERSION=0,mode=null,state={},job=null,plan=null,seq=0,timer=null,pendingFile=null,srcFile=null,unit='mm',selected=null,busy=false,busySince=0;
 // this tab's own id: everything it slices lives under it on the server, so people sharing one server never meet.
 // sessionStorage keeps it across a refresh but not into another tab; getRandomValues (not randomUUID) so it also
 // works over plain http on a LAN.
@@ -1520,7 +1520,7 @@ function renderReport(){
 // model itself. One definition of the data model, used by save project, by the export zips (web/app.py) and by a
 // bug report — which is the only caller that ever leaves the model out, and only when its box is unticked.
 async function projectObj(withModel=true){
-  const proj={version:4,name:state.project||'',rev:state.rev||'1.0',mode:mode.name,unit,state,memo,example:job&&!job.startsWith('ex_')?'':$('#example').value};
+  const proj={version:PROJECT_VERSION,name:state.project||'',rev:state.rev||'1.0',mode:mode.name,unit,state,memo,example:job&&!job.startsWith('ex_')?'':$('#example').value};
   // the uploaded model travels inside the project file — when the server still has it. A job swept by the TTL, a
   // restarted server or a slice still in flight answers with nothing, and a project file without its model is far
   // better than a save that dies half way: whoever opens it is told which model to bring.
@@ -1559,7 +1559,7 @@ function bump(major){const [a,b]=(state.rev||'1.0').split('.').map(Number);state
 
 // ---------------------------------------------------------------- init
 async function init(){
-  MODES=await (await fetch('api/modes')).json(); const ex=await (await fetch('api/examples')).json();
+  MODES=await (await fetch('api/modes')).json(); PROJECT_VERSION=(await (await fetch('api/project')).json()).version; const ex=await (await fetch('api/examples')).json();
   const PRESETS=await fetch('api/presets').then(r=>r.ok?r.json():{}).catch(()=>({}));
   $('#example').innerHTML=ex.map(e=>`<option>${e}</option>`).join(''); $('#example').value=ex.includes('blob')?'blob':ex[0];
   $('#modes').innerHTML=MODES.map(m=>`<button data-m="${m.name}">${m.title}</button>`).join('');
@@ -1693,7 +1693,6 @@ if(COUNT_URL){
 // What a report carries from here: the checks and the last steps in words — small enough to read in an issue — and
 // the project file, which is the whole data model and reopens the job exactly as it was, plus every step since the
 // model loaded (`trail`). The model is inside it only while the reporter leaves the box ticked.
-const TECHNIQUE={stacked:'Stacked slices',interlocked:'Interlocked slices',radial:'Radial slices',curve:'Curve (ribs)',folded:'Folded panels',plaque:'Plaque'};
 function reportSummary(version){
   const where=`lamina         ${version}, ${document.documentElement.dataset.static?'in the browser (Pyodide)':'against a local server'}`;
   // a hang is reported while it hangs: the result below is then the slice before it, not this one
@@ -1718,7 +1717,7 @@ window.laminaFeedback?.({bug:async withModel=>{
   const proj={...await projectObj(withModel),trail};   // the report's copy only: a saved project has no trail
   const version=await news().then(v=>v[0]?.v,()=>'unknown');
   const gone=proj.missing_model?`\n(the model could not be attached: ${proj.missing_model} is no longer on the server)`:'';
-  return {technique:TECHNIQUE[plan?.mode]||'Not technique-specific (import, export, UI, install)', summary:reportSummary(version)+gone,
+  return {technique:MODES.find(m=>m.name===plan?.mode)?.title||'Not technique-specific (import, export, UI, install)', summary:reportSummary(version)+gone,
           file:new File([JSON.stringify(proj)],projName(proj),{type:'application/json'})};
  },
  // a machine to ship: what MACHINES holds for one — the compensation as it stands, and its bed when it has exactly one
@@ -1729,7 +1728,7 @@ window.laminaFeedback?.({bug:async withModel=>{
   sheets:ls('slicer_sheets',[]).filter(s=>!s[2]||s[2]===fam()).map(([n,s])=>[n,s]),units:state.units},null,1)})});
 
 // test and capture hook (tests/test_ui.py, scripts/media/capture.mjs)
-window.__t={sizeAxes:()=>sizeAxes(),target:()=>controls.target,banner:()=>banner.visible?banner.userData.text:'',parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>plan,job:()=>job,
+window.__t={project:()=>projectObj(false),sizeAxes:()=>sizeAxes(),target:()=>controls.target,banner:()=>banner.visible?banner.userData.text:'',parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>plan,job:()=>job,
   fold:s=>{$('#fold').value=s;applyFold();renderer.render(scene,camera)},
   idle:()=>!timer&&!busy,   // no change waiting out its debounce, no slice running: what a test or a capture waits for
   ghost:()=>ghost.children,ghostUrl:()=>ghostUrl,pivot:()=>pivot3&&rnd(pivot3),

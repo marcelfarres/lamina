@@ -134,3 +134,18 @@ def test_every_zip_carries_the_project_file_that_reopens_the_job(api):
 def test_a_job_id_cannot_climb_out_of_its_client(api):
     assert api.get(f"/api/job/{MINE}/ex_.././ex_cube/export").status_code in (400, 404)
     assert api.post("/api/slice", data={"client": MINE, "mode": "stacked", "example": "../cube"}).status_code == 400
+
+
+def test_an_export_zip_carries_the_project_file_the_page_saves(api):
+    """The zip's project file says the layout version the page writes and reads, and the bug-report form offers every
+    technique under the title the page sends (the page takes it from the schema)."""
+    import json
+    import pathlib
+    import re
+    job = api.post("/api/slice", data={"client": MINE, **CUBE}).json()["job"]
+    z = zipfile.ZipFile(io.BytesIO(api.get(f"/api/job/{MINE}/{job}/export").content))
+    proj = json.loads(z.read(next(n for n in z.namelist() if n.endswith(".lamina.json"))))
+    assert proj["version"] == api.get("/api/project").json()["version"] == webapp.PROJECT_VERSION
+    form = pathlib.Path(__file__).parent.parent / ".github/ISSUE_TEMPLATE/bug_report.yml"
+    options = re.findall(r"^ +- (\S.*)$", form.read_text(encoding="utf-8").split("options:")[1].split("validations:")[0], re.M)
+    assert sorted(options[:-1]) == sorted(m["title"] for m in api.get("/api/modes").json()) and options[-1].startswith("Not technique-specific")
