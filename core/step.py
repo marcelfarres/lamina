@@ -170,7 +170,7 @@ def step_text(plan, part=None, name="lamina") -> str:
     s, name = _Step(), _text(name)
     shape, context, frame = s.product(name)
     solids = [b for sl in plan["slices"] for pc in sl["pieces"] if part is None or pc["label"] == part
-              for poly, M in facet_polys(pc) if (b := s.prism(pc["label"], poly, M, sl["thickness"]))]
+              for poly, M, own in facet_polys(pc) if (b := s.prism(pc["label"], poly, M, own or sl["thickness"]))]
     shown = s.add(f"ADVANCED_BREP_SHAPE_REPRESENTATION('',({','.join([frame, *solids])}),{context})")
     s.add(f"SHAPE_DEFINITION_REPRESENTATION({shape},{shown})")
     return HEAD.format(name=name) + "".join(f"#{i}={row};\n" for i, row in enumerate(s.rows, 1)) + "ENDSEC;\nEND-ISO-10303-21;\n"

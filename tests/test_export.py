@@ -419,7 +419,7 @@ def test_step_holds_one_closed_solid_per_flat_piece_of_a_part():
     from core.step import step_text
     for mode, prm in (("interlocked", {"nx": 2, "ny": 2}), ("folded", {}), ("stacked", {"distribution": "count", "count": 3})):
         plan = build(EXAMPLES / "cube.stl", mode, {**prm, "autofix": "off"})
-        polys = [(pc["label"], g, sl["thickness"]) for sl in plan["slices"] for pc in sl["pieces"] for g, _ in facet_polys(pc)]
+        polys = [(pc["label"], g, sl["thickness"]) for sl in plan["slices"] for pc in sl["pieces"] for g, _, _ in facet_polys(pc)]
         text = step_text(plan)
         assert text.startswith("ISO-10303-21;") and text.rstrip().endswith("END-ISO-10303-21;")
         assert sorted(re.findall(r"MANIFOLD_SOLID_BREP\('([^']*)'", text)) == sorted(label for label, _, _ in polys), mode
@@ -473,7 +473,7 @@ def test_step_reads_back_as_valid_solids_in_a_cad_kernel(tmp_path):
     from core.step import step_text
     cq = pytest.importorskip("cadquery", reason="the CAD kernel is an extra: uv sync --extra cad")
     plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 3, "autofix": "off"})
-    cases = [(plan, [("", g, sl["thickness"]) for sl in plan["slices"] for pc in sl["pieces"] for g, _ in facet_polys(pc)])]
+    cases = [(plan, [("", g, sl["thickness"]) for sl in plan["slices"] for pc in sl["pieces"] for g, _, _ in facet_polys(pc)])]
     cases += [_odd_plan(M) for M in (np.eye(4), np.diag([-1.0, 1, 1, 1]))]
     for plan, polys in cases:
         (tmp_path / "it.step").write_text(step_text(plan), encoding="ascii")

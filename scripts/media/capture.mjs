@@ -342,6 +342,29 @@ S.labels = async () => {      // the vase's cut sheet, close: names in the singl
     await set("viewmode", "both"); await sleep(400);
 };
 
+S.fold = async () => {        // folded panels, printed: the lamp shade from its flat net to the folded shade and back, orbiting
+    // the lamp's preset brings its own stock (PETG, printed, the printer's bed): what was there is put back at the end
+    const KEEP = ["material", "printed", "machine", "sheet", "kerf", "thickness", "joint", "strategy", "facet", "window", "edge_labels"];
+    const was = await js(`JSON.stringify(Object.fromEntries(${JSON.stringify(KEEP)}.map(k=>[k,window.__t.state()[k]])))`);
+    await example("fold_lamp"); await tab("technique");
+    await set("viewmode", "only3d"); await sleep(600);
+    const look = () => js("(()=>{const t=window.__t.target();return [t.x,t.y,t.z,window.__t.camera.position.distanceTo(t)]})()");
+    await fit(); const v1 = await look();
+    await js("window.__t.fold(0)"); await fit(); const v0 = await look();
+    // the flat net lies in the plane of the panel's first face: start nearly face on to its inside, where the grooves are
+    const [nx, ny, nz] = await js("(()=>{const M=window.__t.plan().slices[0].pieces[0].facets[0].M;return [-M[0][2],-M[1][2],-M[2][2]]})()");
+    const az0 = Math.atan2(ny, nx) * 180 / Math.PI - 20, el0 = Math.min(75, Math.asin(nz) * 180 / Math.PI + 25), az1 = az0 + 150, el1 = 20;
+    const ease = x => x * x * (3 - 2 * x), N = 150;
+    await clip("fold", N, async i => {
+        // 0–14 flat · 15–74 folding up · 75–104 folded, still turning · 105–139 unfolding · 140–149 flat
+        const s = i < 15 ? 0 : i < 75 ? ease((i - 15) / 60) : i < 105 ? 1 : i < 140 ? 1 - ease((i - 105) / 35) : 0;
+        const [x, y, z, d] = v0.map((a, k) => a + (v1[k] - a) * s), turn = i < 75 ? 0 : (i - 75) * 1.6;
+        await js(`(()=>{window.__t.fold(${s});window.__t.target().set(${x},${y},${z});window.__t.cam(${az0 + (az1 - az0) * s + turn * (s > 0.99 ? 1 : s)},${el0 + (el1 - el0) * s},${d * 0.82})})()`);
+    });
+    await js("window.__t.fold(1)"); await set("viewmode", "both"); await sleep(400); await project("fold");
+    await js(`Object.assign(window.__t.state(),${was})`); await example("egg");
+};
+
 await send("Page.reload"); await sleep(4000);              // a fresh tab: the last run may have left it mid-request
 await until("document.querySelector('#stats').textContent.includes('parts')");
 await js("document.querySelector('#pname').value='Lamina demo';document.querySelector('#pname').dispatchEvent(new Event('input'))");

@@ -458,11 +458,12 @@ def _trim_thin(region, mf):
 
 
 def facet_polys(pc):
-    """Every flat polygon of a piece (holes included) with the frame that places it in the assembly."""
+    """Every flat polygon of a piece (holes included) with the frame that places it in the assembly, and its own
+    thickness where that is not the part's (a folded panel's thin printed tab), else None."""
     for fc in pc["facets"]:
         M = np.array(fc["M"])
         for rings in fc["rings"]:
             poly = Polygon(rings[0], rings[1:])
             for g in shapely.get_parts(poly if poly.is_valid else poly.buffer(0)):
                 if not g.is_empty:
-                    yield g, M
+                    yield g, M, fc.get("t")

@@ -42,6 +42,11 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Folded: Simplify Form | ✅ | `facet` (target average triangle edge, mm) |
 | Folded: Optimize Panels (reduce panel vertices) | ⬜ | panel outlines keep every triangle vertex; harmless for laser cutting |
 | Folded: Perforate | ✅ | `perforate` (dotted score lines) |
+| Folded: printed living hinge | ✅ | `hinge`, `hinge_w`: printed panels get a V groove per fold, cut to the fold's angle, and mitred seam edges; example `fold_test` |
+| Folded: fold slider | ✅ | the 3D view folds each panel from flat to the model about its own fold lines; the assembly video ends with it |
+| Folded: windows | ✅ | `window`: a hole the shape of each face, the frame sized for folds and joints; example `fold_lamp` |
+| Folded: seams in stiff sheet | ✅ | `edge_fit` inner: outward seam edges cut back by t · tan(bend / 2) so the inside edges meet |
+| Folded: score side | ✅ | `score_side`: inside (default; the net mirrored, scores and seam numbers inside the model) or outside; the sheet lies inside the surface; a warning when folds cannot close in the sheet thickness |
 | Folded: Split Panels | ✅ | `separate` (every triangle cut alone) |
 | Folded: unfolding quality | ✅ | strategies flat / strip / area / auto (best of several runs), joints sized to their triangles, tabs shown folded in 3D — see docs/folded-panels.md for the papers |
 | Folded: Add / Remove seams by clicking an edge | ⬜ | seams are chosen automatically (flattest-edge unfolding); `max_faces` limits panel size |

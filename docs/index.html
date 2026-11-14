@@ -317,8 +317,12 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
     </div>
   </article>
   <article class="tech">
-    <video src="media/folded.mp4" poster="media/folded_poster.jpg" width="1100" height="825" muted loop playsinline controls preload="none"
-           aria-label="A cow unfolded into folded panels, orbiting; then joined with laces, with ribs and with tabs, and at a coarser and a finer facet"></video>
+    <div>
+      <video src="media/folded.mp4" poster="media/folded_poster.jpg" width="1100" height="825" muted loop playsinline controls preload="none"
+             aria-label="A cow unfolded into folded panels, orbiting; then joined with laces, with ribs and with tabs, and at a coarser and a finer facet"></video>
+      <video src="media/fold.mp4" poster="media/fold_poster.jpg" width="1100" height="825" muted loop playsinline controls preload="none" style="margin-top:14px"
+             aria-label="A lamp shade printed as one flat panel with a window in every face: the panel folds up into the shade, every face turning about its own fold line, turns, and unfolds again"></video>
+    </div>
     <div>
       <h3>Folded panels</h3>
       <p>Papercraft nets, as Pepakura makes them, and more: the surface simplified to the facet size you choose, unfolded into flat panels with score lines, and joined at
@@ -326,11 +330,17 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
       strips for cardboard, slotted angle ribs for sheet metal. Panels grow until they would overlap themselves or
       run off the sheet. Works on closed shapes and on open surfaces such as a mask or a clothing pattern; separate
       mode cuts every triangle alone for shapes with deep cavities. A sheet too thick to fold, like plywood or
-      acrylic, is caught before it is cut: one click joins every face with ribs instead.</p>
+      acrylic, is caught before it is cut: one click joins every face with ribs instead. Stiff sheet is cut back at
+      the seams so the panels meet at their inside edges.</p>
+      <p><b>Print it flat, fold it up.</b> With PLA or PETG as the material, a panel prints at its full thickness
+      with a V groove along every fold, cut to that fold's own angle: the thin skin at the bottom is the hinge, and
+      the fold stops when it reaches the model's shape. Add windows for a lamp shade, and drag the fold slider to
+      watch the flat panel fold into the model. Try the examples <i>fold_test</i> and <i>fold_lamp</i>.</p>
       <p class="clip"><b>In the clip:</b> the cow at a 15 mm facet in 1 mm card, 19 panels with tabs; then laced, a
       coarser 25 mm facet, ribs at that facet, tabs again, and back to 15 mm.</p>
       <p class="clip"><b>Parameters:</b> facet size · growth strategy and faces per panel · joint · hole, inset,
-      spacing and tab sizes · rib width and material · perforated folds · seam numbers on both panels.</p>
+      spacing and tab sizes · rib width and material · perforated folds · seam numbers on both panels · score side · printed hinge and its width ·
+      windows · edge fit.</p>
     </div>
   </article>
   <article class="tech">

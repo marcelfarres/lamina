@@ -251,7 +251,7 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
 </aside>
 <section class="view" id="view">
   <div id="v3d">
-    <div class="bar"><label><input type="checkbox" id="ghost" checked> model</label><label>explode <input type="range" id="explode" min="1" max="3" step="0.05" value="1"></label><label>steps <input type="range" id="steps" min="0" max="1" step="1" value="1"><span id="steps_val" class="stepsval" title="step shown of the build order">1 / 1</span></label><label>look <select id="look"><option value="group">by family</option><option>cardboard</option><option>paper</option><option>plywood</option><option>steel</option><option>brass</option><option>copper</option><option>plastic</option><option>foam</option></select></label><label title="transparency of folded panels, to see the connectors inside">panels <input type="range" id="opacity" min="0.1" max="1" step="0.05" value="1"></label><button id="fit">fit view</button></div>
+    <div class="bar"><label><input type="checkbox" id="ghost" checked> model</label><label>explode <input type="range" id="explode" min="1" max="3" step="0.05" value="1"></label><label>steps <input type="range" id="steps" min="0" max="1" step="1" value="1"><span id="steps_val" class="stepsval" title="step shown of the build order">1 / 1</span></label><label id="foldl" hidden title="folded panels from flat (0 %) to folded (100 %): every face turns about its own fold line">fold <input type="range" id="fold" min="0" max="1" step="0.01" value="1"><span id="fold_val" class="stepsval">100 %</span></label><label>look <select id="look"><option value="group">by family</option><option>cardboard</option><option>paper</option><option>plywood</option><option>steel</option><option>brass</option><option>copper</option><option>plastic</option><option>foam</option></select></label><label title="transparency of folded panels, to see the connectors inside">panels <input type="range" id="opacity" min="0.1" max="1" step="0.05" value="1"></label><button id="fit">fit view</button></div>
     <div id="sel" hidden></div>
     <div id="busy" hidden><span id="busy_txt">slicing…</span><div class="bar"><i></i></div><ol id="busy_steps"></ol><span id="busy_note"></span></div>
     <details id="hint"><summary>drag = orbit · wheel = zoom · right-drag = pan · <span>all controls</span></summary><dl>
@@ -949,11 +949,20 @@ function renderGuides(){
 function render3D(modelUrl){
   parts.clear(); let i=0;
   for(const s of plan.slices)for(const pc of s.pieces){
-    const geos=[];
-    for(const fc of pc.facets)for(const r of fc.rings){const g=new THREE.ExtrudeGeometry(shape(r),{depth:s.thickness,bevelEnabled:false});g.translate(0,0,-s.thickness/2);g.applyMatrix4(mat4(fc.M));geos.push(g)}
+    const geos=[],own=[];   // own: the facet each solid was extruded from, for the fold slider
+    pc.facets.forEach((fc,fi)=>{for(const r of fc.rings){
+      // a printed panel's face is drawn as it is exported: in layers, each set in from its grooved edges by what the V takes at that height
+      const t=fc.t||s.thickness,n=fc.bevel?6:1,skin=plan.params.hinge||0;   // fc.t: a thin printed tab
+      for(let j=0;j<n;j++){const z=-t/2+(j+.5)*t/n;let ext=r[0];
+        for(const [x0,y0,x1,y1,w,side] of fc.bevel||[]){const d=w*Math.min(1,Math.max(0,(side>0?t/2-skin-z:z+t/2-skin)/(t-skin)));if(d>1e-6)ext=clipEdge(ext,x0,y0,x1,y1,d)}
+        if(ext.length<3)continue;
+        const g=new THREE.ExtrudeGeometry(shape([ext,...r.slice(1)]),{depth:t/n,bevelEnabled:false});g.translate(0,0,-t/2+j*t/n);g.applyMatrix4(mat4(fc.M));geos.push(g);own.push(fi)}}});
     if(!geos.length)continue;
     const m=new THREE.Mesh(mergeGeos(geos),new THREE.MeshStandardMaterial({color:COLORS[s.group]||0xaaaaaa,roughness:.7,metalness:.05}));
     m.userData={slice:s.label,piece:pc.label,group:s.group,i:i++,origin:new THREE.Vector3(s.M[0][3],s.M[1][3],s.M[2][3]),normal:new THREE.Vector3(s.M[0][2],s.M[1][2],s.M[2][2]),bad:s.errors.length>0};
+    if(pc.facets.some(f=>f.hinge)){let o=0;   // a folded panel: where each facet's vertices are, to swing them about their fold lines
+      m.userData.fold={base:m.geometry.attributes.position.array.slice(),hinges:pc.facets.map(f=>f.hinge||null),
+        ranges:geos.map((g,j)=>{const n=g.index?g.index.count:g.attributes.position.count,r=[o,n,own[j]];o+=n;return r})}}
     parts.add(m);
   }
   // the plane between two lobes, or at a branch's joint, is a part too — translucent, outside the build order (i = -1 keeps it on every
@@ -971,7 +980,7 @@ function render3D(modelUrl){
     parts.add(m);
   }
   applyLook(); renderGuides();
-  $('#steps').max=i; $('#steps').value=i; applyExplode();
+  $('#steps').max=i; $('#steps').value=i; applyExplode(); applyFold();
   if(!ghostLive)showGhost(modelUrl);   // already shown mid-build: the same mesh, and fetching it again is not free
   clipGhost();
   ghost.visible=$('#ghost').checked; dirty=true;
@@ -1008,6 +1017,12 @@ function smoothNormals(g,crease=30){
     for(const j of at.get(key(i)))if(n[i]*n[j]+n[i+1]*n[j+1]+n[i+2]*n[j+2]>cos){x+=n[j];y+=n[j+1];z+=n[j+2]}
     const l=Math.hypot(x,y,z)||1;out[i]=x/l;out[i+1]=y/l;out[i+2]=z/l}
   g.setAttribute('normal',new THREE.BufferAttribute(out,3))}
+// A ring with what lies within `d` of the line a→b cut off, on the ring's own side of it (Sutherland–Hodgman, one edge).
+function clipEdge(ring,x0,y0,x1,y1,d){const L=Math.hypot(x1-x0,y1-y0);let nx=-(y1-y0)/L,ny=(x1-x0)/L,cx=0,cy=0;for(const [x,y] of ring){cx+=x;cy+=y}
+  if(((cx/ring.length-x0)*nx+(cy/ring.length-y0)*ny)<0){nx=-nx;ny=-ny}
+  const dist=([x,y])=>(x-x0)*nx+(y-y0)*ny-d,out=[];
+  ring.forEach((p,i)=>{const q=ring[(i+1)%ring.length],a=dist(p),b=dist(q);if(a>=0)out.push(p);if((a>=0)!==(b>=0)){const k=a/(a-b);out.push([p[0]+(q[0]-p[0])*k,p[1]+(q[1]-p[1])*k])}});
+  return out}
 function mergeGeos(geos){
   const ngs=geos.map(g=>g.index?g.toNonIndexed():g),n=ngs.reduce((a,g)=>a+g.attributes.position.array.length,0),pos=new Float32Array(n),nor=new Float32Array(n);let o=0;
   for(const g of ngs){pos.set(g.attributes.position.array,o);nor.set(g.attributes.normal.array,o);o+=g.attributes.position.array.length}
@@ -1029,12 +1044,24 @@ function showBanner(text){
   const dist=60,half=dist*Math.tan(camera.fov*Math.PI/360),w=half*2*camera.aspect;   // the view at `dist` in front of the camera
   banner.position.set(0,half*0.72,-dist); banner.scale.set(Math.min(w*0.9,half*2.4),Math.min(w*0.9,half*2.4)*96/1024,1); banner.visible=true;
 }
+// Folded panels from flat to folded: every face hangs from the face it was unfolded from and turns about the fold
+// line between them, so at 0 a panel lies flat in the plane of its first face and at 1 it is the model. A face's
+// parent always comes before it in the list, so one pass builds every face's motion from its parent's.
+function applyFold(){const s=+$('#fold').value,v=new THREE.Vector3();let any=false;
+  for(const m of parts.children){const f=m.userData.fold;if(!f)continue;any=true;const D=[];
+    f.hinges.forEach((h,i)=>{D[i]=new THREE.Matrix4();if(!h||!D[h[0]])return;
+      D[i].copy(D[h[0]]).multiply(new THREE.Matrix4().makeTranslation(h[1],h[2],h[3])).multiply(new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(h[4],h[5],h[6]),(1-s)*h[7])).multiply(new THREE.Matrix4().makeTranslation(-h[1],-h[2],-h[3]))});
+    const pos=m.geometry.attributes.position;
+    for(const [o,n,fi] of f.ranges)for(let j=o;j<o+n;j++){v.fromArray(f.base,3*j).applyMatrix4(D[fi]);pos.setXYZ(j,v.x,v.y,v.z)}
+    pos.needsUpdate=true;m.geometry.computeVertexNormals();m.geometry.computeBoundingSphere();m.geometry.computeBoundingBox()}
+  $('#foldl').hidden=!any; ghost.visible=$('#ghost').checked&&!(any&&s<1);   // the model would stand in the unfolded panel
+  $('#fold_val').textContent=Math.round(s*100)+' %'; dirty=true}
 function applyExplode(){const e=+$('#explode').value,st=$('#steps'),k=+st.value;for(const m of parts.children){if(m.userData.group==='B')continue;m.position.copy(m.userData.origin).multiplyScalar(e-1);m.visible=m.userData.i<k}
   const going=k<+st.max&&parts.children.find(m=>m.userData.i===k-1); showBanner(going?`step ${k} / ${+st.max}  ·  ${(plan&&plan.label_tag?plan.label_tag+' ':'')}${going.userData.piece}`:'');
   $('#steps_val').textContent=`${k} / ${+st.max||0}`;   // the step counter, live while the slider is dragged
   const s=selected&&parts.children.find(c=>c.userData.slice===selected); if(s)drawGizmo(s);   // the handles ride with the part
   dirty=true}
-$('#explode').oninput=$('#steps').oninput=applyExplode; $('#ghost').onchange=()=>{ghost.visible=$('#ghost').checked;dirty=true}; $('#fit').onclick=()=>{fitView();dirty=true}; $('#look').onchange=$('#opacity').oninput=applyLook;
+$('#explode').oninput=$('#steps').oninput=applyExplode; $('#fold').oninput=applyFold; $('#ghost').onchange=()=>{ghost.visible=$('#ghost').checked;dirty=true}; $('#fit').onclick=()=>{fitView();dirty=true}; $('#look').onchange=$('#opacity').oninput=applyLook;
 // The build order as a video: the steps slider played into a MediaRecorder reading the canvas the view already
 // draws. Nothing is uploaded and nothing is rendered twice — the file is made in the page and saved from it.
 async function recordAssembly(el){
@@ -1046,7 +1073,10 @@ async function recordAssembly(el){
   const done=new Promise(r=>rec.onstop=r);
   el.textContent='recording the assembly…'; rec.start();
   const hold=Math.min(700,Math.max(90,4000/max));
+  const fo=$('#fold'), folds=!$('#foldl').hidden;
+  if(folds){fo.value=0;applyFold()}   // a folded job: the panels go in flat, then fold up
   for(let k=0;k<=max;k++){st.value=k;applyExplode();await new Promise(r=>setTimeout(r,hold))}
+  if(folds)for(let k=0;k<=90;k++){fo.value=k/90;applyFold();await new Promise(r=>setTimeout(r,33))}
   await new Promise(r=>setTimeout(r,700)); rec.stop(); await done;
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob(chunks,{type:'video/webm'}));
@@ -1700,6 +1730,7 @@ window.laminaFeedback?.({bug:async withModel=>{
 
 // test and capture hook (tests/test_ui.py, scripts/media/capture.mjs)
 window.__t={sizeAxes:()=>sizeAxes(),target:()=>controls.target,banner:()=>banner.visible?banner.userData.text:'',parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>plan,job:()=>job,
+  fold:s=>{$('#fold').value=s;applyFold();renderer.render(scene,camera)},
   idle:()=>!timer&&!busy,   // no change waiting out its debounce, no slice running: what a test or a capture waits for
   ghost:()=>ghost.children,ghostUrl:()=>ghostUrl,pivot:()=>pivot3&&rnd(pivot3),
   screen:p=>{const q=new THREE.Vector3(p[0],p[1],p[2]).project(camera),r=renderer.domElement.getBoundingClientRect();

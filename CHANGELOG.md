@@ -6,6 +6,8 @@ What changed in each release. The GitHub release for a version is this section, 
 
 A new technique, Plaque, stands the slices of a model on a back plate, for the wall. The assembled model now also
 downloads as a STEP file, for CAD.
+Folded panels can be 3D printed flat and folded up along a groove at every fold, and a re-sliced folded job now
+comes out different: see Changed.
 
 ### Added
 
@@ -31,9 +33,47 @@ downloads as a STEP file, for CAD.
   slice; or kept with its error if you prefer. A hanging piece with room for fewer than three spacers
   is flagged on its slice, with what gives it room: fewer slices, thinner material or a smaller spacer. The spacing curve
   works in every layout, and plate slots take the same inside-corner relief as every other slot, for a router.
+- **Printed panels that fold.** PLA and PETG do not fold along a score, so folded panels in a printed material
+  stopped with an error. Now the panel prints at its full thickness with a V groove along every fold, cut to that
+  fold's own angle: the thin skin left at the bottom is the hinge, and the fold stops when it reaches the model's
+  shape. Three new settings on the Technique tab tune it: *hinge* (the skin's thickness), *hinge width* (the strip
+  that bends) and *fold stop* (a few degrees past or short of the model's angle, to match your printer). With the plain *seam* joint the seam edges are mitred the same way, so thick panels meet face to face
+  for glue. The glue-tab joints work too: each tab prints as a thin flap of the skin that folds onto the next panel.
+  A new example, *fold_test*, is a small box to print and fold: it opens in 2 mm PETG on one plate.
+- **Watch a folded panel fold up.** A new *fold* slider over the 3D view takes folded panels from flat to folded,
+  every face turning about its own fold line. The recorded assembly video now ends with the panels folding up.
+  Printed panels are drawn with their grooves and mitred edges, as they are exported.
+- **Windows in folded panels.** A new setting, *window*, opens every face with a hole of its own shape, for lamp
+  shades and lanterns. The frame it leaves is always wide enough for the folds and the joint. A new example,
+  *fold_lamp*, is a twisted lamp shade that prints flat on one plate and folds up.
+- **Stiff panels now go together.** In metal, wood or acrylic, two panels that both reached the model's edge
+  collided at their inside corners on every outward seam. Each such edge is now cut back by the sheet thickness ×
+  tan(half the bend), so the inside edges meet. A new setting, *edge fit*, puts the edges back on the model's
+  edge (*outer*) for edges you bevel yourself, or lets one panel of each seam run through to the edge and cuts only
+  the other (*through*), which closes the outside. Corners where several panels meet are trimmed too. Where an edge cannot be cut back far enough, or a tab joint keeps it,
+  the panel now warns how far it presses into the next one. The limit depends on the material: paper, card,
+  cardboard and foam crush, steel, wood and hard plastic do not. The warning offers a one-click fix: bigger triangles.
+- **Folded panels say when the sheet is too thick to fold.** A fold takes material off the inside of the bend, more
+  the thicker the sheet and the sharper the bend. Where the folds around a face would need more than the whole face,
+  the panel warns how many folds cannot close: use a thinner sheet, a bigger facet size, or a gentler curve. A curve
+  needs a radius bigger than the sheet is thick.
 - **A Reddit community.** [r/Lamina3D](https://www.reddit.com/r/Lamina3D) is a place to show what you built, ask for
   help and say what Lamina should do next. It is linked beside the Discord in the app's header, on the Export tab,
   on the landing page and in the README.
+
+### Changed
+
+- **Folded jobs come out different from 0.3.2. Re-slice an old folded project and its cut files change:**
+  - the net is mirrored, so the score lines and seam numbers are cut on the inside face (*score side*: *outside* brings
+    the old layout back), and mountain and valley lines swap with it;
+  - with a seam, rivet, laced, strip or rib joint, every outward seam edge is cut back a little so stiff panels close
+    (*edge fit*: *outer* brings the old edges back);
+  - a net can be laid out differently, because two faces are no longer placed edge to edge unless they join on the model.
+- **Folded panels keep their seams and scores on the inside.** The 3D view and the STL showed each panel centred on
+  the model's surface, half a sheet proud of it, with a notch on the outside of every fold. The sheet now lies inside
+  the surface, so the outside reads as one piece at the model's own size. The cut net is mirrored so the inside face
+  is up on the cutter: the score lines and seam numbers end up inside the model. A new switch on the Technique tab,
+  *score side*, puts them back on the outside, for a paper model printed on its outer side.
 
 ### Fixed
 
@@ -52,6 +92,10 @@ downloads as a STEP file, for CAD.
 - **Two folded-panel jobs sliced at the same moment no longer mix.** On a shared server, when two people sliced
   folded panels at the same time, one of them could get panels that belonged to the other model. Each slice now works
   on its own.
+- **A folded face no longer lands against a face it does not belong to.** Unfolded, a wall could come to lie with
+  its far side exactly on another edge of the same panel. The outline then joined the two, a cut was lost, and the
+  wall was held on two sides and could not fold. The net is now laid out so that two faces lie edge to edge only
+  where they join on the model.
 
 ## 0.3.2
 

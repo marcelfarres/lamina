@@ -119,6 +119,34 @@ def hook():
     return trimesh.creation.sweep_polygon(Point(0, 0).buffer(9, 32), path, cap=True)
 
 
+def fold_test():
+    """A small box to print flat and fold (folded panels, printed): an L with one corner cut off and a sloping lid, so
+    one net carries 90° and 45° mountain folds, a 90° valley fold and seams at odd angles. 48 × 48 × 32 mm as exported."""
+    from shapely.geometry import Polygon
+    m = trimesh.creation.extrude_polygon(Polygon([(0, 0), (48, 0), (48, 24), (24, 24), (24, 48), (12, 48), (0, 36)]), 20)
+    v = m.vertices.copy(); top = v[:, 2] > 10; v[top, 2] += 0.25 * v[top, 0]
+    return trimesh.Trimesh(v / 3, m.faces)                # the export scales every model × 3
+
+
+def fold_lamp(rings=6, around=6, height=120.0):
+    """A lamp shade to print flat and fold (folded panels, printed, with `window`): an open tube of triangles whose
+    radius swells and narrows like the blob in a lava lamp, each ring half a step round from the one below and the
+    whole given a twist, so no two folds line up. Open at both ends; about 80 mm across and 120 mm tall as exported."""
+    def ring(i):
+        u = i / rings; z = height * u
+        a = 2 * np.pi * (np.arange(around) + 0.5 * i) / around + 0.5 * np.sin(2.2 * u * np.pi)
+        r = 30 + 14 * np.sin(np.pi * (1.35 * u + 0.1)) ** 2 + 5 * np.sin(3 * a + 4 * u) * np.sin(np.pi * u) - 9 * u * u
+        return np.c_[r * np.cos(a), r * np.sin(a), np.full(around, z)]
+    v = np.vstack([ring(i) for i in range(rings + 1)])
+    faces = []
+    for i in range(rings):
+        for j in range(around):
+            a, b = i * around + j, i * around + (j + 1) % around
+            c, d = (i + 1) * around + j, (i + 1) * around + (j + 1) % around      # ring i + 1 sits half a step on
+            faces += [(a, b, c), (b, d, c)]
+    return trimesh.Trimesh(v / 3, faces, process=False)   # the export scales every model × 3
+
+
 def droplet():
     """Rings on still water after a drop, for the plaque's radial layout: long, soft waves that fade a little toward
     the rim and sink smoothly to almost nothing at it, on a disc. A profile turned about z. Nothing stands in the middle: a radial fan leaves a hole there, and
@@ -209,6 +237,9 @@ MODELS = {
     "ripple": ripple,
     "berry": berry,
     "hook": hook,
+    # printed and folded: a groove at every fold
+    "fold_test": fold_test,
+    "fold_lamp": fold_lamp,
     # for the plaque
     "droplet": droplet,
     "bonsai": bonsai,
@@ -220,7 +251,7 @@ if __name__ == "__main__":
     for name, fn in MODELS.items():
         m = fn()
         m.apply_scale(3)                      # ~150–200 mm objects: realistic for card / cardboard / sheet metal
-        if not m.is_watertight:
+        if not m.is_watertight and name != "fold_lamp":        # the lamp is an open shade: its two ends stay open
             trimesh.repair.fill_holes(m)
         m.export(out / f"{name}.stl")
         print(f"{name:9s} bbox {np.round(m.extents, 1)} watertight={m.is_watertight} faces={len(m.faces)}")
