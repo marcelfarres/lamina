@@ -2,6 +2,18 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.3.4
+
+### Changed
+
+- **The steps slider folds a folded job up.** After the last part is in, the steps slider has twenty more steps
+  that fold the panels from flat to the model, with the share shown at the top of the 3D view. The *fold* slider
+  still does the same on its own.
+- **The printed-fold settings show only on a printed job.** *hinge*, *hinge width* and *fold stop* no longer take
+  room on the Technique tab when the material is cut, not printed.
+- **A print set says when it could not cut the grooves.** A build that cannot cut solids (the one in the browser)
+  now writes into the set's README which parts were exported without their fold grooves or labels.
+
 ## 0.3.3
 
 A new technique, Plaque, stands the slices of a model on a back plate, for the wall. The assembled model now also
