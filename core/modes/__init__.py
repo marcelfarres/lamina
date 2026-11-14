@@ -288,9 +288,9 @@ class Ctx:
         if not p.get("spacing_vary"):
             return None
         pos, k = spaced(p[param] or [], length, p["spacing_min"], max(p["spacing_max"], p["spacing_min"] + 1e-6),
-                        count if p["spacing_fix"] == "count" else None, periodic, MAX_SLICES)
+                        count if p["spacing_fix"] == "count" else None, periodic, MAX_SLICES + 1)   # one past: exactly the cap fits
         self.spacing.append({"param": param, "positions": [round(float(q), 3) for q in pos], "length": float(length), "unit": unit, "scale": round(float(k), 4)})
-        if p["spacing_fix"] != "count" and len(pos) >= MAX_SLICES:   # the walk hit the cap with model left over: stop, as count_by_thickness does
+        if p["spacing_fix"] != "count" and len(pos) > MAX_SLICES:    # more than the cap with model left over: stop, as count_by_thickness does
             self.errors.append(f"the spacing curve lays {MAX_SLICES} slices along {length:.0f} mm of model and does not reach its end — more "
                                f"than can be cut. A model this big is usually a units slip (lifesize, or saved in centimetres): set `size` to "
                                f"the real size, or raise the curve's spacing")
