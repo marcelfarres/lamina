@@ -57,6 +57,9 @@ comes out different: see Changed.
   the thicker the sheet and the sharper the bend. Where the folds around a face would need more than the whole face,
   the panel warns how many folds cannot close: use a thinner sheet, a bigger facet size, or a gentler curve. A curve
   needs a radius bigger than the sheet is thick.
+- **A Reddit community.** [r/Lamina3D](https://www.reddit.com/r/Lamina3D) is a place to show what you built, ask for
+  help and say what Lamina should do next. It is linked beside the Discord in the app's header, on the Export tab,
+  on the landing page and in the README.
 
 ### Changed
 
