@@ -61,7 +61,7 @@ class Stacked(Mode):
                            for lab, z, tk in zip(labels, pos, th)])
         self.profiles(ctx, slices)
         slices = [s for s in slices if not s.raw.is_empty]
-        ctx.rods = []
+        ctx.view["rods"] = []
         ctx.cover_r = self.cover_r(ctx, pos, drawn, length, len(slices))
         if p["space"] > 0 and p["connect"] == "none":
             ctx.errors.append(f"space = {p['space']:g} mm between slices but no connectors — the slices would float: set connect to tab (spacers) or dowel, or set space to 0")
@@ -105,7 +105,7 @@ class Stacked(Mode):
         if p["shift"] and pos:
             pos = self.shifted(ctx, pos, name, length, t, gap, by_distance)
         if drawn is not None and p["shift"]:              # the graph's ticks follow the slices that are built
-            ctx.spacing[-1]["positions"] = [round(z + length / 2 - p["margin"], 3) for z in pos]
+            ctx.view["spacing"][-1]["positions"] = [round(z + length / 2 - p["margin"], 3) for z in pos]
         # a slice is named by its place in the stack, so the names are given once the planes are final (a
         # per-slice thickness is looked up by name); laid by the curve, or moved by a shift, neighbours can overlap
         labels = [name(i) for i in range(len(pos))]

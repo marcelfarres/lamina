@@ -150,7 +150,7 @@ class Connectors:
         if self.tab:
             self.extra.append(self.tab_piece(name, a, i, pt, ang, spacing, gap_i, tab_w))
         else:
-            self.ctx.rods.append([list((a.M @ np.array([xa, ya, -self.t / 2, 1]))[:3]), list((a.M @ np.array([xa, ya, spacing + self.t / 2, 1]))[:3]), self.d,
+            self.ctx.view["rods"].append([list((a.M @ np.array([xa, ya, -self.t / 2, 1]))[:3]), list((a.M @ np.array([xa, ya, spacing + self.t / 2, 1]))[:3]), self.d,
                                   self.rod, list(a.M[:3, 0]), name, a.label, b.label])
         return xa, ya
 
