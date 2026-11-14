@@ -6,6 +6,12 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ### Changed
 
+- **Folded jobs come out different from 0.3.2. Re-slice an old folded project and its cut files change:**
+  - the net is mirrored, so the score lines and seam numbers are cut on the inside face (*score side*: *outside* brings
+    the old layout back), and mountain and valley lines swap with it;
+  - with a seam, rivet, laced, strip or rib joint, every outward seam edge is cut back a little so stiff panels close
+    (*edge fit*: *outer* brings the old edges back);
+  - a net can be laid out differently, because two faces are no longer placed edge to edge unless they join on the model.
 - **Folded panels keep their seams and scores on the inside.** The 3D view and the STL showed each panel centred on
   the model's surface, half a sheet proud of it, with a notch on the outside of every fold. The sheet now lies inside
   the surface, so the outside reads as one piece at the model's own size. The cut net is mirrored so the inside face

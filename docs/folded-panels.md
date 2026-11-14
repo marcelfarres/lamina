@@ -80,7 +80,8 @@ a tab as thick as the sheet would fold into the panel it glues to. The flap fold
 outside of the next panel. Tongue, puzzle and strip are not printed this way and keep the material error.
 Mountain folds are grooved from the face up on the bed, valley folds from the
 bed side. Edges between faces in one plane get no groove. The grooves travel in the plan with each piece (`vees`)
-and `core/solid.py` cuts them from the printed part; the browser build has no boolean engine and prints plain parts.
+and `core/solid.py` cuts them from the printed part; the browser build has no boolean engine and exports plain parts,
+and the first panel carries a warning that says so.
 The example `fold_test` (48 × 48 × 32 mm, 2 mm PETG) carries 45°, 76°, 80°, 90° and 104° folds and a valley edge.
 
 ## Stiff sheet: seams meet at the inside edges

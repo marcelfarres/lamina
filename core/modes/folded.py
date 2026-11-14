@@ -291,6 +291,12 @@ class Folded(Mode):
         for sl in slices + extra:
             if sl.facets:
                 sl.facets = [(self.sunk(M), g) for M, g in sl.facets]
+        if self.hinged and slices:
+            try:                                              # core.solid cuts the grooves with it; the browser build has no wheel for it
+                import manifold3d  # noqa: F401
+            except ImportError:
+                slices[0].warnings.append("this build cannot cut the fold grooves into the print files (it runs in the browser): the "
+                                          "panels would export plain and not fold. Export the print plates from the installed app")
         n_panels = len(slices)
         if not p["separate"] and n_panels > 0.6 * len(mesh.faces):
             ctx.errors.append(f"unfolding gave {n_panels} panels for {len(mesh.faces)} faces — use a bigger facet size or enlarge the sheet")
