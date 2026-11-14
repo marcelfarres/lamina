@@ -90,21 +90,24 @@ def shed_slivers(raw, prof, cuts, mf, mp):
     return MultiPolygon(keep), len(prof.geoms) - len(keep)   # empty: the plane only grazes the model, there is no part
 
 
-def _swap_in(mesh, dest, waits=(0, 0.05, 0.1, 0.2, 0.4, 0.8)):
-    """Write `mesh` to `dest` without ever leaving a half-written file there; True when it got there. See build()."""
-    tmp = dest.with_suffix(f".{threading.get_ident()}.stl")
-    mesh.export(tmp)
+def swap_in(write, dest, waits=(0, 0.05, 0.1, 0.2, 0.4, 0.8)):
+    """A file put at `dest` without ever leaving a half-written one there: `write(path)` writes it beside `dest`, then
+    it is swapped in. True when it got there. Windows refuses the swap, and the in-place copy after it, while
+    something still has the old file open (the page fetching it, a virus scanner): PermissionError for the preview
+    (036), and for a job's plan.json "OSError [Errno 22] Invalid argument" (042), so every OSError is tried again."""
+    tmp = dest.with_suffix(f".{threading.get_ident()}{dest.suffix}")
+    write(tmp)
     try:
         for wait in waits:
             time.sleep(wait)
             try:
                 os.replace(tmp, dest)
                 return True
-            except PermissionError:
+            except OSError:
                 try:
                     shutil.copyfile(tmp, dest)
                     return True
-                except PermissionError:
+                except OSError:
                     continue
         return False
     finally:
@@ -127,7 +130,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         # is open (the page downloading it, a virus scanner reading it): then in place; refused that too (036: a
         # scanner holds it), tried again a moment later, and after 1.5 s the slice goes on with the last preview —
         # the preview is only what the view shows, never a reason for the slice to fail
-        _swap_in(ghost, pathlib.Path(mesh_out))
+        swap_in(ghost.export, pathlib.Path(mesh_out))
         bar.show(str(mesh_out), 0.19)               # the 3D view can show the model now, before the slices
     sheet0 = list(p["sheet"])
     if p["one_sheet"]:                              # one strip as wide as the sheet, as long as it needs: nest against a huge height
@@ -231,7 +234,12 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     }
     if out:
         out = pathlib.Path(out); out.parent.mkdir(parents=True, exist_ok=True)
-        out.with_suffix(".json").write_text(json.dumps(plan))
+        # beside, then swapped in, as the preview is: written in place, the page still reading the last plan.json made
+        # the write fail and the slice with it (042). Unlike the preview the plan is the result, so a file Windows
+        # never lets go of is an error that says so, not a slice that quietly shows the plan before it.
+        text = json.dumps(plan)
+        if not swap_in(lambda tmp: tmp.write_text(text), out.with_suffix(".json")):
+            raise OSError(f"the plan could not be written to {out.with_suffix('.json')}: another program keeps that file open")
     return plan
 
 

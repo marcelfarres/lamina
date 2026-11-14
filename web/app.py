@@ -20,7 +20,7 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
 from core import progress as build_progress
-from core.plan import build, MODES
+from core.plan import build, MODES, swap_in
 from core.mesh import CAD_SUFFIXES
 from core.export import design_name, export, svg_doc, items_for_sheet, sheet_title
 from core.solid import fit_set, fit_sheets, proto_plan, proto_set, solid_bytes
@@ -248,7 +248,10 @@ def slice_model(client: str = Form(...), mode: str = Form(...), params: str = Fo
     took = round(time.time() - t0, 2)
     # the session belongs to the client, not to the server: what this tab sliced last, so its refresh resumes it
     session = {"mode": mode, "params": prm, "job": job, "example": example or (job[3:] if job.startswith("ex_") else ""), "memo": json.loads(memo or "{}")}
-    (cd / "session.json").write_text(json.dumps(session))
+    # written beside and swapped in, tried again while Windows holds the old file (042). The session is a convenience:
+    # one that cannot be written is not a failed slice
+    text = json.dumps(session)
+    swap_in(lambda tmp: tmp.write_text(text), cd / "session.json")
     with open(JOBS.parent / "timing.log", "a") as f:  # one server-side log, outside the served jobs tree
         stages = " ".join(f"{k.split(' ')[0]}={v:.1f}" for k, v in plan["timing"].items() if v >= 0.05)
         f.write(f"{time.strftime('%H:%M:%S')} {mode:12s} {mpath.name:16s} {plan['counts']['parts']:4d} parts {took:6.2f} s  {stages}{'  params=' + json.dumps(prm)[:300] if took > 5 else ''}\n")
