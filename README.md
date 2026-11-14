@@ -503,7 +503,7 @@ Actions tab), and committed back to main, so they always show the version people
 
 ```text
 core/        planner, modes, unfold, notch, checks, nest, split, export, solid
-web/         FastAPI app + single-page UI (vendored three.js)
+web/         FastAPI app + single-page UI: static/index.html (markup), static/js/ (one module per concern), static/app.css; vendored three.js
 examples/    24 test models: 18 synthetic + a scanned head, a porcelain horse statue, three animals and the bunny (terms in examples/README.md)
 docs/        index.html + media/ (the GitHub Pages site), roadmap.md, folded-panels.md, original-slicer-reference.md
 tests/       pytest suite, ui/ (the app in a browser), test_unfold.py, run_matrix.py
