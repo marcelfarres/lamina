@@ -50,6 +50,7 @@ button.small{padding:3px 8px;border:1px solid var(--line);background:var(--panel
 #busy_steps li.done{color:var(--ok)}#busy_steps li.done::before{content:'✓ '}
 #busy_steps li.now{color:var(--warn);font-weight:500}#busy_steps li.now::before{content:'▸ '}
 .bar{position:absolute;left:10px;top:8px;display:flex;gap:10px;align-items:center;font-size:12px;color:var(--muted);background:#0f1012cc;padding:5px 8px;border-radius:5px;flex-wrap:wrap}.bar label{display:flex;gap:5px;align-items:center}.bar input[type=range]{width:90px}.bar button{padding:2px 8px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:4px;cursor:pointer;font-size:11px}
+.bar label[hidden]{display:none}   /* `.bar label` sets a display, which beat the hidden attribute: the fold slider showed on every job */
 /* the steps slider is a scrubber through the build order: wider than the other sliders so each layer gets its own
    stretch of track, and with a live counter beside it to read off which step you have landed on */
 .bar input#steps{width:250px}.bar .stepsval{min-width:52px;text-align:center;font-variant-numeric:tabular-nums;color:var(--ink)}
