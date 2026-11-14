@@ -91,11 +91,6 @@ class Slice:
     fixes: list = field(default_factory=list)     # [{"error", "options": [{"title", "set"}]}] one-click fixes (checks.suggest_fixes)
     note: str = ""                      # extra text shown with the label (e.g. rib angle)
     # what a technique keeps on its own slices while it builds them
-    pair: int = 0                       # stacked peg / spacer: the pair of layers it sits between (assembly order)
-    cutkeys: dict = field(default_factory=dict)   # stacked: (x, y, angle) → the cut there, so an aligned dowel is cut once
-    cutnames: dict = field(default_factory=dict)  # stacked: the same key → its dowel's name (Z-3a), so a rod carried up keeps its name
-    inner: MultiPolygon | None = None   # stacked: raw eroded by min_feature, where a cut keeps a full wall (cached)
-    dowel_room: list = field(default_factory=list)  # stacked: where a rod through this slice and a neighbour can go (checks)
     radial: np.ndarray | None = None    # radial half-slice: the way it points out from the axis
     lobe: int = 0                       # radial: which axis's lobe the part belongs to
     pn: object = None                   # folded: the Panel this slice is cut from
