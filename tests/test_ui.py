@@ -1265,6 +1265,32 @@ def test_the_build_order_names_the_part_going_in(page):
     assert page.evaluate("() => window.__t.banner()") == ""
 
 
+def test_a_folded_job_folds_up_at_the_end_of_its_steps(page):
+    """Asked for: the steps slider should take a folded job from flat to folded. After the last part is in, the slider
+    has twenty more steps that fold the panels up: flat when the last part goes in, half folded half way, folded at
+    the end, with the share in the banner. The printed-fold settings show on a printed job and not on a cut one."""
+    shown = lambda name: page.evaluate("n => { const e = document.querySelector(`[data-p=${n}]`); return !!e && getComputedStyle(e).display !== 'none' }", name)   # noqa: E731
+    page.click('nav button[data-t="technique"]')
+    assert not shown("hinge")                                              # the egg in cardboard: nothing printed
+    assert not page.is_visible("#foldl")                                  # … and nothing to fold: no fold slider
+    page.click('nav button[data-t="model"]')
+    page.select_option("#example", "fold_test")
+    page.wait_for_timeout(1500); settle(page)
+    page.click('nav button[data-t="technique"]')
+    assert shown("hinge") and shown("hinge_w") and shown("hinge_stop")
+    assert page.is_visible("#foldl")
+    parts = plan(page)["counts"]["parts"]; n = int(page.get_attribute("#steps", "max"))
+    assert n == parts + 20
+    state = lambda: page.evaluate("() => [+document.querySelector('#fold').value, window.__t.banner()]")   # noqa: E731
+    step = lambda k: (page.evaluate("k => { const e = document.getElementById('steps'); e.value = k; e.dispatchEvent(new Event('input')) }", k), page.wait_for_timeout(200))   # noqa: E731
+    step(parts); fold, text = state()
+    assert fold == 0 and text.startswith(f"step {parts} / {n}")
+    step(parts + 10); fold, text = state()
+    assert fold == 0.5 and "folding 50 %" in text
+    step(n); fold, text = state()
+    assert fold == 1 and text == ""
+
+
 def test_a_turn_keeps_the_model_s_size(page):
     """Reported: a bear sized 500 mm tall, stood up along x (up axis), came back 763 × 566 × 500 — `size` aimed at
     whatever lay along z after the turn. Size belongs to the model now: through the up axis (x and y), a quarter

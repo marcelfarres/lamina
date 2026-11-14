@@ -2,6 +2,37 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.3.4
+
+### Added
+
+- **Two more folded examples.** *fold_box* is a six-sided box with a turned lid, printed flat in PETG and folded up:
+  every fold has its own angle. *fold_lantern* is the lamp shade at 420 mm for 3 mm plywood: 72 separate pieces,
+  each with a window and lacing holes, numbered on the inside.
+- **Merge only the faces that are too small.** A new folded setting, *smallest face*, closes up the faces
+  lower than the size you give and leaves the rest of the model as it is. The warning about panels of stiff sheet
+  that press into each other now offers it as a fix, beside bigger triangles, which make the whole model coarser.
+
+### Changed
+
+- **The steps slider folds a folded job up.** After the last part is in, the steps slider has twenty more steps
+  that fold the panels from flat to the model, with the share shown at the top of the 3D view. The *fold* slider
+  still does the same on its own.
+- **The printed-fold settings show only on a printed job.** *hinge*, *hinge width* and *fold stop* no longer take
+  room on the Technique tab when the material is cut, not printed.
+- **Folded panels say when the model is thinner than two sheets.** The sheet lies inside the surface, so a fin or an
+  ear thinner than twice the sheet has no room for a panel on each side. Those panels now carry a warning with the
+  thickness found.
+- **A print set says when it could not cut the grooves.** A build that cannot cut solids (the one in the browser)
+  now writes into the set's README which parts were exported without their fold grooves or labels.
+
+### Fixed
+
+- **Cutting stiff sheet back at the seams no longer makes a small panel too small.** A panel that the cut-back would
+  take under the minimum part or feature size keeps its edges and warns how far it presses into the next panel.
+- **No more specks beside a folded panel in stiff sheet.** Trimming a corner against the next panel could leave a
+  crumb a fraction of a millimetre long, reported as a part too small to cut.
+
 ## 0.3.3
 
 A new technique, Plaque, stands the slices of a model on a back plate, for the wall. The assembled model now also
