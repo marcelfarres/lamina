@@ -349,3 +349,28 @@ def test_a_disc_nests_inside_a_ring_full_of_dowel_holes():
     assert len(ring.geom.geoms[0].interiors) == 31
     assert nest.nest([ring, disc], (100, 100), gap=2, margin=0) == 1
     assert ring.placed.geoms[0].interiors[0].envelope.contains(disc.placed) or any(Polygon(i).contains(disc.placed) for i in ring.placed.geoms[0].interiors)
+
+
+def test_two_turns_of_a_part_never_drop_the_same_kept_union():
+    """A part's four turns ask a sheet for a spot side by side, and the sheet keeps the no-fit union of the last 16
+    shapes. Two turns that both found it full dropped the same oldest entry, the second had nothing left to drop, and
+    the whole slice failed with a KeyError: seen only on a busy machine, where the two get that close. Here every drop
+    waits a moment between choosing the entry and dropping it, so they always do."""
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    class Slow(dict):
+        def __delitem__(self, key):
+            time.sleep(0.02)
+            super().__delitem__(key)
+
+    rect = lambda w, h: np.array([(0, 0), (w, 0), (w, h), (0, h)], float)   # noqa: E731
+    ask = lambda sh, c: sh.spot([c], (0.0, 0.0, c[2, 0], c[2, 1]))          # noqa: E731
+    sh = nest.Sheet(600, 400, 5)
+    sh.convex.append(nest._edges(rect(100, 100)))
+    sh.nfp = Slow()
+    for i in range(16):                                    # the 16 it keeps
+        ask(sh, rect(10 + i, 10))
+    with ThreadPoolExecutor(8) as pool:                    # eight new shapes at once
+        spots = list(pool.map(lambda i: ask(sh, rect(40 + i, 12)), range(8)))
+    assert all(xy is not None for xy in spots) and len(sh.nfp) <= 16

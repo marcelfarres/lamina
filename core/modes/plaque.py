@@ -395,11 +395,21 @@ class Plaque(Stacked):
         if joined:
             say(ctx, f"{joined} floating piece(s) hang from the slice beside them on spacers")
         extra = lay.spacers(self, ctx, slices, holds, after) if holds else []
-        few = sorted({sl.label for sl in slices for g in sl.raw.geoms if holds
-                      and g.bounds[1] > -plate_t / 2 and 0 < sum(g.intersects(c) for c in sl.cuts) < 3})   # no tooth: it hangs
+        # A hanging piece on fewer than three spacers can turn or tilt on them. It is said on its slice, where the
+        # person looks for what is wrong with a part, and once in the notes with every slice it concerns.
+        few = []
+        for sl in slices:
+            for g in sl.raw.geoms if holds else []:
+                n = sum(g.intersects(c) for c in sl.cuts)
+                if g.bounds[1] > -plate_t / 2 and 0 < n < 3:              # no tooth: it hangs
+                    few.append(sl.label)
+                    sl.warnings.append(f"a hanging piece of this slice has room for {n} spacer{'s' if n > 1 else ''}, not 3, and may turn or tilt: "
+                                       f"use fewer slices or thinner material, or a smaller spacer width")
+        few = sorted(set(few))
         if few:
             say(ctx, f"{len(few)} floating piece(s) had room for fewer than 3 spacers and may turn or tilt "
-                     f"({', '.join(few[:8])}{'…' if len(few) > 8 else ''}): a smaller spacer width fits more")
+                     f"({', '.join(few[:8])}{'…' if len(few) > 8 else ''}): fewer slices or thinner material give them room, "
+                     f"and so does a smaller spacer width")
         return slices, extra
 
     def _flat_spacers(self, ctx, slices, holds, after):

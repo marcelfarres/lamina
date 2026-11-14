@@ -185,6 +185,10 @@ class Stacked(Mode):
                 g = g.intersection(s) if ctx.p["surface"] == "inner" else unary_union([g, s])
             sl.raw = as_multi(g)
 
+    @staticmethod
+    def fit(p):
+        return {"distribution": "count", "count": min(p["count"], 3)}, 0.0
+
     def guide_outlines(self, ctx, slices):
         """Engrave each layer's outline onto the layer under it (GUIDE): the line to line the stack up by, so a layer
         that has to sit a certain way is marked on the layer it rests on. The neighbour's section is mapped into this

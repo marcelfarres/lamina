@@ -328,6 +328,10 @@ def test_every_fan_slot_keeps_a_wall_and_three_spacers_do_not_stand_in_a_line(ra
                 assert Polygon([a, b, c]).area > 5, s["label"]
     # these blobs are small and shared between two joins: most have room for fewer than 3, and the note names them
     note = next(n for n in ramp_plan["notes"] if "fewer than 3" in n)
+    assert "fewer slices or thinner material" in note
+    short = [s for s in by_group(ramp_plan, "R") if any("not 3, and may turn or tilt" in w for w in s["warnings"])]
+    assert short and all(s["label"] in note for s in short)         # each such slice carries the warning, and the note names it
+    assert all("fewer slices or thinner material" in w for s in short for w in s["warnings"] if "spacer" in w)
     assert "R-5" in note
 
 

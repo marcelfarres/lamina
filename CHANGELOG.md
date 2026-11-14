@@ -28,7 +28,8 @@ downloads as a STEP file, for CAD.
   as a fan on a round plate, a bonsai in its pot, and a dancer made of smooth blobs, crossed. A piece of a slice that does not reach the plate hangs from the
   slice beside it on up to three small flat spacers, in the side-by-side layout and in the fan, set edge-on so they hardly show from the front; a piece that no
   neighbour can hold is left out, named in the notes and, when it is big enough to matter, given as a warning on its
-  slice; or kept with its error if you prefer. The spacing curve
+  slice; or kept with its error if you prefer. A hanging piece with room for fewer than three spacers
+  is flagged on its slice, with what gives it room: fewer slices, thinner material or a smaller spacer. The spacing curve
   works in every layout, and plate slots take the same inside-corner relief as every other slot, for a router.
 - **A Reddit community.** [r/Lamina3D](https://www.reddit.com/r/Lamina3D) is a place to show what you built, ask for
   help and say what Lamina should do next. It is linked beside the Discord in the app's header, on the Export tab,
@@ -45,6 +46,12 @@ downloads as a STEP file, for CAD.
   the small up and down arrows, which took a fifth of the box, and the box where you type a new value is wider.
 - **A drawn spacing curve that fits exactly the most slices Lamina cuts is sliced.** A curve laying exactly 500 slices
   along the model was refused as too many, the same as a curve that runs out before the model's end.
+- **A slice no longer fails now and then while it nests the parts.** On a busy computer, laying the parts on the
+  sheets could stop with an error and no result; slicing again usually worked. The parts are now laid out without
+  that failure.
+- **Two folded-panel jobs sliced at the same moment no longer mix.** On a shared server, when two people sliced
+  folded panels at the same time, one of them could get panels that belonged to the other model. Each slice now works
+  on its own.
 
 ## 0.3.2
 
