@@ -4,11 +4,28 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ## 0.3.3
 
+The assembled model now also downloads as a STEP file, for CAD.
+
 ### Added
 
+- **Assembled STEP, for CAD.** The downloads have a new file, *assembled STEP*, beside the assembled STL. It holds
+  the same model as true solids: every part is a body with flat faces, named with its label, in its place in the
+  assembly. Fusion, FreeCAD and Onshape open it without the triangle lines an STL brings. A curved edge is still
+  made of the short straight segments of the cut files, so it shows as narrow flat strips. A model with many
+  stacked slices makes a large file. The command line writes it too: `--out model.step`.
 - **A Reddit community.** [r/Lamina3D](https://www.reddit.com/r/Lamina3D) is a place to show what you built, ask for
   help and say what Lamina should do next. It is linked beside the Discord in the app's header, on the Export tab,
   on the landing page and in the README.
+
+### Fixed
+
+- **Folded panels score only the edges you fold.** A flat face made of several triangles (a rectangle cut in two,
+  a hexagon cut in six) had a fold line on every inner edge, so the score layer could not go to an engraving tip
+  or a creasing tool as it was. Those lines are gone: the score layer now holds the real folds only. A few inner
+  edges of such a face were also numbered as seams although nothing is cut there; they no longer are.
+- **Numbers in the narrow boxes show in full.** In inches and centimetres, a size or a curve point with four or more
+  digits could lose its last digit in the newest Chrome. The boxes that stand two or three in a row no longer have
+  the small up and down arrows, which took a fifth of the box, and the box where you type a new value is wider.
 
 ## 0.3.2
 

@@ -247,6 +247,7 @@ uv run python -m core.plan examples/egg.stl --mode interlocked --set nx=5 ny=4 t
 uv run python -m core.export out/egg.json --out out/egg_cut --fmt svg dxf pdf eps --labels
 uv run python -m core.export out/egg.json --out out/egg_pieces --per-piece                  # one file per part
 uv run python -m core.solid out/egg.json --out out/egg.stl                                  # assembled solid; --part X-3 for one part
+uv run python -m core.solid out/egg.json --out out/egg.step                                 # the same as STEP: true solids for CAD
 uv run python -m core.solid out/egg.json --proto out/egg_proto --scale 0.5 --labels groove  # scaled 3D-print prototype set
 uv run python -m core.plan examples/egg.stl --mode folded --list-params                     # every parameter with its help text
 ```
@@ -354,7 +355,8 @@ does not slip through. It carries the most signal for stacked and folded work; d
   measure before committing to the whole set.
 - **Kerf compensation is off by default**: many machines compensate their own kerf, and compensating twice ruins
   the fit. Turn it on under Machine & cut compensation when yours does not.
-- **Solids**: STL of the assembled model or one part, and a **prototyping set** for test-printing a design: every part
+- **Solids**: STL of the assembled model or one part, the same as **STEP** for CAD (every part a body with flat
+  faces, no triangles: Fusion, FreeCAD, Onshape), and a **prototyping set** for test-printing a design: every part
   flat at a scale or target size, thickness raised to a printable minimum, label engraved as a groove or cut through,
   as one STL per part plus a 3MF that OrcaSlicer or PrusaSlicer opens as separate named objects. The label is bold,
   at least the letter height you ask for in printed millimetres (5 mm by default, whatever the scale), and sits
@@ -412,7 +414,7 @@ sheets are always the same plan. Hover a parameter name for its help.
 
 ```text
 web/app.py  (FastAPI)  ──▶  core/plan.py  ──▶  plan.json ──▶  core/export.py   SVG/DXF/PDF/EPS (OUTER, INNER, SCORE, LABEL)
-web/static/index.html         │                            ──▶  core/solid.py    assembled / per-part STL, 3MF prototype set
+web/static/index.html         │                            ──▶  core/solid.py    assembled / per-part STL, 3MF prototype set (core/step.py: the same as STEP)
 (three.js, live)              ▼                            ──▶  browser          3D view from the facets in plan.json
                      core/modes/*.py   one file per technique (plug-in): Slice objects with a frame + cuts (+ facets)
                      core/unfold.py    mesh → flat panels (greedy flattest-edge spanning tree, overlap-checked)
@@ -466,6 +468,9 @@ a broken model, saves and reopens a project, downloads the cut files — and fai
 or a status line that never settles. [tests/test_e2e_site.py](tests/test_e2e_site.py) does the same for the
 published browser build. Both need `LAMINA_UI=1` / `LAMINA_E2E=1` and Playwright's Chromium, so they stay out of
 the quick run.
+Playwright is a development dependency and `uv.lock` fixes its version, so the Chromium the suites run in changes
+only when the lock is upgraded: a new Chromium can measure text a pixel wider, and then a number box is too narrow.
+After an upgrade, run `uv run playwright install chromium` again.
 
 ```bash
 uv run ruff check                       # lint (pyflakes, bugbear, bandit, pyupgrade); the test workflow runs it first
@@ -474,14 +479,14 @@ uv run pytest tests -n auto             # pipeline, nesting, checks, export, the
                                         # -n auto spreads it over every core: about 4 min on 12, 32 in one process
 uv run --with pytest-cov pytest --cov=core --cov=web --cov-report=term-missing   # coverage: 88 % of core + web
 uv run python tests/browser_env.py working-files/jobs   # the whole matrix without the compiled extras Pyodide lacks
-uv run --with playwright playwright install chromium
-LAMINA_UI=1 uv run --with playwright pytest tests/test_ui.py   # the app itself, driven like a person: every parameter, undo, no number cut off (20 min)
+uv run playwright install chromium
+LAMINA_UI=1 uv run pytest tests/test_ui.py   # the app itself, driven like a person: every parameter, undo, no number cut off (20 min)
 python deploy/build_site.py
-LAMINA_E2E=1 uv run --with playwright pytest tests/test_e2e_site.py   # the built site, end to end, in Chromium
+LAMINA_E2E=1 uv run pytest tests/test_e2e_site.py   # the built site, end to end, in Chromium
 uv run python tests/test_unfold.py      # folded-panel correctness: refold, area, seams, joints (a few minutes)
 uv run python tests/run_matrix.py       # regression matrix of model × mode × feature → working-files/matrix/contact.png
 uv run python -m core.testmodels examples/   # regenerate the synthetic example shapes
-uv run --with playwright python scripts/media/record.py [scene …]   # re-record the landing-page stills and clips (needs node + ffmpeg)
+uv run python scripts/media/record.py [scene …]   # re-record the landing-page stills and clips (needs node + ffmpeg)
 ```
 
 The landing-page media are re-recorded on every release tag by `.github/workflows/media.yml` (or by hand from the
