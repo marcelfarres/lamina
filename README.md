@@ -419,10 +419,12 @@ web/app.py  (FastAPI)  ──▶  core/plan.py  ──▶  plan.json ──▶  
 web/static/index.html         │                            ──▶  core/solid.py    assembled / per-part STL, 3MF prototype set (core/step.py: the same as STEP)
 (three.js, live)              ▼                            ──▶  browser          3D view from the facets in plan.json
                      core/modes/*.py   one file per technique (plug-in): Slice objects with a frame + cuts (+ facets)
+                                       (connectors.py: the dowels, pegs and spacers of the stacked family)
                      core/unfold.py    mesh → flat panels (greedy flattest-edge spanning tree, overlap-checked)
                      core/notch.py     slots where families cross (ray casts, ratio, flare, relief)
                      core/checks.py    physical checks and auto-fix
                      core/split.py     split oversize parts with puzzle tabs      core/nest.py  outline nesting
+                     core/nofit.py     no-fit polygons: where a part may go beside the parts already on a sheet
                      core/geometry.py  frames, mesh sections → shapely polygons, dowel shapes
                      core/labels.py    the room a label takes, where it fits on a part, where it goes on the sheet
                      core/mesh.py      the model loaded, sized, mended, kept for the next slice    core/remesh.py  modify form
