@@ -128,6 +128,16 @@ def fold_test():
     return trimesh.Trimesh(v / 3, m.faces)                # the export scales every model × 3
 
 
+def fold_box():
+    """A box to print flat and fold (folded panels, printed): a six-sided base and a smaller six-sided lid, turned a
+    twelfth of a turn against it, so the wall between them is twelve leaning triangles and every fold has its own
+    angle. Closed, all outward corners. 66 mm across and 46 mm tall as exported."""
+    a = 2 * np.pi * np.arange(6) / 6
+    base = np.c_[33 * np.cos(a), 33 * np.sin(a), np.zeros(6)]
+    lid = np.c_[25 * np.cos(a + np.pi / 6), 25 * np.sin(a + np.pi / 6), np.full(6, 46.0)]
+    return trimesh.convex.convex_hull(np.vstack([base, lid]) / 3)      # the export scales every model × 3
+
+
 def fold_lamp(rings=6, around=6, height=120.0):
     """A lamp shade to print flat and fold (folded panels, printed, with `window`): an open tube of triangles whose
     radius swells and narrows like the blob in a lava lamp, each ring half a step round from the one below and the
@@ -240,6 +250,8 @@ MODELS = {
     # printed and folded: a groove at every fold
     "fold_test": fold_test,
     "fold_lamp": fold_lamp,
+    "fold_box": fold_box,
+    "fold_lantern": lambda: fold_lamp().apply_scale(3.5),      # the lamp shade at 420 mm, for sheet: every face a part of its own
     # for the plaque
     "droplet": droplet,
     "bonsai": bonsai,
@@ -251,7 +263,7 @@ if __name__ == "__main__":
     for name, fn in MODELS.items():
         m = fn()
         m.apply_scale(3)                      # ~150–200 mm objects: realistic for card / cardboard / sheet metal
-        if not m.is_watertight and name != "fold_lamp":        # the lamp is an open shade: its two ends stay open
+        if not m.is_watertight and name not in ("fold_lamp", "fold_lantern"):        # the lamp is an open shade: its two ends stay open
             trimesh.repair.fill_holes(m)
         m.export(out / f"{name}.stl")
         print(f"{name:9s} bbox {np.round(m.extents, 1)} watertight={m.is_watertight} faces={len(m.faces)}")

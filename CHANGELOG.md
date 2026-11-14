@@ -4,6 +4,12 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ## 0.3.4
 
+### Added
+
+- **Two more folded examples.** *fold_box* is a six-sided box with a turned lid, printed flat in PETG and folded up:
+  every fold has its own angle. *fold_lantern* is the lamp shade at 420 mm for 3 mm plywood: 72 separate pieces,
+  each with a window and lacing holes, numbered on the inside.
+
 ### Changed
 
 - **The steps slider folds a folded job up.** After the last part is in, the steps slider has twenty more steps
@@ -13,6 +19,11 @@ What changed in each release. The GitHub release for a version is this section, 
   room on the Technique tab when the material is cut, not printed.
 - **A print set says when it could not cut the grooves.** A build that cannot cut solids (the one in the browser)
   now writes into the set's README which parts were exported without their fold grooves or labels.
+
+### Fixed
+
+- **No more specks beside a folded panel in stiff sheet.** Trimming a corner against the next panel could leave a
+  crumb a fraction of a millimetre long, reported as a part too small to cut.
 
 ## 0.3.3
 
