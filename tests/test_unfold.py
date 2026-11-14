@@ -9,8 +9,9 @@ import sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 import trimesh
 from shapely.geometry import Polygon
-from core.plan import build, MODES, coerce_params, load_mesh
-from core.modes.folded import simplify, target_faces
+from core.mesh import load_mesh, simplify
+from core.plan import build, MODES, coerce_params
+from core.modes.folded import target_faces
 from core.unfold import unfold, refold_error
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -45,7 +46,7 @@ def run(model, prm):
     autofix stays off so nothing is dropped behind the test's back."""
     prm = {"autofix": "off", **prm}
     mode = MODES["folded"]; p = coerce_params(mode, prm)
-    src = load_mesh(ROOT / "examples" / f"{model}.stl", p, mode="folded")
+    src = load_mesh(ROOT / "examples" / f"{model}.stl", p, surface=True)
     mesh = simplify(src, target_faces(src, p["facet"]))
     panels, seams = check_unfold(mesh, p["separate"], p["strategy"], mode.usable_sheet(p))
     plan = build(ROOT / "examples" / f"{model}.stl", "folded", prm)

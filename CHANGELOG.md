@@ -43,6 +43,12 @@ downloads as a STEP file, for CAD.
   the small up and down arrows, which took a fifth of the box, and the box where you type a new value is wider.
 - **A drawn spacing curve that fits exactly the most slices Lamina cuts is sliced.** A curve laying exactly 500 slices
   along the model was refused as too many, the same as a curve that runs out before the model's end.
+- **A slice no longer fails now and then while it nests the parts.** On a busy computer, laying the parts on the
+  sheets could stop with an error and no result; slicing again usually worked. The parts are now laid out without
+  that failure.
+- **Two folded-panel jobs sliced at the same moment no longer mix.** On a shared server, when two people sliced
+  folded panels at the same time, one of them could get panels that belonged to the other model. Each slice now works
+  on its own.
 
 ## 0.3.2
 

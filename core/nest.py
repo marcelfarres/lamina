@@ -15,6 +15,7 @@ percent of sheet) and its merging of shared cut lines.
 from __future__ import annotations
 import math
 import sys
+import threading
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 import shapely
@@ -167,6 +168,7 @@ class Sheet:
         self.W, self.H, self.margin = W, H, margin
         self.placed, self.pieces, self.convex = [], [], []
         self.nfp = {}            # the no-fit union for a part's shape, and how many placed pieces it covers (see spot)
+        self.kept = threading.Lock()   # a part's turns ask at once (`each`): one of them at a time changes what is kept
         # A raster of the sheet, CELL wide, a cell blocked when a placed part covers it whole, and the radius of the
         # largest disc the free cells hold (a distance transform): a part whose hull holds a bigger disc cannot fit,
         # and is not searched for a spot, which costs a union per rotation. A blocked frame stands for the margin.
@@ -221,9 +223,10 @@ class Sheet:
             n, nfp = self.nfp.get(key, (0, None))
             if n != len(self.convex):
                 nfp = shapely.union_all(np.concatenate([_minkowski(self.convex, _edges(-p)) for p in pieces]))
-                if len(self.nfp) >= 16:
-                    del self.nfp[next(iter(self.nfp))]
-                self.nfp[key] = (len(self.convex), nfp)
+                with self.kept:       # two turns dropping the same oldest entry: the second had nothing to drop, and
+                    if len(self.nfp) >= 16:                    # the slice failed with a KeyError
+                        del self.nfp[next(iter(self.nfp))]
+                    self.nfp[key] = (len(self.convex), nfp)
             free = free.difference(nfp)
         if free.is_empty:
             return None

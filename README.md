@@ -421,6 +421,8 @@ web/static/index.html         │                            ──▶  core/sol
                      core/checks.py    physical checks and auto-fix
                      core/split.py     split oversize parts with puzzle tabs      core/nest.py  outline nesting
                      core/geometry.py  frames, mesh sections → shapely polygons, dowel shapes
+                     core/mesh.py      the model loaded, sized, mended, kept for the next slice    core/remesh.py  modify form
+                     core/identical.py which parts are one part in several copies    core/progress.py  stages and their timing
 ```
 
 - **All geometry is computed in Python** (trimesh sections → shapely polygons). The browser only extrudes finished
