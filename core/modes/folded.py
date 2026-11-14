@@ -293,12 +293,34 @@ class Folded(Mode):
         n_panels = len(slices)
         if not p["separate"] and n_panels > 0.6 * len(mesh.faces):
             ctx.errors.append(f"unfolding gave {n_panels} panels for {len(mesh.faces)} faces — use a bigger facet size or enlarge the sheet")
+        self.check_walls(slices)
         said = len(ctx.errors)
         self.check_folds(ctx, panels, seams)
         if len(ctx.errors) == said:                           # a sheet that does not fold at all has said so: how far it folds is moot
             self.check_closing(slices)
         ctx.notes_extra = f"unfolded {len(mesh.faces)} triangles into {n_panels} panel(s), {len(seams)} seams"
         return slices + extra
+
+    def check_walls(self, slices):
+        """The sheet lies inside the surface, one thickness deep. Where the model itself is thinner than two sheets (the
+        wall of a bowl, a fin), the sheet under one side of it runs into the sheet under the other side, and the
+        panels there cannot both be fitted. A ray from the middle of each face, straight into the model, finds how
+        thick the model is there.
+        ponytail: one ray per face, from its middle; a wall that thins only near a face's edge is missed. Needs the ray
+        engine's rtree, which the browser build has not: no check there."""
+        m, t = self.mesh, self.t
+        try:
+            start = m.triangles_center - m.face_normals * 1e-3
+            hit, ray, _ = m.ray.intersects_location(start, -m.face_normals, multiple_hits=False)
+        except Exception:                                     # no rtree (trimesh raises its own error types for it)
+            return
+        deep = np.full(len(m.faces), np.inf); deep[ray] = np.linalg.norm(hit - start[ray], axis=1)
+        for sl in slices:
+            thin = deep[sl.pn.faces]; n = int((thin < 2 * t).sum())
+            if n:
+                sl.warnings.append(f"{n} face(s) lie on a wall of the model thinner than two sheets (down to {thin.min():.1f} mm, the sheet "
+                                   f"is {t:g} mm): the panel on the far side of that wall is in the way. Use a thinner sheet, or "
+                                   f"make the wall thicker (Model tab: thicken)")
 
     def notch(self, bend):
         """What a fold by `bend` takes off the closing face on each side of its line (mm): half the opening of a printed

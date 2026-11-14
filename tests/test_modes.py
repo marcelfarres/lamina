@@ -438,6 +438,16 @@ def test_folded_stiff_panels_do_not_share_space(model):
     assert pairs("inner") == 0 and pairs("through") == 0
 
 
+def test_folded_says_when_the_model_is_thinner_than_two_sheets(tmp_path):
+    """The sheet lies inside the surface. A plate 4 mm thick has no room for a 3 mm sheet under each of its two big
+    faces: those panels are told so. In 1 mm sheet there is room."""
+    path = tmp_path / "plate.stl"; trimesh.creation.box([100, 80, 4]).export(path)
+    job = {"facet": 0, "separate": True, "joint": "seam", "autofix": "off", "material": "plywood", "sheet": [600, 400]}
+    thin = lambda t: [w for sl in build(path, "folded", {**job, "thickness": t})["slices"] for w in sl["warnings"] if "thinner than two sheets" in w]   # noqa: E731
+    assert len(thin(3)) == 4 and "down to 4.0 mm" in thin(3)[0]            # the two big faces, two triangles each
+    assert not thin(1)
+
+
 def test_folded_says_when_stiff_panels_still_press_into_each_other():
     """A seam edge that is not cut back (a tab joint keeps its edge, or `edge fit` outer) presses t × tan(bend / 2) into
     the next panel. Steel gives nothing, so the panel says so; cardboard crushes that much; cut back, nothing is left."""

@@ -17,6 +17,9 @@ What changed in each release. The GitHub release for a version is this section, 
   still does the same on its own.
 - **The printed-fold settings show only on a printed job.** *hinge*, *hinge width* and *fold stop* no longer take
   room on the Technique tab when the material is cut, not printed.
+- **Folded panels say when the model is thinner than two sheets.** The sheet lies inside the surface, so a fin or an
+  ear thinner than twice the sheet has no room for a panel on each side. Those panels now carry a warning with the
+  thickness found.
 - **A print set says when it could not cut the grooves.** A build that cannot cut solids (the one in the browser)
   now writes into the set's README which parts were exported without their fold grooves or labels.
 

@@ -112,6 +112,13 @@ Measured on the examples in 3 mm steel, every face its own panel, by intersectin
 to 1 (1 mm³); egg 530 to 1; torus 359 to 54 (99 mm³ in all); cow 340 to 70; bowl 378 to 41. What remains is at
 saddle vertices, where panels that share only a corner meet, and on slivers the cap protects. Not yet handled.
 
+## A model thinner than two sheets
+The sheet lies inside the surface, one thickness deep. Where the model itself is thinner than two sheets (a fin, an
+ear, a thin shell), the sheet under one side runs into the sheet under the other. `check_walls` sends one ray from
+the middle of each face straight into the model; a face that meets the far side within two thicknesses puts a
+warning on its panel, with the least depth found. One ray per face: a wall that thins only near an edge is missed.
+It needs the ray engine's rtree, which the browser build has not.
+
 ## Windows
 `window` opens every face with a hole of its own shape, for a lamp shade or a lantern. The frame left around it is
 what the share asks for and never less than 1.35 × the minimum feature width, plus what the face's grooves or
