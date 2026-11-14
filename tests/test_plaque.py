@@ -253,3 +253,104 @@ def test_touching_slices_keep_a_wall_between_their_plate_slots(ball):
     assert not any("plate slots" in e for e in plan["errors"]), plan["errors"]
     plate = shape(by_group(plan, "W")[0])
     assert len(plate.geoms) == 1                                    # the plate is still one piece
+
+
+def helix(balls=36):
+    """A base disc on the plate and a ramp of balls climbing round the axis from angle 0 (height 6) to 70 degrees (height 46):
+    each half-slice of a fan between those angles cuts the ramp as a blob in the air, the first one joined to the base."""
+    base = trimesh.creation.cylinder(radius=60, height=6, sections=64); base.apply_translation([0, 0, 3])
+    parts = [base]
+    for k in range(balls):
+        f = k / (balls - 1); a = np.radians(70 * f)
+        b = trimesh.creation.icosphere(3, 9.0); b.apply_translation([32 * np.cos(a), 32 * np.sin(a), 6 + 40 * f]); parts.append(b)
+    return trimesh.boolean.union(parts)
+
+
+FAN = {"layout": "radial", "planes": 18, "back": "-z", "thickness": 3, "dowel_d": 5, "plate": "circle", "sink": 3}   # sink 3: the first ball dips 3 mm below the base
+
+
+@pytest.fixture(scope="module")
+def ramp(tmp_path_factory):
+    return stl(tmp_path_factory.mktemp("ramp"), helix(), "ramp")
+
+
+@pytest.fixture(scope="module")
+def ramp_plan(ramp):
+    return build(ramp, "plaque", {**BASE, **FAN})
+
+
+def holes_of(s):
+    return [Polygon(r) for p in shape(s).geoms for r in p.interiors]
+
+
+def blob_holes(plan):
+    """The slots in the pieces that hang in the air: a piece with no tooth."""
+    return [Polygon(r) for s in by_group(plan, "R") for p in shape(s).geoms if p.bounds[1] > -0.01 for r in p.interiors]
+
+
+def test_a_fans_floating_pieces_hang_on_edge_on_spacers(ramp_plan):
+    plan = ramp_plan
+    assert plan["counts"]["errors"] == 0, plan["errors"]
+    assert by_group(plan, "P") and blob_holes(plan)
+    assert not any("left out" in n for n in plan["notes"])
+    assert not any("not connected" in e or "floats" in e for s in plan["slices"] for e in s["errors"])
+
+
+def test_a_fan_spacer_is_as_long_as_the_chord_and_square_to_the_plate(ramp_plan):
+    plan = ramp_plan; half = np.radians(5)                          # 18 planes: the half-slices stand 10 degrees apart
+    by = {s["label"]: s for s in by_group(plan, "R")}
+    for sp in by_group(plan, "P"):
+        assert abs(np.array(sp["M"])[2][2]) < 1e-6                  # its normal is square to the plate's normal (back = -z)
+        lower = by[sp["label"].rstrip("abcdefghjklmnpqrstuvwxyz")]
+        x0, y0, x1, y1 = shape(sp).bounds
+        long = max(x1 - x0, y1 - y0)
+        want = [2 * h.centroid.x * np.sin(half) + 3 / np.cos(half) for h in holes_of(lower)]    # a slot's r: the chord there, and what the slices take of it
+        assert any(abs(long - w) < 0.05 for w in want), (sp["label"], long, want)
+
+
+def test_a_fan_slot_is_slanted_wide_and_as_tall_as_the_tab(ramp_plan):
+    holes = blob_holes(ramp_plan)
+    assert holes
+    for h in holes:
+        x0, y0, x1, y1 = h.bounds
+        assert x1 - x0 == pytest.approx(3 / np.cos(np.radians(5)) + 3 * np.tan(np.radians(5)), abs=0.02)   # along r: the spacer passes at 5 degrees off square
+        assert min(abs(y1 - y0 - tab) for tab in (0.6 * 5, 5)) < 0.02     # along the height: the tab, 0.6 of the spacer width, or a whole peg where the chord is no longer than the slices
+    assert any(h.bounds[3] - h.bounds[1] > h.bounds[2] - h.bounds[0] for h in holes)      # a peg's slot is taller than wide
+
+
+def test_every_fan_slot_keeps_a_wall_and_three_spacers_do_not_stand_in_a_line(ramp_plan):
+    for s in by_group(ramp_plan, "R"):
+        for p in shape(s).geoms:
+            assert all(Polygon(p.exterior).buffer(-1.9).contains(Polygon(r)) for r in p.interiors), s["label"]
+            holes = [Polygon(r).centroid for r in p.interiors]
+            if len(holes) >= 3:
+                a, b, c = max(((a, b, c) for a in holes for b in holes for c in holes), key=lambda t: Polygon(t).area)
+                assert Polygon([a, b, c]).area > 5, s["label"]
+    # these blobs are small and shared between two joins: most have room for fewer than 3, and the note names them
+    note = next(n for n in ramp_plan["notes"] if "fewer than 3" in n)
+    assert "R-5" in note
+
+
+def test_a_wide_fan_says_its_spacers_stand_off_square(ramp):
+    plan = build(ramp, "plaque", {**BASE, **FAN, "planes": 8})
+    assert by_group(plan, "P"), plan["errors"]
+    assert any("off square" in n and "more planes" in n for n in plan["notes"])
+    assert not any("off square" in n for n in build(ramp, "plaque", {**BASE, **FAN})["notes"])
+
+
+def test_keeping_floating_pieces_in_a_fan_leaves_none_out(ramp, tmp_path):
+    ball = trimesh.creation.icosphere(2, 9.0); ball.apply_translation([-32 * np.cos(np.radians(20)), -32 * np.sin(np.radians(20)), 40])   # in the air at 200 degrees: no slice beside it holds it
+    path = stl(tmp_path, trimesh.util.concatenate([helix(), ball]), "far")
+    assert any("left out" in n for n in build(path, "plaque", {**BASE, **FAN})["notes"])
+    plan = build(path, "plaque", {**BASE, **FAN, "floating": "keep"})
+    assert not any("left out" in n for n in plan["notes"])
+    assert any("floats" in e for s in plan["slices"] for e in s["errors"])           # kept with its error; the ramp's own spacers are as before
+    assert len(by_group(plan, "P")) == len(by_group(build(ramp, "plaque", {**BASE, **FAN}), "P"))
+
+
+def test_a_left_out_piece_big_enough_to_matter_is_a_warning_on_its_slice(tmp_path):
+    far = trimesh.creation.box([10, 10, 6]); far.apply_translation([0, 50, 50])      # beside the cap in the same slices as the stem: no neighbour holds it
+    plan = build(stl(tmp_path, mushroom(far)), "plaque", {**BASE, "dowel_d": 5})
+    assert any("left out" in n for n in plan["notes"])
+    warned = [w for s in by_group(plan, "S") for w in s["warnings"] if "is left out" in w]
+    assert warned and all("10 × 6 mm" in w and "no slice beside it can hold it" in w for w in warned)

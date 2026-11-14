@@ -26,8 +26,9 @@ downloads as a STEP file, for CAD.
   ends meeting round a small hole whose radius you can set, or as two families slotted into each other like an egg
   crate (*layout* crossed). Two new examples open with it: the rings a drop leaves on water,
   as a fan on a round plate, a bonsai in its pot, and a dancer made of smooth blobs, crossed. A piece of a slice that does not reach the plate hangs from the
-  slice beside it on three small flat spacers (side-by-side slices only), set edge-on so they hardly show from the front; a piece that no
-  neighbour can hold is left out and named in the notes, or kept with its error if you prefer. The spacing curve
+  slice beside it on up to three small flat spacers, in the side-by-side layout and in the fan, set edge-on so they hardly show from the front; a piece that no
+  neighbour can hold is left out, named in the notes and, when it is big enough to matter, given as a warning on its
+  slice; or kept with its error if you prefer. The spacing curve
   works in every layout, and plate slots take the same inside-corner relief as every other slot, for a router.
 
 ### Fixed
