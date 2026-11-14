@@ -16,6 +16,7 @@ MAX_SLICES = 500                      # the count slider's ceiling, and the ceil
 
 # Param.type → what the UI renders
 #   number | int | choice | bool | text
+#   file          a file picked in the form, kept as its text (an SVG or DXF outline)   value: the file's text
 #   vec2 / vec3   two / three number boxes                      value: [x, y(, z)]
 #   points        table of 2D points (+ alt-click in the 3D view) value: [[x, y], …]
 #   lines3        table of 3D lines start→end                   value: [[[x,y,z],[x,y,z]], …]
@@ -274,6 +275,7 @@ class Ctx:
         self.core_d_min = None    # radial: the smallest core the half-slices allow
         self.spacing = []         # the drawn spacing curves' outcome, for the graph: [{param, positions, length, unit, scale}]
         self.stack, self.common_pts = [], None   # stacked: the layers in order, and the dowel points they all share (cached)
+        self.clip = None          # plaque: [point, normal] of the plate's front face — the 3D view shows the model in front of it only, and coverage is measured on that
 
     def override(self, key, label, default=0.0):
         return float(dict(self.p[key]).get(label, default))
@@ -294,9 +296,9 @@ class Ctx:
         if not p.get("spacing_vary"):
             return None
         pos, k = spaced(p[param] or [], length, p["spacing_min"], max(p["spacing_max"], p["spacing_min"] + 1e-6),
-                        count if p["spacing_fix"] == "count" else None, periodic, MAX_SLICES)
+                        count if p["spacing_fix"] == "count" else None, periodic, MAX_SLICES + 1)   # one past: exactly the cap fits
         self.spacing.append({"param": param, "positions": [round(float(q), 3) for q in pos], "length": float(length), "unit": unit, "scale": round(float(k), 4)})
-        if p["spacing_fix"] != "count" and len(pos) >= MAX_SLICES:   # the walk hit the cap with model left over: stop, as count_by_thickness does
+        if p["spacing_fix"] != "count" and len(pos) > MAX_SLICES:    # more than the cap with model left over: stop, as count_by_thickness does
             self.errors.append(f"the spacing curve lays {MAX_SLICES} slices along {length:.0f} mm of model and does not reach its end — more "
                                f"than can be cut. A model this big is usually a units slip (lifesize, or saved in centimetres): set `size` to "
                                f"the real size, or raise the curve's spacing")

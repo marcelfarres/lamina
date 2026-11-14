@@ -39,6 +39,7 @@ CLIPS = {                             # name: (crop, width, fps)
     "radial": (VIEW43, 1100, 18),
     "curve": (VIEW43, 1100, 18),
     "folded": (VIEW43, 1100, 18),
+    "plaque": (VIEW43, 1100, 18),
     "axes": (VIEW43, 1100, 18),       # radial with an axis per lobe: the dumbbell, its neck plane moved and tilted
     "lobes": (FULL, 1200, 16),        # the plane between two lobes selected, its sliders in frame
     "square": (FULL, 1200, 16),       # a cube 8° off square, then the Model tab's square it up button

@@ -2,8 +2,8 @@
 technique touched at least once, so a field that stops driving the slicer — or a button that throws — fails here
 instead of in someone's inbox.
 
-    uv run --with playwright playwright install chromium
-    LAMINA_UI=1 uv run --with playwright pytest tests/test_ui.py -q
+    uv run playwright install chromium
+    LAMINA_UI=1 uv run pytest tests/test_ui.py -q
 
 It drives the page the way a person does (real input events, the debounce, the real /api/slice), and fails on any
 uncaught JavaScript error, on a status line that never settles, and on a parameter whose value does not reach the
@@ -243,7 +243,7 @@ def test_no_number_on_screen_is_cut_off(page):
             for tab in ("model", "technique", "sheet", "checks", "export"):
                 page.click(f'nav button[data-t="{tab}"]'); page.wait_for_timeout(150)
                 for line in page.evaluate(CUT_OFF):
-                    found.setdefault(line.split(" shows")[0].split(':')[0] + line.split(':')[1].split(' shows')[0], f"{example}/{mode}/{unit}: {line}")
+                    found.setdefault(line, f"{example}/{mode}/{unit}: {line}")     # the whole line: a box without a name must not hide another (040)
         page.select_option("#unit", "mm"); page.evaluate("() => window.__t.deselect()")
     assert not found, "\n".join(found.values())
 
@@ -1096,6 +1096,21 @@ def test_an_example_starts_every_technique_from_its_defaults(page):
     st = page.evaluate("() => window.__t.state()")
     for k in ("dowel_d", "dowel_shape", "axis", "placement", "space"):
         assert st[k] == defaults[k], (k, st[k], defaults[k])
+
+
+def test_an_example_opens_with_its_technique_s_own_gap_between_slices(page):
+    """Reported: the bonsai plaque was "missing some slices from the branches and the sides of the pot". An example
+    opened with space forced to 0 on top of its technique's defaults, so a plaque's slices touched (70 of them) and
+    nine pieces no neighbour had room to hold were left out. The gap is the technique's default unless the preset
+    names one: 3 mm for a plaque, 35 slices and the plate."""
+    page.click('nav button[data-t="model"]')
+    page.select_option("#example", "bonsai"); settle(page)
+    assert page.evaluate("() => window.__t.state().space") == 3
+    pl = plan(page)
+    assert pl["counts"]["slices"] == 36 and pl["counts"]["errors"] == 0, pl["counts"]
+    assert "9 floating piece(s) left out" not in " ".join(pl["notes"]), pl["notes"]
+    page.select_option("#example", "vase"); settle(page)                    # a technique whose default is touching slices keeps it
+    assert page.evaluate("() => window.__t.state().space") == 0
 
 
 def test_a_drag_while_a_slice_runs_turns_the_view_not_the_model(page):

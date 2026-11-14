@@ -202,6 +202,13 @@ S.folded = async () => {      // the cow mesh is y-up: rotate x 90° stands it u
     await techClip("folded", -60, 18, 0.9, [["laced", () => set("joint", "laced")], ["facet 25", () => set("facet", 25)], ["rib", () => set("joint", "rib")],
         ["tab", () => set("joint", "tab")], ["facet 15", () => set("facet", 15)]]);
 };
+S.plaque = async () => {      // the bonsai opens as a plaque; the camera stays in front of the plate: from behind, a plaque is a board with teeth
+    await example("bonsai"); await mode("plaque"); await tab("technique"); await heal();
+    await view(50, 10, 1.0, 1.0); await project("plaque");
+    // three changes only: each adds 24° of orbit, and past 170° the view is behind the plate
+    await techClip("plaque", 50, 10, 1.0, [["circle plate", () => set("plate", "circle")], ["silhouette plate", () => set("plate", "silhouette")],
+        ["rounded plate", () => set("plate", "rounded")]]);
+};
 S.rib = async () => {         // rib closeup: a pyramid keeps every face, so five long ribs at real fold angles, and nothing else in the frame
     await example("pyramid"); await mode("folded"); await tab("technique");
     await params({ joint: "rib", facet: 0, rib_w: 40, inset: 15, thickness: 1.5 }); await heal();   // ribs big enough to read on a 240 mm pyramid
