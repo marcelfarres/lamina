@@ -83,6 +83,42 @@ class Stacked(Mode):
     def build(self, ctx):
         p = ctx.p
         ax = "xyz".index(p["axis"]); normal = ctx.ax[ax]; up = ctx.ax[(ax + 2) % 3]
+        length = ctx.ext[ax]
+        labels, pos, th, drawn = self.planes(ctx, ax)
+        slices = ctx.keep([Slice(lab, "S", ctx.frame(lab, ctx.mid + normal * z, normal, up_hint=up), tk)
+                           for lab, z, tk in zip(labels, pos, th)])
+        self.profiles(ctx, slices)
+        slices = [s for s in slices if not s.raw.is_empty]
+        ctx.rods = []
+        ctx.cover_r = self.cover_r(ctx, pos, drawn, length, len(slices))
+        if p["space"] > 0 and p["connect"] == "none":
+            ctx.errors.append(f"space = {p['space']:g} mm between slices but no connectors — the slices would float: set connect to tab (spacers) or dowel, or set space to 0")
+        if p["connect"] == "none" or len(slices) < 2:
+            return slices
+        return self.in_order(slices, self.connect(ctx, slices))
+
+    @staticmethod
+    def cover_r(ctx, pos, drawn, length, n):
+        """How far across its plane a slice counts as covering the surface: half the widest step between two slices."""
+        p = ctx.p
+        return (max(np.diff(pos)) / 2 + 0.5 if len(pos) > 1 else length / 2) if drawn is not None else \
+            (p["thickness"] + p["space"]) / 2 + 0.5 if p["distribution"] == "distance" else length / (2 * max(1, n)) + 0.5
+
+    @staticmethod
+    def in_order(slices, extra):
+        """Assembly order: a slice, then the connectors that sit on it, then the next slice …"""
+        by_pair = {}
+        for sl in extra:
+            by_pair.setdefault(sl.pair, []).append(sl)
+        out = []
+        for i, sl in enumerate(slices):
+            out.append(sl); out += by_pair.get(i, [])
+        return out
+
+    def planes(self, ctx, ax):
+        """Where the slices of the stack sit along axis `ax`: their labels, positions (0 = the middle of the model) and
+        thicknesses, and what the spacing curve drew (None when the spacing is even)."""
+        p = ctx.p
         length = ctx.ext[ax]; t = p["thickness"]; gap = p["space"]
         name = lambda i: f"{p['axis'].upper()}-{i + 1}"
         drawn = ctx.spaced("spacing_curve", length - 2 * p["margin"], p["count"])
@@ -110,26 +146,7 @@ class Stacked(Mode):
                       "use fewer slices, thinner material, or a smaller shift"
                 ctx.errors.append(f"{'spacing curve' if drawn is not None else 'shift'}: {len(tight)} pair(s) of slices overlap — "
                                   f"{a} and {b} are {g:.1f} mm apart, less than the material: {why}")
-        slices = ctx.keep([Slice(lab, "S", ctx.frame(lab, ctx.mid + normal * z, normal, up_hint=up), tk)
-                           for lab, z, tk in zip(labels, pos, th)])
-        self.profiles(ctx, slices)
-        slices = [s for s in slices if not s.raw.is_empty]
-        ctx.rods = []
-        ctx.cover_r = (max(np.diff(pos)) / 2 + 0.5 if len(pos) > 1 else length / 2) if drawn is not None else \
-            (t + gap) / 2 + 0.5 if p["distribution"] == "distance" else length / (2 * max(1, len(slices))) + 0.5
-        if p["space"] > 0 and p["connect"] == "none":
-            ctx.errors.append(f"space = {p['space']:g} mm between slices but no connectors — the slices would float: set connect to tab (spacers) or dowel, or set space to 0")
-        if p["connect"] == "none" or len(slices) < 2:
-            return slices
-        extra = self.connect(ctx, slices)
-        # assembly order: a slice, then the connectors that sit on it, then the next slice …
-        by_pair = {}
-        for sl in extra:
-            by_pair.setdefault(sl.pair, []).append(sl)
-        out = []
-        for i, sl in enumerate(slices):
-            out.append(sl); out += by_pair.get(i, [])
-        return out
+        return labels, pos, th, drawn
 
     def shifted(self, ctx, pos, name, length, t, gap, refill):
         """Every slice plane moved by `shift` along the axis. A stack laid by distance is laid again from the shifted
@@ -387,14 +404,20 @@ class Stacked(Mode):
                     out.append((float(q[0]), float(q[1])))
         return out
 
-    def connect(self, ctx, slices):
-        p = ctx.p; t = p["thickness"]; gap = p["space"]; d = p["dowel_d"]; mf = p["min_feature"]
+    def connect(self, ctx, slices, *, settings=None, islands=None, seeds=None, side_step=1.2, typed=True):
+        """Connectors between consecutive slices: dowels, or the pegs and spacers of tabs. The plaque holds its floating
+        pieces with the same placer and gives it: `settings` in place of ctx.p for everything about the connectors,
+        `islands(a, b)` the places to hold for a pair (default: all their overlap, none for lines), `seeds(parts)` where
+        the first connector of an island is tried (default: the middle of each room), `side_step` how many widths
+        consecutive pairs put their spacers to one side and the other, clear of each other, and `typed` False to leave
+        out the points typed in or drawn and the notes about them."""
+        p = settings or ctx.p; t = p["thickness"]; gap = p["space"]; d = p["dowel_d"]; mf = p["min_feature"]
         tab = p["connect"] == "tab"
         # keep the hole's real reach from the outline, not d/2: a square's corner sits at 0.71 d, a slot's end at 0.75 d
         margin = hole_reach(d + p["slot_offset"], p["dowel_shape"]) + mf
         rod = [[round(x, 3), round(y, 3)] for x, y in dowel((0, 0), d, p["dowel_shape"]).exterior.coords[:-1]]   # the rod's section, for the 3D view
         ctx.stack = slices
-        extra, k, skipped = [], 0, 0
+        extra, skipped = [], 0
         tab_w, sw = (d if gap == 0 else d * 0.6), t + p["slot_offset"]    # a tab's width along its slot, the slot's width
         reach = math.hypot(tab_w, sw) / 2 if tab else margin - mf          # how far a cut reaches from its centre, any way it turns
 
@@ -432,7 +455,6 @@ class Stacked(Mode):
             no step are tried before the point is given up. The fit is tested on the cut itself — tested on a round
             hole at the unstepped point, every second pair of an aligned stack lost all its spacers to the slots of
             the pair before, and the layers they held were cut off as floating."""
-            nonlocal k
             # the gap this pair really has: the drawn spacing curve spreads pairs unevenly, and a pair's spacer is as
             # long as its own gap — a peg where the two touch, a spacer with a body where they do not
             spacing = float(np.dot(b.M[:3, 3] - a.M[:3, 3], a.M[:3, 2]))
@@ -440,7 +462,7 @@ class Stacked(Mode):
             tab_w_i = d if gap_i < 1e-6 else d * 0.6
             if tab:
                 ang = {"x": 0.0, "y": 90.0, "alternate": 90.0 * (j % 2)}[p["spacer_dir"]]
-                step = d * 1.2 * (1 if i % 2 else -1)
+                step = d * side_step * (1 if i % 2 else -1)
                 angs = (ang, 90.0 - ang) if p["spacer_dir"] == "alternate" else (ang,)
                 tries = [(A, s) for A in angs for s in (step, -step)] + [(A, 0.0) for A in angs]
             else:
@@ -468,7 +490,6 @@ class Stacked(Mode):
                                  rod, list(a.M[:3, 0]), name, a.label, b.label])
                 return xa, ya
             # one flat piece across the gap: a peg when space = 0, a spacer (body + a tab each end) otherwise
-            k += 1
             M = frame_xy(np.array(pt), a.M[:3, :3] @ np.array([dx, dy, 0]), a.M[:3, 2])   # piece plane: spacer direction × stack normal
             L = spacing + t                                                     # from the far side of a to the far side of b
             body = Polygon([(-d / 2, -gap_i / 2), (d / 2, -gap_i / 2), (d / 2, gap_i / 2), (-d / 2, gap_i / 2)]) if gap_i > 0 else None
@@ -484,7 +505,7 @@ class Stacked(Mode):
         for i, (a, b) in enumerate(zip(slices, slices[1:])):
             # what slice a already carries, for every placement: an aligned point repeats exactly and is kept
             taken = [(x, y) for x, y, *_ in a.cutkeys]
-            pts = self.points_for_pair(ctx, a, b, i, d, margin, taken)
+            pts = self.points_for_pair(ctx, a, b, i, d, margin, taken) if typed else []
             got = [q for q in (place(a, b, i, j, x, y) for j, (x, y) in enumerate(pts)) if q]
             skipped += len(pts) - len(got)
             # Every island the two share is held, by as many connectors as were asked for, whatever the placer chose
@@ -494,7 +515,7 @@ class Stacked(Mode):
             # already there, plus the connector's own reach — so a small layer with room for one finds it; its most
             # inward spot is taken first, then each as far from the others as the room allows. No room at all, and
             # the check says what size would fit. Lines are the connectors someone drew; nothing is added to those.
-            for isl in [] if p["placement"] == "lines" else as_multi(a.raw.intersection(b.raw)).geoms:
+            for isl in (islands(a, b) if islands else [] if p["placement"] == "lines" else as_multi(a.raw.intersection(b.raw)).geoms):
                 have = [q for q in got if isl.contains(Point(q))]
                 # As many as asked for on top of any typed in, and for dowels, on past that while the piece is not
                 # held and the next spot holds it better (at most as many again): a dowel typed into a bunny's ear
@@ -515,7 +536,7 @@ class Stacked(Mode):
                     parts = sorted(as_multi(room).geoms, key=lambda g: -g.area)
                     x0, y0, x1, y1 = room.bounds; h = max(d / 4, math.sqrt(room.area) / 20)
                     grid = np.stack(np.meshgrid(np.arange(x0, x1, h), np.arange(y0, y1, h)), -1).reshape(-1, 2)
-                    q += [shapely.maximum_inscribed_circle(g, 0.1).coords[0] for g in parts]   # each room's middle first
+                    q += seeds(parts) if seeds else [shapely.maximum_inscribed_circle(g, 0.1).coords[0] for g in parts]
                     q += [tuple(c) for c in grid[shapely.contains_xy(room, grid[:, 0], grid[:, 1])]]
                 def far(q, ms):                                        # farthest from the connectors in ms first
                     q.sort(key=lambda pt: -min(_dist(pt, m) for m in ms))
@@ -534,7 +555,7 @@ class Stacked(Mode):
                 if not both.is_empty:
                     rooms.append(max(shapely.maximum_inscribed_circle(g, 0.5).length * 2 for g in as_multi(both).geoms))
         # what went short is about the whole stack, so it goes in the plan's notes, not on a slice
-        said = self._said(p, skipped, bare, rooms, margin, d)
+        said = self._said(p, skipped, bare, rooms, margin, d) if typed else []
         if said:
             ctx.notes_extra = " · ".join([ctx.notes_extra] + said).strip(" ·")
         if p["placement"] == "aligned" and p["dowels"]:

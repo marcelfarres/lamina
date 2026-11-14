@@ -4,7 +4,8 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ## 0.3.3
 
-The assembled model now also downloads as a STEP file, for CAD.
+A new technique, Plaque, stands the slices of a model on a back plate, for the wall. The assembled model now also
+downloads as a STEP file, for CAD.
 
 ### Added
 
@@ -13,6 +14,22 @@ The assembled model now also downloads as a STEP file, for CAD.
   assembly. Fusion, FreeCAD and Onshape open it without the triangle lines an STL brings. A curved edge is still
   made of the short straight segments of the cut files, so it shows as narrow flat strips. A model with many
   stacked slices makes a large file. The command line writes it too: `--out model.step`.
+- **Plaque: a new technique for wall pieces.** The model is cut off at a flat back plate and its slices stand on edge
+  on the plate, like a trophy head on a shield. Each slice has teeth that go through slots in the plate and end flush
+  with its back. You choose which side of the model goes against the plate, how deep the model sinks into it (what is
+  behind the plate is left out), how many teeth each slice gets and how wide they are; long slices get more teeth,
+  evenly spread. The plate has its own material thickness and its own shape: circle, ellipse, rectangle, rounded
+  rectangle, hexagon, shield, the model's own silhouette, or a shape of your own from an SVG or DXF file (closed shapes
+  inside it are cut out of the plate), with a margin, a size, a scale, a mirror, a turn and an offset to place the
+  model in it. The slices
+  are spread with the same controls as Stacked Slices, or stand as a fan round a centre (*layout* radial), their inner
+  ends meeting round a small hole whose radius you can set, or as two families slotted into each other like an egg
+  crate (*layout* crossed). Two new examples open with it: the rings a drop leaves on water,
+  as a fan on a round plate, a bonsai in its pot, and a dancer made of smooth blobs, crossed. A piece of a slice that does not reach the plate hangs from the
+  slice beside it on up to three small flat spacers, in the side-by-side layout and in the fan, set edge-on so they hardly show from the front; a piece that no
+  neighbour can hold is left out, named in the notes and, when it is big enough to matter, given as a warning on its
+  slice; or kept with its error if you prefer. The spacing curve
+  works in every layout, and plate slots take the same inside-corner relief as every other slot, for a router.
 - **A Reddit community.** [r/Lamina3D](https://www.reddit.com/r/Lamina3D) is a place to show what you built, ask for
   help and say what Lamina should do next. It is linked beside the Discord in the app's header, on the Export tab,
   on the landing page and in the README.
@@ -26,6 +43,8 @@ The assembled model now also downloads as a STEP file, for CAD.
 - **Numbers in the narrow boxes show in full.** In inches and centimetres, a size or a curve point with four or more
   digits could lose its last digit in the newest Chrome. The boxes that stand two or three in a row no longer have
   the small up and down arrows, which took a fifth of the box, and the box where you type a new value is wider.
+- **A drawn spacing curve that fits exactly the most slices Lamina cuts is sliced.** A curve laying exactly 500 slices
+  along the model was refused as too many, the same as a curve that runs out before the model's end.
 
 ## 0.3.2
 

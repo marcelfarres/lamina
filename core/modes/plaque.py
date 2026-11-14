@@ -1,0 +1,523 @@
+"""Plaque: the model cut off at a flat back plate, and its slices standing on edge on that plate, held in it by teeth
+that go through plate slots. A piece of a slice that does not reach the plate hangs from the slice beside it on
+stacked's flat spacers, turned edge-on to whoever looks at the plaque."""
+import math
+from dataclasses import dataclass, field, replace
+
+import numpy as np
+import shapely
+from shapely.geometry import LineString, Point, Polygon, box
+from shapely.ops import unary_union
+from shapely.strtree import STRtree
+from . import Param, register
+from .stacked import ABC_LOWER, Stacked, hole_mark
+from ..model import Slice
+from ..geometry import as_lines, as_multi, frame, frame_xy, mark_box, mark_rot, rot_about, to_local, to_world
+from ..notch import interlock
+from ..plate import SHAPES, plate_shape
+
+BIG = 1e5
+_S = {q.name: q for q in Stacked.params}
+# stacked's connector settings as the plaque always uses them: flat spacers, three to a floating piece, their slots
+# along the plate's normal so the spacer is seen edge-on from the front
+FIXED = {"connect": "tab", "placement": "random", "n_points": 3, "dowel_shape": "round", "dowels": [], "lines": [], "spacer_dir": "y"}
+
+
+@dataclass
+class Frame:
+    """The plate and the model's place on it."""
+    Mp: np.ndarray          # the plate's frame: the model's up as its y, x to the right of someone looking at the plaque
+    n_p: np.ndarray         # the plate's normal: out of the plate, toward the front
+    up: np.ndarray
+    z0: float               # the plate's front face, along n_p
+    plate_t: float
+    depth: np.ndarray       # every vertex of the model along n_p
+    covered: object         # the model in front of the plate: what the slices are asked to cover
+
+
+@dataclass
+class Layout:
+    """Where the slices stand, and what the teeth must keep clear of."""
+    slices: list
+    front: Polygon                                  # the part of each slice's frame in front of the plate (a fan's also outside its hole)
+    hub: Polygon                                    # no tooth here
+    wall: float                                     # the plate between two neighbours' slots
+    clash: dict = field(default_factory=dict)       # crossed: slice → the stretches (from, to) of its foot where a slice of the other family stands
+    fams: tuple = ()                                # crossed: the two families
+    chain: bool = False                             # a piece that hangs from a neighbour holds the next one in turn (parallel, radial)
+    cyclic: bool = False                            # the last slice is the first one's neighbour (a fan)
+    spacers: object = None                          # where the spacers of the joins are made: (plaque, ctx, slices, holds, after) → their parts
+
+
+def core_need(n, t, slot_offset):
+    """The least radius of the hole in the middle of a fan of 2n half-slices of thickness t, where their inner corners meet."""
+    return (t + slot_offset) / 2 / math.tan(math.pi / (2 * n)) + 0.5
+
+
+def across(src, dst, pts, z=0.0):
+    """Points (x, y) at height z in frame `src`, as x, y in frame `dst`."""
+    return to_local(dst, to_world(src, pts, z))
+
+
+def say(ctx, text):
+    ctx.notes_extra = " · ".join(x for x in [ctx.notes_extra, text] if x)
+
+
+def hang_floating(pieces, held, need, chain, cyclic=False):
+    """Which pieces hang from which: a piece nothing holds hangs from a held piece of the slice before or after it, where the
+    two overlap by `need` (mm²) or more. `pieces[i]` are the pieces of slice i, `held[i]` whether each is held. A piece that
+    hangs is held for the next to hang from. `chain` is False where neighbours cannot hold one another (a fan's stand at an
+    angle, a crossed piece is held by what crosses it). `cyclic`: the last slice and the first are neighbours too. Returns the
+    new `held` and {index of the lower slice of a pair: the overlaps}, the last slice being the lower of a cyclic pair."""
+    held = [list(h) for h in held]; joins = {}; changed = chain; n = len(pieces)
+    while changed:
+        changed = False
+        for i in range(len(pieces)):
+            for j, g in enumerate(pieces[i]):
+                if held[i][j]:
+                    continue
+                for nb in dict.fromkeys(((i - 1) % n, (i + 1) % n) if cyclic and n > 2 else (i - 1, i + 1)):
+                    over = [g.intersection(h) for h, ok in zip(pieces[nb], held[nb]) if ok] if 0 <= nb < n else []
+                    over = max(over, key=lambda o: o.area, default=None)
+                    if over is not None and over.area >= need:
+                        held[i][j] = changed = True
+                        joins.setdefault(nb if nb == i - 1 or (cyclic and n > 2 and nb == (i - 1) % n) else i, []).append(over)
+                        break
+    return held, joins
+
+
+def share_out(joins, need, mf, cyclic=0):
+    """A piece in the middle of a chain takes spacers from both sides, and the first pair would spread its three over
+    the whole piece and leave the second none. Where two joins share a piece they share it out: one much smaller
+    than the other keeps its own area and the big one stays out of it; two of a size take a half each, along the
+    longer side — even pairs the low half, odd pairs the high one — so each has one compact area for its three.
+    `cyclic` is the number of slices of a fan, whose last join is beside its first. Returns {slice index: the areas its spacers
+    go in}, those with room for a spacer only."""
+    out = {}
+    for i, overs in joins.items():
+        near = [c for k in (i - 1, i + 1) for c in joins.get(k % cyclic if cyclic else k, [])]
+        for g in overs:
+            for c in [c for c in near if c.intersects(g)]:
+                if c.area < g.area / 2:
+                    g = g.difference(c.buffer(mf))
+                elif c.area <= 2 * g.area:
+                    x0, y0, x1, y1 = g.bounds; wide = x1 - x0 >= y1 - y0; xm, ym = (x0 + x1) / 2, (y0 + y1) / 2
+                    g = g.intersection(box(*((x0, y0, xm, y1) if wide else (x0, y0, x1, ym)) if i % 2 == 0 else
+                                           ((xm, y0, x1, y1) if wide else (x0, ym, x1, y1))))
+            if g.area >= need / 2:
+                out.setdefault(i, []).append(g)
+    return out
+
+
+def edge_seeds(parts):
+    """The first spacer of a floating piece goes at its edge, not its middle: the next two then go as far from it
+    and from each other as the piece allows, and the three hold a plane."""
+    out = []
+    for g in parts:
+        c = np.array(g.centroid.coords[0]); xy = np.array(g.exterior.coords)
+        far = xy[np.argmax(np.hypot(*(xy - c).T))]
+        out.append(tuple(far + (c - far) * min(1.0, 0.3 / max(1e-9, np.hypot(*(c - far))))))   # a hair in from the room's edge
+    return out
+
+
+def size(g):
+    return f"{g.bounds[2] - g.bounds[0]:.0f} × {g.bounds[3] - g.bounds[1]:.0f} mm"
+
+
+def spread(a, b, p, turn, beside):
+    """The teeth along a stretch a..b of a slice: [(centre, width)]. Each stretch gets `teeth` teeth or more (one every
+    `tooth_spacing`), evenly spread; a tooth beside one of `beside` (from, to) moves clear of it, or is cut narrower."""
+    mf = p["min_feature"]; wmin = max(mf, 2.0); tw = p["tooth_width"]; gap = mf + p["slot_offset"]; L = b - a
+    n = max(p["teeth"], math.ceil(L / p["tooth_spacing"]) if p["tooth_spacing"] else 0)
+
+    def width(n):                                                  # teeth take half the stretch at most
+        return min(tw, L / (2 * n))
+
+    while n > 1 and width(n) < wmin:
+        n -= 1
+    w = width(n) if n > 1 else min(tw, L)
+    spots = []
+
+    def free(c, ww):
+        return (a + ww / 2 <= c <= b - ww / 2 and all(c + ww / 2 + gap <= lo or c - ww / 2 - gap >= hi for lo, hi in beside)
+                and all(abs(c - c2) >= (ww + w2) / 2 + gap for c2, w2 in spots))
+
+    for c in ([a + L * (i + 0.5 + turn) / n for i in range(n)] if w >= wmin else []):
+        for ww in (w, wmin):                                       # narrower before nowhere
+            near = sorted((q for lo, hi in beside for q in (lo - gap - ww / 2, hi + gap + ww / 2) if free(q, ww)), key=lambda q: abs(q - c))
+            if free(c, ww) or near:
+                spots.append((c if free(c, ww) else near[0], ww)); break
+    return spots
+
+
+@register
+class Plaque(Stacked):
+    name = "plaque"
+    title = "Plaque"
+    description = ("The model cut off at a flat back plate, its slices standing on edge on the plate: each slice has teeth that go "
+                   "through plate slots. `sink` sets how deep the model goes into the plate; what is behind the plate is left out.")
+    legend = ("W-1 = the back plate · X-2 / Y-4 in a crossed plaque = the 2nd slice of the first family and the 4th of the second, "
+              "which half-lap into each other · R-5 = the 5th half-slice of a radial fan, counted round from `angle` · X-3 = the 3rd slice across the plate, counted from the low end (Y- or Z- when the slices "
+              "run that way): its teeth go into the row of plate slots under it · X-3a = spacer a between X-3 and X-4, which "
+              "holds a piece of one of them that does not reach the plate")
+    params = [
+        Param("back", "choice", "-z", "The side of the model that goes against the plate: the plate is square to this axis and the "
+              "model sticks out of it the other way", choices=["-z", "+z", "-y", "+y", "-x", "+x"], label="back of the model"),
+        Param("layout", "choice", "parallel", "How the slices stand on the plate: parallel = side by side, one after another · "
+              "radial = a fan of half-slices round a centre (move it with `center`), their inner ends meeting round a small hole · "
+              "crossed = two families at right angles, slotted into each other half way like an egg crate, both standing on the plate",
+              choices=["parallel", "radial", "crossed"]),
+        Param("axis", "choice", "x", "Slice direction (normal of the slices): one of the two axes that lie in the plate", choices=["x", "y", "z"],
+              show_if=("layout", "parallel")),
+        Param("planes", "int", 12, "Radial: planes through the centre; each gives two half-slices", 2, 90, 1, show_if=("layout", "radial")),
+        Param("angle", "number", 0.0, "Radial: turn the whole fan about its centre (deg) · crossed: turn the grid on the plate",
+              -90, 90, 1, unit="deg", show_if=("layout", ["radial", "crossed"])),
+        Param("nx", "int", 8, "Crossed: slices of the first family, which goes into the plate first", 1, 200, 1, show_if=("layout", "crossed")),
+        Param("ny", "int", 8, "Crossed: slices of the second family, which drops onto the first from the front", 1, 200, 1, show_if=("layout", "crossed")),
+        Param("radius", "number", 0.0, "Radial: the radius of the hole in the middle of the fan, where the half-slices end (mm). "
+              "0 = the least that lets them all fit round it; under that least their inner ends collide", 0, 500, 0.5, unit="mm",
+              show_if=("layout", "radial")),
+        Param("sink", "number", 0.0, "How far the model goes into the plate (mm), from its rearmost point: 0 = the model only touches "
+              "the plate, more = more of its back is cut away. What is behind the plate's front face is left out", 0, 5000, 0.5, unit="mm"),
+        Param("plate_thickness", "number", 0.0, "Thickness of the back plate's material (mm), which is also how long the teeth are: "
+              "they end flush with the back of the plate. 0 = the same material as the slices", 0, 100, 0.05, unit="mm", label="plate thickness"),
+        Param("plate", "choice", "rounded", "The plate's outline: a shape fitted round the model, or silhouette = the model's own "
+              "shadow on the plate, grown by the margin · file = a shape of your own, drawn in an SVG or DXF file",
+              choices=SHAPES, choice_labels={"rounded": "rounded rectangle", "file": "file (SVG / DXF)"}),
+        Param("plate_file", "file", "", "The plate's outline from an SVG or DXF file: its largest closed shape is the plate, closed shapes "
+              "inside it are cut out of the plate (a hanging hole, an ornament). The drawing is fitted round the model, keeping its "
+              "proportions; place the model in it with plate scale, mirror, rotation and offset", show_if=("plate", "file"), label="plate file"),
+        Param("plate_margin", "number", 20.0, "How far the plate reaches past the model all round (mm)", 0, 500, 1, unit="mm", label="plate margin"),
+        Param("plate_size", "vec2", [0, 0], "The plate's width and height (mm), in place of the fit round the model; 0 = automatic. "
+              "One value keeps the shape's proportions", 0, 5000, 1, unit="mm", label="plate size"),
+        Param("plate_offset", "vec2", [0, 0], "Move the plate under the model (mm)", -5000, 5000, 1, unit="mm", label="plate offset"),
+        Param("plate_scale", "number", 100.0, "The plate's size as a percentage of its fit round the model: over 100 leaves more plate "
+              "round the model, under 100 lets the model reach past it", 10, 500, 1, unit="", label="plate scale (%)"),
+        Param("plate_mirror", "bool", False, "Turn the plate's outline over, left to right: for a file drawn the other way round", label="plate mirror"),
+        Param("plate_rotation", "number", 0.0, "Turn the plate about its middle (deg)", -180, 180, 1, unit="deg", label="plate rotation"),
+        Param("teeth", "int", 2, "The fewest teeth for each stretch of a slice that stands on the plate. A slice that meets the plate "
+              "in two separate stretches gets this many in each", 2, 20, 1),
+        Param("tooth_width", "number", 10.0, "How wide a tooth is along its slice (mm); narrower where the stretch is short", 1, 200, 0.5, unit="mm", label="tooth width"),
+        Param("tooth_spacing", "number", 60.0, "The most distance between two teeth (mm): a long stretch gets more teeth than "
+              "`teeth`, spread evenly. 0 = `teeth` only", 0, 2000, 1, unit="mm", label="tooth spacing"),
+        _S["distribution"], _S["count"], replace(_S["space"], default=3.0), _S["shift"], _S["surface"],
+        Param("floating", "choice", "join", "A piece of a slice that does not reach the plate: join = it hangs from the slice beside "
+              "it on three flat spacers, and a piece no neighbour can hold is left out and listed in the notes · keep = nothing is "
+              "left out, the piece stays with its error", choices=["join", "keep"], label="floating pieces"),
+        replace(_S["dowel_d"], show_if=None, label="spacer width", help="Width of the flat spacers that hold floating pieces (mm)"),
+        *[q for q in Stacked.params if q.name.startswith("spacing_")],
+    ]
+    hidden_common = ("notch_ratio", "notch_factor", "notch_angle", "tilt", "roll")
+
+    @staticmethod
+    def fit(p):
+        return {}, 0.0                                  # a plaque's fit test changes no settings
+
+    def build(self, ctx):
+        p = ctx.p
+        fr = self._frame(ctx)
+        if fr is None:
+            return []
+        ctx.rods = []
+        lay = {"radial": self._fan, "crossed": self._crossed}.get(p["layout"], self._parallel)(ctx, fr)
+        if lay is None:
+            return []
+        slices = self._sectioned(ctx, lay, fr)
+        if not slices:
+            return []
+        foot = to_local(fr.Mp, ctx.mesh.vertices[fr.depth >= fr.z0 - 1e-9])     # the model in front of the plate, in the plate's x, y
+        try:
+            shape, said = plate_shape(p, foot, fr.covered, fr.Mp)
+        except ValueError as err:
+            e = f"plate file: {err}"
+            ctx.errors.append(e)
+            ctx.fixes.append({"error": e, "options": [{"title": "use a rounded rectangle", "set": {"plate": "rounded"}}]})
+            return []
+        say(ctx, said)
+        plate = Slice("W-1", "W", fr.Mp, fr.plate_t); plate.raw = as_multi(shape)
+        pieces, held = self._teeth(ctx, lay, slices, plate, shape, fr)
+        slices, extra = self._hang(ctx, lay, slices, pieces, held, fr.plate_t)
+        return [plate] + self.in_order(slices, extra)
+
+    @staticmethod
+    def _frame(ctx):
+        """The plate's frame and the model's place on it, or None (with the error said) when nothing stands on it."""
+        p = ctx.p
+        k = "xyz".index(p["back"][1]); ax = "xyz".index(p["axis"])
+        n_p = ctx.ax[k] * (1.0 if p["back"][0] == "-" else -1.0)        # the plate's normal: out of the plate, toward the front
+        if ax == k and p["layout"] == "parallel":
+            e = f"the slices stand on the plate, so their direction cannot be {p['axis']}, the axis the plate is square to"
+            ctx.errors.append(e)
+            ctx.fixes.append({"error": e, "options": [{"title": f"slice along {a}", "set": {"axis": a}} for a in "xyz" if a != p["axis"]]})
+            return None
+        plate_t = p["plate_thickness"] or p["thickness"]
+        depth = ctx.mesh.vertices @ n_p
+        z0 = float(depth.min()) + p["sink"]                             # the plate's front face
+        if z0 >= depth.max() - 1e-6:
+            ctx.errors.append(f"sink = {p['sink']:g} mm is the whole depth of the model ({np.ptp(depth):.0f} mm): nothing is left in front of the plate")
+            return None
+        ctx.clip = [(n_p * z0).tolist(), n_p.tolist()]
+        up = ctx.ax[1] if k == 2 else ctx.ax[2]
+        Mp = frame_xy(n_p * (z0 - plate_t / 2), np.cross(up, n_p), up)
+        return Frame(Mp, n_p, up, z0, plate_t, depth, ctx.mesh.slice_plane(n_p * z0, n_p))
+
+    def _parallel(self, ctx, fr):
+        p = ctx.p; ax = "xyz".index(p["axis"]); normal = ctx.ax[ax]
+        labels, pos, th, drawn = self.planes(ctx, ax)
+        slices = []
+        for lab, z, tk in zip(labels, pos, th):
+            o = ctx.mid + normal * (z + ctx.override("offset", lab))
+            slices.append(Slice(lab, "S", frame(o + fr.n_p * (fr.z0 - o @ fr.n_p), normal, up_hint=fr.n_p), tk))   # local y = height above the plate
+        ctx.cover_r = self.cover_r(ctx, pos, drawn, ctx.ext[ax], len(slices))
+        return Layout(slices, box(-BIG, 0, BIG, BIG), Polygon(), (min(np.diff(pos)) if len(pos) > 1 else BIG) - (p["thickness"] + p["slot_offset"]),
+                      chain=True, spacers=Plaque._flat_spacers)
+
+    @staticmethod
+    def _fan(ctx, fr):
+        # 2 × planes half-slices, 180 / planes apart. Their inner corners meet where the chord between two
+        # neighbours is one slice wide, and their plate slots keep a wall between them a little further out.
+        p = ctx.p; n = p["planes"]; slot_w = p["thickness"] + p["slot_offset"]
+        # the planes' angles over half a turn: evenly, or as the spacing curve draws them (read in degrees, as radial's)
+        drawn = ctx.spaced("spacing_curve", 180.0, n, periodic=True, unit="deg")
+        turns = [180.0 * j / n for j in range(n)] if drawn is None else sorted(float(q) for q in drawn)
+        n = len(turns)
+        if not n:
+            return None
+        gaps = np.diff(turns + [turns[0] + 180.0])
+        n_tight = 180.0 / float(gaps.min())                             # as many planes as would be this close all round: what the hole must fit
+        half = math.pi / (2 * n_tight)
+        least = core_need(n_tight, p["thickness"], p["slot_offset"])
+        r = p["radius"] or least
+        if r < least - 1e-6:
+            e = f"radius = {r:g} mm: {2 * n} half-slices of {p['thickness']:g} mm need a hole of at least {least:.1f} mm radius, or their inner ends collide"
+            ctx.errors.append(e)
+            ctx.fixes.append({"error": e, "options": [{"title": f"radius {math.ceil(least * 2) / 2:g} mm", "set": {"radius": math.ceil(least * 2) / 2}},
+                                                      {"title": "radius automatic", "set": {"radius": 0}}]})
+            return None
+        c = ctx.mid + fr.n_p * (fr.z0 - ctx.mid @ fr.n_p)               # the fan's centre, on the plate's front face
+        slices = []
+        for j in range(2 * n):
+            a = math.radians(p["angle"] + turns[j % n] + 180.0 * (j // n))
+            d = fr.Mp[:3, 0] * math.cos(a) + fr.Mp[:3, 1] * math.sin(a)   # the way this half-slice points: its local x
+            lab = f"R-{j + 1}"
+            slices.append(Slice(lab, "R", frame(c, np.cross(d, fr.n_p), up_hint=fr.n_p), ctx.thickness_of(lab)))
+        hub = Point(*to_local(fr.Mp, [c])[0]).buffer((slot_w + p["min_feature"]) / 2 / math.sin(half) + 0.5, 64)   # no tooth nearer the centre than this
+        return Layout(slices, box(r, 0, BIG, BIG), hub, 0.0, chain=True, cyclic=True, spacers=Plaque._fan_spacers)
+
+    @staticmethod
+    def _crossed(ctx, fr):
+        # Two families along the plate's own two directions, turned by `angle`. The first goes into the plate; the
+        # second drops onto it from the front, so its slots open toward the plate and the first family's away.
+        p = ctx.p; slot_w = p["thickness"] + p["slot_offset"]
+        R = rot_about(fr.n_p, p["angle"]); front = box(-BIG, 0, BIG, BIG)
+        fams = []
+        for name, e, n in (("X", R @ fr.Mp[:3, 0], p["nx"]), ("Y", R @ fr.Mp[:3, 1], p["ny"])):
+            reach = (fr.covered.vertices - ctx.mid) @ e
+            L = float(np.ptp(reach)); c = float(reach.min() + reach.max()) / 2
+            fam = []
+            drawn = ctx.spaced("spacing_curve", L, n)                   # one curve, read along each family's own direction
+            for j, s in enumerate(ctx.positions(L, [p["thickness"]] * n) if drawn is None else [-L / 2 + q for q in drawn]):
+                lab = f"{name}-{j + 1}"
+                o = ctx.mid + e * (c + s + ctx.override("offset", lab))
+                fam.append(Slice(lab, name, frame(o + fr.n_p * (fr.z0 - o @ fr.n_p), e, up_hint=fr.n_p), ctx.thickness_of(lab), clip=as_multi(front)))
+            fams.append(ctx.keep(fam))
+        clash = {}                      # slice → the stretches of its foot (from, to) where a slice of the other family stands
+        for mine, other in ((fams[0], fams[1]), (fams[1], fams[0])):
+            for sl in mine:
+                at = [float((o.M[:3, 3] - sl.M[:3, 3]) @ sl.M[:3, 0]) for o in other]
+                clash[sl.label] = [(x - slot_w / 2, x + slot_w / 2) for x in at]
+        ctx.cover_r = max(ctx.ext) / max(1, min(p["nx"], p["ny"])) / 2 + p["thickness"]
+        return Layout(fams[0] + fams[1], front, Polygon(), BIG, clash, tuple(fams))
+
+    def _sectioned(self, ctx, lay, fr):
+        """The layout's slices cut to the model in front of the plate, those left with nothing dropped, a crossed pair's slots notched."""
+        slices = ctx.keep(lay.slices)
+        self.profiles(ctx, slices)
+        for sl in slices:
+            sl.raw = as_multi(sl.raw.intersection(lay.front))
+        slices = [s for s in slices if not s.raw.is_empty]
+        if slices and lay.fams:
+            interlock([s for s in lay.fams[0] if s in slices], [s for s in lay.fams[1] if s in slices], ctx, a_open=tuple(fr.n_p), b_open=tuple(-fr.n_p))
+        return slices
+
+    def _teeth(self, ctx, lay, slices, plate, shape, fr):
+        """The teeth of every piece that stands on the plate, in every stretch where it does: each piece with its teeth
+        added, and whether each is held (by its teeth, or in a crossed plaque by a slice of the other family slotted through it).
+        Two neighbours' slots side by side leave a wall of plate as wide as the gap between the slices. Up to twice
+        the min feature that is a thin strip a tooth long, so every second slice's teeth sit a quarter step along,
+        beside the gaps of the slice before; under the min feature it is no wall, and a tooth still beside one of
+        the slice before is moved clear of it."""
+        p = ctx.p; mf = p["min_feature"]
+        close, tight = lay.wall <= 2 * mf, lay.wall < mf and p["layout"] != "radial"
+        rim = shape.buffer(-mf).difference(lay.hub)                     # a tooth keeps a wall from the plate's edge
+        pieces, held, short, owner, prev = [], [], [], [], []           # prev: the tooth spans of the slice before
+        for i, sl in enumerate(slices):
+            mine, has, here = [], [], []
+            for g in sl.raw.geoms:
+                tt = self.teeth(p, sl, g, rim, fr.Mp, fr.plate_t, (0.25 if i % 2 else -0.25) if close else 0.0,
+                                prev if tight else lay.clash.get(sl.label, []), short)
+                here += [(t[0].bounds[0], t[0].bounds[2]) for t in tt]
+                for tooth, slot, pt in tt:
+                    sl.links.append((plate.label, tooth, pt)); plate.links.append((sl.label, slot, pt))
+                    plate.cuts.append(slot); owner.append(sl.label)
+                mine.append(unary_union([g, *[t[0] for t in tt]]) if tt else g); has.append(bool(tt) or any(g.intersects(c) for c in sl.cuts))
+            pieces.append(mine); held.append(has); prev = here
+        if short:
+            say(ctx, f"{len(short)} stretch(es) on the plate too short for {p['teeth']} teeth, "
+                     f"given fewer ({', '.join(sorted(set(short))[:8])}): a narrower tooth width fits more")
+        if msg := self.walls(plate.cuts, owner, mf):
+            ctx.errors.append(msg)
+        return pieces, held
+
+    def _hang(self, ctx, lay, slices, pieces, held, plate_t):
+        """Floating pieces: each hangs from a piece beside it that is held, by the plate or by its own neighbour, on
+        spacers that the layout puts in the overlap. Returns the slices with their pieces and the spacers."""
+        p = ctx.p; mf = p["min_feature"]; n = len(slices)
+        need = (p["dowel_d"] + 2 * mf) ** 2                             # an overlap with room for a spacer and its walls
+        held, joins = hang_floating(pieces, held, need, lay.chain, lay.cyclic)
+        joined = sum(len(v) for v in joins.values())
+        holds = {slices[i].label: [as_multi(g) for g in gs] for i, gs in share_out(joins, need, mf, n * lay.cyclic).items()}   # slice → where its spacers go
+        after = {sl.label: slices[(i + 1) % n].label for i, sl in enumerate(slices)}     # the slice a spacer from this one goes to
+        loose = [(sl.label, g) for sl, gs, hs in zip(slices, pieces, held) for g, ok in zip(gs, hs) if not ok]
+        if loose and p["floating"] == "join":
+            pieces = [[g for g, ok in zip(gs, hs) if ok] for gs, hs in zip(pieces, held)]
+            say(ctx, f"{len(loose)} floating piece(s) left out, no slice beside them can hold them: "
+                     + ", ".join(f"{lab} ({size(g)})" for lab, g in loose[:12]) + ("…" if len(loose) > 12 else ""))
+        for sl, gs in zip(slices, pieces):
+            sl.raw = as_multi(unary_union(gs)) if gs else as_multi(Polygon())
+        slices = [s for s in slices if not s.raw.is_empty]
+        if loose and p["floating"] == "join":                           # a piece big enough to matter is lost: the slice says so, not only the plan's notes
+            by = {s.label: s for s in slices}
+            for lab, g in loose:
+                x0, y0, x1, y1 = g.bounds
+                if lab in by and max(x1 - x0, y1 - y0) >= p["min_part"]:
+                    by[lab].warnings.append(f"a piece of this slice ({size(g)}) is left out: it does not reach the plate and no slice beside it can hold it")
+        if joined:
+            say(ctx, f"{joined} floating piece(s) hang from the slice beside them on spacers")
+        extra = lay.spacers(self, ctx, slices, holds, after) if holds else []
+        few = sorted({sl.label for sl in slices for g in sl.raw.geoms if holds
+                      and g.bounds[1] > -plate_t / 2 and 0 < sum(g.intersects(c) for c in sl.cuts) < 3})   # no tooth: it hangs
+        if few:
+            say(ctx, f"{len(few)} floating piece(s) had room for fewer than 3 spacers and may turn or tilt "
+                     f"({', '.join(few[:8])}{'…' if len(few) > 8 else ''}): a smaller spacer width fits more")
+        return slices, extra
+
+    def _flat_spacers(self, ctx, slices, holds, after):
+        """The parallel layout's spacers: stacked's connector placer, given the areas to hold."""
+        return self.connect(ctx, slices, settings={**ctx.p, **FIXED}, islands=lambda a, b: holds.get(a.label, []), seeds=edge_seeds,
+                            side_step=0.0, typed=False)                 # side_step 0: two joins that share a piece share its area out, so a spacer goes where it is put
+
+    def _fan_spacers(self, ctx, slices, holds, after):
+        """A fan's spacers, edge-on: slice a and the next slice b stand alpha apart about the axis, so a point (r, h) of a lies
+        opposite the same (r, h) of b. A spacer there is a flat part square to the plate, across the chord between the two
+        mid-planes (2 r sin(alpha / 2) long), through a slot in each slice that is slanted alpha / 2 off square. Up to three
+        go in each area: the first by its edge, each next as far from those as the area allows."""
+        p = ctx.p; mf = p["min_feature"]; d = p["dowel_d"]; t = p["thickness"]; so = p["slot_offset"]
+        by = {s.label: s for s in slices}; at = {s.label: i for i, s in enumerate(slices)}
+        extra, named, wide, tilt = [], {}, 0, 0.0
+        for a in slices:
+            for area in holds.get(a.label, []):
+                b = by[after[a.label]]
+                alpha = math.acos(float(np.clip(a.M[:3, 0] @ b.M[:3, 0], -1, 1))); half = alpha / 2     # the real angle: a spacing curve makes it uneven
+                k = 1 / math.cos(half); tabs = (a.thickness + b.thickness) / 2 * k                       # what the two slices take of the chord, to each side
+                for s in (a, b):
+                    if s.inner is None:
+                        s.inner = s.raw.buffer(-mf)
+                # room: where both pieces keep a full wall, and the chord is longer than the slices take of it
+                room = area.intersection(a.inner).intersection(b.inner).intersection(box((a.thickness + b.thickness) / (2 * math.sin(alpha)), -BIG, BIG, BIG))
+                if room.is_empty:
+                    continue
+                x0, y0, x1, y1 = room.bounds; step = max(d / 4, math.sqrt(room.area) / 20)
+                grid = np.stack(np.meshgrid(np.arange(x0, x1, step), np.arange(y0, y1, step)), -1).reshape(-1, 2)   # ponytail: a grid of candidate centres, a finer step if a tight area is missed
+                q = [tuple(c) for c in grid[shapely.contains_xy(room, grid[:, 0], grid[:, 1])]]
+                seed = edge_seeds([max(as_multi(room).geoms, key=lambda g: g.area)])[0]
+
+                def spot(r, h, half=half, tabs=tabs, k=k, a=a, b=b):
+                    """(the spacer's body length, its tab's width, its slot in a, its slot in b) at (r, h)."""
+                    body = 2 * r * math.sin(half) - tabs
+                    tw = d if body <= mf else 0.6 * d
+                    return body, tw, [box(r - w / 2, h - (tw + so) / 2, r + w / 2, h + (tw + so) / 2)
+                                      for w in (t * k + s.thickness * math.tan(half) + so for s in (a, b))]
+
+                mine = []
+                while q and len(mine) < FIXED["n_points"]:
+                    q.sort(key=lambda c, mine=mine, seed=seed: -min(math.dist(c, m) for m in mine) if mine else math.dist(c, seed))
+                    while q:
+                        r, h = q.pop(0)
+                        body, tw, (ga, gb) = spot(r, h)
+                        if all(s.inner.contains(g) and all(g.distance(c) >= mf for c in s.cuts) for s, g in ((a, ga), (b, gb))):
+                            break
+                    else:
+                        break
+                    mine.append((r, h))
+                    pa, pb = to_world(a.M, [(r, h)])[0], to_world(b.M, [(r, h)])[0]
+                    mid = (pa + pb) / 2; n = named.get(a.label, 0); named[a.label] = n + 1
+                    name = f"{a.label}{ABC_LOWER[n % len(ABC_LOWER)] * (n // len(ABC_LOWER) + 1)}"
+                    for s, g, o in ((a, ga, b), (b, gb, a)):
+                        key = (round(r, 2), round(h, 2), a.label)
+                        s.cuts.append(g); s.engages.append("tab"); s.links.append((o.label, g, tuple(mid)))
+                        s.cutkeys[key] = g; s.cutnames[key] = name
+                        for m in [m for m in s.marks if mark_box(*m[:3], p["font"], mark_rot(m)).distance(g) < 0.3]:   # a slot that lands on a mark moves the mark
+                            s.marks.remove(m)
+                            hole_mark(s, next(c for k2, c in s.cutkeys.items() if s.cutnames[k2].split("-", 1)[1] == m[2]), m[2], p["font"])
+                        hole_mark(s, g, name.split("-", 1)[1], p["font"])
+                    sp = Slice(name, "P", frame_xy(mid, a.M[:3, 1], pb - pa), t)    # x along the plate's normal, y along the chord: square to the plate
+                    L = body + 2 * tabs
+                    strip = box(-tw / 2, -L / 2, tw / 2, L / 2)
+                    sp.raw = as_multi(unary_union([strip, box(-d / 2, -body / 2, d / 2, body / 2)]) if body > mf else strip)
+                    sp.pair = at[a.label]
+                    extra.append(sp)
+                if mine and alpha > math.radians(10):
+                    wide += 1; tilt = max(tilt, math.degrees(half))
+        if wide:
+            say(ctx, f"{wide} floating piece(s) hang on spacers that stand {tilt:.0f}° off square in their slots and are loose there: "
+                     "more planes make the fan denser, and the spacers stand squarer")
+        return extra
+
+    @staticmethod
+    def teeth(p, sl, piece, rim, Mp, plate_t, turn, beside, short):
+        """The teeth of one piece of a slice: (tooth in the slice's frame, its slot in the plate's frame, world point)
+        for each. A stretch is where the piece stands on the plate, inside the plate's rim; `spread` puts the teeth along
+        it. `turn` (± a quarter step) moves them all along, so that the teeth of two close neighbours do not sit side
+        by side. `beside` are the teeth of the slice before this one, (from, to) along the slice, when the two are so
+        close that slots side by side would touch: a tooth beside one of those moves along the slice by the least
+        that clears it, a wall away, and is cut narrower where that is all that fits."""
+        so = p["slot_offset"]; out = []
+        x0, _, x1, _ = piece.bounds
+        for seg in as_lines(piece.intersection(LineString([(x0 - 1, 0.02), (x1 + 1, 0.02)]))).geoms:
+            on_plate = LineString(across(sl.M, Mp, [c[:2] for c in seg.coords])).intersection(rim)
+            for part in as_lines(on_plate).geoms:
+                a, b = sorted(across(Mp, sl.M, [c[:2] for c in part.coords])[:, 0])
+                spots = spread(a, b, p, turn, beside)
+                if spots and len(spots) < p["teeth"]:
+                    short.append(sl.label)
+                for c, w in spots:
+                    hw, ht = (w + so) / 2, (sl.thickness + so) / 2
+                    edge = [(c - hw, -plate_t / 2), (c + hw, -plate_t / 2)]
+                    slot = Polygon([*across(sl.M, Mp, edge, -ht), *across(sl.M, Mp, edge[::-1], ht)])
+                    r = p["tool_d"] / 2
+                    if r > 0 and p["relief"] != "square":
+                        # A round bit leaves the slot's four corners round and the square tooth stops short of them:
+                        # the same relief as every other slot, a bit-wide circle through each corner — dogbone on
+                        # the diagonal, a T-bone along the slot or across it.
+                        along, over = {"dogbone": (-r / math.sqrt(2), r / math.sqrt(2)), "tbone_h": (-r, 0.0)}.get(p["relief"], (0.0, r))
+                        slot = unary_union([slot, *[Point(*across(sl.M, Mp, [(c + sx * (hw + along), -plate_t / 2)], sz * (ht + over))[0]).buffer(r, 16)
+                                                    for sx in (1, -1) for sz in (1, -1)]])
+                    out.append((box(c - w / 2, -plate_t, c + w / 2, 0.02), slot, tuple(to_world(sl.M, [(c, -plate_t / 2)])[0])))
+        return out
+
+    @staticmethod
+    def walls(slots, owner, mf):
+        """Two plate slots with less than min_feature of plate between them: the plate would tear there, or fall into
+        strips. The error to say, once, with the slices of the closest pair; None when there is none."""
+        if len(slots) < 2:
+            return None
+        tree = STRtree(slots)
+        a, b = tree.query(slots, predicate="dwithin", distance=mf - 1e-6)
+        pairs = [(i, j) for i, j in zip(a, b) if i < j]
+        if pairs:
+            i, j = min(pairs, key=lambda q: slots[q[0]].distance(slots[q[1]]))
+            return (f"{len(pairs)} pair(s) of plate slots are less than {mf:g} mm apart — the plate would break between them "
+                    f"(closest: {owner[i]} and {owner[j]}, {slots[i].distance(slots[j]):.1f} mm): more space between the "
+                    f"slices, fewer or narrower teeth, or a lower min_feature")
+        return None
