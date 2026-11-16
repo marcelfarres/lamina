@@ -136,7 +136,9 @@ export function render3D(modelUrl){
     parts.add(m);
   }
   applyLook(); renderGuides();
-  $('#steps').max=i; $('#steps').value=i; applyExplode(); applyFold();
+  // a folded job folds up at the end of its build order: FOLD_STEPS more steps after the last part is in
+  nParts=i; const max=i+(parts.children.some(m=>m.userData.fold)?FOLD_STEPS:0);
+  $('#steps').max=max; $('#steps').value=max; applyExplode(); applyFold();
   if(!ST.ghostLive)showGhost(modelUrl);   // already shown mid-build: the same mesh, and fetching it again is not free
   clipGhost();
   ghost.visible=$('#ghost').checked; ST.dirty=true;
@@ -212,8 +214,12 @@ export function applyFold(){const s=+$('#fold').value,v=new THREE.Vector3();let 
     pos.needsUpdate=true;m.geometry.computeVertexNormals();m.geometry.computeBoundingSphere();m.geometry.computeBoundingBox()}
   $('#foldl').hidden=!any; ghost.visible=$('#ghost').checked&&!(any&&s<1);   // the model would stand in the unfolded panel
   $('#fold_val').textContent=Math.round(s*100)+' %'; ST.dirty=true}
+const FOLD_STEPS=20; let nParts=0;   // the steps a folded job takes to fold up, and the parts in the build order before them
 export function applyExplode(){const e=+$('#explode').value,st=$('#steps'),k=+st.value;for(const m of parts.children){if(m.userData.group==='B')continue;m.position.copy(m.userData.origin).multiplyScalar(e-1);m.visible=m.userData.i<k}
-  const going=k<+st.max&&parts.children.find(m=>m.userData.i===k-1); showBanner(going?`step ${k} / ${+st.max}  ·  ${(ST.plan&&ST.plan.label_tag?ST.plan.label_tag+' ':'')}${going.userData.piece}`:'');
+  const folding=+st.max>nParts, share=folding?Math.min(1,Math.max(0,(k-nParts)/FOLD_STEPS)):1;
+  if(folding){$('#fold').value=share;applyFold()}   // the panels go in flat, then fold up
+  const going=k<+st.max&&parts.children.find(m=>m.userData.i===k-1);
+  showBanner(going?`step ${k} / ${+st.max}  ·  ${(ST.plan&&ST.plan.label_tag?ST.plan.label_tag+' ':'')}${going.userData.piece}`:folding&&k<+st.max?`step ${k} / ${+st.max}  ·  folding ${Math.round(share*100)} %`:'');
   $('#steps_val').textContent=`${k} / ${+st.max||0}`;   // the step counter, live while the slider is dragged
   const s=ST.selected&&parts.children.find(c=>c.userData.slice===ST.selected); if(s)drawGizmo(s);   // the handles ride with the part
   ST.dirty=true}
@@ -229,10 +235,7 @@ async function recordAssembly(el){
   const done=new Promise(r=>rec.onstop=r);
   el.textContent='recording the assembly…'; rec.start();
   const hold=Math.min(700,Math.max(90,4000/max));
-  const fo=$('#fold'), folds=!$('#foldl').hidden;
-  if(folds){fo.value=0;applyFold()}   // a folded job: the panels go in flat, then fold up
   for(let k=0;k<=max;k++){st.value=k;applyExplode();await new Promise(r=>setTimeout(r,hold))}
-  if(folds)for(let k=0;k<=90;k++){fo.value=k/90;applyFold();await new Promise(r=>setTimeout(r,33))}
   await new Promise(r=>setTimeout(r,700)); rec.stop(); await done;
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob(chunks,{type:'video/webm'}));

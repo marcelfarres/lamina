@@ -347,7 +347,9 @@ def suggest_fixes(slices, p, ctx, mode):
                 x, y = w.about["spot"]
                 opts = [fix(f"add a dowel at ({x:g} mm, {y:g} mm)", dowels=[*map(list, p["dowels"]), [x, y]])]
             elif kind == "press" and w.about["cut_back"]:
-                opts = [fix(f"bigger triangles (facet {(p.get('facet') or 10) * 1.5:g} mm)", facet=round((p.get("facet") or 10) * 1.5, 1))]
+                # the cut-back takes up to 0.4 of a face's height: a face under 2.5 × the sheet (more at a sharp seam) is too small for it
+                opts = [fix(f"merge the faces under {4 * t:g} mm into their neighbours", min_face=round(4 * t, 1)),
+                        fix(f"bigger triangles (facet {(p.get('facet') or 10) * 1.5:g} mm)", facet=round((p.get("facet") or 10) * 1.5, 1))]
             elif kind == "no-joint":
                 opts = [fix(f"bigger triangles (facet {p.get('facet', 15) * 1.5:g} mm)", facet=round(p.get("facet", 15) * 1.5, 1)),
                         fix("smaller joints", hole_d=round(max(1.0, p.get("hole_d", 2.5) * 0.7), 1), inset=round(max(1.0, p.get("inset", 4) * 0.7), 1))]

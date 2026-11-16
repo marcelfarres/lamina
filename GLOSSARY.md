@@ -38,6 +38,8 @@ The words Lamina uses for its parts. One word for one thing.
 - **Groove**: the V cut along a fold of a printed panel. Its two walls meet when the fold reaches its bend.
 - **Skin**: the thin layer left under a groove. It is the hinge of a printed fold. The setting is *hinge*.
 - **Mitre**: the half of a groove on a seam edge of a printed panel. Two mitred edges meet face to face.
+- **Smallest face** (`min_face`): the least height a face may have, in mm. A smaller face is merged into its
+  neighbours; the rest of the model stays as it is. 0 keeps every face.
 - **Fold stop**: where a printed fold stops, in degrees past or short of its bend.
 - **Edge fit**: where two panels of stiff sheet meet at an outward seam. *Inner*: each edge is cut back, the inside
   edges meet. *Through*: one panel runs to the model's edge, the other is cut back to butt against it. *Outer*: both

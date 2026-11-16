@@ -81,7 +81,7 @@ tab joints (tab, multitab, diamond, ticked, gear) print their tabs as flaps of t
 a tab as thick as the sheet would fold into the panel it glues to. The flap folds round the mitred edge onto the
 outside of the next panel. Tongue, puzzle and strip are not printed this way and keep the material error.
 Mountain folds are grooved from the face up on the bed, valley folds from the
-bed side. Edges between faces in one plane get no groove. The grooves travel in the plan with each piece (`vees`)
+bed side. Edges between faces in one plane get no groove. The grooves travel in the plan with each piece (`grooves`, a `Groove` each: its line, flat bottom, skin, half opening and face)
 and `core/solid.py` cuts them from the printed part; the browser build has no boolean engine and exports plain parts,
 and the first panel carries a warning that says so.
 The example `fold_test` (48 × 48 × 32 mm, 2 mm PETG) carries 45°, 76°, 80°, 90° and 104° folds and a valley edge.
@@ -106,7 +106,9 @@ face otherwise lies inside the sheet of another. Without manifold3d (the browser
 Only what the sheet cannot take up itself is cut: the cut-back is t · tan(bend / 2) less the material's crush
 (`SQUISH` × t). Paper, card, cardboard and fabric crush through their whole thickness and are never cut back, nor
 is a material that is not listed; cut back like steel, the small panels of a laced cow in 1 mm card fell under
-the minimum part size. A rib too small to cut and handle (under `min_part` both ways) is left out and reported.
+the minimum part size. A rib too small to cut and handle (under `min_part` both ways) is left out and reported. The cut-back is never what
+makes a panel too small: a panel it would take under `min_part` or `min_feature` keeps its edges and carries the
+press warning.
 
 What is left presses into the next panel: t · tan(bend / 2) less the cut-back (capped at 0.4 of the face's height,
 so a sliver keeps its middle; nothing with a tab joint). `SQUISH` in `core/modes/folded.py` gives the share of the
@@ -117,9 +119,30 @@ Measured on the examples in 3 mm steel, every face its own panel, by intersectin
 to 1 (1 mm³); egg 530 to 1; torus 359 to 54 (99 mm³ in all); cow 340 to 70; bowl 378 to 41. What remains is at
 saddle vertices, where panels that share only a corner meet, and on slivers the cap protects. Not yet handled.
 
+## Faces too small for the sheet
+The cut-back takes at most 0.4 of a face's height, so a face lower than about 2.5 sheets (more at a sharp seam)
+cannot be cut back all the way and carries the press warning. The warning offers two fixes. *Bigger triangles*
+raises `facet` and makes the whole model coarser. *Merge the faces under 4 × the sheet* sets `min_face`
+(`merge_small` in `core/mesh.py`): after the model is simplified, each face whose least height is under `min_face`
+has its shortest edge closed up to its middle, the smallest faces first, until no such face is left. The other
+faces do not move, except those that share a corner with a merged face.
+
+Measured on the cow in 1 mm steel, laced, facet 15, `min_face` 4 (2026-11-14): 408 faces become 282, the 66 faces
+under 4 mm become 0, the press warnings go from 6 to 0, all warnings from 84 to 62, errors stay 0. The model is
+1.2 mm shorter. On the bowl 2012 faces become 1994 and on the torus 1092 become 1036; both stay closed.
+Limits: the shortest edge is closed whatever it is, so a flat wide triangle with no short edge is pulled out of
+shape and not removed, and an edge on the rim of an open surface moves that rim.
+
+## A model thinner than two sheets
+The sheet lies inside the surface, one thickness deep. Where the model itself is thinner than two sheets (a fin, an
+ear, a thin shell), the sheet under one side runs into the sheet under the other. `check_walls` sends one ray from
+the middle of each face straight into the model; a face that meets the far side within two thicknesses puts a
+warning on its panel, with the least depth found. One ray per face: a wall that thins only near an edge is missed.
+It needs the ray engine's rtree, which the browser build has not.
+
 ## Windows
 `window` opens every face with a hole of its own shape, for a lamp shade or a lantern. The frame left around it is
-what the share asks for and never less than 1.25 × the minimum feature width, plus what the face's grooves or
+what the share asks for and never less than 1.35 × the minimum feature width, plus what the face's grooves or
 cut-back edges take, plus the reach of the joint's holes or slots. A face too small for that stays whole.
 The example `fold_lamp` uses it: a twisted, swelling tube of 72 triangles, printed in 2 mm PETG on one plate.
 

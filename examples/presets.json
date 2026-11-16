@@ -41,5 +41,9 @@
   "fold_test": {"mode": "folded", "params": {"material": "PETG", "printed": true, "machine": "bambu_h2c", "sheet": [325, 320], "thickness": 2, "kerf": 0,
                 "facet": 0, "joint": "seam", "hinge": 0.4, "hinge_w": 0.4}},
   "fold_lamp": {"mode": "folded", "params": {"material": "PETG", "printed": true, "machine": "bambu_h2c", "sheet": [325, 320], "thickness": 2, "kerf": 0,
-                "facet": 0, "strategy": "strip", "joint": "seam", "hinge": 0.4, "hinge_w": 0.4, "window": 0.6, "edge_labels": false}}
+                "facet": 0, "strategy": "strip", "joint": "seam", "hinge": 0.4, "hinge_w": 0.4, "window": 0.6, "edge_labels": false}},
+  "fold_box": {"mode": "folded", "params": {"material": "PETG", "printed": true, "machine": "bambu_h2c", "sheet": [325, 320], "thickness": 2, "kerf": 0,
+                "facet": 0, "joint": "seam", "hinge": 0.4, "hinge_w": 0.4}},
+  "fold_lantern": {"mode": "folded", "params": {"material": "plywood", "thickness": 3, "facet": 0, "separate": true, "joint": "laced", "hole_d": 2, "inset": 3.5,
+                "window": 0.45, "sheet": [600, 400]}}
 }

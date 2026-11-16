@@ -63,6 +63,38 @@ MESH_PARAMS = ("up_axis", "rotate", "size", "scale", "shrinkwrap", "hollow", "th
 _last = None   # [key, mesh, notes, {name: what was worked out from it}]: the model as last prepared
 
 
+def merge_small(mesh, least, rounds=40):
+    """The faces too small to work with merged into their neighbours, the rest of the model left as it is: a face whose
+    least height is under `least` (mm) has its shortest edge closed up to its middle, the smallest faces first, round
+    after round until none is left (or `rounds` rounds). Where a bigger facet size would coarsen the whole model,
+    this touches only the slivers and the small faces.
+    ponytail: the shortest edge, whatever it is; a flat wide triangle with no short edge is pulled out of shape
+    rather than removed, and an edge on the rim of an open surface moves that rim."""
+    m = mesh
+    for _ in range(rounds):
+        tri = m.triangles
+        edge = np.linalg.norm(tri - np.roll(tri, -1, axis=1), axis=2)        # edge i runs from corner i to corner i + 1
+        height = 2 * m.area_faces / np.maximum(edge.max(1), 1e-12)
+        small = np.nonzero(height < least)[0]
+        if not len(small):
+            break
+        v = np.array(m.vertices); to = np.arange(len(v)); taken = np.zeros(len(v), bool)
+        for f in small[np.argsort(height[small])]:
+            i = int(edge[f].argmin()); a, b = int(m.faces[f][i]), int(m.faces[f][(i + 1) % 3])
+            if taken[a] or taken[b]:                                        # one closing per corner in a round
+                continue
+            taken[[a, b]] = True; v[a] = (v[a] + v[b]) / 2; to[b] = a
+        faces = to[m.faces]
+        faces = faces[(faces[:, 0] != faces[:, 1]) & (faces[:, 1] != faces[:, 2]) & (faces[:, 0] != faces[:, 2])]
+        if len(faces) < 4:                                                  # nothing left to be a model: keep the last one that was
+            break
+        m = trimesh.Trimesh(v, faces, process=True)
+        m.update_faces(m.unique_faces()); m.update_faces(m.nondegenerate_faces()); m.remove_unreferenced_vertices()
+    if m is not mesh:
+        trimesh.repair.fix_normals(m)
+    return m
+
+
 def load_mesh(path, params, notes=None, surface=False):
     """The model as every later stage sees it. The last one is kept: a new project name, a sheet, a thickness reslices
     without loading and remeshing it again (a second or more of every slice, many more in the browser). `surface`:
