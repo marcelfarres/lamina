@@ -255,6 +255,22 @@ def load_all():
     return REGISTRY
 
 
+def view_defaults():
+    """What a technique can hand the 3D view, at its default: a fresh dict for every Ctx (a list one build appends to must not
+    reach the next). The keys are the plan's own: build() merges the dict into the plan, so a technique that hands the view one
+    more thing sets one more key here in its own file and plan.py stays as it is."""
+    return {
+        "rods": [],               # dowel rods for the 3D view and the key: [[x0,y0,z0],[x1,y1,z1],d,section [[x,y]…] in the slice's x/y,slice x axis,name (Z-3a),from slice,to slice]
+        "curve3d": None,          # curve: the spine, for the 3D view
+        "curve_pts": None,        # curve: its control points with the third coordinate, drawn and dragged in 3D
+        "axes3d": None,           # radial's fan axes, curve's branches: drawn and dragged in 3D
+        "bounds3d": [],           # the planes between lobes or at a branch's joint, moved and tilted like slices
+        "core_d_min": None,       # radial: the smallest core the half-slices allow
+        "spacing": [],            # the drawn spacing curves' outcome, for the graph: [{param, positions, length, unit, scale}]
+        "clip": None,             # plaque: [point, normal] of the plate's front face — the 3D view shows the model in front of it only, and coverage is measured on that
+    }
+
+
 class Ctx:
     """What a mode gets: the centred mesh, the slicing frame (world axes, centre shifted by `center`), extents,
     coerced params and small helpers. Modes use ctx.ax[i] as axes and ctx.mid + ctx.ax[i]*s as origins."""
@@ -270,12 +286,7 @@ class Ctx:
         self.fixes = []           # … and their one-click fixes
         self.notes_extra = ""     # what the technique wants said in the plan's notes
         self.cover_r = None       # how far across its plane a part counts as covering the surface (plan.coverage); None = a default
-        # what the technique hands the 3D view: dowel rods, a curve and its points, fan axes / branches, the planes between lobes
-        self.rods, self.curve3d, self.curve_pts, self.axes3d, self.bounds3d = [], None, None, None, []
-        self.core_d_min = None    # radial: the smallest core the half-slices allow
-        self.spacing = []         # the drawn spacing curves' outcome, for the graph: [{param, positions, length, unit, scale}]
-        self.stack, self.common_pts = [], None   # stacked: the layers in order, and the dowel points they all share (cached)
-        self.clip = None          # plaque: [point, normal] of the plate's front face — the 3D view shows the model in front of it only, and coverage is measured on that
+        self.view = view_defaults()   # what the technique hands the 3D view, merged into the plan as is: set ctx.view[key]
 
     def override(self, key, label, default=0.0):
         return float(dict(self.p[key]).get(label, default))
@@ -297,7 +308,7 @@ class Ctx:
             return None
         pos, k = spaced(p[param] or [], length, p["spacing_min"], max(p["spacing_max"], p["spacing_min"] + 1e-6),
                         count if p["spacing_fix"] == "count" else None, periodic, MAX_SLICES + 1)   # one past: exactly the cap fits
-        self.spacing.append({"param": param, "positions": [round(float(q), 3) for q in pos], "length": float(length), "unit": unit, "scale": round(float(k), 4)})
+        self.view["spacing"].append({"param": param, "positions": [round(float(q), 3) for q in pos], "length": float(length), "unit": unit, "scale": round(float(k), 4)})
         if p["spacing_fix"] != "count" and len(pos) > MAX_SLICES:    # more than the cap with model left over: stop, as count_by_thickness does
             self.errors.append(f"the spacing curve lays {MAX_SLICES} slices along {length:.0f} mm of model and does not reach its end — more "
                                f"than can be cut. A model this big is usually a units slip (lifesize, or saved in centimetres): set `size` to "

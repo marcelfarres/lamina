@@ -150,3 +150,46 @@ def test_a_geometry_operation_the_engine_refuses_is_retried_snapped_then_given_u
     assert robust(never, box(0, 0, 1, 1)) is None
     assert robust(never, box(0, 0, 1, 1), default=[]) == []
     assert abs(robust(lambda a: a.buffer(1), box(0, 0, 1, 1)).area - box(0, 0, 1, 1).buffer(1).area) < 1e-9   # the ordinary path untouched
+
+
+def test_a_finding_carries_its_kind_and_what_it_is_about_and_its_fix_does_not_read_the_words(monkeypatch):
+    """The fixes of a finding are chosen by its kind, never by searching its sentence: a floating region says which
+    region, a thin spot is only a kind, and the same findings reworded still get every option they got."""
+    from core import plan as plan_mod
+    from core.model import Issue, KINDS
+    seen = []
+    real = plan_mod.suggest_fixes
+
+    def spy(slices, p, ctx, mode):
+        found = [(sl, e) for sl in slices for e in [*sl.errors, *sl.warnings]]
+        seen.append(found)
+        real(slices, p, ctx, mode)
+        seen.append({str(f["error"]): [o["title"] for o in f["options"]] for sl in slices for f in sl.fixes})
+        if reword:                                     # the same kinds in other words: the fixes must not change
+            for sl, e in found:
+                lst = sl.errors if e in sl.errors else sl.warnings
+                lst[lst.index(e)] = Issue("something else entirely", e.kind, **e.about) if getattr(e, "kind", "") else e
+            real(slices, p, ctx, mode)
+            seen.append({f["error"]: [o["title"] for o in f["options"]] for sl in slices for f in sl.fixes})
+
+    monkeypatch.setattr(plan_mod, "suggest_fixes", spy)
+    reword = False
+    build(EXAMPLES / "cube.stl", "curve", {"count": 6, "spines": 0, "autofix": "off"})
+    found = seen[0]
+    none = [e for _, e in found if getattr(e, "kind", "") == "no-crossing"]
+    assert none and all(isinstance(e, Issue) and e.kind in KINDS for _, e in found if getattr(e, "kind", ""))
+    seen.clear()
+    build(EXAMPLES / "horse.stl", "stacked", {
+        "thickness": 3, "axis": "z", "size": [0, 300, 0], "connect": "dowel", "dowel_shape": "square", "placement": "random",
+        "space": 6, "dowel_d": 3, "n_points": 2, "round": 3, "thicken": 1, "margin": 3, "autofix": "off"})
+    gap = [e for _, e in seen[0] if getattr(e, "kind", "") == "gap"]
+    assert gap and all(isinstance(e.about["region"], int) for e in gap)
+    seen.clear()
+    build(EXAMPLES / "cone.stl", "radial", {"count": 8, "ring_count": 4, "thickness": 3, "autofix": "off"})
+    assert any(getattr(e, "kind", "") == "thin-spot" for _, e in seen[0])
+    seen.clear()
+    reword = True
+    build(EXAMPLES / "cone.stl", "radial", {"count": 8, "ring_count": 4, "thickness": 3, "autofix": "off"})
+    first, again = seen[1], seen[2]
+    assert any("trim thin spots off every part" in t for ts in first.values() for t in ts)
+    assert list(again.values()) == list(first.values()) and "something else entirely" in again
