@@ -216,7 +216,7 @@ its folds cannot close in an 8 mm sheet but not in a 1.5 mm one.
 
 In tests/test_seams.py: a chosen seam is never a fold and the net still folds back; a chosen seam across a flat face
 stays a seam; the plan marks every fold once and every seam twice on the sheets, a fold on its score line and a seam
-on the cut outline, with the net mirrored and not; a seam on no edge is reported and left out. In tests/test_ui.py:
+on the cut outline, with the net mirrored and not; a seam on no edge is reported and left out. In tests/ui/test_edit3d.py:
 a seam is chosen on the model, another on a sheet, one is given back, and both views mark the same edges.
 
 Run: `uv run python tests/test_unfold.py`.

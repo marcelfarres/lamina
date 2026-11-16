@@ -20,11 +20,11 @@ body:
     attributes:
       label: Technique
       options:
-        - Stacked slices
-        - Interlocked slices
-        - Radial slices
+        - Stacked Slices
+        - Interlocked Slices
+        - Radial Slices
         - Curve (ribs)
-        - Folded panels
+        - Folded Panels
         - Plaque
         - Not technique-specific (import, export, UI, install)
     validations:

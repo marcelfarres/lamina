@@ -3,24 +3,9 @@ from __future__ import annotations
 import random
 import zlib
 from dataclasses import dataclass, field
-from typing import NamedTuple
 from pathlib import Path
 import numpy as np
 from shapely.geometry import MultiPolygon
-
-class Groove(NamedTuple):
-    """A V groove a printed folded panel gets along a fold or a seam edge, in the panel's flat net (mm)."""
-    a: tuple        # the line's two ends
-    b: tuple
-    land: float     # width of the flat bottom
-    skin: float     # what is left under the bottom: the hinge
-    wide: float     # half the opening at the face it is cut from
-    top: bool       # cut from the face up on the bed (else from the bed side)
-
-    def json(self):
-        return {"a": [round(float(x), 4) for x in self.a], "b": [round(float(x), 4) for x in self.b],
-                "land": round(float(self.land), 4), "skin": round(float(self.skin), 4), "wide": round(float(self.wide), 4), "top": bool(self.top)}
-
 
 ABC = "ABCDEFGHJKLMNPQRSTUVWXYZ"        # no I or O: engraved at 4 mm they are a 1 and a 0
 
@@ -59,6 +44,29 @@ def label_codes(labels, seed: str) -> dict:
     return {lab: pool[i % len(pool)] for i, lab in enumerate(sorted(set(labels)))}
 
 
+# What a check's finding can be, for the code that offers its fixes; a kind is added here and nowhere else.
+KINDS = ("floats", "gap", "no-crossing", "not-connected",      # a region nothing holds: LOOSE
+         "blocked", "cut-apart", "size", "collide",           # the other errors with a fix
+         "bridge", "thin-spot", "island", "hole-wall", "bunched", "press", "no-joint")   # warnings with a fix
+LOOSE = KINDS[:4]
+
+
+class Issue(str):
+    """A check's finding: the sentence the user reads, and, for the code that offers its fixes, what kind of finding it
+    is (one of KINDS) and what it is about (`about`: the region, the other slice's label …). A str, so the plan, the
+    page and every test read it as before; a plain str is a finding with no fix."""
+    def __new__(cls, text, kind="", **about):
+        if kind and kind not in KINDS:
+            raise ValueError(f"unknown kind of finding: {kind}")
+        self = super().__new__(cls, text)
+        self.kind, self.about = kind, about
+        return self
+
+
+def kind_of(finding) -> str:
+    return getattr(finding, "kind", "")
+
+
 @dataclass
 class Slice:
     label: str                 # Slicer-style "Axis-Index" e.g. "X-3", "Z-6", "R-2a", "C-4", "P-12" (panel), "S-7" (strip),
@@ -82,47 +90,14 @@ class Slice:
     errors: list = field(default_factory=list)
     fixes: list = field(default_factory=list)     # [{"error", "options": [{"title", "set"}]}] one-click fixes (checks.suggest_fixes)
     note: str = ""                      # extra text shown with the label (e.g. rib angle)
-    # what a technique keeps on its own slices while it builds them
-    pair: int = 0                       # stacked peg / spacer: the pair of layers it sits between (assembly order)
-    cutkeys: dict = field(default_factory=dict)   # stacked: (x, y, angle) → the cut there, so an aligned dowel is cut once
-    cutnames: dict = field(default_factory=dict)  # stacked: the same key → its dowel's name (Z-3a), so a rod carried up keeps its name
-    inner: MultiPolygon | None = None   # stacked: raw eroded by min_feature, where a cut keeps a full wall (cached)
-    dowel_room: list = field(default_factory=list)  # stacked: where a rod through this slice and a neighbour can go (checks)
-    radial: np.ndarray | None = None    # radial half-slice: the way it points out from the axis
-    lobe: int = 0                       # radial: which axis's lobe the part belongs to
-    pn: object = None                   # folded: the Panel this slice is cut from
-    edges: list = field(default_factory=list)       # folded: [(adjacency index, LineString)] the panel's fold and seam edges in its net, for the page to mark and pick
-    additions: list = field(default_factory=list)   # folded: tabs added to the panel's outline
-    skipped: dict = field(default_factory=dict)     # folded: what → seams whose joint found no room
-    room: MultiPolygon | None = None    # folded: the panel with its tabs so far, a hair in, where a seam number may go (cached)
-    room_tabs: int = -1                 # … and how many tabs it had when that was last worked out
-    mark_boxes: list = field(default_factory=list)  # folded: the room each of `marks` takes, boxed once (cached)
-    reduced: int = 0                    # folded: joints made smaller than asked
-    grooves: list = field(default_factory=list)     # folded, printed: a Groove per fold and per mitred seam edge
-    hinges: list | None = None                      # folded: per facet, [parent facet, point xyz, axis xyz, unfold angle] or None: how the 3D view folds it
-    bevels: list | None = None                      # folded, printed: per facet, [[x0, y0, x1, y1, width, closing face (1 inside, -1 outside)]] its grooved edges
-    pressed: list = field(default_factory=list)     # folded: how far (mm) each seam edge of this panel still presses into its neighbour
-    taken: object = None                            # folded: the panel and the tabs it has so far (cached), what a new tab may not touch
-    taken_tabs: int = -1
-    thin: list = field(default_factory=list)        # folded, printed: the glue tabs, printed only as thick as the hinge skin
-    thin_t: float = 0.0                             # … and that thickness
-    tab_t: list = field(default_factory=list)       # folded: the thickness of each of `tab_facets` when it is not the sheet's (a thin printed tab)
-    facet_t: list | None = None                     # folded: per facet, that thickness or None
-    tab_of: list = field(default_factory=list)      # folded: the face each of `tab_facets` lies on
-    tab_facets: list = field(default_factory=list)  # folded: the tabs as the 3D view shows them, folded onto their panel
 
-    def mirror(self):
-        """The slice seen from its other face: everything it holds in flat-net coordinates turned over (x → −x), and
-        what was worked out from them forgotten. Folded panels cut with their inside face up are built seen from
-        outside and mirrored once, here. (Their strips and ribs are parts of their own and lie either way up.)"""
-        from shapely import affinity
-        flip = lambda g: affinity.scale(g, -1, 1, origin=(0, 0))   # noqa: E731
-        self.raw = flip(self.raw); self.cuts = [flip(c) for c in self.cuts]; self.thin = [flip(g) for g in self.thin]
-        self.lines = [(style, flip(ln)) for style, ln in self.lines]
-        self.edges = [(k, flip(ln)) for k, ln in self.edges]
-        self.marks = [(-m[0], m[1], m[2], -(m[3] if len(m) > 3 else 0.0)) for m in self.marks]
-        self.grooves = [g._replace(a=(-g.a[0], g.a[1]), b=(-g.b[0], g.b[1])) for g in self.grooves]
-        self.mark_boxes = []; self.room = None; self.taken = None
+    def piece_extra(self, pc) -> dict:
+        """What this slice adds to its piece `pc` in the plan, beyond what every slice has."""
+        return {}
+
+    def facet_extra(self, i) -> dict:
+        """What this slice adds to its i-th facet in the plan (a technique whose parts are not one flat slice)."""
+        return {}
 
     @property
     def bbox(self):

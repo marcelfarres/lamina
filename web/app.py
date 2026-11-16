@@ -7,6 +7,7 @@ POST /api/slice        multipart: client, mode, params=<json>, and one of  model
                        → {job, plan (with 3D facets + sheet placement), sheets: [svg…], model: url of the processed mesh (STL)}
 GET  /api/modes        mode schemas (drive the form)
 GET  /api/examples     bundled test models
+GET  /api/project      {version}: the project file layout this server writes (and the page saves)
 GET  /api/session?client=<id>                                                  → what that client sliced last
 GET  /api/progress?client=<id>                                                 → the stage the client's slice is in
 GET  /api/job/{client}/{job}/export?fmt=svg,dxf,pdf,eps&labels=1&per_piece=0&grouped=1   → zip of cut files
@@ -173,6 +174,19 @@ def modes():
     return [m.schema() for m in MODES.values()]
 
 
+# The project file's layout version. The page writes it when it saves, this server writes it into every export zip, and
+# the page reads it back to tell an old project from a current one (before 4 a `size` ran along the view's axes, from
+# 4 on along the model's): one number, here, so no writer can claim a layout it does not write. Bump it when the layout
+# changes, and give the page's openProject the migration for the version below.
+PROJECT_VERSION = 4
+
+
+@app.get("/api/project")
+def project():
+    """What the page needs to know about project files before it saves one."""
+    return {"version": PROJECT_VERSION}
+
+
 @app.get("/api/examples")
 def examples():
     return sorted(p.stem for p in EXAMPLES.glob("*.stl"))
@@ -186,17 +200,9 @@ def presets():
     return {k: v for k, v in json.loads(f.read_text(encoding="utf-8")).items() if not k.startswith("_")} if f.exists() else {}
 
 
-@app.post("/api/slice")
-def slice_model(client: str = Form(...), mode: str = Form(...), params: str = Form("{}"), example: str = Form(""), job: str = Form(""), memo: str = Form("{}"), model: UploadFile | None = File(None)):
-    """A job = one source model (working-files/jobs/<client>/<id>/source.txt points at it); re-slicing reuses it.
-    Plain `def`: slicing is CPU-bound and can take 15 s, so it runs in the threadpool and nobody else waits on it."""
-    if mode not in MODES:
-        raise HTTPException(400, f"unknown mode {mode}")
-    n = _latest[client] = next(_numbers)           # from here on, this client's older slices stop
-    cd = client_dir(client)
-    sweep()  # sweep first: it may drop this client's own stale
-    cd.mkdir(parents=True, exist_ok=True)
-    os.utime(cd)  # directory, and a slice starts it afresh
+def _source(client: str, model: UploadFile | None, job: str, example: str) -> tuple[str, pathlib.Path, pathlib.Path]:
+    """Which model this slice is of — an upload (capped, then kept in a job named by its hash), a job the client already
+    has, or a bundled example — as (job id, the job's directory, the model's path)."""
     if model is not None and model.filename:
         data = model.file.read(MAX_UPLOAD + 1 if MAX_UPLOAD else -1)
         if MAX_UPLOAD and len(data) > MAX_UPLOAD:
@@ -224,6 +230,28 @@ def slice_model(client: str = Form(...), mode: str = Form(...), params: str = Fo
         (jd / "source.txt").write_text(str(mpath))
     else:
         raise HTTPException(400, "upload a model or pick an example")
+    return job, jd, mpath
+
+
+def _log_timing(mode: str, mpath: pathlib.Path, plan: dict, took: float, prm: dict):
+    """One line per slice in the server-side log, outside the served jobs tree; the parameters too when it was slow."""
+    with open(JOBS.parent / "timing.log", "a") as f:
+        stages = " ".join(f"{k.split(' ')[0]}={v:.1f}" for k, v in plan["timing"].items() if v >= 0.05)
+        f.write(f"{time.strftime('%H:%M:%S')} {mode:12s} {mpath.name:16s} {plan['counts']['parts']:4d} parts {took:6.2f} s  {stages}{'  params=' + json.dumps(prm)[:300] if took > 5 else ''}\n")
+
+
+@app.post("/api/slice")
+def slice_model(client: str = Form(...), mode: str = Form(...), params: str = Form("{}"), example: str = Form(""), job: str = Form(""), memo: str = Form("{}"), model: UploadFile | None = File(None)):
+    """A job = one source model (working-files/jobs/<client>/<id>/source.txt points at it); re-slicing reuses it.
+    Plain `def`: slicing is CPU-bound and can take 15 s, so it runs in the threadpool and nobody else waits on it."""
+    if mode not in MODES:
+        raise HTTPException(400, f"unknown mode {mode}")
+    n = _latest[client] = next(_numbers)           # from here on, this client's older slices stop
+    cd = client_dir(client)
+    sweep()  # sweep first: it may drop this client's own stale
+    cd.mkdir(parents=True, exist_ok=True)
+    os.utime(cd)  # directory, and a slice starts it afresh
+    job, jd, mpath = _source(client, model, job, example)
     t0 = time.time()
     _building.file = cd / "progress.json"          # this thread's build reports its stages here, for /api/progress
     _building.model = None                         # …and the preview mesh, once this build has written it
@@ -252,9 +280,7 @@ def slice_model(client: str = Form(...), mode: str = Form(...), params: str = Fo
     # one that cannot be written is not a failed slice
     text = json.dumps(session)
     swap_in(lambda tmp: tmp.write_text(text), cd / "session.json")
-    with open(JOBS.parent / "timing.log", "a") as f:  # one server-side log, outside the served jobs tree
-        stages = " ".join(f"{k.split(' ')[0]}={v:.1f}" for k, v in plan["timing"].items() if v >= 0.05)
-        f.write(f"{time.strftime('%H:%M:%S')} {mode:12s} {mpath.name:16s} {plan['counts']['parts']:4d} parts {took:6.2f} s  {stages}{'  params=' + json.dumps(prm)[:300] if took > 5 else ''}\n")
+    _log_timing(mode, mpath, plan, took, prm)
     ghost = f"/jobs/{client}/{job}/model.stl?v={int((jd / 'model.stl').stat().st_mtime_ns // 1_000_000)}"  # new URL whenever the processed model changed
     return {"job": job, "plan": plan, "sheets": sheets, "model": ghost, "took": took}
 
@@ -299,7 +325,7 @@ def project_file(client: str, jd: pathlib.Path, plan: dict) -> tuple[str, str]:
     state = sess.get("params") or plan["params"]
     example = jd.name.startswith("ex_")  # a bundled example is named; an upload travels along
     proj = {
-        "version": 3,
+        "version": PROJECT_VERSION,
         "name": state.get("project", ""),
         "rev": state.get("rev", "1.0"),
         "mode": plan["mode"],
@@ -425,6 +451,11 @@ def _solid_file(client, job, part, fmt):
         raise HTTPException(404, "no such part") from None
     name = f"{design_name(plan)}_{plan['mode']}_{part or 'assembled'}.{fmt}"
     return Response(data, media_type=f"model/{fmt}", headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+# The downloads by the name the page asks for (/api/job/{client}/{job}/<name>): the browser build binds a query to these
+# signatures (web/browser.py), so a download's parameters are written once, here, and nowhere else.
+JOB_ROUTES = {"export": job_export, "stl": job_stl, "step": job_step, "source": job_source, "proto": job_proto, "fit": job_fit, "fitcut": job_fitcut}
 
 
 def main():
