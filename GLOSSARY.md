@@ -46,4 +46,7 @@ The words Lamina uses for its parts. One word for one thing.
   edges are on the model's edge.
 - **Cut-back**: the strip taken off a seam edge so that stiff panels do not occupy the same corner.
 - **Window**: an opening cut in a face, the shape of the face. The **frame** is what is left round it.
+- **Snap wall**: a short wall that stands on the inside face of a printed panel along a seam. The two walls of a
+  seam lie face to face when the seam is shut. The joint is *snap*.
+- **Clip**: the small printed part that is pushed over the two snap walls of a seam and holds them together.
 - **Tab**: a flap on a seam edge that is glued to the next panel. On a printed panel a tab is only as thick as the skin.

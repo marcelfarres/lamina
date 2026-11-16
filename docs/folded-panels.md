@@ -80,6 +80,29 @@ face to face, with room for glue. Only outward seams are mitred: at an inward se
 tab joints (tab, multitab, diamond, ticked, gear) print their tabs as flaps of the skin alone (`thin` per piece):
 a tab as thick as the sheet would fold into the panel it glues to. The flap folds round the mitred edge onto the
 outside of the next panel. Tongue, puzzle and strip are not printed this way and keep the material error.
+
+### The snap joint: walls inside, a clip over them
+A printed model can be closed without glue and with nothing on its outside. The `snap` joint puts a wall
+(`Folded.snap_wall`) on the inside face of each panel along a seam, 8 mm long, one pair for every `spacing` of
+seam. The front of a wall is the plane the two panels meet on: an outward seam turns about the top of its skin, so
+that plane goes through the top of the skin at half the bend, which is also the plane of the mitre. The two walls
+of a shut seam therefore lie face to face, at any bend, and one clip shape (`Folded.snap_clip`) fits every seam.
+
+Why a separate clip: the two walls move apart sideways when a seam opens, so what holds them must reach round the
+back of the other wall. A part printed flat, without support, cannot grow a hook that goes over a wall and comes
+down behind it. The clip is a U printed flat. Its two legs bend along the layers (1.8 % at the default sizes) and
+each ends in a hook 0.3 mm into a groove in the back of its wall.
+
+A wall leans over its own panel by half the bend, so it prints without support up to a bend of 100° (`SNAP_LEAN`);
+a sharper seam is left plain with a warning, like a seam shorter than a wall and its margins or a window frame
+narrower than the wall's foot. At an inward seam the panels meet outside the edge: the wall starts on the panel's
+edge, leans out to that plane at 45° and follows it. A shallow seam's mitre is wider than its bend needs (it is as
+wide as the groove's flat bottom): the wall starts at the mitre and leans out to the plane in the same way.
+
+The walls travel in the plan with each piece (`rails`, a `Rail` each: its line in the net, the direction into the
+panel, its cross-section) and `core.solid.rail` fuses them onto the panel. The 3D view draws each as a facet of its
+face. A clip is a part of its own (`K-n`, group J, 5 mm thick, `springy`: the thin-part checks pass it). The joint
+needs a printed material, a hinge and `score side` inside, because the walls stand on the face that is up on the bed.
 Mountain folds are grooved from the face up on the bed, valley folds from the
 bed side. Edges between faces in one plane get no groove. The grooves travel in the plan with each piece (`grooves`, a `Groove` each: its line, flat bottom, skin, half opening and face)
 and `core/solid.py` cuts them from the printed part; the browser build has no boolean engine and exports plain parts,

@@ -6,6 +6,13 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ### Added
 
+- **A printed model that clicks together: the *snap* joint.** For printed folded panels there is a new joint that
+  needs no glue and shows nothing on the outside. Each panel gets a short wall on its inside face at every seam.
+  When you close a seam, the two walls stand face to face inside the model, and you push a small printed clip over
+  them until it clicks. The clips are all the same, whatever the angle of the seam, and they print flat on a plate
+  of their own. From outside you see only the seam line. *snap fit* sets how tight the clips are: print one seam
+  first and set it for your printer. A seam that bends more than 100° is left plain, because its walls would lean
+  too far to print without support, and Lamina says which ones.
 - **Two more folded examples.** *fold_box* is a six-sided box with a turned lid, printed flat in PETG and folded up:
   every fold has its own angle. *fold_lantern* is the lamp shade at 420 mm for 3 mm plywood: 72 separate pieces,
   each with a window and lacing holes, numbered on the inside.

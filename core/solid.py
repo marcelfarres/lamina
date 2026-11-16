@@ -143,6 +143,18 @@ def vee(a, b, land, skin, wide, top, t) -> trimesh.Trimesh:
     return trimesh.convex.convex_hull([[*(q + n * s * u), z] for q in (a, b) for u, z in ((land / 2, z0), (wide, z1)) for s in (-1, 1)])
 
 
+def rail(a, b, into, profile) -> trimesh.Trimesh:
+    """A wall standing on a part along a→b: its cross-section `profile` [(u, z)], u from the line into the part along
+    `into` and z up from the bed, swept from a to b."""
+    a, b = np.asarray(a, float), np.asarray(b, float); d = b - a; L = float(np.linalg.norm(d))
+    m = extrude(Polygon(profile).buffer(0), L)             # drawn in x, y and swept along z: x → into, y → up, z → along the line
+    T = np.eye(4); T[:2, 0] = into; T[2, 1] = 1.0; T[1, 1] = 0.0; T[:2, 2] = d / L; T[2, 2] = 0.0; T[:2, 3] = a
+    m.apply_transform(T)
+    if m.volume < 0:
+        m.invert()
+    return m
+
+
 def proto_part(pc, thickness, scale, labels, font, min_thick):
     """One part flat on z = 0 at `scale`, its label (`font` mm tall at least, see label_inside) as a groove (half
     depth, 0.6 mm at most) or a hole (through). Returns the mesh and whether the part got its label."""
@@ -166,6 +178,10 @@ def proto_part(pc, thickness, scale, labels, font, min_thick):
             mesh = trimesh.boolean.difference([mesh, *cuts], engine="manifold")
         else:
             plain.append("fold grooves")
+    if pc.get("rails"):                                    # the walls of a snap joint, standing on the panel
+        at = lambda q: (q[0] * scale - x0, q[1] * scale - y0)   # noqa: E731
+        walls = [rail(at(r["a"]), at(r["b"]), r["into"], [(u * scale, z * scale) for u, z in r["profile"]]) for r in pc["rails"]]
+        mesh = trimesh.boolean.union([mesh, *walls], engine="manifold") if has_boolean() else trimesh.util.concatenate([mesh, *walls])
     if label is not None and labels == "groove":
         depth = min(t * 0.5, 0.6)
         groove = trimesh.util.concatenate([extrude(g, depth + 0.01) for g in shapely.get_parts(label) if g.area > 0])
