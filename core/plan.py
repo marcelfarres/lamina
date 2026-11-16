@@ -3,7 +3,7 @@
     uv run python -m core.plan examples/egg.stl --mode interlocked --set nx=5 ny=4 thickness=3 --out working-files/egg
 """
 from __future__ import annotations
-import argparse, json, os, pathlib, shutil, threading, time
+import argparse, json, math, os, pathlib, shutil, threading, time
 import numpy as np
 import shapely
 from shapely.geometry import MultiPolygon
@@ -212,7 +212,8 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         "bbox": [float(e) for e in mesh.extents],
         "axes": [a.tolist() for a in ctx.ax], "mid": ctx.mid.tolist(),      # slicing frame (for click-placed points in the UI)
         "curve3d": ctx.curve3d, "curve_pts": ctx.curve_pts,
-        "axes3d": ctx.axes3d,                                                # radial's fan axes, curve's branches: drawn and dragged in 3D
+        "edges3d": ctx.edges3d,                                              # folded: [k, fold | seam | chosen, end, end, way out] per edge, drawn and picked to choose the seams
+        "axes3d": ctx.axes3d,                                               # radial's fan axes, curve's branches: drawn and dragged in 3D
         "clip": ctx.clip,                                                    # plaque: the plate's front face [point, normal]; the model behind it is not shown
         "bounds3d": ctx.bounds3d,                                            # the planes between lobes or at a branch's joint, moved and tilted like slices
         "spacing": ctx.spacing,                                              # what the drawn spacing curves gave: positions along each axis, for the graph
@@ -320,6 +321,17 @@ def _printed_json(sl):
             **({"thin": [r for g in sl.thin for r in poly_coords(as_multi(g))], "thin_t": sl.thin_t} if sl.thin else {})}
 
 
+def _placed_edges(pc):
+    """A folded panel's fold and seam edges where the panel lies on its sheet: [k, x0, y0, x1, y1] each, k the edge's
+    number in the plan's `edges3d`. The piece was turned about the origin and then moved (nest._put): the move is what
+    takes the turned outline's corner to the placed one's."""
+    a = math.radians(pc.place[3]); c, s = math.cos(a), math.sin(a)
+    turn = np.array([[c, s], [-s, c]])                                   # for row vectors: p @ turn
+    move = np.array(pc.placed.bounds[:2]) - (np.array(pc.kerfed.convex_hull.exterior.coords) @ turn).min(0)
+    ends = np.array([ln.coords for _, ln in pc.parent.edges]) @ turn + move
+    return [[k, *np.round(e.ravel(), 3).tolist()] for (k, _), e in zip(pc.parent.edges, ends)]
+
+
 def _slice_json(sl):
     """A slice and its pieces as the plan carries them: the page, the 3D view, the checks and the export read this."""
     return {
@@ -336,7 +348,7 @@ def _slice_json(sl):
                     "marks": [[round(m[0], 3), round(m[1], 3), m[2], round(mark_rot(m), 2)] for m in pc.placed_marks],
                     "kerfed_marks": [[round(m[0], 3), round(m[1], 3), m[2], round(mark_rot(m), 2)] for m in pc.marks],
                     "label_pos": pc.label_pos, "label_size": pc.label_size, "label_short": pc.label_short, "leader": pc.leader, "same": pc.same, "flipped": pc.flipped,
-                    **_printed_json(sl),
+                    **_printed_json(sl), **({"edges": _placed_edges(pc)} if sl.edges else {}),
                     "area": round(float(pc.geom.area), 3),   # net of holes and slots: × its slice's thickness × density = its weight
                     } for pc in sl.pieces],
     }

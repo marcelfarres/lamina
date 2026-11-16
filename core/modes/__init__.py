@@ -24,7 +24,8 @@ MAX_SLICES = 500                      # the count slider's ceiling, and the ceil
 #   labels        list of slice labels (chips)                  value: [label, …]
 #   chips         list of numbers or labels                   value: [v, …]
 #   curve         the spacing curve, drawn in the graph under the 3D view   value: [[t, s], …] t 0..1, s mm or deg
-LIST_TYPES = ("vec2", "vec3", "points", "lines3", "map", "labels", "chips", "curve")
+#   edges         edges of the model, picked in the 3D view or on a sheet   value: [[[x,y,z],[x,y,z]], …] the two ends of each
+LIST_TYPES = ("vec2", "vec3", "points", "lines3", "map", "labels", "chips", "curve", "edges")
 
 
 @dataclass
@@ -272,6 +273,7 @@ class Ctx:
         self.cover_r = None       # how far across its plane a part counts as covering the surface (plan.coverage); None = a default
         # what the technique hands the 3D view: dowel rods, a curve and its points, fan axes / branches, the planes between lobes
         self.rods, self.curve3d, self.curve_pts, self.axes3d, self.bounds3d = [], None, None, None, []
+        self.edges3d = None       # folded: every edge the surface folds or is cut apart at, for the page to draw and pick (Folded.edges3d)
         self.core_d_min = None    # radial: the smallest core the half-slices allow
         self.spacing = []         # the drawn spacing curves' outcome, for the graph: [{param, positions, length, unit, scale}]
         self.stack, self.common_pts = [], None   # stacked: the layers in order, and the dowel points they all share (cached)

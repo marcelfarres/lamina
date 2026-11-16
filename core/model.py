@@ -91,6 +91,7 @@ class Slice:
     radial: np.ndarray | None = None    # radial half-slice: the way it points out from the axis
     lobe: int = 0                       # radial: which axis's lobe the part belongs to
     pn: object = None                   # folded: the Panel this slice is cut from
+    edges: list = field(default_factory=list)       # folded: [(adjacency index, LineString)] the panel's fold and seam edges in its net, for the page to mark and pick
     additions: list = field(default_factory=list)   # folded: tabs added to the panel's outline
     skipped: dict = field(default_factory=dict)     # folded: what → seams whose joint found no room
     room: MultiPolygon | None = None    # folded: the panel with its tabs so far, a hair in, where a seam number may go (cached)
@@ -118,6 +119,7 @@ class Slice:
         flip = lambda g: affinity.scale(g, -1, 1, origin=(0, 0))   # noqa: E731
         self.raw = flip(self.raw); self.cuts = [flip(c) for c in self.cuts]; self.thin = [flip(g) for g in self.thin]
         self.lines = [(style, flip(ln)) for style, ln in self.lines]
+        self.edges = [(k, flip(ln)) for k, ln in self.edges]
         self.marks = [(-m[0], m[1], m[2], -(m[3] if len(m) > 3 else 0.0)) for m in self.marks]
         self.grooves = [g._replace(a=(-g.a[0], g.a[1]), b=(-g.b[0], g.b[1])) for g in self.grooves]
         self.mark_boxes = []; self.room = None; self.taken = None
