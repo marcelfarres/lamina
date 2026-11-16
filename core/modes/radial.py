@@ -45,7 +45,7 @@ class Radial(Mode):
               "Z-3 = the 3rd ring slice along the axis, counted from the low end · "
               "SP-1 = a spine: the full plane that runs through every axis and ties the fans together")
     params = [
-        Param("axis", "choice", "z", "Central axis (when `axes` below is empty)", choices=["x", "y", "z"]),
+        Param("axis", "choice", "z", "Central axis (when `axes` below is empty)", choices=["x", "y", "z"], section="Slices — the half-slices fanned round each axis"),
         Param("axes", "lines3", [], "One line per fan (start → end, from the model's centre): where that axis sits, which way it points, "
                                     "and the stretch of the model its rings are spread along. Empty = one axis through the centre. Neighbouring "
                                     "lobes are parted by a flat plane between their axes (B-1-2, a translucent part in the 3D view: click it and "
@@ -56,19 +56,19 @@ class Radial(Mode):
                                     "through the click, then drag it to the ball's centre. A snowman: + splits the axis in two, then drag the "
                                     "ends to the waists. Alt-click an axis to remove it. Seen face-on, the plane the other axes share holds "
                                     "the drag, so the spine survives it; turn the view until that plane is edge-on to move an axis off it. "
-                                    "Every fan shares `count`, so neighbouring fans meet plane for plane", unit="mm"),
-        Param("count", "int", 6, "Radial planes through each axis (gives 2 × count half-slices per axis)", 1, 90, 1),
-        *spacing_params("planes", [("spacing_curve", "plane spacing round the axis", [[0, 30], [0.5, 30], [1, 30]])], 5, 60, unit="deg"),
+                                    "Every fan shares `count`, so neighbouring fans meet plane for plane", unit="mm", label="fan axes"),
+        Param("count", "int", 6, "Radial planes through each axis (gives 2 × count half-slices per axis)", 1, 90, 1, label="planes per axis"),
         Param("angle", "number", 0, "Turn the whole fan about the axis (deg): where the first radial plane starts. The pattern repeats every 180 / count degrees. "
-                                    "Axes side by side on one plane start their fans on the spine instead, and this does nothing", -90, 90, 1, unit="deg"),
+                                    "Axes side by side on one plane start their fans on the spine instead, and this does nothing", -90, 90, 1, unit="deg", label="rotate the fan"),
+        Param("core_d", "number", 0, "Central clearance: half-slices stop at this diameter (mm). 0 = automatic minimum so 2 × count slices fit around the axis; smaller than the minimum = collision error", 0, 300, 1, unit="mm", label="center hole diameter"),
+        Param("rings", "choice", "count", "Ring slices along each axis: count = N evenly spread, distance = one every `ring_spacing`", choices=["count", "distance"], label="ring distribution", section="Rings — the slices across each axis"),
+        Param("ring_count", "int", 4, "Number of ring slices (per axis)", 1, 200, 1, show_if=("rings", "count"), label="number of rings"),
+        Param("ring_spacing", "number", 40, "Ring spacing along the axis (mm)", 2, 1000, 1, unit="mm", show_if=("rings", "distance"), label="distance between rings"),
         Param("spine", "int", 0, "Full planes through every axis, cut whole and slotted into every ring: what holds one fan to the next. "
                                  "0 = automatic: none for one axis, one for several. Axes on one line (a snowman's balls, one above the other) "
-                                 "can take more; axes side by side on one plane share exactly one", 0, 8, 1),
-        Param("core_d", "number", 0, "Central clearance: half-slices stop at this diameter (mm). 0 = automatic minimum so 2 × count slices fit around the axis; smaller than the minimum = collision error", 0, 300, 1, unit="mm"),
-        Param("rings", "choice", "count", "Ring slices along each axis: count = N evenly spread, distance = one every `ring_spacing`", choices=["count", "distance"]),
-        Param("ring_count", "int", 4, "Number of ring slices (per axis)", 1, 200, 1, show_if=("rings", "count")),
-        Param("ring_spacing", "number", 40, "Ring spacing along the axis (mm)", 2, 1000, 1, unit="mm", show_if=("rings", "distance")),
-        Param("hole_d", "number", 0, "Hole in the middle of every ring for a pole / dowel (mm); 0 = none", 0, 100, 0.5, unit="mm"),
+                                 "can take more; axes side by side on one plane share exactly one", 0, 8, 1, label="spine planes", section="Joining — what holds the fans and rings together"),
+        Param("hole_d", "number", 0, "Hole in the middle of every ring for a pole / dowel (mm); 0 = none", 0, 100, 0.5, unit="mm", label="pole hole diameter"),
+        *spacing_params("planes", [("spacing_curve", "plane spacing round the axis", [[0, 30], [0.5, 30], [1, 30]])], 5, 60, unit="deg"),
     ]
     hidden_common = ("notch_ratio",)
 

@@ -300,11 +300,19 @@ does not slip through. It carries the most signal for stacked and folded work; d
   from the wrong stock fits nothing. Every file name also carries the material it is cut from (`sheet1 plywood.svg`).
 - **One sheet** ignores the sheet height: every part goes on one strip as wide as the sheet and as long as it needs,
   to be cut apart at the machine.
-- **Non-uniform spacing**: stacked, interlocked, radial and curve can spread their slices by a curve you draw in a
-  graph under the 3D view (`spacing_vary`) — the distance between neighbours against the position along the way,
-  the angle between planes round the axis for radial (periodic), one graph per family for interlocked — dense where
-  the shape changes fast, sparse where it does not. Keep the count and the drawn spacings are scaled to span the
-  model, or keep the spacings and the count follows. The `vase`, `ripple`, `berry` and `hook` examples open with one.
+- **Non-uniform spacing**: stacked, interlocked, radial, curve and plaque can spread their slices by a curve you
+  draw. Tick *vary the spacing* (`spacing_vary`) and a graph opens under the tick: the gap between neighbours against
+  the position along the way. For radial it is the angle between planes round the axis (periodic). Interlocked has one
+  graph per family. The upright lines in the graph are the slices, and a strip under it draws the model from them.
+  Start from a shape (even, dense at both ends, dense in the middle, dense at the start) or press *follow the model*:
+  it makes the gaps small where the width of the model changes fast. Buttons add a point, remove one, smooth the
+  curve and reset it, and you can type the two numbers of a point. Keep the count and the drawn gaps are scaled to
+  span the model, or keep the gaps and the count follows. The `vase`, `ripple`, `berry` and `hook` examples open
+  with one.
+
+  [![The spacing graph, step by step: the box ticked, a starting shape picked, a point dragged, the curve drawn from the model](docs/media/spacing_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#spacing)
+
+  [Watch the walk-through](https://marcelfarres.github.io/lamina/?ref=github-readme#spacing).
 - **Labels** go on the part itself wherever the whole label fits on its material — inside the next layer's outline
   where the technique marks one (stacked, `next_outline`), so the layer glued on top hides it, upright or turned along
   the part, clear of its holes and marks — and otherwise beside the part with a leader line, in free space inside the

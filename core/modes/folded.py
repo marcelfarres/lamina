@@ -95,45 +95,45 @@ class Folded(Mode):
               "the cutter (the inside of the model unless `score side` says outside); the short score across a tab's base is "
               "where the tab folds, the rest of the outline is cut")
     params = [
-        Param("facet", "number", 15, "Detail: average triangle edge after simplification (mm). Bigger = fewer, simpler panels; joints need triangles a few times bigger than the joint. 0 = keep every triangle of the model", 0, 200, 1, unit="mm"),
+        Param("facet", "number", 15, "Detail: average triangle edge after simplification (mm). Bigger = fewer, simpler panels; joints need triangles a few times bigger than the joint. 0 = keep every triangle of the model", 0, 200, 1, unit="mm", label="face size", section="Faces — how the model is cut into flat faces"),
         Param("min_face", "number", 0.0, "Merge the faces too small to work with into their neighbours: a face whose least height is "
               "under this (mm) is closed up along its shortest edge, and the rest of the model stays as it is. 0 = keep every "
               "face. For a model where a few small faces carry warnings and a bigger facet size would lose detail everywhere", 0, 100, 0.5, unit="mm", label="smallest face"),
-        Param("separate", "bool", False, "Every face is its own panel (no folds): each triangle is cut alone and joined to its neighbours along every edge"),
-        Param("strategy", "choice", "auto", "How panels grow: flat = flattest fold first; strip = long strips along the model's axis; area = big faces first; auto = try all and keep the fewest, most compact panels (≤ 800 faces)", choices=["auto", "flat", "strip", "area"], show_if=("separate", False)),
-        Param("max_faces", "int", 0, "Max triangles per panel (0 = as many as fit the sheet without overlapping)", 0, 5000, 1, show_if=("separate", False)),
-        Param("joint", "choice", "laced", JOINT_HELP, choices=JOINTS),
-        Param("hole_d", "number", 2.5, "Hole diameter for rivet / laced / strip (mm); shrinks where the triangle is small", 0.5, 30, 0.1, unit="mm"),
-        Param("inset", "number", 4.0, "Distance from the seam to the hole centres / slots / second bend (mm); shrinks where the triangle is small", 0.5, 100, 0.5, unit="mm"),
-        Param("spacing", "number", 20.0, "Hole spacing along a seam (mm); laced makes ≥ 2 per edge, rivet ≥ 1", 2, 500, 1, unit="mm"),
-        Param("tab_h", "number", 10.0, "Tab height for tab / multitab / diamond / gear / tongue / puzzle (mm)", 1, 100, 0.5, unit="mm"),
-        Param("tab_angle", "number", 30, "Side angle of trapezoid tabs (deg)", 0, 80, 5, unit="deg"),
-        Param("rib_w", "number", 12.0, "Rib joint: arm width above the panel and tab width through the slot (mm); shrinks where the triangle is small", 2, 100, 0.5, unit="mm"),
-        Param("rib_thick", "number", 0.0, "Rib material thickness (mm) when the ribs are cut from a different sheet; 0 = same as the panels. Slots in the panels follow it", 0, 20, 0.1, unit="mm", show_if=("joint", "rib")),
-        Param("perforate", "bool", False, "Fold lines as dashed perforation instead of a continuous score (thick material)"),
-        Param("score_side", "choice", "inside", "The face of the sheet that is up on the cutter, and so carries the scores and "
-              "seam numbers: inside = the net is mirrored, they end up inside the model and the outside stays one clean "
-              "surface; outside = they show on the outside, as on a printed paper model", choices=["inside", "outside"]),
-        Param("hinge", "number", 0.4, "3D printed panels (PLA, PETG): the skin left at every fold (mm). The panel prints at its "
-              "full thickness with a V groove along each fold, cut to that fold's own angle: it folds to the model's shape and "
-              "stops there, and with the plain `seam` joint the seam edges are mitred the same way, so the panels meet face to "
-              "face for glue. Two layers (0.4 mm) is a good start; PETG bends, PLA is brittle and folds once. 0 = no groove", 0, 5, 0.05, unit="mm", show_if=("printed", True)),
-        Param("hinge_w", "number", 0.4, "3D printed panels: width of the flat strip of skin at the bottom of each fold's groove (mm), "
-              "the length that bends. Wider folds more easily and stops less sharply", 0, 5, 0.05, unit="mm", label="hinge width", show_if=("printed", True)),
-        Param("hinge_stop", "number", 0.0, "3D printed panels: where each fold stops, in degrees past (+) or short of (−) the "
-              "model's angle. 0 = the groove walls meet at the model's angle. Folds that go too far on your printer: set it "
-              "below 0 for a tighter groove; folds that stop short: above 0", -20, 20, 0.5, unit="deg", label="fold stop", show_if=("printed", True)),
+        Param("separate", "bool", False, "Every face is its own panel (no folds): each triangle is cut alone and joined to its neighbours along every edge", label="every face separate"),
+        Param("strategy", "choice", "auto", "How panels grow: flat = flattest fold first; strip = long strips along the model's axis; area = big faces first; auto = try all and keep the fewest, most compact panels (≤ 800 faces)", choices=["auto", "flat", "strip", "area"], show_if=("separate", False), label="panel strategy"),
+        Param("max_faces", "int", 0, "Max triangles per panel (0 = as many as fit the sheet without overlapping)", 0, 5000, 1, show_if=("separate", False), label="most faces per panel"),
+        Param("window", "number", 0.0, "Open every face with a window of its own shape, for light (lamp shades, lanterns): how "
+              "much of the face it takes, 0 = none, 1 = as much as the frame allows. The frame left round it is never "
+              "narrower than the minimum feature width plus the room its folds need; a face too small for that stays whole", 0, 1, 0.05, label="windows in faces"),
+        Param("joint", "choice", "laced", JOINT_HELP, choices=JOINTS, section="Joining — how panels meet at a seam"),
+        Param("hole_d", "number", 2.5, "Hole diameter for rivet / laced / strip (mm); shrinks where the triangle is small", 0.5, 30, 0.1, unit="mm", label="hole diameter"),
+        Param("inset", "number", 4.0, "Distance from the seam to the hole centres / slots / second bend (mm); shrinks where the triangle is small", 0.5, 100, 0.5, unit="mm", label="distance from seam"),
+        Param("spacing", "number", 20.0, "Hole spacing along a seam (mm); laced makes ≥ 2 per edge, rivet ≥ 1", 2, 500, 1, unit="mm", label="hole spacing"),
+        Param("tab_h", "number", 10.0, "Tab height for tab / multitab / diamond / gear / tongue / puzzle (mm)", 1, 100, 0.5, unit="mm", label="tab height"),
+        Param("tab_angle", "number", 30, "Side angle of trapezoid tabs (deg)", 0, 80, 5, unit="deg", label="tab side angle"),
+        Param("rib_w", "number", 12.0, "Rib joint: arm width above the panel and tab width through the slot (mm); shrinks where the triangle is small", 2, 100, 0.5, unit="mm", label="rib width"),
+        Param("rib_thick", "number", 0.0, "Rib material thickness (mm) when the ribs are cut from a different sheet; 0 = same as the panels. Slots in the panels follow it", 0, 20, 0.1, unit="mm", show_if=("joint", "rib"), label="rib thickness"),
         Param("edge_fit", "choice", "inner", "Where two panels meet at a seam. inner = at their inside edges: every outward seam "
               "edge is cut back by thickness × tan(bend / 2), so stiff sheet (metal, wood, acrylic) closes instead of its "
               "inside corners colliding, and an open V is left on the outside; through = one panel runs to the model's edge "
               "and only the other is cut back, to butt against its inside face: the outside closes (fully at 90°) and one "
               "sheet shows its edge (seam, rivet and laced joints; the others use inner); outer = both edges reach the "
               "model's edge (edges you bevel yourself). Joints with a tab or loop on the edge, and printed panels (mitred "
-              "instead), are not cut back", choices=["inner", "through", "outer"]),
-        Param("window", "number", 0.0, "Open every face with a window of its own shape, for light (lamp shades, lanterns): how "
-              "much of the face it takes, 0 = none, 1 = as much as the frame allows. The frame left round it is never "
-              "narrower than the minimum feature width plus the room its folds need; a face too small for that stays whole", 0, 1, 0.05),
-        Param("edge_labels", "bool", True, "Engrave the seam number beside every joint on both panels, so mating edges can be found"),
+              "instead), are not cut back", choices=["inner", "through", "outer"], label="how seams meet"),
+        Param("edge_labels", "bool", True, "Engrave the seam number beside every joint on both panels, so mating edges can be found", label="seam numbers"),
+        Param("perforate", "bool", False, "Fold lines as dashed perforation instead of a continuous score (thick material)", label="dashed fold lines", section="Folds — how the sheet bends"),
+        Param("score_side", "choice", "inside", "The face of the sheet that is up on the cutter, and so carries the scores and "
+              "seam numbers: inside = the net is mirrored, they end up inside the model and the outside stays one clean "
+              "surface; outside = they show on the outside, as on a printed paper model", choices=["inside", "outside"]),
+        Param("hinge", "number", 0.4, "3D printed panels (PLA, PETG): the skin left at every fold (mm). The panel prints at its "
+              "full thickness with a V groove along each fold, cut to that fold's own angle: it folds to the model's shape and "
+              "stops there, and with the plain `seam` joint the seam edges are mitred the same way, so the panels meet face to "
+              "face for glue. Two layers (0.4 mm) is a good start; PETG bends, PLA is brittle and folds once. 0 = no groove", 0, 5, 0.05, unit="mm", show_if=("printed", True), label="hinge skin thickness"),
+        Param("hinge_w", "number", 0.4, "3D printed panels: width of the flat strip of skin at the bottom of each fold's groove (mm), "
+              "the length that bends. Wider folds more easily and stops less sharply", 0, 5, 0.05, unit="mm", label="hinge width", show_if=("printed", True)),
+        Param("hinge_stop", "number", 0.0, "3D printed panels: where each fold stops, in degrees past (+) or short of (−) the "
+              "model's angle. 0 = the groove walls meet at the model's angle. Folds that go too far on your printer: set it "
+              "below 0 for a tighter groove; folds that stop short: above 0", -20, 20, 0.5, unit="deg", label="fold stop", show_if=("printed", True)),
     ]
     hidden_common = ("notch_ratio", "notch_factor", "notch_angle", "relief", "tool_d", "margin", "tab", "offset", "tilt", "roll", "thick", "center", "skip")
 

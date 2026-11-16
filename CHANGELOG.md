@@ -15,6 +15,27 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ### Changed
 
+- **The spacing graph is under its tick.** *Vary the spacing* opens the graph right below the box, not under the 3D
+  view. Both axes have a title. Every slice is an upright line across the graph, and a strip under it draws the
+  model from its slices, so you see where the slices are dense. The graph's settings are on the page once.
+- **A curve can start from a shape.** Even, dense at both ends, dense in the middle, dense at the start. *Follow the
+  model* draws the curve from the model: small gaps where its width changes fast.
+- **Every graph gesture has a button.** Add a point, remove it, smooth the curve, reset it. Select a point and type
+  its position and its gap.
+- **Settings have full names.** *n points* is *dowels per layer*, *space* is *gap between layers*, *tab* is *split
+  tab width*, and about sixty more. A long name wraps onto a second line. The names in saved projects, presets and
+  the command line did not change.
+- **Settings are in sections that fold.** Each technique and the long tabs are grouped under headings: Slices,
+  Joining, Spacing, Position and so on. Click a heading to fold it. A setting that another one switches on is set in
+  under it.
+- **A changed setting is marked.** Its name is bold with a ↺ sign. Click the sign to put the default back.
+- **Find a setting.** Type a word in the box over the tabs. Only the settings that match stay, from every tab.
+- **Help opens in place.** Click the name of a setting and its explanation opens under it.
+- **One top bar.** The links, *what's new* and *clear my data* are in the *help* menu. The version and its two
+  buttons are in a *version* menu. The Ko-fi link stays in the bar.
+- **The technique buttons are cards with a drawing** of what each technique makes.
+- **Messages say what they are.** A warning starts with ⚠ WARNING and an error with ✖ ERROR, so the colour is not
+  the only sign. Several notes fold into one line that names them. The model size is shown rounded.
 - **The steps slider folds a folded job up.** After the last part is in, the steps slider has twenty more steps
   that fold the panels from flat to the model, with the share shown at the top of the 3D view. The *fold* slider
   still does the same on its own.

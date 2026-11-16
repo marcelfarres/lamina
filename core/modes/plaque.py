@@ -162,28 +162,14 @@ class Plaque(Stacked):
               "holds a piece of one of them that does not reach the plate")
     params = [
         Param("back", "choice", "-z", "The side of the model that goes against the plate: the plate is square to this axis and the "
-              "model sticks out of it the other way", choices=["-z", "+z", "-y", "+y", "-x", "+x"], label="back of the model"),
-        Param("layout", "choice", "parallel", "How the slices stand on the plate: parallel = side by side, one after another · "
-              "radial = a fan of half-slices round a centre (move it with `center`), their inner ends meeting round a small hole · "
-              "crossed = two families at right angles, slotted into each other half way like an egg crate, both standing on the plate",
-              choices=["parallel", "radial", "crossed"]),
-        Param("axis", "choice", "x", "Slice direction (normal of the slices): one of the two axes that lie in the plate", choices=["x", "y", "z"],
-              show_if=("layout", "parallel")),
-        Param("planes", "int", 12, "Radial: planes through the centre; each gives two half-slices", 2, 90, 1, show_if=("layout", "radial")),
-        Param("angle", "number", 0.0, "Radial: turn the whole fan about its centre (deg) · crossed: turn the grid on the plate",
-              -90, 90, 1, unit="deg", show_if=("layout", ["radial", "crossed"])),
-        Param("nx", "int", 8, "Crossed: slices of the first family, which goes into the plate first", 1, 200, 1, show_if=("layout", "crossed")),
-        Param("ny", "int", 8, "Crossed: slices of the second family, which drops onto the first from the front", 1, 200, 1, show_if=("layout", "crossed")),
-        Param("radius", "number", 0.0, "Radial: the radius of the hole in the middle of the fan, where the half-slices end (mm). "
-              "0 = the least that lets them all fit round it; under that least their inner ends collide", 0, 500, 0.5, unit="mm",
-              show_if=("layout", "radial")),
+              "model sticks out of it the other way", choices=["-z", "+z", "-y", "+y", "-x", "+x"], label="back of the model", section="Plate — the back plate the slices stand on"),
         Param("sink", "number", 0.0, "How far the model goes into the plate (mm), from its rearmost point: 0 = the model only touches "
-              "the plate, more = more of its back is cut away. What is behind the plate's front face is left out", 0, 5000, 0.5, unit="mm"),
+              "the plate, more = more of its back is cut away. What is behind the plate's front face is left out", 0, 5000, 0.5, unit="mm", label="sink into plate"),
         Param("plate_thickness", "number", 0.0, "Thickness of the back plate's material (mm), which is also how long the teeth are: "
               "they end flush with the back of the plate. 0 = the same material as the slices", 0, 100, 0.05, unit="mm", label="plate thickness"),
         Param("plate", "choice", "rounded", "The plate's outline: a shape fitted round the model, or silhouette = the model's own "
               "shadow on the plate, grown by the margin · file = a shape of your own, drawn in an SVG or DXF file",
-              choices=SHAPES, choice_labels={"rounded": "rounded rectangle", "file": "file (SVG / DXF)"}),
+              choices=SHAPES, choice_labels={"rounded": "rounded rectangle", "file": "file (SVG / DXF)"}, label="plate shape"),
         Param("plate_file", "file", "", "The plate's outline from an SVG or DXF file: its largest closed shape is the plate, closed shapes "
               "inside it are cut out of the plate (a hanging hole, an ornament). The drawing is fitted round the model, keeping its "
               "proportions; place the model in it with plate scale, mirror, rotation and offset", show_if=("plate", "file"), label="plate file"),
@@ -195,12 +181,30 @@ class Plaque(Stacked):
               "round the model, under 100 lets the model reach past it", 10, 500, 1, unit="", label="plate scale (%)"),
         Param("plate_mirror", "bool", False, "Turn the plate's outline over, left to right: for a file drawn the other way round", label="plate mirror"),
         Param("plate_rotation", "number", 0.0, "Turn the plate about its middle (deg)", -180, 180, 1, unit="deg", label="plate rotation"),
+        Param("layout", "choice", "parallel", "How the slices stand on the plate: parallel = side by side, one after another · "
+              "radial = a fan of half-slices round a centre (move it with `center`), their inner ends meeting round a small hole · "
+              "crossed = two families at right angles, slotted into each other half way like an egg crate, both standing on the plate",
+              choices=["parallel", "radial", "crossed"], section="Slices — how the slices stand on the plate"),
+        Param("axis", "choice", "x", "Slice direction (normal of the slices): one of the two axes that lie in the plate", choices=["x", "y", "z"],
+              show_if=("layout", "parallel")),
+        Param("planes", "int", 12, "Radial: planes through the centre; each gives two half-slices", 2, 90, 1, show_if=("layout", "radial"), label="radial planes"),
+        Param("angle", "number", 0.0, "Radial: turn the whole fan about its centre (deg) · crossed: turn the grid on the plate",
+              -90, 90, 1, unit="deg", show_if=("layout", ["radial", "crossed"]), label="rotate layout"),
+        Param("nx", "int", 8, "Crossed: slices of the first family, which goes into the plate first", 1, 200, 1, show_if=("layout", "crossed"), label="slices, 1st family"),
+        Param("ny", "int", 8, "Crossed: slices of the second family, which drops onto the first from the front", 1, 200, 1, show_if=("layout", "crossed"), label="slices, 2nd family"),
+        Param("radius", "number", 0.0, "Radial: the radius of the hole in the middle of the fan, where the half-slices end (mm). "
+              "0 = the least that lets them all fit round it; under that least their inner ends collide", 0, 500, 0.5, unit="mm",
+              show_if=("layout", "radial"), label="center hole radius"),
+        _S["distribution"],
+        _S["count"],
+        replace(_S["space"], default=3.0),
+        _S["shift"],
+        _S["surface"],
         Param("teeth", "int", 2, "The fewest teeth for each stretch of a slice that stands on the plate. A slice that meets the plate "
-              "in two separate stretches gets this many in each", 2, 20, 1),
+              "in two separate stretches gets this many in each", 2, 20, 1, label="teeth per stretch", section="Joining — how the slices hold to the plate"),
         Param("tooth_width", "number", 10.0, "How wide a tooth is along its slice (mm); narrower where the stretch is short", 1, 200, 0.5, unit="mm", label="tooth width"),
         Param("tooth_spacing", "number", 60.0, "The most distance between two teeth (mm): a long stretch gets more teeth than "
               "`teeth`, spread evenly. 0 = `teeth` only", 0, 2000, 1, unit="mm", label="tooth spacing"),
-        _S["distribution"], _S["count"], replace(_S["space"], default=3.0), _S["shift"], _S["surface"],
         Param("floating", "choice", "join", "A piece of a slice that does not reach the plate: join = it hangs from the slice beside "
               "it on three flat spacers, and a piece no neighbour can hold is left out and listed in the notes · keep = nothing is "
               "left out, the piece stays with its error", choices=["join", "keep"], label="floating pieces"),

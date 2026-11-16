@@ -302,26 +302,30 @@ S.edit = async () => {        // move the slice nearest the camera, so the whole
     await js("window.__t.deselect()");
 };
 
-// a point of the spacing graph dragged: the vase opens with a curve (dense at the foot, shoulder and lip); its middle
-// point is pulled down and let go, the model re-slices, then pulled back up. The graph is a 900 x 300 canvas with
-// 46 / 12 px beside and 10 / 26 px above and below the plot (spcGeom in the app)
-const spcPoint = async (t, v) => js(`(()=>{const c=document.querySelector('#spacing canvas'),r=c.getBoundingClientRect(),s=window.__t.state(),lo=+s.spacing_min,hi=+s.spacing_max;
-    return [r.left+r.width*(46+${t}*(900-58))/900, r.top+r.height*(300-26-(${v}-lo)/(hi-lo)*264)/300]})()`);
+// the spacing graph, start to finish: the vase evenly sliced; "vary the spacing" ticked and the graph opens under it; a
+// starting shape picked (dense at both ends); the middle point dragged down and let go; then "follow the model", which
+// draws the curve from how fast the vase's width changes; a point added and the curve smoothed. The model re-slices
+// after each step. The page says where a point of the graph is on the screen (__t.spcXY)
+const spcPoint = async (t, v) => js(`window.__t.spcXY('spacing_curve', ${t}, ${v})`);
 const mouse = (type, x, y, extra = {}) => send("Input.dispatchMouseEvent", { type, x, y, button: "left", buttons: 1, pointerType: "mouse", ...extra });
+const spcPress = async what => { await js(`document.querySelector('.spc button[${what}]').click()`); await settle(); };
 S.spacing = async () => {
     await example("vase"); await mode("stacked"); await tab("technique");
-    await params({ distribution: "count", count: 18, connect: "dowel", dowel_d: 4, n_points: 2, spacing_vary: true, spacing_min: 3, spacing_max: 30,
+    await params({ distribution: "count", count: 18, connect: "dowel", dowel_d: 4, n_points: 2, spacing_vary: false, spacing_min: 3, spacing_max: 30,
                    orient_mark: true, label_place: "part" });
-    await js("window.__t.state().spacing_curve=[[0,5],[0.12,6],[0.3,16],[0.5,18],[0.72,6],[0.9,5],[1,6]]"); await set("spacing_vary", true); await settle();
-    await view(-50, 14, 1.0); await js("document.querySelector('#spacing').scrollIntoView({block:'end'})"); await sleep(300);
-    const [x0, y0] = await spcPoint(0.5, 18), [, y1] = await spcPoint(0.5, 6);
-    await clip("spacing", 56, async i => {
-        if (i === 6) await mouse("mousePressed", x0, y0, { clickCount: 1 });
-        else if (i > 6 && i <= 18) await mouse("mouseMoved", x0, y0 + (y1 - y0) * (i - 6) / 12);
-        else if (i === 19) { await mouse("mouseReleased", x0, y1, { clickCount: 1 }); await settle(); }
-        else if (i === 32) await mouse("mousePressed", x0, y1, { clickCount: 1 });
-        else if (i > 32 && i <= 44) await mouse("mouseMoved", x0, y1 + (y0 - y1) * (i - 32) / 12);
-        else if (i === 45) { await mouse("mouseReleased", x0, y0, { clickCount: 1 }); await settle(); }
+    await view(-50, 14, 1.0);
+    const show = () => js("document.querySelector('.f[data-p=spacing_vary]').scrollIntoView({block:'start'})");
+    await show(); await sleep(300);
+    let x0, y0, y1;
+    await clip("spacing", 96, async i => {
+        if (i === 8) { await set("spacing_vary", true); await settle(); await show(); }
+        else if (i === 20) await spcPress("data-arg=ends");
+        else if (i === 32) { [x0, y0] = await spcPoint(0.5, (await js("window.__t.state().spacing_curve[1][1]"))); [, y1] = await spcPoint(0.5, 8); await mouse("mousePressed", x0, y0, { clickCount: 1 }); }
+        else if (i > 32 && i <= 44) await mouse("mouseMoved", x0, y0 + (y1 - y0) * (i - 32) / 12);
+        else if (i === 45) { await mouse("mouseReleased", x0, y1, { clickCount: 1 }); await settle(); }
+        else if (i === 58) await spcPress("data-arg=model");
+        else if (i === 72) await spcPress("data-spc=add");
+        else if (i === 80) await spcPress("data-spc=smooth");
         else await sleep(120);
     });
     await project("spacing");

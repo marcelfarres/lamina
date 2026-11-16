@@ -9,11 +9,17 @@
 :root{--bg:#141517;--panel:#1c1d21;--panel2:#232429;--line:#2f3138;--ink:#e6e6e3;--muted:#9a9ba3;--acc:#4f8cff;--err:#ff6b6b;--warn:#f5b642;--ok:#5fcf80;--sel:#ffd84a}
 *{box-sizing:border-box}html,body{height:100%}body{margin:0;display:flex;flex-direction:column;font:13px/1.45 Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink);color-scheme:dark;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
 header{flex:none;min-height:44px;padding:0 14px;background:#0f1012;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center}
-/* One row only fits a window about 1700px wide; narrower than that the links past the status ran off the right edge
-   on every laptop, so the header wraps onto a second row there. */
-@media (max-width:1700px){header{flex-wrap:wrap;padding:4px 14px;row-gap:4px}}
+/* One row: the links and the rarely used buttons are in the help menu, and the status line gives way first. Under
+   about 1150px even that does not fit, so the header wraps onto a second row there. */
+@media (max-width:1150px){header{flex-wrap:wrap;padding:4px 14px;row-gap:4px}}
+/* a menu in the header: a <details> whose summary is the button and whose .pop drops under it */
+details.menu{position:relative;flex:none}details.menu>summary{list-style:none;cursor:pointer;display:block;padding:3px 8px;border:1px solid var(--line);background:var(--panel2);border-radius:4px;font-size:12px;white-space:nowrap}
+details.menu>summary::-webkit-details-marker{display:none}details.menu>summary:hover,details.menu[open]>summary{border-color:var(--acc)}
+.pop{position:absolute;z-index:60;top:calc(100% + 4px);left:0;min-width:200px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:4px 0;box-shadow:0 8px 24px #0008;display:flex;flex-direction:column}
+.pop button,.pop a{all:unset;box-sizing:border-box;padding:6px 12px;font-size:12px;color:var(--ink);cursor:pointer;white-space:nowrap}.pop :is(button,a):is(:hover,:focus-visible){background:#ffffff14}
+.pop hr{border:0;border-top:1px solid var(--line);margin:4px 0;width:100%}
 header h1{font-size:15px;font-weight:600;letter-spacing:.01em;margin:0 6px 0 0;display:flex;align-items:center;gap:7px}header h1 img{width:20px;height:20px;display:block}
-header a.kofi{color:var(--muted);font-size:12px;text-decoration:none;border:1px solid var(--line);border-radius:12px;padding:2px 9px;white-space:nowrap}header a.kofi:hover{color:#ff5e5b;border-color:#ff5e5b}header .sp{flex:1}header select{width:auto}#status{color:var(--muted);font-size:12px;max-width:34vw;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+header a.kofi{color:var(--muted);font-size:12px;text-decoration:none;border:1px solid var(--line);border-radius:12px;padding:2px 9px;white-space:nowrap;display:inline-flex;gap:6px;align-items:center;flex:none}header a.kofi:hover{color:#ff5e5b;border-color:#ff5e5b}header .sp{flex:1}header select{width:auto}header>label,header>button,header>input{flex:none}#status{color:var(--muted);font-size:12px;max-width:34vw;min-width:40px;flex:0 1 auto;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 #dot{width:11px;height:11px;border-radius:50%;background:var(--ok);flex:none;box-shadow:0 0 6px var(--ok)}#dot.busy{background:var(--warn);box-shadow:0 0 8px var(--warn);animation:pulse .8s infinite alternate}#dot.err{background:var(--err);box-shadow:0 0 6px var(--err)}
 @keyframes pulse{from{opacity:.4}to{opacity:1}}
 main{display:grid;grid-template-columns:400px 1fr;flex:1;min-height:0}
@@ -27,7 +33,18 @@ label.f,div.f{display:grid;grid-template-columns:128px 1fr;gap:8px;align-items:s
 /* the spinner arrows take a third of a narrow box and say nothing about which way is which: the table's values are
    typed or dragged in the 3D view */
 .f.wide input[type=number]{-moz-appearance:textfield;appearance:textfield}.f.wide input[type=number]::-webkit-inner-spin-button,.f.wide input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
-.k{cursor:help;border-bottom:1px dotted #55575f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.k{cursor:help;border-bottom:1px dotted #55575f;overflow-wrap:anywhere}   /* a full name wraps onto a second line: it is read, not cut off */
+/* a section of settings folds on its heading; a setting another one switches on is set in under it; one that is not
+   at its default says so with a sign and bold, and the sign puts the default back; a click on a name opens its help */
+.sec{border-top:1px solid var(--line);margin:10px -14px 0;padding:7px 14px 0}.sec>h3.sub{cursor:pointer;margin:0 0 1px;display:flex;gap:6px;align-items:baseline}
+.sec>h3.sub::before{content:'▾';color:var(--muted);font-size:10px}.sec.folded>h3.sub::before{content:'▸'}.sec>h3.sub small{font-weight:400;color:var(--muted);font-size:11px}
+.sec.folded>:not(h3){display:none}
+.f.dep{margin-left:8px;padding-left:8px;border-left:2px solid var(--line)}.f.dep:not(.wide){grid-template-columns:112px 1fr}
+.f .chg{all:unset;display:none;cursor:pointer;color:var(--acc);margin-left:5px;font-weight:400}.f.changed>.k{font-weight:600}.f.changed .chg{display:inline}
+.f>.help{grid-column:1/-1;margin:0 0 4px;padding:6px 8px;background:var(--panel2);border-radius:4px;line-height:1.45}
+#find{margin:8px 14px 0;width:calc(100% - 28px);flex:none}
+#tabs.finding section[data-tab]{display:block}#tabs.finding .miss{display:none!important}#tabs.finding .sec.folded>.f{display:grid}
+#tabs.finding section[data-tab]::before{content:attr(data-name);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--acc);margin:12px 0 4px}
 #tip{position:fixed;z-index:50;max-width:320px;background:#2b2d34;color:#f0f0ee;padding:7px 9px;border-radius:5px;font-size:11.5px;line-height:1.4;box-shadow:0 6px 18px #000c;border:1px solid #3a3c45;pointer-events:none}#tip[hidden]{display:none}
 input,select,button{font:inherit}input,select{width:100%;padding:4px 6px;border:1px solid var(--line);border-radius:4px;background:var(--panel2);color:var(--ink)}input[type=checkbox]{width:auto;justify-self:start;margin-top:6px;accent-color:var(--acc)}input[type=file]{padding:2px;font-size:12px}input[type=range]{padding:0;accent-color:var(--acc)}
 .vec{display:flex;gap:4px}.vec input{min-width:0}.vec small{align-self:center;color:var(--muted)}
@@ -36,7 +53,10 @@ button.small{padding:3px 8px;border:1px solid var(--line);background:var(--panel
 .chips{display:flex;flex-wrap:wrap;gap:4px;align-items:center}.chip{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:1px 8px;font-size:12px}.chip b{cursor:pointer;color:var(--muted);margin-left:4px}.chips input{width:78px;padding:2px 6px}
 .hint{color:var(--muted);font-size:11px}h3.sub{font-size:12px;font-weight:600;margin:12px 0 1px;color:var(--ink)}p.hint.sub{margin:0 0 4px}
 .bar select{padding:1px 4px;width:auto}
-.modes{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}.modes button{padding:6px 9px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:4px;cursor:pointer;font-size:12px}.modes button.on{background:var(--acc);border-color:var(--acc);color:#fff}
+/* the techniques: six cards of one size, a small drawing of what each makes, a tick on the chosen one */
+.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}.modes button{padding:6px 2px 5px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:6px;cursor:pointer;font-size:11px}
+.modes button svg{display:block;margin:0 auto 3px;width:44px;height:30px;pointer-events:none}.modes button span{pointer-events:none}
+.modes button.on{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset;background:#22304d}.modes button.on span::before{content:'✓ '}
 .desc{color:var(--muted);font-size:12px;margin:0 0 10px}
 .view{display:flex;flex-direction:column;min-height:0;min-width:0}
 #v3d{position:relative;flex:0 0 56%;border-bottom:1px solid var(--line);min-height:240px}#v3d canvas{display:block;width:100%;height:100%}
@@ -59,12 +79,13 @@ button.small{padding:3px 8px;border:1px solid var(--line);background:var(--panel
 #hint summary{cursor:pointer}#hint summary span{color:var(--acc)}
 #hint dl{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin:6px 0 2px}#hint dt{color:var(--ink)}#hint dd{margin:0}
 #lower{flex:1;overflow:auto;padding:12px 14px;min-height:0}
-#spacing{margin:0 0 12px;border:1px solid var(--line);border-radius:4px;padding:8px 10px;background:#1d1f24}
-#spacing .hd{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:12px;color:var(--muted);margin-bottom:6px}#spacing .hd b{color:var(--ink)}
-#spacing .hd input{width:5.5em}#spacing .hd label{display:flex;gap:5px;align-items:center}
-#spacing .graphs{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:10px}
-#spacing canvas{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:4px;background:#17181c;touch-action:none;cursor:crosshair}
-#spacing .cap{font-size:11px;color:var(--muted);margin:3px 0 0;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+details.msg>summary{cursor:pointer}details.msg>summary span{opacity:.75}details.msg>div{margin-top:5px}
+/* the spacing graph, in the form under its tick */
+.spc{border:1px solid var(--line);border-radius:6px;padding:8px;background:#1d1f24;display:flex;flex-direction:column;gap:6px}
+.spc canvas{display:block;width:100%;height:auto;border-radius:4px;background:#17181c;touch-action:none;cursor:crosshair}
+.spc .chips button{border-radius:10px;padding:1px 8px;font-size:11px}
+.spc .cap{font-size:11px;color:var(--muted)}.spc .row{font-size:11px;color:var(--muted);display:flex;gap:6px;align-items:center;flex-wrap:wrap}.spc b{color:var(--ink)}
+.spc .row input{width:4.6em;padding:2px 4px;font-size:11px}.spc .row button{font-size:11px;padding:2px 7px}
 .stats{display:flex;gap:18px;flex-wrap:wrap;margin:0 0 10px}.stats b{font-size:17px;display:block}.stats div{font-size:11px;color:var(--muted)}
 .msg{padding:5px 8px;border-radius:4px;margin:3px 0;font-size:12px}.msg[data-s]{cursor:pointer}.msg[data-s]:hover{outline:1px solid var(--sel)}.err{background:#3a1e1e;color:var(--err)}.warn{background:#3a2f18;color:var(--warn)}.ok{background:#1c3325;color:var(--ok)}.note{background:#22262e;color:var(--muted)}
 .fix{display:inline-block;margin:3px 4px 0 0;padding:2px 8px;border:1px solid #6a4040;border-radius:10px;background:#2a1a1a;color:#ffc9c9;cursor:pointer;font-size:11px}.fix:hover{border-color:var(--err)}
@@ -125,6 +146,13 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
     <li><b>Checks</b> — whether it holds together. Every error offers one-click fixes; press one and it re-slices.</li>
     <li><b>Export</b> — the cut files (SVG, DXF, PDF, EPS), a 3D-printable prototype, a fit test, the assembly key.</li>
   </ol>
+  <h4>The settings</h4>
+  <ul><li><b>find a setting</b> — type a word in the box over the tabs and only the settings that match stay, from every tab. Esc clears it.</li>
+    <li>a tab is in <b>sections</b>: click a heading to fold it. A setting that another one switches on is set in under it.</li>
+    <li><b>↺</b> beside a bold name: that setting is not at its default. Click the sign to put the default back.</li>
+    <li>click a setting's name and its explanation opens under it. Hover shows the same text.</li>
+    <li><b>vary the spacing</b> opens a graph under the tick: the gap between slices against the position along the model.
+      Start from a shape or press <b>follow the model</b>, drag the points, or select one and type its numbers.</li></ul>
   <h4>In the 3D view</h4>
   <ul><li>drag = orbit · wheel = zoom · right-drag = pan · click the corner cube = flat view</li>
     <li>drag a coloured ring on the model = turn the whole model · click a part = select it</li>
@@ -153,22 +181,24 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
     <li>A big model in this browser version takes minutes where the local version takes seconds — and never a layer of your model goes anywhere: <a href="https://marcelfarres.github.io/lamina/#start" target="_blank" rel="noopener">how to run it on your own computer</a>.</li>
     <li>Something came out wrong? <a data-feedback href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml" target="_blank" rel="noopener">Report it</a> — a sentence, and the report fills in the rest.</li></ul>
   <div class="row"><button id="help_go" class="go">Close</button></div></dialog>
-<header><h1><img src="static/logo.svg" alt="">Lamina</h1><span class="k" style="color:var(--muted);font-size:12px;border:0;flex-shrink:0" data-tip="Lamina turns a 3D model into flat parts you can cut from paper, cardboard, plywood or sheet metal — stacked, interlocked, radial, ribbed or folded — checks that the result holds together, nests the parts on your sheets and exports the cut files. Not the 3D-printing kind of slicing — it works out the pieces you cut from a sheet and put back together.">what is it?</span>
-<input id="pname" placeholder="project name" style="width:150px;padding:3px 6px" title="project name (printed on every sheet and used for the file name)"><span class="hint" title="revision: bump minor for small changes, major for a new design">v<span id="prev">1.0</span></span><button class="small" id="pminor" title="new minor revision (1.0 → 1.1)">+0.1</button><button class="small" id="pmajor" title="new major revision (1.x → 2.0)">+1</button>
+<header><h1 data-tip="Lamina turns a 3D model into flat parts you can cut from paper, cardboard, plywood or sheet metal — stacked, interlocked, radial, ribbed or folded — checks that the result holds together, nests the parts on your sheets and exports the cut files. Not the 3D-printing kind of slicing — it works out the pieces you cut from a sheet and put back together."><img src="static/logo.svg" alt="">Lamina</h1>
+<input id="pname" placeholder="project name" style="width:150px;padding:3px 6px" title="project name (printed on every sheet and used for the file name)">
 <button class="small" id="popen">open project</button><button class="small" id="psave2">save project</button><input type="file" id="pfile" accept=".json" hidden>
+<details class="menu"><summary class="small" title="revision: bump minor for small changes, major for a new design">version <span id="prev">1.0</span> ▾</summary><div class="pop">
+  <button id="pminor" title="new minor revision (1.0 → 1.1)">A small change · +0.1</button><button id="pmajor" title="new major revision (1.x → 2.0)">A new design · +1</button></div></details>
 <button class="small" id="undo" title="undo the last change (Ctrl+Z)" disabled>↶ undo</button><button class="small" id="redo" title="redo (Ctrl+Y or Ctrl+Shift+Z)" disabled>↷</button>
-<button class="small" id="helpbtn" title="how it works, every shortcut, and what to do when something does not fit (?)">? help</button>
-<button class="small" id="newsbtn" title="what changed in this version, and every version before it">what's new</button>
-<button class="small" id="clear" title="delete everything this tab sliced — uploaded models, cut files, session (presets stay)">clear my data</button>
+<details class="menu"><summary class="small" title="how it works, every shortcut, and what to do when something does not fit (?)">? help ▾</summary><div class="pop">
+  <button id="helpbtn">How Lamina works</button><button id="newsbtn" title="what changed in this version, and every version before it">What is new</button><a href="https://marcelfarres.github.io/lamina/?ref=app" target="_blank" rel="noopener" data-tip="What Lamina does, every technique explained, how to run it yourself">Documentation ↗</a><hr>
+  <a data-feedback href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml" target="_blank" rel="noopener" data-tip="Something came out wrong? Write a sentence here and the report fills in the rest: the technique, every setting, what the checks said, the steps you took since loading the model, and the model saved ready to attach unless you untick that box. It then opens a prefilled email or the GitHub issue form for you to send — email needs no account.">Report a problem ↗</a><a href="https://discord.gg/N66bCQxmt3" target="_blank" rel="noopener" data-tip="Questions, ideas and builds: the Lamina Discord, where other people cutting with it can answer too">Discord ↗</a><a href="https://www.reddit.com/r/Lamina3D" target="_blank" rel="noopener" data-tip="r/Lamina3D on Reddit: show what you built, ask for help, say what Lamina should do next">Reddit ↗</a><a href="https://github.com/marcelfarres/lamina" target="_blank" rel="noopener" data-tip="Source code, issues, releases (AGPL-3.0)">GitHub ↗</a><hr>
+  <button id="clear" title="delete everything this tab sliced — uploaded models, cut files, session (presets stay)">Clear my data…</button></div></details>
 <span class="sp"></span><span id="dot" title="green = ready · orange = slicing · red = error"></span><span id="status"></span>
 <label style="font-size:12px;color:var(--muted)">view <select id="viewmode"><option value="both">3D + sheets</option><option value="only3d">3D only</option><option value="only2d">sheets only</option></select></label>
 <label style="font-size:12px;color:var(--muted)">units <select id="unit"><option>mm</option><option>cm</option><option>in</option></select></label>
-<a class="kofi" href="https://marcelfarres.github.io/lamina/?ref=app" target="_blank" rel="noopener" data-tip="What Lamina does, every technique explained, how to run it yourself">docs</a><a class="kofi" href="https://github.com/marcelfarres/lamina" target="_blank" rel="noopener" data-tip="Source code, issues, releases (AGPL-3.0)">GitHub</a><a class="kofi" href="https://discord.gg/N66bCQxmt3" target="_blank" rel="noopener" data-tip="Questions, ideas and builds: the Lamina Discord, where other people cutting with it can answer too">Discord</a><a class="kofi" href="https://www.reddit.com/r/Lamina3D" target="_blank" rel="noopener" data-tip="r/Lamina3D on Reddit: show what you built, ask for help, say what Lamina should do next">Reddit</a>
-<a class="kofi" data-feedback href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml" target="_blank" rel="noopener" data-tip="Something came out wrong? Write a sentence here and the report fills in the rest: the technique, every setting, what the checks said, the steps you took since loading the model, and the model saved ready to attach unless you untick that box. It then opens a prefilled email or the GitHub issue form for you to send — email needs no account.">report a problem</a>
-<a class="kofi" href="https://ko-fi.com/marcelfarres" target="_blank" rel="noopener" data-tip="Lamina is free and always will be — no account, no paid tier, and none of that depends on donations. If you would like to support the work and can comfortably afford it, a coffee is very welcome. No pressure.">♥ support Lamina on Ko-fi</a></header>
+<a class="kofi" href="https://ko-fi.com/marcelfarres" target="_blank" rel="noopener" data-tip="Lamina is free and always will be — no account, no paid tier, and none of that depends on donations. If you would like to support the work and can comfortably afford it, a coffee is very welcome. No pressure."><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M10.5 11.2c-.8-1-2.3-.2-1.8 1 .3.8 1.8 1.8 1.8 1.8s1.5-1 1.8-1.8c.5-1.2-1-2-1.8-1z" fill="currentColor" stroke="none"/></svg>Support on Ko-fi · thank you</a></header>
 <main>
 <aside>
   <nav><button data-t="model" class="on">Model</button><button data-t="technique">Technique</button><button data-t="sheet">Sheet &amp; fit</button><button data-t="checks">Checks</button><button data-t="export">Export</button></nav>
+  <input id="find" type="search" placeholder="find a setting…  dowel, kerf, label" aria-label="find a setting" title="type a word: the settings that match stay, from every tab (Esc clears)">
   <div id="tabs">
     <section data-tab="model" class="on">
       <h2>Model <button class="small reset" data-reset="model">reset tab</button></h2>
@@ -264,7 +294,7 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
       <dt>radial</dt><dd>drag the axis or its end = move it · click the plane between two lobes = move or tilt it like a slice</dd>
     </dl></details>
   </div>
-  <div id="lower"><div id="stats"></div><div id="msgs"></div><div id="spacing" hidden></div><div class="sheets" id="sheets"></div></div>
+  <div id="lower"><div id="stats"></div><div id="msgs"></div><div class="sheets" id="sheets"></div></div>
 </section>
 </main>
 <script src="static/browser.js"></script>
@@ -448,56 +478,111 @@ function field(p){
         :`<span class="vec">${[...Array(n)].map((_,i)=>`<small>${lab[i]}</small>${num(id+'_'+i,(v||[])[p.name==='size'?sizeAxes()[i]:i]||(p.name==='size'?null:0),p,`data-vec="${p.name}" data-i="${i}" ${p.name==='size'?`placeholder="${plan?+(+show(p,plan.bbox[i])).toPrecision(3):'auto'}"`:''}`)}`).join('')}</span>`}
   else if(p.type==='text')inp=`<input id="${id}" value="${esc(v)}">`;
   else if(p.type==='file')inp=`<span><input type="file" id="${id}" accept=".svg,.dxf"><small class="hint">${v?'a file is loaded':'no file yet'}</small></span>`;   // kept as its text
-  else if(p.type==='curve')inp=`<span class="hint">drawn in the graph under the 3D view</span>`;
+  else if(p.type==='curve')inp=`<div class="spc" data-param="${p.name}"></div>`;   // the graph: renderSpacing draws it
   else if(p.type==='points')inp=`<div class="rows" id="${id}">${(v||[]).map((q,i)=>`<div class="r"><small>${i+1}</small><input type="number" step="any" value="${show(p,q[0])}" data-pt="${p.name}" data-i="${i}" data-j="0"><input type="number" step="any" value="${show(p,q[1])}" data-pt="${p.name}" data-i="${i}" data-j="1"><button class="small x" data-del="${p.name}" data-i="${i}">×</button></div>`).join('')}<div class="r"><button class="small" data-add="${p.name}">+ point</button><span class="hint">or alt-click in the 3D view</span></div></div>`;
   else if(p.type==='lines3')inp=`<div class="rows" id="${id}">${(v||[]).length?`<div class="r hint"><small></small>${['x','y','z'].map(a=>`<span style="flex:1;text-align:center">${a} (${unit})</span>`).join('')}<span style="flex:0 0 24px"></span></div>`:''}${(v||[]).map((l,i)=>[0,1].map(e=>`<div class="r"><small>${e?'end':`${i+1} start`}</small>${[0,1,2].map(j=>`<input type="number" step="any" value="${show(p,l[e][j])}" data-ln="${p.name}" data-i="${i}" data-e="${e}" data-j="${j}" title="${e?'end':'start'} ${'xyz'[j]}">`).join('')}<span style="flex:0 0 24px">${e?'':`<button class="small x" data-del="${p.name}" data-i="${i}">×</button>`}</span></div>`).join('')).join('')}<div class="r"><button class="small" data-add="${p.name}">${{axes:'+ split an axis',branches:'+ branch'}[p.name]||'+ line'}</button><span class="hint">${{axes:'or alt-click the model for a parallel axis · drag them in the 3D view',branches:'or shift+alt-click a hoof, hand or tail tip · drag the ends in the 3D view · alt-click one to remove it'}[p.name]||'one straight dowel per line · or alt-click the model: a line up through that point'}</span></div></div>`;
   else if(p.type==='map'){const rows=Object.entries(v||{});if(selected&&!(selected in (v||{})))rows.push([selected,p.name==='thick'?state.thickness:0]);
     inp=`<div class="rows" id="${id}">${rows.map(([k,x])=>`<div class="r"><small>${esc(k)}</small><input type="number" step="any" value="${show(p,x)}" data-map="${p.name}" data-k="${esc(k)}">${k in (v||{})?`<button class="small x" data-del="${p.name}" data-i="${esc(k)}">×</button>`:'<span class="hint">default</span>'}</div>`).join('')||'<span class="hint">no overrides — select a part in the 3D view and use the sliders</span>'}</div>`}
   else if(p.type==='labels'||p.type==='chips')inp=`<div class="chips" id="${id}">${(v||[]).map((x,i)=>`<span class="chip">${p.type==='chips'?show(p,x):esc(x)}<b data-del="${p.name}" data-i="${i}">×</b></span>`).join('')}<input placeholder="${p.type==='chips'?'value ⏎':'label ⏎'}" data-chip="${p.name}"></div>`;
   else inp=(p.min!=null&&p.max!=null)?slider(id,v,p):num(id,v,p);
-  return `<div class="f${p.type==='lines3'?' wide':''}" data-p="${p.name}" ${p.show_if?`data-show="${p.show_if[0]}:${[].concat(p.show_if[1]).join('|')}"`:''}><span class="k" data-tip="${p.help.replace(/"/g,'&quot;')}">${p.label||nice(p.name)}${u}</span>${inp}</div>`;
+  return `<div class="f${p.type==='lines3'||p.type==='curve'?' wide':''}${p.show_if?' dep':''}" data-p="${p.name}" ${p.show_if?`data-show="${p.show_if[0]}:${[].concat(p.show_if[1]).join('|')}"`:''}><span class="k" data-tip="${p.help.replace(/"/g,'&quot;')}">${p.label||nice(p.name)}${u}<button class="chg" data-undo="${p.name}" title="changed: click to put the default back" aria-label="changed: put the default back">↺</button></span>${inp}</div>`;
 }
+// a setting that is not at its default (a file and the units are not settings to put back)
+const isChanged=p=>p.type!=='file'&&p.name!=='units'&&state[p.name]!=null&&JSON.stringify(state[p.name])!==JSON.stringify(p.default);
+function markChanged(){
+  for(const el of $$('.f[data-p]')){const p=allParams().find(q=>q.name===el.dataset.p);el.classList.toggle('changed',!!p&&isChanged(p))}
+  for(const s of $$('.sec')){const rows=[...s.querySelectorAll(':scope>.f')].filter(f=>!f.hidden),n=rows.filter(f=>f.classList.contains('changed')).length;
+    s.querySelector('h3 small').textContent=`· ${rows.length} setting${rows.length===1?'':'s'}${n?`, ${n} changed`:''}`}}
+// find a setting: only the rows whose name, key or help holds every word stay, from all the tabs at once
+function findRows(){
+  const box=$('#tabs'), words=$('#find').value.trim().toLowerCase().split(/\s+/).filter(Boolean); box.classList.toggle('finding',!!words.length);
+  for(const el of box.querySelectorAll('.miss'))el.classList.remove('miss'); if(!words.length)return;
+  const hit=new Set();
+  for(const f of box.querySelectorAll('.f[data-p]')){const k=f.querySelector('.k'),text=(f.dataset.p+' '+k.textContent+' '+(k.dataset.tip||'')).toLowerCase();
+    if(!f.hidden&&words.every(w=>text.includes(w)))for(let e=f;e&&e!==box;e=e.parentElement)hit.add(e)}
+  for(const el of box.querySelectorAll('section[data-tab],section[data-tab] *')){const row=el.closest('.f[data-p]');el.classList.toggle('miss',!(hit.has(el)||row&&hit.has(row)))}}
+const folded=new Set();   // the titles of the sections folded shut
+// what each technique makes, as a small drawing on its card
+const MODE_ICON={stacked:"<path d='M8 8h28M5 13h34M5 18h34M8 23h28' stroke-width='3'/>",interlocked:"<path d='M12 4v22M22 4v22M32 4v22M5 9h34M5 15h34M5 21h34' stroke-width='2'/>",
+  radial:"<path d='M22 2v26M9 6l26 18M35 6L9 24' stroke-width='2'/><ellipse cx='22' cy='15' rx='15' ry='5' stroke-width='1.5'/>",
+  curve:"<path d='M4 24C12 4 30 26 40 6' stroke-width='2'/><path d='M9 12l5 5M17 9l1 7M26 12l-2 7M33 9l4 6' stroke-width='3'/>",
+  folded:"<path d='M22 3l15 8-4 14H11L7 11zM22 3v22M7 11l15 14 15-14' stroke-width='1.6'/>",plaque:"<path d='M4 25h36' stroke-width='4'/><path d='M10 23V12M16 23V7M22 23V4M28 23V7M34 23V12' stroke-width='2.5'/>"};
+// a header menu shuts on a click outside it and on a choice inside it
+document.addEventListener('click',e=>{for(const d of $$('details.menu[open]'))if(!d.contains(e.target)||e.target.closest('.pop button,.pop a'))d.open=false});
 // a group's fields, with a heading where the section changes: "Title — the line under it", the line always on show, so
 // what a switch governs is read, not hovered for (only the kerf follows "compensate kerf"; the slot fit always applies)
-const fields=ps=>{let s='';return ps.map(p=>{if(!p.section||p.section===s)return field(p);s=p.section;const [t,line]=s.split(' — ');
-  return `<h3 class="sub">${esc(t)}</h3>${line?`<p class="hint sub">${esc(line)}</p>`:''}${field(p)}`}).join('')};
+const fields=ps=>{let html='',open='';for(const p of ps){const s=p.section||open;   // a row with no section of its own stays in the one above
+    if(s!==open){if(open)html+='</div>';open=s;if(s){const [t,line]=s.split(' — ');
+      html+=`<div class="sec${folded.has(t)?' folded':''}" data-sec="${esc(t)}"><h3 class="sub" title="click to fold or unfold">${esc(t)}<small></small></h3>${line?`<p class="hint sub">${esc(line)}</p>`:''}`}}
+    html+=field(p)}
+  return html+(open?'</div>':'')};
 function renderFields(){
   const com=mode.common, byG=g=>fields(com.filter(p=>p.group===g)); syncProject();
   $('#g-model').innerHTML=byG('model'); $('#g-technique').innerHTML=fields(mode.params)+byG('technique'); $('#g-slices').innerHTML=byG('slices');
   $('#g-sheet').innerHTML=byG('sheet'); $('#g-fit').innerHTML=byG('fit'); $('#g-checks').innerHTML=byG('checks');
-  applyShowIf(); syncPresetSelects(); renderSpacing();
+  applyShowIf(); syncPresetSelects(); renderSpacing(); findRows();
 }
-// ---------------------------------------------------------------- the spacing curve editor, under the 3D view
-// One graph per `curve` parameter of the technique: the distance between neighbouring slices against the position
-// along the way (or the angle round the axis, periodic, for radial). Drag a point; double-click adds one; alt-click
-// removes one. The ticks are where the plan actually put the slices. Lengths are shown in the unit on the toolbar.
-const spc={drag:null,hover:null,pts:{}};
+// ---------------------------------------------------------------- the spacing curve editor, in the form under its tick
+// One graph per `curve` parameter of the technique: the gap between neighbouring slices against the position along the
+// way (or the angle round the axis, periodic, for radial). The upright lines are where the plan put the slices, and the
+// strip under the graph is the model drawn from them: one bar a slice, as wide as the slice. Drag a point; double-click
+// adds one; every gesture has a button too. Lengths are shown in the unit on the toolbar.
+const spc={drag:null,hover:null,pts:{},sel:{}};
 const curveParams=()=>mode?mode.params.filter(p=>p.type==='curve'):[];
 const spcDeg=()=>(allParams().find(p=>p.name==='spacing_min')||{}).unit==='deg';
+const spcRange=()=>{const lo=+state.spacing_min||0;return [lo,Math.max(lo+1e-6,+state.spacing_max||1)]};
+const spcPlan=name=>(plan&&plan.spacing||[]).find(s=>s.param===name);
+// The widths of the slices a curve spread, in its order, where the plan tells: the group of slices that is as many as
+// the curve's positions (the n-th curve of that many takes the n-th such group).
+// ponytail: matched by count, so a slice dropped by the checks means no strip; the planner could send the widths with the positions
+function spcWidths(name){
+  const sp=spcPlan(name); if(!sp||!plan.slices||spcDeg())return null;
+  const by={}; for(const s of plan.slices)(by[s.group]??=[]).push(s);
+  const n=sp.positions.length, fit=Object.values(by).filter(a=>a.length===n), k=plan.spacing.filter(s=>s.positions.length===n).indexOf(sp);
+  const a=fit[Math.min(k,fit.length-1)]; return a&&n>1?a.map(s=>Math.max(...s.extents)):null}
+// the shapes a curve can start from: [what the chip says, the points from `at` (0 = the least gap … 1 = the most)]
+const SPC_SHAPES={even:['even',at=>[[0,at(.5)],[.5,at(.5)],[1,at(.5)]]],ends:['dense at both ends',at=>[[0,at(.1)],[.5,at(.8)],[1,at(.1)]]],
+  mid:['dense in the middle',at=>[[0,at(.8)],[.5,at(.1)],[1,at(.8)]]],start:['dense at the start',at=>[[0,at(.1)],[1,at(.8)]]],model:['✦ follow the model',(at,name)=>spcFollow(at,name)]};
+// small gaps where the model's width changes fast between neighbouring slices, large ones where it does not, at 7 places
+// ponytail: read off the slices of the plan on screen, nearest sample; a finer first slicing gives a finer proposal
+function spcFollow(at,name){
+  const sp=spcPlan(name), w=spcWidths(name); if(!w||w.length<4)return null;
+  const q=sp.positions, r=w.slice(1).map((x,i)=>Math.abs(x-w[i])/Math.max(1e-6,q[i+1]-q[i])), t=r.map((_,i)=>(q[i]+q[i+1])/2/sp.length), mx=Math.max(...r,1e-9);
+  return [0,1,2,3,4,5,6].map(k=>{const u=k/6, near=r.filter((_,i)=>Math.abs(t[i]-u)<=1/6);   // the mean over a sixth of the way either side
+    return [+u.toFixed(4),at(.85-.75*(near.length?near.reduce((a,b)=>a+b)/near.length:0)/mx)]})}
 function renderSpacing(){
-  const box=$('#spacing'), cps=curveParams();
-  if(!cps.length||!state.spacing_vary){box.hidden=true;box.innerHTML='';return}
-  box.hidden=false;
-  const deg=spcDeg(), u=deg?'°':unit, pm=allParams().find(p=>p.name==='spacing_min'), px=allParams().find(p=>p.name==='spacing_max');
-  if(!box.querySelector('.graphs')||box.dataset.mode!==mode.name||box.dataset.n!==String(cps.length)){
-    box.dataset.mode=mode.name; box.dataset.n=cps.length;
-    box.innerHTML=`<div class="hd"><b>spacing</b>
-      <label>keep <select id="spc_fix"><option value="count">the count</option><option value="curve">the spacings as drawn</option></select></label>
-      <label>from <input type="number" id="spc_min" step="any"> ${esc(u)}</label><label>to <input type="number" id="spc_max" step="any"> ${esc(u)}</label>
-      <span class="hint">drag a point · double-click adds one · alt-click removes one</span></div>
-      <div class="graphs">${cps.map(p=>`<div><canvas id="spc_${p.name}" width="900" height="300" data-param="${p.name}"></canvas><div class="cap" id="spcc_${p.name}"><span>${esc(p.label||nice(p.name))}</span><span></span></div></div>`).join('')}</div>`;
-    $('#spc_fix').onchange=e=>{setVal('spacing_fix',{count:'count',curve:'curve'}[e.target.value]||'count');renderFields()};
-    for(const [id,name] of [['#spc_min','spacing_min'],['#spc_max','spacing_max']])$(id).onchange=e=>{const v=deg?+e.target.value:toMM(+e.target.value);if(v>0){setVal(name,v);renderFields()}};
-    for(const c of box.querySelectorAll('canvas'))spcBind(c);
-  }
-  $('#spc_fix').value=state.spacing_fix||'count'; $('#spc_min').value=deg?state.spacing_min:inU(state.spacing_min); $('#spc_max').value=deg?state.spacing_max:inU(state.spacing_max);
-  for(const p of cps)spcDraw(p.name);
+  const deg=spcDeg();
+  for(const box of $$('.spc')){const name=box.dataset.param;
+    if(!box.firstChild){
+      box.innerHTML=`<div class="chips"><span class="hint">start from</span>${Object.entries(SPC_SHAPES).filter(([k])=>!(deg&&(k==='start'||k==='model'))).map(([k,[t]])=>`<button class="small" data-spc="shape" data-arg="${k}">${t}</button>`).join('')}</div>
+        <canvas width="744" height="430" data-param="${name}"></canvas><div class="cap"></div><div class="row pt"></div>
+        <div class="row"><button class="small" data-spc="add">+ add point</button><button class="small" data-spc="smooth">smooth</button><button class="small" data-spc="reset">↺ reset curve</button></div>
+        <div class="hint">drag a point · double-click the line adds one · the upright lines are the ${deg?'planes':'slices'}</div>`;
+      spcBind(box.querySelector('canvas'));
+      box.onclick=e=>{const b=e.target.closest('button[data-spc]');if(b)spcDo(name,b.dataset.spc,b.dataset.arg)};
+      box.onchange=e=>{if(e.target.dataset.spc)spcDo(name,'type')}}
+    spcDraw(name)}
 }
-const SPAD={l:46,r:12,t:10,b:26};
-function spcGeom(c){const W=c.width,H=c.height;return {W,H,gx:t=>SPAD.l+t*(W-SPAD.l-SPAD.r),gy:v=>H-SPAD.b-v*(H-SPAD.t-SPAD.b)}}
+// what a button of the graph does to its curve
+function spcDo(name,act,arg){
+  const p=curveParams().find(q=>q.name===name), [lo,hi]=spcRange(), deg=spcDeg(), at=f=>+(lo+(hi-lo)*f).toFixed(3), n0=(state[name]||[]).length;
+  let pts=(state[name]||[]).map(q=>[+q[0],+q[1]]), i=spc.sel[name];
+  if(act==='add'){if(pts.length<2)return;let b=0;for(let k=1;k<pts.length-1;k++)if(pts[k+1][0]-pts[k][0]>pts[b+1][0]-pts[b][0])b=k;   // in the widest stretch, on the curve
+    const t=(pts[b][0]+pts[b+1][0])/2;pts.splice(b+1,0,[+t.toFixed(4),+spcSpline(pts,deg)(t).toFixed(3)]);spc.sel[name]=b+1}
+  else if(act==='del'){if(!(pts.length>2&&i>0&&i<pts.length-1))return;pts.splice(i,1);delete spc.sel[name]}
+  else if(act==='smooth')pts=pts.map(([t,v],k)=>[t,k&&k<pts.length-1?+((pts[k-1][1]+2*v+pts[k+1][1])/4).toFixed(3):v]);
+  else if(act==='reset'){pts=structuredClone(p.default);delete spc.sel[name]}
+  else if(act==='shape'){pts=SPC_SHAPES[arg][1](at,name);if(!pts)return;delete spc.sel[name]}
+  else if(act==='type'){const box=$(`.spc[data-param="${name}"]`),ti=box.querySelector('[data-spc=t]'),vi=box.querySelector('[data-spc=v]'),sp=spcPlan(name),L=deg?180:sp?sp.length:0;
+    if(!(i>=0&&i<n0)||!vi)return; const v=deg?+vi.value:toMM(+vi.value); if(v>0)pts[i][1]=+Math.min(hi,Math.max(lo,v)).toFixed(3);
+    if(ti&&!ti.disabled&&L){const t=(deg?+ti.value:toMM(+ti.value))/L;pts[i][0]=+Math.min(pts[i+1][0]-0.02,Math.max(pts[i-1][0]+0.02,t)).toFixed(4)}}
+  if(deg&&pts.length>1)pts[pts.length-1][1]=pts[0][1];   // the fan closes on itself
+  setVal(name,pts); spcDraw(name)}
+const SPC={l:86,r:14,t:14,b:312};   // the plot inside the canvas, in its own pixels (two a screen pixel): left and right margins, top and bottom edges
+function spcGeom(c){const W=c.width;return {W,gx:t=>SPC.l+t*(W-SPC.l-SPC.r),gy:v=>SPC.b-v*(SPC.b-SPC.t)}}
 // the curve as drawn: y as a fraction of from…to, so the graph always shows the whole range
-const spcPts=name=>{const lo=+state.spacing_min||0,hi=Math.max(lo+1e-6,+state.spacing_max||1);return (state[name]||[]).map(([t,s])=>[+t,Math.min(1,Math.max(0,(s-lo)/(hi-lo)))])};
-const spcStore=(name,pts)=>{const lo=+state.spacing_min||0,hi=Math.max(lo+1e-6,+state.spacing_max||1);return pts.map(([t,v])=>[+t.toFixed(4),+(lo+(hi-lo)*v).toFixed(3)])};
+const spcPts=name=>{const [lo,hi]=spcRange();return (state[name]||[]).map(([t,s])=>[+t,Math.min(1,Math.max(0,(s-lo)/(hi-lo)))])};
+const spcStore=(name,pts)=>{const [lo,hi]=spcRange();return pts.map(([t,v])=>[+t.toFixed(4),+(lo+(hi-lo)*v).toFixed(3)])};
 // monotone cubic (Fritsch–Carlson) through the points, periodic for radial: the same curve the planner draws
 function spcSpline(pts,periodic){
   const n=pts.length,x=pts.map(p=>p[0]),y=pts.map(p=>p[1]); if(n<2)return t=>n?y[0]:0;
@@ -509,45 +594,61 @@ function spcSpline(pts,periodic){
   return t=>{t=Math.min(x[n-1],Math.max(x[0],t));let i=0;while(i<n-2&&t>x[i+1])i++;if(h[i]<=1e-12)return y[i];const u=(t-x[i])/h[i],u2=u*u,u3=u2*u;
     return (2*u3-3*u2+1)*y[i]+(u3-2*u2+u)*h[i]*m[i]+(-2*u3+3*u2)*y[i+1]+(u3-u2)*h[i]*m[i+1]}}
 function spcDraw(name){
-  const c=$('#spc_'+name); if(!c)return; const g=c.getContext('2d'), {W,H,gx,gy}=spcGeom(c), deg=spcDeg(), periodic=deg;
-  const pts=spc.drag&&spc.drag.name===name?spc.pts[name]:spcPts(name), lo=+state.spacing_min||0, hi=Math.max(lo+1e-6,+state.spacing_max||1);
-  const col=k=>getComputedStyle(document.documentElement).getPropertyValue(k).trim();
-  g.clearRect(0,0,W,H); g.fillStyle='#17181c'; g.fillRect(0,0,W,H);
-  g.strokeStyle=col('--line'); g.lineWidth=1; g.font='11px system-ui,sans-serif'; g.fillStyle=col('--muted');
-  const lab=v=>deg?`${v.toFixed(0)}°`:`${inU(v)}`;
-  g.textAlign='right'; for(let i=0;i<=4;i++){const y=gy(i/4);g.beginPath();g.moveTo(SPAD.l,y);g.lineTo(W-SPAD.r,y);g.stroke();g.fillText(lab(lo+(hi-lo)*i/4),SPAD.l-5,y+4)}
-  const sp=(plan&&plan.spacing||[]).find(s=>s.param===name), L=sp?sp.length:(deg?180:1);
-  g.textAlign='center'; for(let i=0;i<=10;i++){const x=gx(i/10);g.beginPath();g.moveTo(x,SPAD.t);g.lineTo(x,H-SPAD.b);g.stroke();
-    if(i%2===0)g.fillText(deg?`${18*i}°`:sp?`${lenTxt(L*i/10)} ${unit}`:`${i*10}%`,x,H-SPAD.b+15)}
-  if(sp){g.strokeStyle=col('--acc2')||'#f5b642';g.lineWidth=1.5;for(const p of sp.positions){const x=gx(p/L);g.beginPath();g.moveTo(x,H-SPAD.b);g.lineTo(x,H-SPAD.b-8);g.stroke()}}
-  const f=spcSpline(pts,periodic); g.strokeStyle=col('--acc'); g.lineWidth=2.2; g.beginPath();
+  const box=$(`.spc[data-param="${name}"]`), c=box&&box.querySelector('canvas'); if(!c)return;
+  const deg=spcDeg(), periodic=deg, [lo,hi]=spcRange(), wd=spcWidths(name), H=wd?430:376; if(c.height!==H)c.height=H;   // room for the model strip only when there is one
+  const g=c.getContext('2d'), {W,gx,gy}=spcGeom(c), pts=spc.drag&&spc.drag.name===name?spc.pts[name]:spcPts(name), sel=spc.sel[name];
+  const col=k=>getComputedStyle(document.documentElement).getPropertyValue(k).trim(), mid=(SPC.l+W-SPC.r)/2;
+  g.fillStyle='#17181c'; g.fillRect(0,0,W,H);
+  g.strokeStyle=col('--line'); g.lineWidth=2; g.font='21px system-ui,sans-serif'; g.fillStyle=col('--muted');
+  const n3=v=>+(+v).toPrecision(3), lab=v=>deg?`${v.toFixed(0)}°`:`${n3(inU(v))}`;   // three figures: an axis number, not a measurement
+  g.textAlign='right'; for(let i=0;i<=3;i++){const y=gy(i/3);g.beginPath();g.moveTo(SPC.l,y);g.lineTo(W-SPC.r,y);g.stroke();g.fillText(lab(lo+(hi-lo)*i/3),SPC.l-9,y+7)}
+  const sp=spcPlan(name), L=sp?sp.length:(deg?180:1);
+  if(sp){g.strokeStyle='#f5b64266';g.lineWidth=2;for(const q of sp.positions){const x=gx(q/L);g.beginPath();g.moveTo(x,SPC.t);g.lineTo(x,SPC.b);g.stroke()}}
+  for(let i=0;i<=4;i++){g.textAlign=i===0?'left':i===4?'right':'center';g.fillText(deg?`${45*i}°`:sp?`${n3(inU(L*i/4))}`:`${i*25}%`,gx(i/4),SPC.b+27)}
+  g.fillStyle=col('--ink'); g.textAlign='center';
+  g.fillText(deg?'angle round the axis · 0° → 180°':`along the model${sp?` (${unit})`:''} · start → end`,mid,SPC.b+56);
+  g.save(); g.translate(22,(SPC.t+SPC.b)/2); g.rotate(-Math.PI/2); g.fillText(deg?'angle between planes (°)':`gap between slices (${unit})`,0,0); g.restore();
+  const f=spcSpline(pts,periodic); g.strokeStyle=col('--acc'); g.lineWidth=4.5; g.beginPath();
   for(let i=0;i<=200;i++){const t=i/200,v=Math.min(1,Math.max(0,f(t)));i?g.lineTo(gx(t),gy(v)):g.moveTo(gx(t),gy(v))} g.stroke();
-  pts.forEach(([t,v],i)=>{g.beginPath();g.arc(gx(t),gy(v),spc.hover&&spc.hover.name===name&&spc.hover.i===i?7:5.5,0,7);
-    g.fillStyle=periodic&&(i===0||i===pts.length-1)?(col('--acc2')||'#f5b642'):col('--acc');g.fill();g.strokeStyle='#17181c';g.lineWidth=2;g.stroke()});
-  const cap=$('#spcc_'+name); if(cap&&sp){const gaps=sp.positions.slice(1).map((p,i)=>p-sp.positions[i]);if(periodic)gaps.push(180-sp.positions[sp.positions.length-1]);
+  pts.forEach(([t,v],i)=>{const on=i===sel, hot=spc.hover&&spc.hover.name===name&&spc.hover.i===i;g.beginPath();g.arc(gx(t),gy(v),on?15:hot?13:10,0,7);
+    g.fillStyle=col('--acc');g.fill();g.strokeStyle=on?'#fff':'#17181c';g.lineWidth=4;g.stroke()});
+  if(wd){const mx=Math.max(...wd)||1, cy=SPC.b+88; g.fillStyle=col('--muted'); g.textAlign='right'; g.fillText('model',SPC.l-9,cy+7);
+    g.strokeStyle='#c9b27a'; g.lineWidth=4; sp.positions.forEach((q,i)=>{const x=gx(q/L),h=24*wd[i]/mx;g.beginPath();g.moveTo(x,cy-h);g.lineTo(x,cy+h);g.stroke()})}
+  const cap=box.querySelector('.cap');
+  if(sp){const gaps=sp.positions.slice(1).map((q,i)=>q-sp.positions[i]);if(periodic)gaps.push(180-sp.positions[sp.positions.length-1]);
     const mn=Math.min(...gaps),mx=Math.max(...gaps), far=Math.abs(sp.scale-1)>0.5;
-    cap.lastElementChild.innerHTML=`${sp.positions.length} ${deg?'planes':'slices'} · ${deg?`${mn.toFixed(1)}°…${mx.toFixed(1)}°`:`${esc(lenTxt(mn))}…${esc(lenTxt(mx))} ${esc(unit)}`} apart`+(state.spacing_fix==='count'?` · curve scaled <b${far?' style="color:var(--warn)"':''}>${sp.scale.toFixed(2)}×</b>`:'')}
+    cap.innerHTML=`<b>${sp.positions.length} ${deg?'planes':'slices'}</b> · ${deg?`${mn.toFixed(1)}°…${mx.toFixed(1)}°`:`${n3(inU(mn))}…${n3(inU(mx))} ${esc(unit)}`} apart`+(state.spacing_fix==='count'?` · gaps drawn × <b>${far?'⚠ ':''}${sp.scale.toFixed(2)}</b> to fit the count`:'')}
+  else cap.textContent='';
+  // the selected point's two numbers, to type; not redrawn under the cursor while one is being typed
+  const row=box.querySelector('.pt'), raw=state[name]||[], u=deg?'°':esc(unit);
+  if(!(sel>=0&&sel<raw.length)){row.dataset.sel='';row.innerHTML='<span class="hint">click a point to type its numbers</span>';return}
+  const end=sel===0||sel===raw.length-1, at=deg?+(raw[sel][0]*180).toFixed(1):sp?inU(raw[sel][0]*L):null, gap=deg?raw[sel][1]:inU(raw[sel][1]), key=`${sel}/${raw.length}/${at==null}`;
+  // the same point still: its numbers change in place, so a button of the row is the same button from press to release
+  if(row.dataset.sel===key){for(const [k,v] of [['t',at],['v',gap]]){const el=row.querySelector(`[data-spc=${k}]`);if(el&&el!==document.activeElement)el.value=v}return}
+  row.dataset.sel=key;
+  row.innerHTML=`<b>point ${sel+1}</b>${at==null?'':` at <input type="number" step="any" data-spc="t" value="${at}" ${end?'disabled':''}> ${u}`} · gap <input type="number" step="any" data-spc="v" value="${gap}"> ${u}
+    <button class="small" data-spc="del" ${end?'disabled title="the first and the last point stay"':''}>✕ remove point</button>`;
 }
 function spcBind(c){
   const name=c.dataset.param, pos=e=>{const r=c.getBoundingClientRect();return [(e.clientX-r.left)*c.width/r.width,(e.clientY-r.top)*c.height/r.height]};
-  const near=(pts,x,y)=>{const {gx,gy}=spcGeom(c);let b=-1,bd=14;pts.forEach(([t,v],i)=>{const d=Math.hypot(gx(t)-x,gy(v)-y);if(d<bd){bd=d;b=i}});return b};
+  const near=(pts,x,y)=>{const {gx,gy}=spcGeom(c);let b=-1,bd=28;pts.forEach(([t,v],i)=>{const d=Math.hypot(gx(t)-x,gy(v)-y);if(d<bd){bd=d;b=i}});return b};
+  const frac=(x,y)=>[(x-SPC.l)/(c.width-SPC.l-SPC.r),Math.min(1,Math.max(0,(SPC.b-y)/(SPC.b-SPC.t)))];
   c.addEventListener('pointerdown',e=>{const [x,y]=pos(e),pts=spcPts(name),i=near(pts,x,y);
-    if(i>=0&&e.altKey){if(pts.length>2&&i>0&&i<pts.length-1){pts.splice(i,1);setVal(name,spcStore(name,pts));spcDraw(name)}return}
-    if(i>=0){spc.drag={name,i};spc.pts[name]=pts;c.setPointerCapture(e.pointerId);c.style.cursor='grabbing'}});
-  c.addEventListener('pointermove',e=>{const [x,y]=pos(e),{W,H}=spcGeom(c);
+    if(i>=0&&e.altKey){spc.sel[name]=i;spcDo(name,'del');return}
+    if(i>=0){spc.sel[name]=i;spc.drag={name,i};spc.pts[name]=pts;c.setPointerCapture(e.pointerId);c.style.cursor='grabbing';spcDraw(name)}});
+  c.addEventListener('pointermove',e=>{const [x,y]=pos(e);
     if(!spc.drag||spc.drag.name!==name){const i=near(spcPts(name),x,y),h=i>=0?{name,i}:null;if(JSON.stringify(h)!==JSON.stringify(spc.hover)){spc.hover=h;c.style.cursor=h?'grab':'crosshair';spcDraw(name)}return}
-    const pts=spc.pts[name],i=spc.drag.i,n=pts.length;
-    let t=(x-SPAD.l)/(W-SPAD.l-SPAD.r),v=Math.min(1,Math.max(0,(H-SPAD.b-y)/(H-SPAD.t-SPAD.b)));
+    const pts=spc.pts[name],i=spc.drag.i,n=pts.length; let [t,v]=frac(x,y);
     t=i===0?0:i===n-1?1:Math.min(pts[i+1][0]-0.02,Math.max(pts[i-1][0]+0.02,t));
     pts[i]=[t,v]; if(spcDeg()&&(i===0||i===n-1)){pts[0][1]=v;pts[n-1][1]=v}   // the fan closes on itself
     spcDraw(name)});
-  const done=()=>{if(!spc.drag||spc.drag.name!==name)return;const pts=spc.pts[name];spc.drag=null;c.style.cursor='grab';setVal(name,spcStore(name,pts))};
+  const done=()=>{if(!spc.drag||spc.drag.name!==name)return;const pts=spc.pts[name];spc.drag=null;c.style.cursor='grab';setVal(name,spcStore(name,pts));spcDraw(name)};
   c.addEventListener('pointerup',done); c.addEventListener('pointercancel',done);
-  c.addEventListener('dblclick',e=>{const [x,y]=pos(e),{W,H}=spcGeom(c),pts=spcPts(name);if(near(pts,x,y)>=0)return;
-    const t=Math.min(0.98,Math.max(0.02,(x-SPAD.l)/(W-SPAD.l-SPAD.r))),v=Math.min(1,Math.max(0,(H-SPAD.b-y)/(H-SPAD.t-SPAD.b)));
-    pts.push([t,v]);pts.sort((a,b)=>a[0]-b[0]);setVal(name,spcStore(name,pts));spcDraw(name)});
+  c.addEventListener('dblclick',e=>{const [x,y]=pos(e),pts=spcPts(name);if(near(pts,x,y)>=0)return;
+    const [t0,v]=frac(x,y),t=Math.min(0.98,Math.max(0.02,t0));
+    pts.push([t,v]);pts.sort((a,b)=>a[0]-b[0]);spc.sel[name]=pts.findIndex(q=>q[0]===t);setVal(name,spcStore(name,pts));spcDraw(name)});
 }
-function applyShowIf(){for(const el of $$('.f[data-show]')){const [k,vals]=el.dataset.show.split(':');el.hidden=!vals.split('|').includes(String(state[k]))}}
+function applyShowIf(){for(const el of $$('.f[data-show]')){const [k,vals]=el.dataset.show.split(':');el.hidden=!vals.split('|').includes(String(state[k]))} markChanged()}
 const allParams=()=>[...mode.common,...mode.params];
 function setVal(name,v){state[name]=v;applyShowIf();if(name==='rotate'||name==='up_axis')syncSizeBoxes();schedule()}
 // `size` is the model's own: its three numbers are along the model file's axes, and the slicer scales it before any
@@ -587,6 +688,10 @@ function resetTab(tab){for(const p of mode.common)if(TABGROUPS[tab].includes(p.g
   unit=state.units||unit; applyUnit(); slice()}   // the Sheet tab holds `units`: the page follows it back to mm
 $('#tabs').addEventListener('click',e=>{
   const t=e.target, P=name=>allParams().find(p=>p.name===name);
+  if(t.dataset.undo){const p=P(t.dataset.undo);state[p.name]=structuredClone(p.default);if(p.group==='model')fitted=false;renderFields();schedule();return}   // ↺: the default back
+  const head=t.closest('.sec>h3'); if(head){const s=head.parentElement;s.classList.toggle('folded')?folded.add(s.dataset.sec):folded.delete(s.dataset.sec);return}
+  const k=t.closest('div.f[data-p]>.k'); if(k&&k.dataset.tip){const h=k.parentElement.querySelector(':scope>.help');   // a name: its help opens under the row, and shuts
+    if(h)h.remove();else k.parentElement.insertAdjacentHTML('beforeend',`<p class="hint help">${esc(k.dataset.tip)}</p>`);return}
   if(t.dataset.rot!==undefined){const r=[...(state.rotate||[0,0,0])],i=+t.dataset.rot;r[i]=((r[i]+(e.shiftKey?-90:90)+180)%360+360)%360-180;state.rotate=r;fitted=false;renderFields();schedule();return}
   if(t.dataset.add){const p=P(t.dataset.add);
     // + on the axes table splits the axis you can already see: the list starts from the one the plan used, so it is
@@ -1483,16 +1588,21 @@ function renderReport(){
   const kinds=p.slices.flatMap(s=>s.pieces.filter(pc=>!copies.has(pc.label)).map(pc=>[s,pc,[pc.label,...twins(pc)],pc.flipped||[]]));
   $('#stats').innerHTML=`<div class="stats"><div><b>${c.parts}</b>parts</div><div class="k" data-tip="How many different parts to cut: identical ones (same outline, any quarter turn, same stock — and with mirror ok also mirror images) count once — the Parts table and the per-piece export list them once, with the quantity"><b>${kinds.length}</b>different</div><div><b>${p.sheets}</b>${SH()}(s)</div><div><b>${(p.sheet_usage*100).toFixed(0)}%</b>${SH()} used</div>
    <div class="k" data-tip="How much of the model the parts represent: sample points inside the model that lie within a slice spacing of some part. Below 90 % parts of the model (legs, ears) have no geometry — add slices or change the axis"><b style="color:${p.coverage<0.9?'var(--warn)':'var(--ok)'}">${(p.coverage*100).toFixed(0)}%</b>model covered</div>
-   <div><b>${(p.material_area_mm2/1e4).toFixed(1)}</b>dm² material</div><div><b>${p.bbox.map(inU).join(' × ')}</b>model ${unit}</div>
-   <div><b style="color:${c.errors?'var(--err)':'var(--ok)'}">${c.errors}</b>errors</div><div><b style="color:${c.warnings?'var(--warn)':'var(--ok)'}">${c.warnings}</b>warnings</div></div>`;
+   <div><b>${(p.material_area_mm2/1e4).toFixed(1)}</b>dm² material</div><div><b>${p.bbox.map(v=>+(+inU(v)).toPrecision(3)).join(' × ')}</b>model ${unit}</div>
+   <div><b style="color:${c.errors?'var(--err)':'var(--ok)'}">${c.errors?'✖':'✓'} ${c.errors}</b>errors</div><div><b style="color:${c.warnings?'var(--warn)':'var(--ok)'}">${c.warnings?'⚠':'✓'} ${c.warnings}</b>warnings</div></div>`;   // a sign with each count: the colour is not the only thing that tells good from bad
   // the planner writes in mm; each message and fix is shown in the unit on show, and matched to its fixes on the raw text
   const fixBtns=(s,e)=>{const f=(s.fixes||[]).find(x=>x.error===e);return f?'<br>'+f.options.map((o,i)=>`<span class="fix" data-fix='${JSON.stringify(o.set).replace(/'/g,'&#39;')}' title="${inUnit(o.note||'')}">${inUnit(o.title)}</span>`).join(''):''};
-  const msgs=[...p.notes.map(n=>`<div class="msg note">${inUnit(n)}</div>`),...p.errors.map(e=>`<div class="msg err">${inUnit(e)}${fixBtns({fixes:p.fixes||[]},e)}</div>`),
-    ...p.dropped.flatMap(s=>s.errors.map(e=>`<div class="msg err">${s.label}: ${inUnit(e)}</div>`)),
-    ...p.slices.flatMap(s=>[...s.errors.map(e=>`<div class="msg err" data-s="${s.label}" title="click to select this part">${s.label}: ${inUnit(e)}${fixBtns(s,e)}</div>`),
-                            ...s.warnings.map(w=>`<div class="msg warn" data-s="${s.label}" title="click to select this part">${s.label}: ${inUnit(w)}${fixBtns(s,w)}</div>`)])];
-  const html=msgs.length?msgs.slice(0,40).join('')+(msgs.length>40?`<div class="msg note">… ${msgs.length-40} more</div>`:''):'<div class="msg ok">All physical checks passed.</div>';
-  $('#msgs').innerHTML=html; $('#report').innerHTML=html;
+  // every message says what it is in a sign and a word, not by its colour alone; several notes fold into one line that
+  // names them, so they do not push the sheets down (the Checks tab shows them open)
+  const ERR='<b>✖ ERROR</b> · ', WARN='<b>⚠ WARNING</b> · ', short=n=>esc(inUnit(n).replace(/<[^>]+>/g,'').split(' — ')[0].slice(0,48));
+  const notes=p.notes.length>1?[`<details class="msg note"><summary>ⓘ <b>${p.notes.length} notes</b> on how this was sliced · <span>${p.notes.map(short).join(' · ')}</span></summary>${p.notes.map(n=>`<div>${inUnit(n)}</div>`).join('')}</details>`]
+    :p.notes.map(n=>`<div class="msg note">ⓘ ${inUnit(n)}</div>`);
+  const msgs=[...notes,...p.errors.map(e=>`<div class="msg err">${ERR}${inUnit(e)}${fixBtns({fixes:p.fixes||[]},e)}</div>`),
+    ...p.dropped.flatMap(s=>s.errors.map(e=>`<div class="msg err">${ERR}${s.label}: ${inUnit(e)}</div>`)),
+    ...p.slices.flatMap(s=>[...s.errors.map(e=>`<div class="msg err" data-s="${s.label}" title="click to select this part">${ERR}${s.label}: ${inUnit(e)}${fixBtns(s,e)}</div>`),
+                            ...s.warnings.map(w=>`<div class="msg warn" data-s="${s.label}" title="click to select this part">${WARN}${s.label}: ${inUnit(w)}${fixBtns(s,w)}</div>`)])];
+  const html=msgs.length?msgs.slice(0,40).join('')+(msgs.length>40?`<div class="msg note">… ${msgs.length-40} more</div>`:''):'<div class="msg ok">✓ All physical checks passed.</div>';
+  $('#msgs').innerHTML=html; $('#report').innerHTML=html; $('#report details')?.setAttribute('open','');
   for(const el of $$('.fix'))el.onclick=e=>{e.stopPropagation();applyFix(JSON.parse(el.dataset.fix))};
   for(const box of [$('#msgs'),$('#report')])box.onclick=e=>{   // clicking a message selects the part it is about, in 3D and on the sheet
     if(e.target.closest('.fix'))return; const d=e.target.closest('.msg[data-s]'); if(!d)return;
@@ -1566,7 +1676,9 @@ async function init(){
   MODES=await (await fetch('api/modes')).json(); const ex=await (await fetch('api/examples')).json();
   const PRESETS=await fetch('api/presets').then(r=>r.ok?r.json():{}).catch(()=>({}));
   $('#example').innerHTML=ex.map(e=>`<option>${e}</option>`).join(''); $('#example').value=ex.includes('blob')?'blob':ex[0];
-  $('#modes').innerHTML=MODES.map(m=>`<button data-m="${m.name}">${m.title}</button>`).join('');
+  $('#modes').innerHTML=MODES.map(m=>`<button data-m="${m.name}"><svg viewBox="0 0 44 30" fill="none" stroke="currentColor" stroke-linecap="round" aria-hidden="true">${MODE_ICON[m.name]||''}</svg><span>${m.title}</span></button>`).join('');
+  for(const s of $$('section[data-tab]'))s.dataset.name=$(`nav button[data-t="${s.dataset.tab}"]`)?.textContent||s.dataset.tab;   // the tab's name over its rows when a search shows several tabs
+  $('#find').oninput=findRows; $('#find').onkeydown=e=>{if(e.key==='Escape'){e.target.value='';findRows()}};
   $('#modes').onclick=e=>{if(e.target.dataset.m){deselect();setMode(e.target.dataset.m);countUse('technique',e.target.dataset.m);slice()}};
   $('#material').onchange=e=>{const n=e.target.value,m=matOf(n);state.material=n;
     if(m){const ts=matThicks(n);if(!ts.some(t=>Math.abs(t[0]-state.thickness)<1e-6))state.thickness=ts[Math.floor(ts.length/2)][0];   // a stock thickness of the new material
@@ -1733,7 +1845,8 @@ window.laminaFeedback?.({bug:async withModel=>{
   sheets:ls('slicer_sheets',[]).filter(s=>!s[2]||s[2]===fam()).map(([n,s])=>[n,s]),units:state.units},null,1)})});
 
 // test and capture hook (tests/test_ui.py, scripts/media/capture.mjs)
-window.__t={sizeAxes:()=>sizeAxes(),target:()=>controls.target,banner:()=>banner.visible?banner.userData.text:'',parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>plan,job:()=>job,
+window.__t={spcXY:(name,t,v)=>{const c=$(`.spc[data-param="${name}"] canvas`),r=c.getBoundingClientRect(),{gx,gy}=spcGeom(c),[lo,hi]=spcRange();return [r.left+gx(t)*r.width/c.width,r.top+gy((v-lo)/(hi-lo))*r.height/c.height]},   // where a curve point (position 0…1, gap) is on the screen
+  sizeAxes:()=>sizeAxes(),target:()=>controls.target,banner:()=>banner.visible?banner.userData.text:'',parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>plan,job:()=>job,
   fold:s=>{$('#fold').value=s;applyFold();renderer.render(scene,camera)},
   idle:()=>!timer&&!busy,   // no change waiting out its debounce, no slice running: what a test or a capture waits for
   ghost:()=>ghost.children,ghostUrl:()=>ghostUrl,pivot:()=>pivot3&&rnd(pivot3),

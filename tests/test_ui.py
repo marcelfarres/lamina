@@ -97,6 +97,11 @@ def plan(page):
     return page.evaluate("() => window.__t.plan()")
 
 
+def menu(page, item):
+    """Press an item of a header menu: the menu opened first, as a person does."""
+    page.click(f"details.menu:has({item}) > summary"); page.click(item)
+
+
 def set_fields(page, values):
     """Type into the app's own boxes and let its handlers do the rest — the path a person's keystroke takes."""
     page.evaluate("""vals => {
@@ -330,7 +335,7 @@ def test_the_whole_job_from_upload_to_cut_files(page):
     ok = lambda d: d.accept()
     page.on("dialog", ok)
     with page.expect_navigation():                       # the reload comes after the session's DELETE returns
-        page.click("#clear")
+        menu(page, "#clear")
     settle(page)
     page.remove_listener("dialog", ok)                   # left in place it would answer the next test's dialogs
 
@@ -933,7 +938,7 @@ def test_what_is_new_shows_itself_once_when_the_version_changes(page, server):
     page.wait_for_timeout(600)
     assert not page.locator("#newsdlg[open]").count(), "the release notes came back a second time"
 
-    page.click("#newsbtn")                               # the button still opens them, newest version first
+    menu(page, "#newsbtn")                               # the button still opens them, newest version first
     page.wait_for_timeout(400)
     assert page.locator("#newsdlg[open]").count()
     heads = page.eval_on_selector_all("#news_body h5", "els => els.map(e => e.textContent)")
@@ -999,9 +1004,9 @@ def test_every_control_does_what_it_says_and_every_download_holds_the_plan(page,
 
     # -- header: revisions and help
     rev = page.text_content("#prev")
-    page.click("#pminor"); assert page.text_content("#prev") != rev
-    page.click("#pmajor"); assert page.text_content("#prev").endswith(".0")
-    page.click("#helpbtn"); assert page.locator("#helpdlg[open]").count(); page.click("#help_go")
+    menu(page, "#pminor"); assert page.text_content("#prev") != rev
+    menu(page, "#pmajor"); assert page.text_content("#prev").endswith(".0")
+    menu(page, "#helpbtn"); assert page.locator("#helpdlg[open]").count(); page.click("#help_go")
     assert not page.locator("#helpdlg[open]").count()
 
     # -- the Sheet & fit lists: a saved preset, a thickness, a sheet size — added, then removed
@@ -1222,19 +1227,68 @@ def test_a_phone_is_told_once_that_lamina_is_made_for_a_computer(page, server):
 
 
 def test_the_spacing_graph_follows_the_technique_and_the_switch(page):
-    """An example that opens with a spacing curve shows the graph under the 3D view — one per family for interlocked —
+    """An example that opens with a spacing curve shows the graph in the form under its tick — one per family for interlocked —
     and the plan carries the positions it drew; the switch off hides it and the slices go back to even."""
     page.click('nav button[data-t="model"]')
     page.select_option("#example", "vase"); settle(page)
-    assert not page.evaluate("() => document.getElementById('spacing').hidden")
-    assert page.evaluate("() => document.querySelectorAll('#spacing canvas').length") == 1
-    assert plan(page)["spacing"] and plan(page)["params"]["spacing_vary"]
-    page.select_option("#example", "ripple"); settle(page)
-    assert page.evaluate("() => document.querySelectorAll('#spacing canvas').length") == 2    # x and y families
     page.click('nav button[data-t="technique"]')
+    assert page.locator(".spc canvas").first.is_visible()
+    assert page.evaluate("() => document.querySelectorAll('.spc canvas').length") == 1
+    assert plan(page)["spacing"] and plan(page)["params"]["spacing_vary"]
+    page.click('nav button[data-t="model"]'); page.select_option("#example", "ripple"); settle(page)
+    page.click('nav button[data-t="technique"]')
+    assert page.evaluate("() => document.querySelectorAll('.spc canvas').length") == 2    # x and y families
     set_fields(page, [["p_spacing_vary", False]]); settle(page)
-    assert page.evaluate("() => document.getElementById('spacing').hidden")
+    assert not page.locator(".spc canvas").first.is_visible()
     assert not plan(page).get("spacing")
+
+
+def test_the_spacing_graph_buttons_change_the_curve_and_the_slices(page):
+    """Every gesture of the graph has a button: a starting shape, a point added, its gap typed, the point removed, the
+    curve reset. Each one changes the curve in the state, and the plan that comes back follows it."""
+    page.click('nav button[data-t="model"]'); page.select_option("#example", "vase"); settle(page)
+    page.click('nav button[data-t="technique"]')
+    curve = lambda: page.evaluate("() => window.__t.state().spacing_curve")
+    gaps = lambda: [round(b - a, 2) for a, b in zip(plan(page)["spacing"][0]["positions"], plan(page)["spacing"][0]["positions"][1:])]
+    page.click('.spc button[data-arg="ends"]'); settle(page)
+    assert len(curve()) == 3 and curve()[0][1] < curve()[1][1] > curve()[2][1]
+    g = gaps(); assert g[0] < g[len(g) // 2] > g[-1], g                       # dense at both ends, as the chip says
+    page.click('.spc button[data-spc="add"]'); settle(page)
+    assert len(curve()) == 4
+    page.fill('.spc [data-spc="v"]', "7")                                     # the added point is the selected one
+    page.click('.spc button[data-spc="del"]'); settle(page)                   # pressed straight after typing: the value lands, then the point goes
+    assert len(curve()) == 3
+    page.click('.spc button[data-arg="model"]'); settle(page)                 # read off the slices on screen
+    assert len(curve()) == 7 and len({v for _, v in curve()}) > 1
+    page.click('.spc button[data-spc="reset"]'); settle(page)
+    assert len(curve()) == 3 and not page.locator('.f[data-p="spacing_curve"].changed').count()   # the default again: its mark is gone
+
+
+def test_the_panel_folds_finds_and_puts_a_default_back(page):
+    """A section folds on its heading, a changed setting is marked and its sign puts the default back, a click on a name
+    opens its help, the search box leaves only the rows that match — from every tab — and a warning says it is one in
+    words."""
+    page.click('nav button[data-t="technique"]'); page.click('#modes button[data-m="stacked"]'); settle(page)
+    sec = page.locator('#g-technique .sec[data-sec="Joining"]')
+    assert sec.locator(".f").first.is_visible()
+    sec.locator("h3").click(); assert not sec.locator(".f").first.is_visible()
+    sec.locator("h3").click(); assert sec.locator(".f").first.is_visible()
+    default = page.evaluate("() => window.__t.state().space")
+    assert not page.locator('.f[data-p="space"].changed').count()
+    set_fields(page, [["p_space", default + 3]]); settle(page)
+    assert page.locator('.f[data-p="space"].changed').count() and plan(page)["params"]["space"] == default + 3
+    page.click('.f[data-p="space"] .chg'); settle(page)
+    assert plan(page)["params"]["space"] == default and not page.locator('.f[data-p="space"].changed').count()
+    page.click('.f[data-p="axis"] > .k'); assert page.locator('.f[data-p="axis"] .help').is_visible()
+    page.click('.f[data-p="axis"] > .k'); assert not page.locator('.f[data-p="axis"] .help').count()
+    page.fill("#find", "kerf")
+    shown = page.evaluate("() => [...document.querySelectorAll('#tabs .f[data-p]')].filter(f => f.offsetParent).map(f => f.dataset.p)")
+    assert shown and all("kerf" in n or n == "compensate" for n in shown), shown     # rows of the Sheet & fit tab, seen from Technique
+    page.press("#find", "Escape")
+    assert page.locator('.f[data-p="axis"]').is_visible()
+    page.click('nav button[data-t="model"]'); page.select_option("#example", "blob"); settle(page)
+    warns = page.locator("#msgs .msg.warn").all_text_contents()
+    assert all(w.startswith("⚠ WARNING") for w in warns), warns
 
 
 def test_the_short_name_field_sets_what_the_labels_start_with(page):

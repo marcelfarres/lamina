@@ -93,7 +93,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 |---|---|
 | Summary stats (sheets, slices, parts) | ✅ plus sheet usage % and material area |
 | Cut sheets view, click to magnify | ✅ |
-| Non-uniform spacing | ✅ a spacing curve drawn under the 3D view for stacked, interlocked (one per family), radial (round the axis, periodic) and curve; the count kept or the spacings kept — not in the original |
+| Non-uniform spacing | ✅ a spacing curve drawn in a graph under its tick for stacked, interlocked (one per family), radial (round the axis, periodic) and curve; the count kept or the spacings kept — not in the original |
 | Part labels `Axis-Slice-Part` | ✅ engraved beside the part with a leader line, after the model's short name (`BUNN Z-3`, `short_name` sets it) so two models' parts are never mixed up; `label_model` turns that off; by default on the part where the whole label fits, under the next layer where there is one, else beside it in free space; `label_place` forces either |
 | Automatic nesting | ✅ no-fit-polygon nesting on the part outlines after [Deepnest](https://github.com/Jack000/Deepnest) (min-rect angle plus quarter turns, lowest-left free point, parts slide into cavities and holes); a bounding-rectangle packer takes over above 150 parts, for speed |
 | Colour coding blue / green / yellow / red | ✅ OUTER / INNER / SCORE layers, plus GUIDE (orange) for the next layer's outline engraved on a stacked slice (`next_outline`); parts with errors are drawn red in the UI (3D and sheet) |
