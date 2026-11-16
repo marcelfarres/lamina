@@ -6,6 +6,7 @@ export const ST={
   PROJECT_VERSION:0,
   mode:null,
   job:null,
+  example:'',   // the bundled example last opened: the dropdown shows it, and is not what the page reads
   plan:null,
   seq:0,
   timer:null,

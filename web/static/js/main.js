@@ -18,7 +18,7 @@ import {saveProject, openProject, bump, projectObj, projName} from './project.js
 async function init(){
   ST.MODES=await (await fetch('api/modes')).json(); ST.PROJECT_VERSION=(await (await fetch('api/project')).json()).version; const ex=await (await fetch('api/examples')).json();
   const PRESETS=await fetch('api/presets').then(r=>r.ok?r.json():{}).catch(()=>({}));
-  $('#example').innerHTML=ex.map(e=>`<option>${e}</option>`).join(''); $('#example').value=ex.includes('blob')?'blob':ex[0];
+  $('#example').innerHTML=ex.map(e=>`<option>${e}</option>`).join(''); $('#example').value=ST.example=ex.includes('blob')?'blob':ex[0];
   $('#modes').innerHTML=ST.MODES.map(m=>`<button data-m="${m.name}">${m.title}</button>`).join('');
   $('#modes').onclick=e=>{if(e.target.dataset.m){deselect();setMode(e.target.dataset.m);ST.countUse('technique',e.target.dataset.m);slice()}};
   $('#material').onchange=e=>{const n=e.target.value,m=matOf(n);state.material=n;
@@ -93,7 +93,7 @@ async function init(){
   // The machine's kerf, slot fit and corners are not the model's: they stay as they were (the machine's, or what a fit
   // test gave you) while the machine does, and become the new machine's when an example or its material picks another.
   // Reset with everything else, the machine kept its name and lost its values: co2 sliced at slot offset 0 (reported)
-  const applyPreset=()=>{const pr=PRESETS[$('#example').value];if(!pr)return;
+  const applyPreset=()=>{const pr=PRESETS[ST.example];if(!pr)return;
     const FIT=[...new Set(ST.MODES.flatMap(m=>m.common).filter(p=>p.group==='fit').map(p=>p.name))];
     const was=state.machine, fit=Object.fromEntries(FIT.filter(k=>!(k in pr.params)).map(k=>[k,structuredClone(state[k])]));   // what the preset names, it sets
     setMode(pr.mode,false);for(const k of Object.keys(memo))delete memo[k];Object.assign(state,{rotate:[0,0,0],size:[0,0,0],scale:1,round:0,thicken:0,shrinkwrap:0,smooth:0,hollow:0},structuredClone(pr.params));   // the gap between slices is the technique's own default (setMode): a plaque's is 3 mm, and a forced 0 made its slices touch
@@ -102,7 +102,10 @@ async function init(){
     if(next===was)Object.assign(state,fit); else applyMachine(next);
     clearTimeout(ST.timer);ST.timer=null;renderFields()};
   // the file box lets go of the upload too: left holding it, choosing that same file again fires no change and loads nothing
-  $('#example').onchange=()=>{ST.pendingFile=null;$('#file').value='';newModel();applyPreset();ST.countUse('model','example');ST.fresh='loaded example '+$('#example').value;slice()};
+  // every way into an example comes here (the dropdown, the library page); the dropdown follows it
+  const openExample=name=>{$('#example').value=ST.example=name;ST.pendingFile=null;$('#file').value='';newModel();applyPreset();ST.countUse('model','example');ST.fresh='loaded example '+name;slice()};
+  $('#example').onchange=()=>openExample($('#example').value);
+  window.__t.openExample=openExample;   // window.__t is built below while init() awaits its first fetch
   // A big mesh in the browser build is slow but not refused — the ceiling is this tab's memory, and it is the
   // reporter's machine that knows better than a fixed number. So: say what it will cost, then do as they say.
   const BIG=50e6;   // ~1 M triangles: the point where a slice in Pyodide goes from a wait to a very long wait
@@ -118,10 +121,10 @@ async function init(){
   // resumes it instead of starting over; another tab is another session and sees nothing of this one
   const sess=await fetch(`api/session?client=${CLIENT}`).then(r=>r.ok?r.json():{}).catch(()=>({}));
   if(sess.mode){Object.assign(memo,sess.memo||{});setMode(sess.mode,false);Object.assign(state,sess.params||{});ST.unit=state.units||ST.unit;
-    if(sess.example)$('#example').value=sess.example; ST.job=sess.alive?sess.job:null;
+    if(sess.example)$('#example').value=ST.example=sess.example; ST.job=sess.alive?sess.job:null;
     if(!sess.alive&&sess.job)status('the uploaded model of the last session is gone — upload it again or pick an example','err')}
   else{setMode(location.hash.slice(1)||'interlocked',false);applyMachine(matOf(state.material).machine);applyPreset()}   // a fresh start gets the machine's compensation and the example's preset (the #technique in the URL is the app's own mirror of its state, not a request)
-  ST.fresh=sess.mode?'page reloaded, last session resumed':'page opened on example '+$('#example').value; applyUnit(); slice();
+  ST.fresh=sess.mode?'page reloaded, last session resumed':'page opened on example '+ST.example; applyUnit(); slice();
 }
 init();
 

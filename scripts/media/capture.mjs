@@ -65,7 +65,7 @@ const heal = async (rounds = 12) => {
 // the base preparation goes in before the switch: the new mode slices at once with its remembered parameters, and
 // e.g. round 3 + a remembered facet 0 would unfold a remeshed 100k-triangle cube (never finishes)
 const mode = async m => { await params({}); await js(`document.querySelector('#modes button[data-m=${m}]').click()`); await settle(); };
-const example = async e => { await js(`(()=>{const s=document.querySelector('#example');s.value='${e}';s.dispatchEvent(new Event('change'))})()`); await settle(); };
+const example = async e => { await js(`window.__t.openExample('${e}')`); await settle(); };
 const tab = async t => { await js(`document.querySelector('nav button[data-t=${t}]').click()`); await sleep(300); };
 const cam = (az, el, d) => js(`window.__t.cam(${az},${el},${d ?? "null"})`);
 const fit = async () => { await js("document.querySelector('#fit').click()"); await sleep(300); };

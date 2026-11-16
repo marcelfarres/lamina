@@ -60,7 +60,7 @@ def fresh(page):
     shift-drag miss), and not the page's default, which can change and be slower to re-slice."""
     if page.evaluate("() => window.__t.job()") != "ex_egg":
         page.click('nav button[data-t="model"]')
-        page.select_option("#example", "egg")
+        page.evaluate("__t.openExample('egg')")
     for tab in ("model", "technique", "sheet", "checks"):
         page.click(f'nav button[data-t="{tab}"]')
         page.click(f'button.reset[data-reset="{tab}"]')

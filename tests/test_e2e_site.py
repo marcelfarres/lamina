@@ -53,9 +53,9 @@ def test_the_site_slices_in_the_browser(site):
         # every example opens on its preset — the browser build must ship and load examples/presets.json too
         active = lambda: page.eval_on_selector("#modes button.on", "b => b.dataset.m")
         presets = json.loads((ROOT / "examples" / "presets.json").read_text(encoding="utf-8"))
-        first = page.eval_on_selector("#example", "s => s.value")       # whichever the page opens on (blob today)
+        first = page.evaluate("__t.project().then(p => p.example)")    # whichever the page opens on (blob today)
         assert active() == presets[first]["mode"], (first, active())
-        page.select_option("#example", "bunny"); sliced("bunny")
+        page.evaluate("__t.openExample('bunny')"); sliced("bunny")
         assert active() == "stacked", ("bunny opens stacked, standing up", active())
         page.click('nav button[data-t="technique"]')         # the buttons live in tabs: open each before clicking
         for mode in page.eval_on_selector_all("#modes button", "bs => bs.map(b => b.dataset.m)"):

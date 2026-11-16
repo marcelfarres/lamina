@@ -10,7 +10,7 @@ import {slice} from './slice.js';
 // model itself. One definition of the data model, used by save project, by the export zips (web/app.py) and by a
 // bug report — which is the only caller that ever leaves the model out, and only when its box is unticked.
 export async function projectObj(withModel=true){
-  const proj={version:ST.PROJECT_VERSION,name:state.project||'',rev:state.rev||'1.0',mode:ST.mode.name,unit:ST.unit,state,memo,example:ST.job&&!ST.job.startsWith('ex_')?'':$('#example').value};
+  const proj={version:ST.PROJECT_VERSION,name:state.project||'',rev:state.rev||'1.0',mode:ST.mode.name,unit:ST.unit,state,memo,example:ST.job&&!ST.job.startsWith('ex_')?'':ST.example};
   // the uploaded model travels inside the project file — when the server still has it. A job swept by the TTL, a
   // restarted server or a slice still in flight answers with nothing, and a project file without its model is far
   // better than a save that dies half way: whoever opens it is told which model to bring.
@@ -40,7 +40,7 @@ export async function openProject(f){
   state.project=s.name||state.project||''; state.rev=s.rev||state.rev||'1.0'; syncProject();
   ST.job=null; ST.pendingFile=null; ST.srcFile=null; ST.fitted=false; deselect(); $('#file').value='';   // as an example does: the upload box lets go
   if(s.model?.b64){const bin=atob(s.model.b64),u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);ST.pendingFile=new File([u8],s.model.name)}
-  else if(s.example)$('#example').value=s.example;
+  else if(s.example)$('#example').value=ST.example=s.example;
   else if(s.missing_model)status(`this project was saved without its model — the settings are here, upload ${s.missing_model} again`,'err');
   ST.fresh='opened project '+f.name; applyUnit(); slice();
 }

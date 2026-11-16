@@ -2,7 +2,7 @@
 the spacing graph, the name field and the build order."""
 import pytest
 
-from .helpers import settle, plan, set_fields, state, use, ROOT
+from .helpers import example, settle, plan, set_fields, state, use, ROOT
 
 
 @pytest.mark.timeout(600)
@@ -75,8 +75,8 @@ def test_an_example_starts_every_technique_from_its_defaults(page):
     dowels, axis y, random), so its tab spacers were all "thinner than 2 mm". The technique memory carried the last
     example's preset; a new example now starts every technique from its defaults and its own preset."""
     page.click('nav button[data-t="model"]')
-    page.select_option("#example", "horse_statue"); settle(page)
-    page.select_option("#example", "horse"); settle(page)
+    example(page, "horse_statue")
+    example(page, "horse")
     use(page, mode="stacked")
     defaults = page.evaluate("async () => Object.fromEntries((await (await fetch('api/modes')).json())"
                              ".find(m => m.name === 'stacked').params.map(p => [p.name, p.default]))")
@@ -95,7 +95,7 @@ def test_an_example_opens_with_its_technique_s_own_gap_between_slices(page):
     pl = plan(page)
     assert pl["counts"]["slices"] == 36 and pl["counts"]["errors"] == 0, pl["counts"]
     assert "9 floating piece(s) left out" not in " ".join(pl["notes"]), pl["notes"]
-    page.select_option("#example", "vase"); settle(page)                    # a technique whose default is touching slices keeps it
+    example(page, "vase")                    # a technique whose default is touching slices keeps it
     assert state(page)["space"] == 0
 
 
@@ -111,7 +111,7 @@ def test_an_example_keeps_the_machine_s_values(page):
     page.fill("#p_slot_offset", "0.23"); page.press("#p_slot_offset", "Enter"); settle(page)
     use(page, "torus")
     assert st() == ["hand", 0.23, 0.23]                       # still yours, and sliced with it
-    page.select_option("#example", "wavy_torus"); settle(page)   # names its machine: a PETG print on the H2C
+    example(page, "wavy_torus")   # names its machine: a PETG print on the H2C
     assert st() == ["bambu_h2c", 0.2, 0.2]
 
 
@@ -191,7 +191,7 @@ def test_the_spacing_graph_follows_the_technique_and_the_switch(page):
     assert not page.evaluate("() => document.getElementById('spacing').hidden")
     assert page.evaluate("() => document.querySelectorAll('#spacing canvas').length") == 1
     assert plan(page)["spacing"] and plan(page)["params"]["spacing_vary"]
-    page.select_option("#example", "ripple"); settle(page)
+    example(page, "ripple")
     assert page.evaluate("() => document.querySelectorAll('#spacing canvas').length") == 2    # x and y families
     page.click('nav button[data-t="technique"]')
     set_fields(page, [["p_spacing_vary", False]]); settle(page)
@@ -236,8 +236,7 @@ def test_a_folded_job_folds_up_at_the_end_of_its_steps(page):
     assert not shown("hinge")                                              # the egg in cardboard: nothing printed
     assert not page.is_visible("#foldl")                                  # … and nothing to fold: no fold slider
     page.click('nav button[data-t="model"]')
-    page.select_option("#example", "fold_test")
-    page.wait_for_timeout(1500); settle(page)
+    example(page, "fold_test")
     page.click('nav button[data-t="technique"]')
     assert shown("hinge") and shown("hinge_w") and shown("hinge_stop")
     assert page.is_visible("#foldl")
