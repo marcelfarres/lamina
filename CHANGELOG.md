@@ -15,6 +15,8 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ### Changed
 
+- **The lamp example is easier to put together.** *fold_lamp* now has 30 bigger triangles, not 72 small ones, and
+  12 seams to close, not 32. It still prints on one plate. The wooden *fold_lantern* keeps its 72 pieces.
 - **The steps slider folds a folded job up.** After the last part is in, the steps slider has twenty more steps
   that fold the panels from flat to the model, with the share shown at the top of the 3D view. The *fold* slider
   still does the same on its own.
