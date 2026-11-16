@@ -9,8 +9,10 @@ const open=()=>new Promise((ok,no)=>{const r=indexedDB.open('lamina_library',1);
   r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
 async function tx(name,mode,fn){
   const d=await open();
-  return new Promise((ok,no)=>{const t=d.transaction(name,mode),r=fn(t.objectStore(name));
-    t.oncomplete=()=>{d.close();ok(r?.result)};t.onerror=t.onabort=()=>{d.close();no(t.error)}});
+  // a call that throws (a value that cannot be stored) still lets go of the database; an abort always rejects with an Error
+  return new Promise((ok,no)=>{let r;try{const t=d.transaction(name,mode);
+    t.oncomplete=()=>{d.close();ok(r?.result)};t.onerror=t.onabort=()=>{d.close();no(t.error??r?.error??new Error(`the browser's database refused to change ${name}`))};
+    r=fn(t.objectStore(name))}catch(e){d.close();no(e)}});
 }
 
 export function browserStore(){
@@ -28,7 +30,8 @@ export function folderStore(dir){
   return {kind:'folder',label:dir.name,
     async list(){const out=[];
       for await(const [file,h] of dir.entries())
-        if(h.kind==='file'&&file.endsWith(EXT)){const f=await h.getFile();out.push({file,size:f.size,mtime:f.lastModified})}
+        if(h.kind==='file'&&file.endsWith(EXT)){   // a file deleted between its name and its read is simply not there
+          const f=await h.getFile().catch(e=>{if(e.name!=='NotFoundError')throw e});if(f)out.push({file,size:f.size,mtime:f.lastModified})}
       return out},
     read:async file=>(await (await dir.getFileHandle(file)).getFile()).text(),
     // createWritable writes to a side file that close() swaps in, so a write that fails leaves the old file whole;

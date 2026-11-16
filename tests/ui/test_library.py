@@ -6,7 +6,35 @@ import zipfile
 
 import pytest
 
-from .helpers import example, still
+from .helpers import example, set_fields, settle, still
+
+
+def wipe(page):
+    """An empty library behind the browser store, and nothing saved in this tab. The store tests below delete the
+    database instead; both leave it empty, and the library opens it again on its next call."""
+    page.evaluate("""async () => { const S = await import('/static/js/store.js'); __t.lib.useStore(S.browserStore());
+        for (const p of await __t.lib.entries()) await __t.lib.removeProject(p.name); __t.lib.setSaved(null);
+        const s = __t.state(); s.project = ''; s.rev = '1.0'; (await import('/static/js/project.js')).syncProject() }""")
+
+
+@pytest.fixture(autouse=True)
+def empty_library(page):
+    wipe(page)
+
+
+def lib(page):
+    """The library as entries() lists it, in its order: [(name, [rev, …]), …]."""
+    return [(p["name"], [r["rev"] for r in p["revs"]]) for p in page.evaluate("__t.lib.entries()")]
+
+
+def save(page, answer=None):
+    """saveCurrent() with `ask` answering `answer`: [its result, the clashes it was asked about]."""
+    return page.evaluate("""async a => { const asked = [];
+        const r = await __t.lib.saveCurrent(c => { asked.push(c); return Promise.resolve(a) }); return [r, asked] }""", answer)
+
+
+def name(page, n):
+    set_fields(page, [("pname", n)]); settle(page)
 
 
 def test_open_example_is_page_state(page):
@@ -133,3 +161,172 @@ def test_snapshot_ignores_selection_ghost_steps_and_explode(page):
     b = page.evaluate(ui, [True, 3, 2, True])
     assert page.evaluate("__t.banner()").startswith("step 3")                 # the view did change: short of the end
     assert a.startswith("data:image/") and b == a
+
+
+def test_next_free_revision(page):
+    nf = lambda taken, cur, major: page.evaluate("([t,c,m]) => __t.lib.nextFree(t,c,m)", [taken, cur, major])
+    assert nf(["1.0", "1.1", "1.2", "1.3"], "1.0", False) == "1.4"
+    assert nf(["1.0", "1.1", "1.3"], "1.1", False) == "1.2"
+    assert nf(["1.0", "2.0"], "1.0", True) == "3.0"
+    assert nf([], "1.0", False) == "1.1"
+
+
+def test_file_name_is_legal_and_two_names_do_not_collide(page):
+    assert page.evaluate("__t.lib.fileName('a/b:c', '1.0')") == "a_b_c_v1.0.lamina.json"
+    assert page.evaluate("s => __t.lib.fileName(s, '2.0')", 'x\\/:*?"<>|\x01\x1f') == "x" + "_" * 11 + "_v2.0.lamina.json"
+    name(page, "a/b"); first, _ = save(page)
+    name(page, "a_b"); second, asked = save(page)
+    assert (first["file"], second["file"], asked) == ("a_b_v1.0.lamina.json", "a_b~2_v1.0.lamina.json", [])
+    assert sorted(lib(page)) == [("a/b", ["1.0"]), ("a_b", ["1.0"])]          # the names come from inside the files
+    page.click("#pminor"); settle(page)                                        # its next revision keeps its own stem
+    assert save(page)[0] == {"file": "a_b~2_v1.1.lamina.json"}
+
+
+def test_save_never_writes_onto_a_file_that_cannot_be_read(page):
+    page.evaluate("import('/static/js/store.js').then(S => S.browserStore().write('lamp_v1.0.lamina.json', 'not json'))")
+    name(page, "lamp")
+    assert save(page) == [{"file": "lamp~2_v1.0.lamina.json"}, []]
+    assert sorted(lib(page)) == [("lamp", ["1.0"]), ("lamp_v1.0.lamina.json", [""])]
+    assert page.evaluate("import('/static/js/store.js').then(S => S.browserStore().read('lamp_v1.0.lamina.json'))") == "not json"
+
+
+def test_save_then_reload_then_open(page):
+    page.click('nav button[data-t="technique"]'); page.click('#modes button[data-m="stacked"]'); settle(page)
+    set_fields(page, [("p_thickness", 4)]); name(page, "lamp")
+    assert save(page) == [{"file": "lamp_v1.0.lamina.json"}, []]
+    page.reload(); settle(page)
+    (p,) = page.evaluate("__t.lib.entries()")
+    assert (p["name"], [r["rev"] for r in p["revs"]]) == ("lamp", ["1.0"]) and p["revs"][0]["preview"].startswith("data:image/")
+    page.click('nav button[data-t="technique"]'); page.click('#modes button[data-m="interlocked"]'); settle(page)
+    set_fields(page, [("p_thickness", 3)]); settle(page)
+    page.evaluate("__t.lib.openRevision('lamp_v1.0.lamina.json')"); settle(page)
+    assert page.evaluate("__t.plan().mode") == "stacked" and page.evaluate("__t.state().thickness") == 4
+    assert page.evaluate("__t.lib.unsaved()") is False                         # what was opened is what is in hand
+
+
+def test_save_overwrites_only_the_revision_in_hand(page):
+    name(page, "lamp"); save(page)
+    (a,) = page.evaluate("__t.lib.entries()")[0]["revs"]
+    set_fields(page, [("p_thickness", 4)]); settle(page)
+    assert save(page) == [{"file": "lamp_v1.0.lamina.json"}, []]               # ask is never called
+    (b,) = page.evaluate("__t.lib.entries()")[0]["revs"]
+    assert b["saved"] > a["saved"] and lib(page) == [("lamp", ["1.0"])]
+
+
+def test_bump_then_save_keeps_both(page):
+    name(page, "lamp"); save(page)
+    page.click("#pminor"); settle(page); save(page)
+    assert lib(page) == [("lamp", ["1.1", "1.0"])]
+
+
+def test_bump_from_an_old_revision_goes_to_the_next_free(page):
+    name(page, "lamp")
+    for _ in range(4):
+        save(page); page.click("#pminor"); settle(page)
+    assert lib(page) == [("lamp", ["1.3", "1.2", "1.1", "1.0"])]
+    page.evaluate("__t.lib.openRevision('lamp_v1.0.lamina.json')"); settle(page)
+    page.click("#pminor")
+    assert page.evaluate("__t.state().rev") == "1.4" and page.text_content("#prev") == "1.4"
+    page.click("#pmajor")
+    assert page.evaluate("__t.state().rev") == "2.0"
+    settle(page)
+
+
+def test_changed_name_is_a_new_project(page):
+    name(page, "lamp"); save(page)
+    (before,) = page.evaluate("__t.lib.entries()")
+    name(page, "lamp-big"); assert save(page) == [{"file": "lamp-big_v1.0.lamina.json"}, []]
+    after = page.evaluate("__t.lib.entries()")
+    assert sorted(p["name"] for p in after) == ["lamp", "lamp-big"]
+    assert next(p for p in after if p["name"] == "lamp") == before              # untouched
+
+
+@pytest.mark.parametrize("answer", ["keep", "replace", None])
+def test_save_onto_another_revision_asks(page, answer):
+    name(page, "lamp"); save(page)
+    (old,) = page.evaluate("__t.lib.entries()")[0]["revs"]
+    page.evaluate("__t.lib.setSaved(null)")                                    # a new project, named like the old one
+    set_fields(page, [("p_thickness", 4)]); settle(page)
+    r, asked = save(page, answer)
+    assert asked == [{"name": "lamp", "rev": "1.0", "next": "1.1"}]
+    if answer == "keep":
+        assert r == {"file": "lamp_v1.1.lamina.json"} and lib(page) == [("lamp", ["1.1", "1.0"])]
+        assert page.evaluate("__t.state().rev") == "1.1" and page.text_content("#prev") == "1.1"
+        assert page.evaluate("__t.lib.entries()")[0]["revs"][1] == old
+        settle(page)
+    elif answer == "replace":
+        assert r == {"file": "lamp_v1.0.lamina.json"} and lib(page) == [("lamp", ["1.0"])]
+        assert page.evaluate("__t.lib.entries()")[0]["revs"][0]["saved"] > old["saved"]
+    else:
+        assert r is None and page.evaluate("__t.lib.entries()")[0]["revs"] == [old]
+        assert page.evaluate("__t.lib.unsaved()") is True
+
+
+def test_empty_name_takes_the_models_name(page):
+    example(page, "egg"); name(page, "")
+    assert save(page)[0] == {"file": "egg_v1.0.lamina.json"}
+    assert lib(page) == [("egg", ["1.0"])] and page.input_value("#pname") == "egg"
+    settle(page)
+
+
+def test_unsaved_follows_changes_and_survives_reload(page):
+    unsaved = lambda: page.evaluate("__t.lib.unsaved()")
+    page.evaluate("() => { window.__seen = 0; __t.lib.onChange(() => window.__seen++) }")
+    name(page, "lamp"); seen = page.evaluate("window.__seen")
+    assert seen > 0                                                            # typing the name told the page
+    save(page)
+    assert unsaved() is False
+    set_fields(page, [("p_thickness", 4)]); settle(page)
+    assert unsaved() is True and page.evaluate("window.__seen") > seen         # so did the slice after a change
+    save(page); assert unsaved() is False
+    page.reload(); settle(page)
+    assert unsaved() is False                                                  # what was saved came back with the session
+    set_fields(page, [("p_thickness", 5)]); settle(page)
+    page.reload(); settle(page)
+    assert unsaved() is True
+
+
+def test_a_refused_write_changes_nothing(page):
+    name(page, "lamp"); save(page)
+    set_fields(page, [("p_thickness", 4)]); settle(page)
+    before = page.evaluate("__t.lib.entries()")
+    assert page.evaluate("__t.lib.unsaved()") is True
+    err = page.evaluate("""async () => { const S = await import('/static/js/store.js');
+        __t.lib.useStore({...S.browserStore(), write: () => { throw new DOMException('full', 'QuotaExceededError') }});
+        try { await __t.lib.saveCurrent(() => Promise.resolve('replace')); return null } catch (e) { return [e.constructor.name, e.message] }
+        finally { __t.lib.useStore(S.browserStore()) } }""")
+    assert err[0] == "Error" and "export" in err[1] and "full" in err[1]
+    assert page.evaluate("__t.lib.entries()") == before
+    assert page.evaluate("__t.lib.unsaved()") is True
+
+
+def test_delete_revision_and_project(page):
+    name(page, "lamp"); save(page); page.click("#pminor"); settle(page); save(page)
+    name(page, "vase"); save(page)
+    page.evaluate("__t.lib.removeRevision('lamp_v1.1.lamina.json')")
+    assert sorted(lib(page)) == [("lamp", ["1.0"]), ("vase", ["1.1"])]
+    page.evaluate("__t.lib.removeProject('lamp')")
+    assert lib(page) == [("vase", ["1.1"])] and page.evaluate("__t.lib.unsaved()") is False   # vase 1.1, in hand, is still saved
+    page.evaluate("__t.lib.removeProject('vase')")
+    assert lib(page) == [] and page.evaluate("__t.lib.unsaved()") is True      # the revision in hand is gone
+    page.reload(); settle(page)
+    assert lib(page) == []                                                     # the index agrees with the store
+
+
+def test_store_rejects_with_the_error_and_lets_go_of_the_database(page):
+    """A call that throws inside its transaction rejects with that error and closes the database: left open, it
+    would block deleteDatabase (and another tab that opens a newer version)."""
+    r = page.evaluate("""async () => { const S = await import('/static/js/store.js');
+        const e = await S.kvSet('k', () => {}).then(() => null, e => e?.name ?? String(e));
+        const del = await new Promise(ok => { const q = indexedDB.deleteDatabase('lamina_library');
+            q.onsuccess = () => ok('deleted'); q.onerror = () => ok('error'); q.onblocked = () => ok('blocked') });
+        return [e, del] }""")
+    assert r == ["DataCloneError", "deleted"]
+
+
+def test_folder_list_skips_a_file_that_vanished(page):
+    r = page.evaluate(f"""async () => {{ const s = await ({FRESH})('folder'), P = FileSystemFileHandle.prototype, g = P.getFile;
+        await s.write('a_v1.0.lamina.json', '{{}}'); await s.write('gone_v1.0.lamina.json', '{{}}');
+        P.getFile = function () {{ return this.name === 'gone_v1.0.lamina.json' ? Promise.reject(new DOMException('gone', 'NotFoundError')) : g.call(this) }};
+        try {{ return (await s.list()).map(e => e.file) }} finally {{ P.getFile = g }} }}""")
+    assert r == ["a_v1.0.lamina.json"]

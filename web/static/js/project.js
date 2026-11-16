@@ -4,6 +4,7 @@ import {deselect} from './edit3d.js';
 import {applyUnit} from './units.js';
 import {memo, setMode, sizeToModel, schedule} from './form.js';
 import {slice} from './slice.js';
+import {nextFree} from './library.js';
 
 // ---------------------------------------------------------------- project save / open
 // everything needed to come back: technique, every parameter, per-technique memory, units, presets in use, the
@@ -47,5 +48,6 @@ export async function openProjectText(text,label){
   ST.fresh='opened project '+label; applyUnit(); slice();
 }
 export function syncProject(){$('#pname').value=state.project||'';$('#prev').textContent=state.rev||'1.0'}
-export function bump(major){const [a,b]=(state.rev||'1.0').split('.').map(Number);state.rev=major?`${a+1}.0`:`${a}.${(b||0)+1}`;syncProject();schedule()}
+// `taken`: the project's revisions in the library, so a bump from an old one lands on a free number, not onto a newer one
+export function bump(major,taken=[]){state.rev=nextFree(taken,state.rev||'1.0',major);syncProject();schedule()}
 

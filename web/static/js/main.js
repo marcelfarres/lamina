@@ -13,6 +13,7 @@ import {slice, oops, popup, LOCAL_DOC} from './slice.js';
 import {applyLook, controls, banner, parts, guides, gizmo, axes, rings, camera, renderer, applyFold, scene, ghost, ghostUrl, snapshot} from './scene.js';
 import {renderWeight, renderDownloads, applyFix} from './results.js';
 import {saveProject, openProject, bump, projectObj, projName} from './project.js';
+import * as lib from './library.js';
 
 // ---------------------------------------------------------------- init
 async function init(){
@@ -69,7 +70,8 @@ async function init(){
   phoneNotice();
   $('#clear').onclick=async()=>{if(!confirm('Delete everything this tab has sliced — uploaded models, cut files and the session? Presets are kept.'))return;await fetch(`api/session?client=${CLIENT}`,{method:'DELETE'});location.reload()};
   $('#psave2').onclick=saveProject; $('#popen').onclick=()=>$('#pfile').click(); $('#pfile').onchange=e=>{if(e.target.files[0])openProject(e.target.files[0]);e.target.value=''};
-  $('#pname').oninput=e=>{state.project=e.target.value;schedule()}; $('#pminor').onclick=()=>bump(false); $('#pmajor').onclick=()=>bump(true);
+  $('#pname').oninput=e=>{state.project=e.target.value;schedule();lib.changed()};
+  $('#pminor').onclick=()=>bump(false,lib.revsOf(state.project)); $('#pmajor').onclick=()=>bump(true,lib.revsOf(state.project));
   $('#unit').onchange=e=>{ST.unit={mm:'mm',cm:'cm',in:'in'}[e.target.value]||'mm';applyUnit()};   // one of the three, never the box's own text
   $('#x_labels').onchange=()=>{if(ST.job)renderDownloads()}; $('#x_grouped').onchange=()=>{if(ST.job)renderDownloads()};
   $$('nav button').forEach(b=>b.onclick=()=>showTab(b.dataset.t));
@@ -103,13 +105,13 @@ async function init(){
     clearTimeout(ST.timer);ST.timer=null;renderFields()};
   // the file box lets go of the upload too: left holding it, choosing that same file again fires no change and loads nothing
   // every way into an example comes here (the dropdown, the library page); the dropdown follows it
-  const openExample=name=>{$('#example').value=ST.example=name;ST.pendingFile=null;$('#file').value='';newModel();applyPreset();ST.countUse('model','example');ST.fresh='loaded example '+name;slice()};
+  const openExample=name=>{$('#example').value=ST.example=name;lib.setSaved(null);ST.pendingFile=null;$('#file').value='';newModel();applyPreset();ST.countUse('model','example');ST.fresh='loaded example '+name;slice()};
   $('#example').onchange=()=>openExample($('#example').value);
   window.__t.openExample=openExample;   // window.__t is built below while init() awaits its first fetch
   // A big mesh in the browser build is slow but not refused — the ceiling is this tab's memory, and it is the
   // reporter's machine that knows better than a fixed number. So: say what it will cost, then do as they say.
   const BIG=50e6;   // ~1 M triangles: the point where a slice in Pyodide goes from a wait to a very long wait
-  $('#file').onchange=e=>{const f=e.target.files[0]||null; ST.pendingFile=f; newModel(); if(!f)return;
+  $('#file').onchange=e=>{const f=e.target.files[0]||null; ST.pendingFile=f; newModel(); if(!f)return; lib.setSaved(null);
     const go=()=>{ST.countUse('model','upload');ST.fresh=`uploaded ${f.name} (${(f.size/1e6).toFixed(1)} MB)`;slice()};
     if(document.documentElement.dataset.static&&f.size>BIG)
       popup(`${f.name} is ${(f.size/1e6).toFixed(0)} MB`,'',
@@ -122,8 +124,11 @@ async function init(){
   const sess=await fetch(`api/session?client=${CLIENT}`).then(r=>r.ok?r.json():{}).catch(()=>({}));
   if(sess.mode){Object.assign(memo,sess.memo||{});setMode(sess.mode,false);Object.assign(state,sess.params||{});ST.unit=state.units||ST.unit;
     if(sess.example)$('#example').value=ST.example=sess.example; ST.job=sess.alive?sess.job:null;
-    if(!sess.alive&&sess.job)status('the uploaded model of the last session is gone — upload it again or pick an example','err')}
-  else{setMode(location.hash.slice(1)||'interlocked',false);applyMachine(matOf(state.material).machine);applyPreset()}   // a fresh start gets the machine's compensation and the example's preset (the #technique in the URL is the app's own mirror of its state, not a request)
+    if(!sess.alive&&sess.job)status('the uploaded model of the last session is gone — upload it again or pick an example','err');
+    // the library revision the session came from: unreadable, it stays null and the page shows unsaved changes (the safe side)
+    try{ST.saved=JSON.parse(sessionStorage.lamina_saved||'null')}catch(e){ST.saved=null}}
+  else{lib.setSaved(null);   // a fresh start: a mirror left from a cleared session names nothing this tab holds
+    setMode(location.hash.slice(1)||'interlocked',false);applyMachine(matOf(state.material).machine);applyPreset()}   // a fresh start gets the machine's compensation and the example's preset (the #technique in the URL is the app's own mirror of its state, not a request)
   ST.fresh=sess.mode?'page reloaded, last session resumed':'page opened on example '+ST.example; applyUnit(); slice();
 }
 init();
@@ -199,4 +204,4 @@ window.__t={project:()=>projectObj(false),sizeAxes:()=>sizeAxes(),target:()=>con
   hitAt:(x,y)=>{const h=hit({clientX:x,clientY:y});return h?(h.object.userData.gizmo?'gizmo':h.object.userData.slice):null},
   cam:(az,el,dist)=>{const t=controls.target,r=dist||camera.position.distanceTo(t),a=az*Math.PI/180,e=el*Math.PI/180;
     camera.position.set(t.x+r*Math.cos(e)*Math.cos(a),t.y+r*Math.cos(e)*Math.sin(a),t.z+r*Math.sin(e));camera.lookAt(t);controls.update();ST.dirty=true;renderer.render(scene,camera)},
-  frame:()=>{ST.dirty=true;renderer.render(scene,camera)},snapshot};
+  frame:()=>{ST.dirty=true;renderer.render(scene,camera)},snapshot,lib};

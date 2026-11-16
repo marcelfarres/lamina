@@ -7,6 +7,7 @@ export const ST={
   mode:null,
   job:null,
   example:'',   // the bundled example last opened: the dropdown shows it, and is not what the page reads
+  saved:null,   // {name, rev, snap}: the library revision this tab opened or last saved (library.js); null for an example or an upload
   plan:null,
   seq:0,
   timer:null,

@@ -7,10 +7,11 @@ import {renderSpacing} from './spacing.js';
 import {memo, syncSizeHints} from './form.js';
 import {render3D, showGhost} from './scene.js';
 import {renderSheets, renderReport, SH} from './results.js';
+import {changed} from './library.js';
 
 // ---------------------------------------------------------------- slicing
 export async function slice(){
-  record();                                        // one undo step per change that gets this far
+  record(); changed();                             // one undo step per change that gets this far; the unsaved-changes text follows it
   if(ST.fresh){ST.trail=[];ST.trailT0=Date.now();act(ST.fresh);ST.fresh=''}   // after record(): a new model's own settings are not steps
   const my=++ST.seq, fd=new FormData(), loading=ST.pendingFile;
   fd.append('client',CLIENT); fd.append('mode',ST.mode.name); fd.append('params',JSON.stringify({...state,material_kind:kind(state.material)})); fd.append('memo',JSON.stringify(memo));   // the server keeps this as the tab's session; a material of your own is checked as the one it was made from
