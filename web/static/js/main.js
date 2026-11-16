@@ -10,7 +10,7 @@ import {showNews, whatsNew, phoneNotice, news} from './news.js';
 import {matOf, matThicks, machineOf, kind, applyMachine, shs, sameSheet, userMachines, syncPresetSelects, userMaterials, dens, fam, renderPresets, PKEYS} from './presets.js';
 import {setMode, renderFields, schedule, resetTab, showTab, memo, MODEL_BOUND, allParams, sizeAxes} from './form.js';
 import {slice, oops, popup, LOCAL_DOC} from './slice.js';
-import {applyLook, controls, banner, parts, guides, gizmo, axes, rings, camera, renderer, applyFold, scene, ghost, ghostUrl} from './scene.js';
+import {applyLook, controls, banner, parts, guides, gizmo, axes, rings, camera, renderer, applyFold, scene, ghost, ghostUrl, snapshot} from './scene.js';
 import {renderWeight, renderDownloads, applyFix} from './results.js';
 import {saveProject, openProject, bump, projectObj, projName} from './project.js';
 
@@ -199,4 +199,4 @@ window.__t={project:()=>projectObj(false),sizeAxes:()=>sizeAxes(),target:()=>con
   hitAt:(x,y)=>{const h=hit({clientX:x,clientY:y});return h?(h.object.userData.gizmo?'gizmo':h.object.userData.slice):null},
   cam:(az,el,dist)=>{const t=controls.target,r=dist||camera.position.distanceTo(t),a=az*Math.PI/180,e=el*Math.PI/180;
     camera.position.set(t.x+r*Math.cos(e)*Math.cos(a),t.y+r*Math.cos(e)*Math.sin(a),t.z+r*Math.sin(e));camera.lookAt(t);controls.update();ST.dirty=true;renderer.render(scene,camera)},
-  frame:()=>{ST.dirty=true;renderer.render(scene,camera)}};
+  frame:()=>{ST.dirty=true;renderer.render(scene,camera)},snapshot};

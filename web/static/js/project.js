@@ -34,15 +34,17 @@ export async function saveProject(){
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(proj)],{type:'application/json'}));a.download=projName(proj);a.click();
 }
 export const projName=proj=>`${proj.name||proj.model?.name||proj.example||'model'}_v${proj.rev}.lamina.json`;
-export async function openProject(f){
-  const s=JSON.parse(await f.text()); Object.assign(memo,s.memo||{}); setMode(s.mode||'interlocked',false); Object.assign(state,s.state||{}); ST.unit=s.unit||state.units||'mm';
+export const openProject=async f=>openProjectText(await f.text(),f.name);
+// a project from its text: a file picked, or one the library holds (its `preview` and `saved` are the library's, not read here)
+export async function openProjectText(text,label){
+  const s=JSON.parse(text); Object.assign(memo,s.memo||{}); setMode(s.mode||'interlocked',false); Object.assign(state,s.state||{}); ST.unit=s.unit||state.units||'mm';
   if((s.version||0)<4&&(state.size||[]).some(Boolean))state.size=sizeToModel(state.size);   // before 0.3.2 size was along the view's axes
   state.project=s.name||state.project||''; state.rev=s.rev||state.rev||'1.0'; syncProject();
   ST.job=null; ST.pendingFile=null; ST.srcFile=null; ST.fitted=false; deselect(); $('#file').value='';   // as an example does: the upload box lets go
   if(s.model?.b64){const bin=atob(s.model.b64),u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);ST.pendingFile=new File([u8],s.model.name)}
   else if(s.example)$('#example').value=ST.example=s.example;
   else if(s.missing_model)status(`this project was saved without its model — the settings are here, upload ${s.missing_model} again`,'err');
-  ST.fresh='opened project '+f.name; applyUnit(); slice();
+  ST.fresh='opened project '+label; applyUnit(); slice();
 }
 export function syncProject(){$('#pname').value=state.project||'';$('#prev').textContent=state.rev||'1.0'}
 export function bump(major){const [a,b]=(state.rev||'1.0').split('.').map(Number);state.rev=major?`${a+1}.0`:`${a}.${(b||0)+1}`;syncProject();schedule()}

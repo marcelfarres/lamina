@@ -6,7 +6,7 @@ import zipfile
 
 import pytest
 
-from .helpers import example
+from .helpers import example, still
 
 
 def test_open_example_is_page_state(page):
@@ -94,3 +94,24 @@ def test_kv_holds_a_folder_handle_and_index_starts_empty(page):
         await S.kvDel('folder'); out.gone = (await S.kvGet('folder')) ?? null; return out }""")
     assert r == {"name": "lib-test", "same": True, "file": "k.txt", "idx": [{"file": "x_v1.0.lamina.json", "size": 7}],
                  "none": [], "gone": None}
+
+
+def test_snapshot_is_a_small_picture_and_moves_nothing(page):
+    example(page, "vase"); page.mouse.move(700, 300); page.mouse.down(); page.mouse.move(820, 360); page.mouse.up()   # orbit away
+    still(page)
+    # the camera, the canvas and the helpers' visibility either side of the snapshot, in one task: the orbit's damping
+    # still nudges the camera by a hundred-thousandth of a millimetre a frame long after it looks still
+    before, after, url = page.evaluate("""() => { const v = () => JSON.stringify([__t.camera.position, __t.target(),
+        __t.canvas().width, __t.canvas().height, __t.axes().map(o => o.parent.visible), __t.banner()]);
+        const b = v(), u = __t.snapshot(); return [b, v(), u] }""")
+    assert url.startswith("data:image/")
+    w, h = page.evaluate("u => new Promise(r => { const i = new Image(); i.onload = () => r([i.width, i.height]); i.src = u })", url)
+    assert (w, h) == (320, 240)
+    assert after == before
+    assert len(url) < 120_000
+
+
+def test_snapshot_is_the_fitted_view_not_the_users_camera(page):
+    example(page, "vase"); a = page.evaluate("__t.snapshot()")
+    page.evaluate("__t.cam(150, -40, __t.camera.position.distanceTo(__t.target()) * 4)"); still(page)   # far away, from below
+    assert page.evaluate("__t.snapshot()") == a

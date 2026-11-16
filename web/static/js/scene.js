@@ -185,10 +185,24 @@ function mergeGeos(geos){
   const ngs=geos.map(g=>g.index?g.toNonIndexed():g),n=ngs.reduce((a,g)=>a+g.attributes.position.array.length,0),pos=new Float32Array(n),nor=new Float32Array(n);let o=0;
   for(const g of ngs){pos.set(g.attributes.position.array,o);nor.set(g.attributes.normal.array,o);o+=g.attributes.position.array.length}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('normal',new THREE.BufferAttribute(nor,3));return g}
-function fitView(){const b=new THREE.Box3().setFromObject(parts.children.length?parts:ghost);if(b.isEmpty())return;const c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3()).length();controls.target.copy(c);camera.position.copy(c).add(new THREE.Vector3(.7,-1,.6).normalize().multiplyScalar(s*1.5));
+// the standard view of what is shown (the parts, or the model until there are any): its centre, its diagonal, the eye
+function fitPose(){const b=new THREE.Box3().setFromObject(parts.children.length?parts:ghost);if(b.isEmpty())return null;const c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3()).length();
+  return {c,s,eye:c.clone().add(new THREE.Vector3(.7,-1,.6).normalize().multiplyScalar(s*1.5))}}
+function fitView(){const p=fitPose();if(!p)return;const {c,s,eye}=p;controls.target.copy(c);camera.position.copy(eye);
   // close enough to read a slot, never onto the point it turns about (from 0 no zoom ever comes back), never so far the
   // model is lost; the clipping planes outside both, so nothing is cut away at either end
   controls.minDistance=s/40;controls.maxDistance=s*8;camera.near=s/200;camera.far=s*20;camera.updateProjectionMatrix()}
+// A w × h picture of the model as built, in the fitted view, for the library: a camera of its own, the helpers hidden, no
+// view cube. The renderer keeps no picture between frames, so it is read in the same task it is drawn, and the view is
+// drawn again at its own size before the task ends: the page never shows the small frame.
+export function snapshot(w=320,h=240){
+  const p=fitPose(),cam=new THREE.PerspectiveCamera(camera.fov,w/h,1,100000),hide=[rings,axes,gizmo,guides,banner],was=hide.map(o=>o.visible),
+    size=renderer.getSize(new THREE.Vector2()),pr=renderer.getPixelRatio(),dirty=ST.dirty;
+  cam.up.set(0,0,1); if(p){cam.position.copy(p.eye);cam.lookAt(p.c);cam.near=p.s/200;cam.far=p.s*20;cam.updateProjectionMatrix()}
+  hide.forEach(o=>o.visible=false); renderer.setPixelRatio(1); renderer.setSize(w,h,false); renderer.render(scene,cam);
+  const url=renderer.domElement.toDataURL('image/webp',.8);   // a browser without WebP gives PNG
+  hide.forEach((o,i)=>o.visible=was[i]); renderer.setPixelRatio(pr); renderer.setSize(size.x,size.y,false);
+  renderer.render(scene,camera); drawCube(); ST.dirty=dirty; return url}
 // The name of the part going in, at the top centre of the 3D view while the steps slider is short of the end: drawn
 // into the canvas itself (a sprite riding with the camera), so the recorded video carries it — the video is the
 // canvas, and an HTML caption over it would never reach the file.
