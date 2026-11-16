@@ -72,7 +72,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Connecting strips | ✅ | joint `strip`: rounded strips with mirrored holes, fold angle on the label |
 | Sheet-metal ribs | ✅ | joint `rib`: slots + angle ribs cut at the dihedral angle |
 | Assembly collision simulation | ✅ | every slotted part is slid along its crossing line out through the slot's mouth; material of the slotted part left in that path (a hollow section crossed twice, a concave outline) is an error with fixes |
-| Live update, dark UI, tooltips, tabs | ✅ | |
+| Live update, dark UI, tooltips, tabs | ✅ | settings in folding sections with full names, a search box over the tabs, a mark on every changed setting, help that opens under a setting |
 | Material / machine / stock-sheet presets | ✅ | 21 materials: thickness by gauge (steel's and stainless's own tables), ounce, point or fraction with mm and inch, sheet sizes per material, a density for the weight, and only the machines that can cut it; kerf / slot / relief per machine (CO2 laser, fiber laser, plasma, router, knife, by hand, 3D printer, and machines by name). PLA and PETG print the parts at full size: whole-layer thicknesses, print beds as sheets, 0.2 mm slot clearance |
 | Weight | ✅ | Export tab: the parts as cut (net of holes and slots, each at its own thickness, a line per stock), the sheets, the dowels and the assembled total, in g/kg or oz/lb |
 | 3D-printed parts at full size (extra) | ✅ | PLA / PETG tick **3D printed**: sheets are print beds, the page counts plates, the Export tab gives one 3MF per plate with the print's own slot offset |
