@@ -192,17 +192,26 @@ function fitView(){const p=fitPose();if(!p)return;const {c,s,eye}=p;controls.tar
   // close enough to read a slot, never onto the point it turns about (from 0 no zoom ever comes back), never so far the
   // model is lost; the clipping planes outside both, so nothing is cut away at either end
   controls.minDistance=s/40;controls.maxDistance=s*8;camera.near=s/200;camera.far=s*20;camera.updateProjectionMatrix()}
-// A w × h picture of the model as built, in the fitted view, for the library: a camera of its own, the helpers hidden, no
-// view cube. The renderer keeps no picture between frames, so it is read in the same task it is drawn, and the view is
-// drawn again at its own size before the task ends: the page never shows the small frame.
+// A w × h picture of the model as built, in the fitted view, for the library: a camera of its own, no view cube. The
+// same picture whatever is selected, stepped, exploded, folded or ticked, so the cards are even: every part in place
+// and folded up, no highlight, no lobe planes (a guide, not material), the see-through model only while there are no
+// parts. The dowel rods stay: they are the axes group's meshes, its arrows and letters are the helper. The renderer
+// keeps no picture between frames, so it is read in the same task it is drawn, and the view is drawn again at its own
+// size before the task ends: the page never shows the small frame. '' when there is nothing to show.
 export function snapshot(w=320,h=240){
-  const p=fitPose(),cam=new THREE.PerspectiveCamera(camera.fov,w/h,1,100000),hide=[rings,axes,gizmo,guides,banner],was=hide.map(o=>o.visible),
+  const P=parts.children,fold=$('#fold'),fv=fold.value,
+    flags=[...[rings,gizmo,guides,banner,...axes.children.filter(o=>!o.isMesh)].map(o=>[o,false]),[ghost,!P.length],...P.map(m=>[m,m.userData.group!=='B'])],
+    was=flags.map(([o])=>o.visible),pos=P.map(m=>m.position.clone()),glow=P.map(m=>m.material.emissive.getHex()),
     size=renderer.getSize(new THREE.Vector2()),pr=renderer.getPixelRatio(),dirty=ST.dirty;
-  cam.up.set(0,0,1); if(p){cam.position.copy(p.eye);cam.lookAt(p.c);cam.near=p.s/200;cam.far=p.s*20;cam.updateProjectionMatrix()}
-  hide.forEach(o=>o.visible=false); renderer.setPixelRatio(1); renderer.setSize(w,h,false); renderer.render(scene,cam);
-  const url=renderer.domElement.toDataURL('image/webp',.8);   // a browser without WebP gives PNG
-  hide.forEach((o,i)=>o.visible=was[i]); renderer.setPixelRatio(pr); renderer.setSize(size.x,size.y,false);
-  renderer.render(scene,camera); drawCube(); ST.dirty=dirty; return url}
+  let url='';
+  try{fold.value=1;applyFold(); flags.forEach(([o,v])=>o.visible=v); P.forEach(m=>{m.position.set(0,0,0);m.material.emissive.set(0)});
+    const p=fitPose(); if(!p)return url;
+    const cam=new THREE.PerspectiveCamera(camera.fov,w/h,p.s/200,p.s*20); cam.up.set(0,0,1); cam.position.copy(p.eye); cam.lookAt(p.c);
+    renderer.setPixelRatio(1); renderer.setSize(w,h,false); renderer.render(scene,cam);
+    url=renderer.domElement.toDataURL('image/webp',.8);   // a browser without WebP gives PNG
+  }finally{fold.value=fv;applyFold(); flags.forEach(([o],i)=>o.visible=was[i]); P.forEach((m,i)=>{m.position.copy(pos[i]);m.material.emissive.setHex(glow[i])});
+    renderer.setPixelRatio(pr); renderer.setSize(size.x,size.y,false); renderer.render(scene,camera); drawCube(); ST.dirty=dirty}
+  return url}
 // The name of the part going in, at the top centre of the 3D view while the steps slider is short of the end: drawn
 // into the canvas itself (a sprite riding with the camera), so the recorded video carries it — the video is the
 // canvas, and an HTML caption over it would never reach the file.

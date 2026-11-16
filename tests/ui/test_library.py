@@ -99,11 +99,15 @@ def test_kv_holds_a_folder_handle_and_index_starts_empty(page):
 def test_snapshot_is_a_small_picture_and_moves_nothing(page):
     example(page, "vase"); page.mouse.move(700, 300); page.mouse.down(); page.mouse.move(820, 360); page.mouse.up()   # orbit away
     still(page)
-    # the camera, the canvas and the helpers' visibility either side of the snapshot, in one task: the orbit's damping
-    # still nudges the camera by a hundred-thousandth of a millimetre a frame long after it looks still
-    before, after, url = page.evaluate("""() => { const v = () => JSON.stringify([__t.camera.position, __t.target(),
-        __t.canvas().width, __t.canvas().height, __t.axes().map(o => o.parent.visible), __t.banner()]);
-        const b = v(), u = __t.snapshot(); return [b, v(), u] }""")
+    page.evaluate("__t.select(__t.parts()[0].userData.slice)")                  # a highlight and a gizmo to put back
+    # the page's view either side of the snapshot, in one task: the orbit's damping still nudges the camera by a
+    # hundred-thousandth of a millimetre a frame long after it looks still. The scene's groups and the renderer are read
+    # from the page's own modules (the same instances main.js imported); ST.dirty is set false first so its restore shows
+    before, after, url = page.evaluate("""async () => { const S = await import('/static/js/scene.js'), {ST} = await import('/static/js/state.js');
+        const v = () => JSON.stringify([S.camera.position, S.controls.target, S.renderer.domElement.width, S.renderer.domElement.height,
+            S.renderer.getPixelRatio(), ST.dirty, [S.rings, S.gizmo, S.guides, S.axes, S.ghost, S.banner, ...S.axes.children].map(o => o.visible),
+            S.parts.children.map(m => [m.visible, m.position, m.material.emissive.getHex()]), document.querySelector('#fold').value]);
+        ST.dirty = false; const b = v(), u = S.snapshot(); return [b, v(), u] }""")
     assert url.startswith("data:image/")
     w, h = page.evaluate("u => new Promise(r => { const i = new Image(); i.onload = () => r([i.width, i.height]); i.src = u })", url)
     assert (w, h) == (320, 240)
@@ -115,3 +119,17 @@ def test_snapshot_is_the_fitted_view_not_the_users_camera(page):
     example(page, "vase"); a = page.evaluate("__t.snapshot()")
     page.evaluate("__t.cam(150, -40, __t.camera.position.distanceTo(__t.target()) * 4)"); still(page)   # far away, from below
     assert page.evaluate("__t.snapshot()") == a
+
+
+def test_snapshot_ignores_selection_ghost_steps_and_explode(page):
+    """The card is the model as built, not what the view happens to show: a part selected, the see-through model
+    ticked, the steps slider short and the parts exploded give the same picture as none of them."""
+    example(page, "vase")
+    ui = """([ghost, steps, explode, sel]) => { const g = document.querySelector('#ghost'); g.checked = ghost; g.onchange();
+        for (const [id, v] of [['#steps', steps], ['#explode', explode]]) { const el = document.querySelector(id);
+            el.value = v ?? el.max; el.dispatchEvent(new Event('input', {bubbles: true})) }
+        sel ? __t.select(__t.parts()[1].userData.slice) : __t.deselect(); return __t.snapshot() }"""
+    a = page.evaluate(ui, [False, None, 1, False])
+    b = page.evaluate(ui, [True, 3, 2, True])
+    assert page.evaluate("__t.banner()").startswith("step 3")                 # the view did change: short of the end
+    assert a.startswith("data:image/") and b == a
