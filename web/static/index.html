@@ -55,6 +55,13 @@ button.small{padding:3px 8px;border:1px solid var(--line);background:var(--panel
    stretch of track, and with a live counter beside it to read off which step you have landed on */
 .bar input#steps{width:250px}.bar .stepsval{min-width:52px;text-align:center;font-variant-numeric:tabular-nums;color:var(--ink)}
 #sel{position:absolute;right:10px;top:8px;background:#0f1012ee;padding:8px 10px;border-radius:6px;border:1px solid var(--line);font-size:12px;width:250px}#sel[hidden]{display:none}#sel b{color:var(--sel)}#sel .row{display:grid;grid-template-columns:44px 1fr 66px;gap:6px;align-items:center;margin:4px 0}#sel .row input[type=number]{padding:2px 5px}#sel small{color:var(--muted);display:block;margin-top:4px}
+/* choosing the seams of a folded model: three line styles, never colour alone (thin = fold, dashed = the program's seam, thick = yours) */
+#seampanel{position:absolute;left:10px;bottom:36px;width:300px;max-width:calc(100% - 130px);background:#0f1012ee;border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.5}#seampanel[hidden]{display:none}
+#seampanel .t{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}#seampanel p{margin:0 0 6px;color:var(--muted)}#seampanel p b{color:var(--ink);font-weight:600}#seampanel .lg{display:flex;align-items:center;gap:8px}#seampanel .lg svg{flex:none}#seampanel .lg small{color:var(--muted)}#seampanel .r{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap}#seampanel .r[hidden]{display:none}
+#seamtip{position:fixed;z-index:60;pointer-events:none;background:#000d;border:1px solid #fff6;border-radius:4px;padding:5px 8px;font-size:12px;line-height:1.5;color:#fff;white-space:nowrap}#seamtip[hidden]{display:none}
+.seamcard{display:flex;flex-direction:column;gap:5px}.seamcard>span:last-child{display:flex;gap:6px;flex-wrap:wrap}
+#sheets g.seams{display:none}#sheets.choosing g.seams{display:inline}#sheets g.seams line{vector-effect:non-scaling-stroke;fill:none;stroke-linecap:round;pointer-events:none}
+#sheets g.seams line.hit{stroke:transparent;stroke-width:12px;pointer-events:stroke;cursor:pointer}#sheets g.seams line.mine{stroke:#56B4E9;stroke-width:4px}#sheets g.seams line.hov{stroke:#F0E442;stroke-width:7px}
 #hint{position:absolute;left:10px;bottom:8px;max-width:calc(100% - 130px);font-size:11px;color:var(--muted);background:#0f1012dd;padding:3px 7px;border-radius:4px}
 #hint summary{cursor:pointer}#hint summary span{color:var(--acc)}
 #hint dl{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin:6px 0 2px}#hint dt{color:var(--ink)}#hint dd{margin:0}
@@ -254,6 +261,16 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
   <div id="v3d">
     <div class="bar"><label><input type="checkbox" id="ghost" checked> model</label><label>explode <input type="range" id="explode" min="1" max="3" step="0.05" value="1"></label><label>steps <input type="range" id="steps" min="0" max="1" step="1" value="1"><span id="steps_val" class="stepsval" title="step shown of the build order">1 / 1</span></label><label id="foldl" hidden title="folded panels from flat (0 %) to folded (100 %): every face turns about its own fold line. The last steps of the steps slider do the same">fold <input type="range" id="fold" min="0" max="1" step="0.01" value="1"><span id="fold_val" class="stepsval">100 %</span></label><label>look <select id="look"><option value="group">by family</option><option>cardboard</option><option>paper</option><option>plywood</option><option>steel</option><option>brass</option><option>copper</option><option>plastic</option><option>foam</option></select></label><label title="transparency of folded panels, to see the connectors inside">panels <input type="range" id="opacity" min="0.1" max="1" step="0.05" value="1"></label><button id="fit">fit view</button></div>
     <div id="sel" hidden></div>
+    <div id="seampanel" hidden>
+      <div class="t"><b>✂ choosing seams</b><button class="small" data-seams="mode">✓ done choosing</button></div>
+      <p><b>Click an edge</b>, on the model or on a sheet: the sheet is cut apart there.<br><b>Click a seam of yours again</b>: the program decides that edge again.</p>
+      <div class="lg"><svg width="34" height="10"><line x1="1" y1="5" x2="33" y2="5" stroke="#c9cad0" stroke-width="1"/></svg>thin · fold <small id="sl_fold"></small></div>
+      <div class="lg"><svg width="34" height="10"><line x1="1" y1="5" x2="33" y2="5" stroke="#E69F00" stroke-width="2.5" stroke-dasharray="6 4"/></svg>dashed · seam the program chose <small id="sl_seam"></small></div>
+      <div class="lg"><svg width="34" height="10"><line x1="2" y1="5" x2="32" y2="5" stroke="#56B4E9" stroke-width="5" stroke-linecap="round"/></svg>thick · seam you chose <small id="sl_chosen"></small></div>
+      <div class="r"><button class="small" data-seams="clear">clear my seams</button><span class="hint">undo (top bar) takes back a click</span></div>
+      <div class="r" id="seam_off" hidden><span class="hint">the edges show on the folded model</span><button class="small" data-seams="fold">show it folded</button></div>
+    </div>
+    <div id="seamtip" hidden></div>
     <div id="busy" hidden><span id="busy_txt">slicing…</span><div class="bar"><i></i></div><ol id="busy_steps"></ol><span id="busy_note"></span></div>
     <details id="hint"><summary>drag = orbit · wheel = zoom · right-drag = pan · <span>all controls</span></summary><dl>
       <dt>view</dt><dd>click the corner cube = flat view · fit view = frame the model again</dd>
@@ -262,6 +279,7 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
       <dt>curve</dt><dd>drag a blue dot = move that point · shift+alt-click a hoof, hand or tail tip = a branch out to it;
         drag its ends to move it, alt-click it to remove it · click a J or B plane = move or tilt it like a slice</dd>
       <dt>radial</dt><dd>drag the axis or its end = move it · click the plane between two lobes = move or tilt it like a slice</dd>
+      <dt>folded</dt><dd>choose seams (Technique tab), then click an edge on the model or on a sheet = cut the sheet apart there · click a seam of yours = give it back</dd>
     </dl></details>
   </div>
   <div id="lower"><div id="stats"></div><div id="msgs"></div><div id="spacing" hidden></div><div class="sheets" id="sheets"></div></div>
@@ -451,11 +469,12 @@ function field(p){
   else if(p.type==='curve')inp=`<span class="hint">drawn in the graph under the 3D view</span>`;
   else if(p.type==='points')inp=`<div class="rows" id="${id}">${(v||[]).map((q,i)=>`<div class="r"><small>${i+1}</small><input type="number" step="any" value="${show(p,q[0])}" data-pt="${p.name}" data-i="${i}" data-j="0"><input type="number" step="any" value="${show(p,q[1])}" data-pt="${p.name}" data-i="${i}" data-j="1"><button class="small x" data-del="${p.name}" data-i="${i}">×</button></div>`).join('')}<div class="r"><button class="small" data-add="${p.name}">+ point</button><span class="hint">or alt-click in the 3D view</span></div></div>`;
   else if(p.type==='lines3')inp=`<div class="rows" id="${id}">${(v||[]).length?`<div class="r hint"><small></small>${['x','y','z'].map(a=>`<span style="flex:1;text-align:center">${a} (${unit})</span>`).join('')}<span style="flex:0 0 24px"></span></div>`:''}${(v||[]).map((l,i)=>[0,1].map(e=>`<div class="r"><small>${e?'end':`${i+1} start`}</small>${[0,1,2].map(j=>`<input type="number" step="any" value="${show(p,l[e][j])}" data-ln="${p.name}" data-i="${i}" data-e="${e}" data-j="${j}" title="${e?'end':'start'} ${'xyz'[j]}">`).join('')}<span style="flex:0 0 24px">${e?'':`<button class="small x" data-del="${p.name}" data-i="${i}">×</button>`}</span></div>`).join('')).join('')}<div class="r"><button class="small" data-add="${p.name}">${{axes:'+ split an axis',branches:'+ branch'}[p.name]||'+ line'}</button><span class="hint">${{axes:'or alt-click the model for a parallel axis · drag them in the 3D view',branches:'or shift+alt-click a hoof, hand or tail tip · drag the ends in the 3D view · alt-click one to remove it'}[p.name]||'one straight dowel per line · or alt-click the model: a line up through that point'}</span></div></div>`;
+  else if(p.type==='edges')inp=`<span class="seamcard"><span id="seam_n" class="hint"></span><span><button class="small" data-seams="mode"></button><button class="small" data-seams="clear">clear my seams</button></span></span>`;   // chosen in the 3D view and on the sheets; syncSeams writes the counts
   else if(p.type==='map'){const rows=Object.entries(v||{});if(selected&&!(selected in (v||{})))rows.push([selected,p.name==='thick'?state.thickness:0]);
     inp=`<div class="rows" id="${id}">${rows.map(([k,x])=>`<div class="r"><small>${esc(k)}</small><input type="number" step="any" value="${show(p,x)}" data-map="${p.name}" data-k="${esc(k)}">${k in (v||{})?`<button class="small x" data-del="${p.name}" data-i="${esc(k)}">×</button>`:'<span class="hint">default</span>'}</div>`).join('')||'<span class="hint">no overrides — select a part in the 3D view and use the sliders</span>'}</div>`}
   else if(p.type==='labels'||p.type==='chips')inp=`<div class="chips" id="${id}">${(v||[]).map((x,i)=>`<span class="chip">${p.type==='chips'?show(p,x):esc(x)}<b data-del="${p.name}" data-i="${i}">×</b></span>`).join('')}<input placeholder="${p.type==='chips'?'value ⏎':'label ⏎'}" data-chip="${p.name}"></div>`;
   else inp=(p.min!=null&&p.max!=null)?slider(id,v,p):num(id,v,p);
-  return `<div class="f${p.type==='lines3'?' wide':''}" data-p="${p.name}" ${p.show_if?`data-show="${p.show_if[0]}:${[].concat(p.show_if[1]).join('|')}"`:''}><span class="k" data-tip="${p.help.replace(/"/g,'&quot;')}">${p.label||nice(p.name)}${u}</span>${inp}</div>`;
+  return `<div class="f${p.type==='lines3'||p.type==='edges'?' wide':''}" data-p="${p.name}" ${p.show_if?`data-show="${p.show_if[0]}:${[].concat(p.show_if[1]).join('|')}"`:''}><span class="k" data-tip="${p.help.replace(/"/g,'&quot;')}">${p.label||nice(p.name)}${u}</span>${inp}</div>`;
 }
 // a group's fields, with a heading where the section changes: "Title — the line under it", the line always on show, so
 // what a switch governs is read, not hovered for (only the kerf follows "compensate kerf"; the slot fit always applies)
@@ -465,7 +484,7 @@ function renderFields(){
   const com=mode.common, byG=g=>fields(com.filter(p=>p.group===g)); syncProject();
   $('#g-model').innerHTML=byG('model'); $('#g-technique').innerHTML=fields(mode.params)+byG('technique'); $('#g-slices').innerHTML=byG('slices');
   $('#g-sheet').innerHTML=byG('sheet'); $('#g-fit').innerHTML=byG('fit'); $('#g-checks').innerHTML=byG('checks');
-  applyShowIf(); syncPresetSelects(); renderSpacing();
+  applyShowIf(); syncPresetSelects(); renderSpacing(); syncSeams();
 }
 // ---------------------------------------------------------------- the spacing curve editor, under the 3D view
 // One graph per `curve` parameter of the technique: the distance between neighbouring slices against the position
@@ -660,6 +679,7 @@ addEventListener('unhandledrejection',e=>act('page error: '+(e.reason?.message||
 addEventListener('keydown',e=>{
   const typing=e.target.type==='text'||e.target.tagName==='TEXTAREA';   // a text box keeps its own undo, and its own ?
   if(e.key==='?'&&!typing&&!e.ctrlKey&&!e.metaKey){$('#helpdlg').showModal();return e.preventDefault()}
+  if(e.key==='Escape'&&seamMode&&!typing&&!document.querySelector('dialog[open]'))return setSeamMode(false);
   if(!(e.ctrlKey||e.metaKey)||typing)return;
   const k=e.key.toLowerCase();
   if(k==='z'&&!e.shiftKey)step(undos,redos); else if(k==='y'||(k==='z'&&e.shiftKey))step(redos,undos); else return;
@@ -988,6 +1008,7 @@ function render3D(modelUrl){
   clipGhost();
   ghost.visible=$('#ghost').checked; dirty=true;
   if(selected){const m=parts.children.find(c=>c.userData.slice===selected);m?highlight(m):deselect()}
+  renderSeams();
   if(!fitted){fitView();fitted=true}
 }
 // The translucent model behind the parts, loaded on its own: the build finishes with the mesh a second or two in and
@@ -1058,7 +1079,7 @@ function applyFold(){const s=+$('#fold').value,v=new THREE.Vector3();let any=fal
     for(const [o,n,fi] of f.ranges)for(let j=o;j<o+n;j++){v.fromArray(f.base,3*j).applyMatrix4(D[fi]);pos.setXYZ(j,v.x,v.y,v.z)}
     pos.needsUpdate=true;m.geometry.computeVertexNormals();m.geometry.computeBoundingSphere();m.geometry.computeBoundingBox()}
   $('#foldl').hidden=!any; ghost.visible=$('#ghost').checked&&!(any&&s<1);   // the model would stand in the unfolded panel
-  $('#fold_val').textContent=Math.round(s*100)+' %'; dirty=true}
+  $('#fold_val').textContent=Math.round(s*100)+' %'; showSeamLines(); dirty=true}
 const FOLD_STEPS=20; let nParts=0;   // the steps a folded job takes to fold up, and the parts in the build order before them
 function applyExplode(){const e=+$('#explode').value,st=$('#steps'),k=+st.value;for(const m of parts.children){if(m.userData.group==='B')continue;m.position.copy(m.userData.origin).multiplyScalar(e-1);m.visible=m.userData.i<k}
   const folding=+st.max>nParts, share=folding?Math.min(1,Math.max(0,(k-nParts)/FOLD_STEPS)):1;
@@ -1067,7 +1088,7 @@ function applyExplode(){const e=+$('#explode').value,st=$('#steps'),k=+st.value;
   showBanner(going?`step ${k} / ${+st.max}  ·  ${(plan&&plan.label_tag?plan.label_tag+' ':'')}${going.userData.piece}`:folding&&k<+st.max?`step ${k} / ${+st.max}  ·  folding ${Math.round(share*100)} %`:'');
   $('#steps_val').textContent=`${k} / ${+st.max||0}`;   // the step counter, live while the slider is dragged
   const s=selected&&parts.children.find(c=>c.userData.slice===selected); if(s)drawGizmo(s);   // the handles ride with the part
-  dirty=true}
+  showSeamLines(); dirty=true}
 $('#explode').oninput=$('#steps').oninput=applyExplode; $('#fold').oninput=applyFold; $('#ghost').onchange=()=>{ghost.visible=$('#ghost').checked;dirty=true}; $('#fit').onclick=()=>{fitView();dirty=true}; $('#look').onchange=$('#opacity').oninput=applyLook;
 // The build order as a video: the steps slider played into a MediaRecorder reading the canvas the view already
 // draws. Nothing is uploaded and nothing is rendered twice — the file is made in the page and saved from it.
@@ -1379,6 +1400,7 @@ renderer.domElement.addEventListener('pointerup',ev=>{
     if(Math.abs(d.delta)>0.05){const k=d.mode,cur=state[k]?.[selected]||0,st=niceStep(0.1*UNIT[unit]);setEdit(k,cur+(k==='offset'?toMM(Math.round(d.delta*UNIT[unit]/st)*st):Math.round(d.delta)))}else applyExplode();return}
   if(!down||Math.hypot(ev.clientX-down.x,ev.clientY-down.y)>10)return;
   if(down.cube){const cv=cubeHit(ev);if(cv)viewFrom(cv);return}
+  if(seamMode&&edgeLines.visible){const k=edgeAt(ev);if(k!==null)toggleSeam(k);return}   // choosing seams: a click is for an edge, never for a part
   const h=hit(ev);if(h&&(h.object.userData.gizmo||h.object.userData.ring!==undefined))return;
   if(h&&(h.object.userData.ax!==undefined||h.object.userData.axline!==undefined)){if(ev.altKey){const list=axisList(),i=h.object.userData.ax?h.object.userData.ax.i:h.object.userData.axline;   // alt-click an axis or its end: drop that fan (the last one stays — a radial job has to turn about something) or that branch
       if(list.length>1||lineParam()==='branches'){state[lineParam()]=dropLine(i);renderFields();slice()}
@@ -1396,10 +1418,74 @@ function renderSheets(svgs){
   // status line: what is selected (so a click is never silent)
   if(selected)status(`${$('#status').textContent.replace(/ · selected.*$/,'')} · selected ${selected}`);
   for(const p of $$('#sheets path[data-label]'))if(bad.has(p.dataset.label))p.setAttribute('stroke','#ff5555');
-  $('#sheets').onclick=e=>{const a=e.target.closest('a[data-open]');if(a){const s=$$('#sheets svg')[+a.dataset.open];window.open(URL.createObjectURL(new Blob([s.outerHTML],{type:'image/svg+xml'})));return}
+  $('#sheets').onclick=e=>{const a=e.target.closest('a[data-open]');if(a){const s=$$('#sheets svg')[+a.dataset.open].cloneNode(true);s.querySelector('g.seams')?.remove();window.open(URL.createObjectURL(new Blob([s.outerHTML],{type:'image/svg+xml'})));return}
+    const edge=e.target.closest('line.hit');if(edge)return toggleSeam(+edge.dataset.k);   // choosing seams: an edge of the net
     const p=e.target.closest('path[data-label]');if(!p)return;const lab=pieceToSlice()[p.dataset.label],m=parts.children.find(c=>c.userData.slice===lab);if(m)highlight(m)};
   if(selected)hlSheet(selected);
+  sheetSeams();
 }
+// ---------------------------------------------------------------- choosing the seams (folded panels)
+// The unfolder decides which edges are folds and which are seams. `choose seams` lets the user put a seam on an edge:
+// the plan lists every edge (edges3d: [k, fold | seam | chosen, end, end, way out]) and where each lies on its sheet
+// (a piece's `edges`: [k, x0, y0, x1, y1]). A click on an edge, on the model or on a sheet, adds it to `seams` by its
+// two ends or takes it out again, and the re-slice lays the panels out round the seams that are left. The edge under
+// the pointer lights up in both views at once, so a seam picked on the net is seen on the model and the other way.
+const SEAMC={fold:0xc9cad0,seam:0xE69F00,chosen:0x56B4E9,hover:0xF0E442};   // Okabe-Ito; the line style carries the meaning (thin, dashed, thick)
+const SEAMTIP={fold:'<b>fold</b><br>click: put a seam here',seam:'<b>seam</b> the program chose<br>click: make it yours, so it stays a seam',chosen:'<b>your seam</b><br>click: the program decides this edge again'};
+const edgeLines=new THREE.Group(), rodGeo=new THREE.CylinderGeometry(1,1,1,6), seamRod=new THREE.Mesh(rodGeo,new THREE.MeshBasicMaterial({color:SEAMC.hover,depthTest:false}));
+seamRod.renderOrder=3; seamRod.matrixAutoUpdate=false; seamRod.visible=false; edgeLines.visible=false; scene.add(edgeLines,seamRod);   // the lit edge draws through the model: an edge picked on a sheet may be on the far side
+let seamMode=false, seamHover=null, seamSegs=new Map(), seamR=1;   // seamHover: the edge under the pointer (its k); seamSegs: k → its line in the 3D view
+const rodAt=(A,B,r,M=new THREE.Matrix4())=>{const d=B.clone().sub(A),L=d.length()||1e-6;return M.compose(A.clone().lerp(B,.5),new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),d.divideScalar(L)),new THREE.Vector3(r,L,r))};
+function rods(segs,r,color){const m=new THREE.InstancedMesh(rodGeo,new THREE.MeshBasicMaterial({color}),segs.length);segs.forEach(([A,B],i)=>m.setMatrixAt(i,rodAt(A,B,r)));m.frustumCulled=false;return m}   // one draw for every rod; its own bounds are the unit rod's, so never culled
+const seamEdge=k=>plan?.edges3d?.find(e=>e[0]===k);
+const sameEnds=(l,e)=>{const n=(p,q)=>Math.max(...p.map((v,i)=>Math.abs(v-q[i])))<0.05;return n(l[0],e[2])&&n(l[1],e[3])||n(l[0],e[3])&&n(l[1],e[2])};   // a seam is kept by its two ends, either way round
+const seamsFolded=()=>+$('#fold').value===1&&+$('#explode').value===1&&+$('#steps').value===+$('#steps').max;   // the edges are the folded model's
+function showSeamLines(){edgeLines.visible=seamMode&&seamsFolded();$('#seam_off').hidden=!seamMode||edgeLines.visible;if(!edgeLines.visible)seamRod.visible=false}
+function renderSeams(){
+  for(const o of edgeLines.children){if(o.geometry!==rodGeo)o.geometry.dispose();o.material.dispose()} edgeLines.clear(); seamSegs=new Map(); seamLit(null);
+  const E=plan?.edges3d; if(!E){if(seamMode)setSeamMode(false);return syncSeams()}
+  // a hair outside the surface, so a line is not half sunk in the sheet it lies on; rods as thick as the model is big
+  const big=Math.max(...plan.bbox), out=big*0.002+0.05, dash=big*0.03+1, by={fold:[],seam:[],chosen:[]}; seamR=big*0.004+0.15;
+  for(const e of E){const n=V3(e[4]).multiplyScalar(out),A=V3(e[2]).add(n),B=V3(e[3]).add(n);seamSegs.set(e[0],new THREE.Line3(A,B));by[e[1]].push([A,B])}
+  edgeLines.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(by.fold.flat()),new THREE.LineBasicMaterial({color:SEAMC.fold,transparent:true,opacity:.75})));
+  const dashes=[];for(const [A,B] of by.seam){const n=Math.max(1,Math.round(A.distanceTo(B)/dash));for(let i=0;i<n;i++)dashes.push([A.clone().lerp(B,(i+.2)/n),A.clone().lerp(B,(i+.8)/n)])}
+  if(dashes.length)edgeLines.add(rods(dashes,seamR*.6,SEAMC.seam)); if(by.chosen.length)edgeLines.add(rods(by.chosen,seamR*1.4,SEAMC.chosen));
+  showSeamLines(); syncSeams(); dirty=true}
+function sheetSeams(){
+  for(const g of $$('#sheets g.seams'))g.remove(); $('#sheets').classList.toggle('choosing',seamMode); if(!plan?.edges3d)return;
+  const kind=new Map(plan.edges3d.map(e=>[e[0],e[1]])), svgs=$$('#sheets svg'), out=svgs.map(()=>['','']);
+  for(const s of plan.slices)for(const pc of s.pieces){const i=pc.place[0],H=svgs[i]?.viewBox.baseVal.height;if(!H)continue;   // the sheet is drawn y up: y → height − y
+    for(const [k,x0,y0,x1,y1] of pc.edges||[]){const at=`data-k="${k}" x1="${x0}" y1="${+(H-y0).toFixed(3)}" x2="${x1}" y2="${+(H-y1).toFixed(3)}"`;
+      out[i][0]+=`<line class="hit" ${at}/>`;if(kind.get(k)==='chosen')out[i][1]+=`<line class="mine" ${at}/>`}}
+  svgs.forEach((svg,i)=>svg.insertAdjacentHTML('beforeend',`<g class="seams">${out[i][1]}${out[i][0]}</g>`))}
+function syncSeams(){const E=plan?.edges3d||[], n=k=>E.filter(e=>e[1]===k).length, mine=n('chosen'), lost=Math.max(0,(state.seams||[]).length-mine), c=$('#seam_n');
+  if(c)c.textContent=E.length?`${mine} chosen by you · ${n('seam')} by the program${lost?` · ${lost} of yours on no edge now`:''}`:'no edges yet';
+  for(const b of $$('[data-seams="mode"]')){b.textContent=seamMode?'✓ done choosing':'✂ choose seams';b.disabled=!E.length&&!seamMode}
+  for(const b of $$('[data-seams="clear"]'))b.disabled=!(state.seams||[]).length;
+  for(const k of ['fold','seam','chosen'])$('#sl_'+k).textContent=`(${n(k)})`}
+function seamLit(k,ev){   // the edge under the pointer, lit on the model and on every sheet it lies on, with what a click will do
+  if(k!==seamHover){seamHover=k; for(const l of $$('#sheets line.hov'))l.remove();
+    if(k!==null)for(const l of $$(`#sheets line.hit[data-k="${k}"]`)){const c=l.cloneNode();c.setAttribute('class','hov');l.parentNode.append(c)}
+    const L=k!==null&&edgeLines.visible&&seamSegs.get(k); seamRod.visible=!!L; if(L)rodAt(L.start,L.end,seamR*2,seamRod.matrix); dirty=true}
+  const t=$('#seamtip'), e=k!==null&&ev&&seamEdge(k); t.hidden=!e; if(e){t.innerHTML=SEAMTIP[e[1]];t.style.left=ev.clientX+16+'px';t.style.top=ev.clientY+14+'px'}}
+function edgeAt(ev){   // the edge nearest the point of the model under the pointer, within 14 px of it
+  if(!edgeLines.visible)return null; ray.setFromCamera(ndc(ev),camera);const h=ray.intersectObjects(parts.children.filter(m=>m.visible))[0];if(!h)return null;
+  let best=null,bd=14*2*h.distance*Math.tan(camera.fov*Math.PI/360)/renderer.domElement.getBoundingClientRect().height;const q=new THREE.Vector3();
+  for(const [k,L] of seamSegs){const d=L.closestPointToPoint(h.point,true,q).distanceTo(h.point);if(d<bd){bd=d;best=k}}
+  return best}
+function toggleSeam(k){const e=seamEdge(k);if(!e)return;const list=state.seams||[],was=list.some(l=>sameEnds(l,e));
+  state.seams=was?list.filter(l=>!sameEnds(l,e)):[...list,[e[2],e[3]]];
+  e[1]=was?'seam':'chosen';   // shown at once on both views; the slice that follows lays the panels out again and says what the other edges became
+  act(`${was?'gave back':'chose'} a seam (${state.seams.length} chosen)`); renderSeams(); sheetSeams(); schedule()}
+function clearSeams(){if(!(state.seams||[]).length)return;state.seams=[];for(const e of plan?.edges3d||[])if(e[1]==='chosen')e[1]='seam';act('cleared the chosen seams');renderSeams();sheetSeams();schedule()}
+function foldUp(){$('#explode').value=1;$('#steps').value=$('#steps').max;$('#fold').value=1;applyExplode();applyFold()}
+function setSeamMode(on){seamMode=!!on&&!!plan?.edges3d; if(seamMode){deselect();foldUp()} else seamLit(null);
+  $('#seampanel').hidden=!seamMode; $('#sheets').classList.toggle('choosing',seamMode); showSeamLines(); syncSeams(); dirty=true}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-seams]');if(!b)return;const a=b.dataset.seams;a==='mode'?setSeamMode(!seamMode):a==='clear'?clearSeams():foldUp()});
+renderer.domElement.addEventListener('pointermove',ev=>{if(seamMode&&!drag&&!ev.buttons)seamLit(edgeAt(ev),ev)});
+renderer.domElement.addEventListener('pointerleave',()=>seamLit(null));
+$('#sheets').addEventListener('pointermove',e=>{if(seamMode){const l=e.target.closest?.('line.hit');seamLit(l?+l.dataset.k:null,e)}});
+$('#sheets').addEventListener('pointerleave',()=>seamLit(null));
 function applyFix(set){act('clicked a fix');for(const [k,v] of Object.entries(set)){if(v&&typeof v==='object'&&!Array.isArray(v))state[k]={...(state[k]||{}),...v};else if(Array.isArray(v)&&['skip','extra_x','extra_y'].includes(k))state[k]=[...new Set([...(state[k]||[]),...v])];else state[k]=v}renderFields();slice()}
 // what the printed prototype parts come out at — and the re-plan the server does when that is under the printer's minimum
 // a printed job is printed as it is: full size, with the job's own slot offset (its machine's, for that printer)
@@ -1733,7 +1819,7 @@ window.laminaFeedback?.({bug:async withModel=>{
   sheets:ls('slicer_sheets',[]).filter(s=>!s[2]||s[2]===fam()).map(([n,s])=>[n,s]),units:state.units},null,1)})});
 
 // test and capture hook (tests/test_ui.py, scripts/media/capture.mjs)
-window.__t={sizeAxes:()=>sizeAxes(),target:()=>controls.target,banner:()=>banner.visible?banner.userData.text:'',parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>plan,job:()=>job,
+window.__t={seams:()=>({mode:seamMode,hover:seamHover,shown:edgeLines.visible,segs:seamSegs}),sizeAxes:()=>sizeAxes(),target:()=>controls.target,banner:()=>banner.visible?banner.userData.text:'',parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>plan,job:()=>job,
   fold:s=>{$('#fold').value=s;applyFold();renderer.render(scene,camera)},
   idle:()=>!timer&&!busy,   // no change waiting out its debounce, no slice running: what a test or a capture waits for
   ghost:()=>ghost.children,ghostUrl:()=>ghostUrl,pivot:()=>pivot3&&rnd(pivot3),
