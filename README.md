@@ -427,11 +427,14 @@ web/app.py  (FastAPI)  ──▶  core/plan.py  ──▶  plan.json ──▶  
 web/static/index.html         │                            ──▶  core/solid.py    assembled / per-part STL, 3MF prototype set (core/step.py: the same as STEP)
 (three.js, live)              ▼                            ──▶  browser          3D view from the facets in plan.json
                      core/modes/*.py   one file per technique (plug-in): Slice objects with a frame + cuts (+ facets)
+                                       (connectors.py: the dowels, pegs and spacers of the stacked family)
                      core/unfold.py    mesh → flat panels (greedy flattest-edge spanning tree, overlap-checked)
                      core/notch.py     slots where families cross (ray casts, ratio, flare, relief)
                      core/checks.py    physical checks and auto-fix
                      core/split.py     split oversize parts with puzzle tabs      core/nest.py  outline nesting
+                     core/nofit.py     no-fit polygons: where a part may go beside the parts already on a sheet
                      core/geometry.py  frames, mesh sections → shapely polygons, dowel shapes
+                     core/labels.py    the room a label takes, where it fits on a part, where it goes on the sheet
                      core/mesh.py      the model loaded, sized, mended, kept for the next slice    core/remesh.py  modify form
                      core/identical.py which parts are one part in several copies    core/progress.py  stages and their timing
 ```
@@ -474,7 +477,7 @@ The `test` workflow runs the suite on every push and pull request; `docker` and 
 and `pages` deploys nothing until the built site has sliced with every technique in a real browser.
 
 Two of them drive a real browser, because that is where the bugs people report actually live:
-[tests/test_ui.py](tests/test_ui.py) runs the app against a real server and does what a person does — fills every
+[tests/ui](tests/ui) runs the app against a real server and does what a person does — fills every
 box of every technique and checks each value reached the plan, walks the undo history end to end and back, uploads
 a broken model, saves and reopens a project, downloads the cut files — and fails on any uncaught JavaScript error
 or a status line that never settles. [tests/test_e2e_site.py](tests/test_e2e_site.py) does the same for the
@@ -492,7 +495,7 @@ uv run pytest tests -n auto             # pipeline, nesting, checks, export, the
 uv run --with pytest-cov pytest --cov=core --cov=web --cov-report=term-missing   # coverage: 88 % of core + web
 uv run python tests/browser_env.py working-files/jobs   # the whole matrix without the compiled extras Pyodide lacks
 uv run playwright install chromium
-LAMINA_UI=1 uv run pytest tests/test_ui.py   # the app itself, driven like a person: every parameter, undo, no number cut off (20 min)
+LAMINA_UI=1 uv run pytest tests/ui   # the app itself, driven like a person: every parameter, undo, no number cut off (20 min)
 python deploy/build_site.py
 LAMINA_E2E=1 uv run pytest tests/test_e2e_site.py   # the built site, end to end, in Chromium
 uv run python tests/test_unfold.py      # folded-panel correctness: refold, area, seams, joints (a few minutes)
@@ -508,10 +511,10 @@ Actions tab), and committed back to main, so they always show the version people
 
 ```text
 core/        planner, modes, unfold, notch, checks, nest, split, export, solid
-web/         FastAPI app + single-page UI (vendored three.js)
+web/         FastAPI app + single-page UI: static/index.html (markup), static/js/ (one module per concern), static/app.css; vendored three.js
 examples/    24 test models: 18 synthetic + a scanned head, a porcelain horse statue, three animals and the bunny (terms in examples/README.md)
 docs/        index.html + media/ (the GitHub Pages site), roadmap.md, folded-panels.md, original-slicer-reference.md
-tests/       pytest suite, test_ui.py (the app in a browser), test_unfold.py, run_matrix.py
+tests/       pytest suite, ui/ (the app in a browser), test_unfold.py, run_matrix.py
 ```
 
 ### Serving the docs

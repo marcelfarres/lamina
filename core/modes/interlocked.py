@@ -2,7 +2,7 @@ import numpy as np
 import shapely
 from shapely.geometry import LineString, Point
 from . import Mode, Param, register, spacing_params
-from ..model import Slice
+from ..model import LOOSE, Slice, kind_of
 from ..geometry import as_multi, frame, rot_about, section_polygons, to_local, to_world
 from ..notch import interlock
 
@@ -90,9 +90,9 @@ class Interlocked(Mode):
         loose = {}                                       # (slice, region) → its group's key
         for sl in xy:
             for e in sl.errors:
-                if "floats" in e or "no crossing" in e or "not connected" in e:
-                    key = e.split("separate group: ")[1].split(")")[0] if "separate group" in e else sl.label
-                    for r in [int(e.split()[1]) - 1] if e.startswith("region") else range(len(sl.profile.geoms)):
+                if kind_of(e) in LOOSE:
+                    key = ", ".join(e.about["group"]) if kind_of(e) == "not-connected" else sl.label
+                    for r in [e.about["region"]] if "region" in e.about else range(len(sl.profile.geoms)):
                         loose[(sl.label, r)] = key
         parent = {}
 

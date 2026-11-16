@@ -53,6 +53,9 @@ What changed in each release. The GitHub release for a version is this section, 
   take under the minimum part or feature size keeps its edges and warns how far it presses into the next panel.
 - **No more specks beside a folded panel in stiff sheet.** Trimming a corner against the next panel could leave a
   crumb a fraction of a millimetre long, reported as a part too small to cut.
+- **A project file from a download zip opens at its own size.** The project file inside a downloaded zip was marked
+  as made by an older Lamina, so opening it worked the model's size out again, as for an old file. It is now marked
+  with the current version, like a project you save yourself.
 
 ## 0.3.3
 
