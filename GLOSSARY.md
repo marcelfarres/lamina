@@ -47,3 +47,15 @@ The words Lamina uses for its parts. One word for one thing.
 - **Cut-back**: the strip taken off a seam edge so that stiff panels do not occupy the same corner.
 - **Window**: an opening cut in a face, the shape of the face. The **frame** is what is left round it.
 - **Tab**: a flap on a seam edge that is glued to the next panel. On a printed panel a tab is only as thick as the skin.
+
+## Library
+
+- **Model**: the 3D shape that is uploaded or picked from the examples. Not a *project*.
+- **Project**: a model together with the technique, all settings, a name and a revision. One model can be in many
+  projects.
+- **Revision**: one saved state of a project, numbered `1.0`, `1.1`, `2.0`. A project keeps every revision until it
+  is deleted.
+- **Library**: the page that shows your projects and the examples, each with a preview.
+- **Example**: a model that comes with Lamina. An example is read-only. When you save it, it becomes a project of
+  yours.
+- **Linked folder**: a folder on your computer that holds the library as files, one file for each revision.
