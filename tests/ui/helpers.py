@@ -26,7 +26,7 @@ def plan(page):
 
 def menu(page, item):
     """Press an item of a header menu: the menu opened first, as a person does."""
-    page.click(f"details.menu:has({item}) > summary"); page.click(item)
+    page.click(f"details.menu:has({item}) > summary"); page.click(f"details.menu {item}")
 
 
 def state(page):

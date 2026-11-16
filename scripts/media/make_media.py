@@ -47,6 +47,8 @@ CLIPS = {                             # name: (crop, width, fps)
     "spacing": (FULL, 1200, 16),      # the spacing graph in the form: ticked on, a shape picked, a point dragged, follow the model
 }
 
+POSTER = {"spacing": 54}             # the frame a clip's poster is, where the first one does not show its subject (the graph opens at frame 8)
+
 
 def px(crop):
     return tuple(v * S for v in crop)
@@ -92,7 +94,7 @@ for name, (crop, width, fps) in CLIPS.items():
         w = width - width % 2
         im = im.resize((w, (round(im.height * w / im.width)) // 2 * 2), Image.LANCZOS)
         im.convert("RGB").save(tmp / f"{i:03d}.png")
-    save(Image.open(tmp / "000.png"), OUT / f"{name}_poster.jpg", width)
+    save(Image.open(tmp / f"{POSTER.get(name, 0):03d}.png"), OUT / f"{name}_poster.jpg", width)
     if not ffmpeg:
         print("no ffmpeg, skipping", name); continue
     out = OUT / f"{name}.mp4"                     # the page plays mp4 only (h264 plays everywhere)

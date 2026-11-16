@@ -103,7 +103,7 @@ function spcDraw(name){
   // the selected point's two numbers, to type; not redrawn under the cursor while one is being typed
   const row=box.querySelector('.pt'), raw=state[name]||[], u=deg?'°':esc(ST.unit);
   if(!(sel>=0&&sel<raw.length)){row.dataset.sel='';row.innerHTML='<span class="hint">click a point to type its numbers</span>';return}
-  const end=sel===0||sel===raw.length-1, at=deg?+(raw[sel][0]*180).toFixed(1):sp?inU(raw[sel][0]*L):null, gap=deg?raw[sel][1]:inU(raw[sel][1]), key=`${sel}/${raw.length}/${at==null}`;
+  const end=sel===0||sel===raw.length-1, at=deg?+(raw[sel][0]*180).toFixed(1):sp?n3(inU(raw[sel][0]*L)):null, gap=n3(deg?raw[sel][1]:inU(raw[sel][1])), key=`${sel}/${raw.length}/${at==null}`;
   // the same point still: its numbers change in place, so a button of the row is the same button from press to release
   if(row.dataset.sel===key){for(const [k,v] of [['t',at],['v',gap]]){const el=row.querySelector(`[data-spc=${k}]`);if(el&&el!==document.activeElement)el.value=v}return}
   row.dataset.sel=key;

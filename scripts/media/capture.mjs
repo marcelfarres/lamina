@@ -314,13 +314,13 @@ S.spacing = async () => {
     await params({ distribution: "count", count: 18, connect: "dowel", dowel_d: 4, n_points: 2, spacing_vary: false, spacing_min: 3, spacing_max: 30,
                    orient_mark: true, label_place: "part" });
     await view(-50, 14, 1.0);
-    const show = () => js("document.querySelector('.f[data-p=spacing_vary]').scrollIntoView({block:'start'})");
+    const show = () => js("document.querySelector('.sec[data-sec=Spacing]').scrollIntoView({block:'start'})");
     await show(); await sleep(300);
     let x0, y0, y1;
     await clip("spacing", 96, async i => {
         if (i === 8) { await set("spacing_vary", true); await settle(); await show(); }
         else if (i === 20) await spcPress("data-arg=ends");
-        else if (i === 32) { [x0, y0] = await spcPoint(0.5, (await js("window.__t.state().spacing_curve[1][1]"))); [, y1] = await spcPoint(0.5, 8); await mouse("mousePressed", x0, y0, { clickCount: 1 }); }
+        else if (i === 32) { [x0, y0] = await spcPoint(0.5, (await js("window.__t.state().spacing_curve[1][1]"))); [, y1] = await spcPoint(0.5, 15); await mouse("mousePressed", x0, y0, { clickCount: 1 }); }
         else if (i > 32 && i <= 44) await mouse("mouseMoved", x0, y0 + (y1 - y0) * (i - 32) / 12);
         else if (i === 45) { await mouse("mouseReleased", x0, y1, { clickCount: 1 }); await settle(); }
         else if (i === 58) await spcPress("data-arg=model");

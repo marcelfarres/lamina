@@ -15,7 +15,7 @@ def test_a_report_is_gathered_while_the_slicer_is_stuck(page):
     settle(page)
     page.evaluate("""() => { const real = window.fetch;   // the slicer is busy: whatever asks it for the model waits forever
         window.fetch = (u, o) => /\\/source/.test(String(u)) ? new Promise(() => {}) : real(u, o) }""")
-    menu(page, "header [data-feedback]")                  # the report dialog, as the reporter opens it
+    menu(page, "[data-feedback]")                     # the report dialog, as the reporter opens it
     got = page.evaluate("""() => Promise.race([
         window.__feedback.build().then(async fd => JSON.parse(await fd.get('project').text()).model?.name ?? 'no model'),
         new Promise(r => setTimeout(() => r('still gathering after 10 s'), 10000))])""")
