@@ -22,7 +22,8 @@ from ezdxf import units as dxfunits
 from shapely import affinity
 from shapely.geometry import MultiPolygon, Polygon, box
 from .font import strokes as glyphs
-from .geometry import as_multi, label_box, label_rect, poly_coords
+from .geometry import as_multi, poly_coords
+from .labels import label_box, label_rect
 
 COLORS = {"OUTER": "#0055ff", "INNER": "#00aa00", "SCORE": "#d4a800", "GUIDE": "#ff8800", "LABEL": "#ff0000"}
 RGB = {k: tuple(int(v[i:i + 2], 16) / 255 for i in (1, 3, 5)) for k, v in COLORS.items()}

@@ -133,8 +133,8 @@ class Curve(Mode):
                 continue
             out.append([i, a, b, d, L, ns, J])
         lobes, b3d = Radial._parted(ctx, [((a + b) / 2, d, L / 2, ns) for _, a, b, d, L, ns, _ in out], [br[0] + 1 for br in out])
-        ctx.axes3d = [[[float(x) for x in q] for q in seg] for seg in ctx.p["branches"] or []]    # as the table has them
-        ctx.bounds3d = [{"label": f"J-{i + 1}", "M": np.round(J, 6).tolist(), "size": round(0.6 * L, 1)} for i, _, _, _, L, _, J in out] + b3d
+        ctx.view["axes3d"] = [[[float(x) for x in q] for q in seg] for seg in ctx.p["branches"] or []]    # as the table has them
+        ctx.view["bounds3d"] = [{"label": f"J-{i + 1}", "M": np.round(J, 6).tolist(), "size": round(0.6 * L, 1)} for i, _, _, _, L, _, J in out] + b3d
         for br, lobe in zip(out, lobes):
             i, a, b, d, L, ns, J = br
             cell = [(J[:3, 3], J[:3, 2])] + lobe; nb = max(1, round(L / pitch)); secs = []
@@ -205,8 +205,8 @@ class Curve(Mode):
         Q, s = resample(pts)
         W = self.across(ctx, Q[:, 0], u, eu, ew)                 # the curve's third coordinate: through the body, not the box
         C = ctx.mid + np.outer(Q[:, 0], eu) + np.outer(Q[:, 1], ev) + np.outer(W, ew)
-        ctx.curve3d = C.tolist()                                 # for the 3D view
-        ctx.curve_pts = [[float(a), float(b), float(c)] for (a, b), c in zip(pts, self.across(ctx, pts[:, 0], u, eu, ew))]
+        ctx.view["curve3d"] = C.tolist()                                 # for the 3D view
+        ctx.view["curve_pts"] = [[float(a), float(b), float(c)] for (a, b), c in zip(pts, self.across(ctx, pts[:, 0], u, eu, ew))]
         n = p["count"] if p["distribution"] == "count" else max(1, int(s[-1] // p["spacing"]))
         br = self._branches(ctx, ew, C, s[-1] / (n + 1))
 

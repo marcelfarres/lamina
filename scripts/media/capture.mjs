@@ -26,10 +26,10 @@ const until = async (expr, tries = 400) => { for (let i = 0; i < tries; i++) { i
 const settle = async () => { await until("window.__t.idle()", 960); await sleep(400); };   // the fine-remeshed head takes ~30 s a slice
 const png = async (name, clip) => { const s = await send("Page.captureScreenshot", { format: "png", ...(clip ? { clip } : {}) }); fs.writeFileSync(`${OUT}/${name}.png`, Buffer.from(s.data, "base64")); };
 const shot = async name => { await png(name); await project(name); console.log("shot", name, await verdict()); };
-// the scene as a project file (what "save project" writes, minus the model: it names the bundled example),
+// the scene as a project file (the page's own, as "save project" writes it, minus the model: it names the bundled example),
 // so a reviewer can open it in the app and see exactly this
 fs.mkdirSync("working-files/review", { recursive: true });
-const project = async name => fs.writeFileSync(`working-files/review/${name}.lamina.json`, await js(`JSON.stringify({version:3,name:'Lamina demo ${name}',rev:'1.0',mode:location.hash.slice(1),unit:window.__t.state().units||'mm',state:window.__t.state(),example:document.querySelector('#example').value})`));
+const project = async name => fs.writeFileSync(`working-files/review/${name}.lamina.json`, await js(`window.__t.project().then(p => JSON.stringify({...p, name: 'Lamina demo ${name}'}))`));
 
 // one parameter by its name: number / range / select / checkbox; a vector sets p_name_0, p_name_1, ...
 // (the form listens for 'input' delegated, the view controls for 'change' — fire both)
