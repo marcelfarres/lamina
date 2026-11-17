@@ -99,8 +99,8 @@ sheet before you commit expensive material.
   send. **Email needs no account anywhere**; an issue is public, an email is not.
 - **[The issue form](https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml)**, filled in by
   hand. It asks for the model and the settings that reproduce the problem; the quickest way to give both is
-  **save project** in the UI, which writes one file with the model embedded and every parameter in it — the same
-  file the button attaches.
+  **export** on the project in the library, which downloads one file with the model embedded and every parameter
+  in it — the same file the button attaches.
 
 **A question, an idea, or stuck on a build?** Ask in [r/Lamina3D](https://www.reddit.com/r/Lamina3D) on Reddit or on the
 [Lamina Discord](https://discord.gg/N66bCQxmt3), where
@@ -239,7 +239,7 @@ stranger's 2 GB scan is not yours to hold. `WEB_CONCURRENCY` is how many slices 
 time (one uvicorn worker each, about 300 MB). Lamina still has no login of its own, so put it behind your reverse
 proxy's authentication if the server is reachable from the internet.
 
-The Model tab opens on a bundled example; [examples/](examples/README.md) holds 24 of them, and each opens on the
+The page opens on a bundled example, and the library shows them all; [examples/](examples/README.md) holds 24 of them, and each opens on the
 technique and parameters that suit it ([examples/presets.json](examples/presets.json) — the shape standing the right
 way up, sliced without an error; a test keeps that true). The same pipeline runs headless, so it can be scripted:
 
@@ -371,7 +371,7 @@ does not slip through. It carries the most signal for stacked and folded work; d
   fit test** (Downloads) is at 1:1 for the real machine and predicts the model's fit; the **print fit test**
   (Prototyping) dials in the print's own **print slot offset**, in printed millimetres whatever the scale, which the
   prototype set uses in place of the job's.
-- **Every zip carries the project file** (`….lamina.json`) that the UI's *open project* reads back: technique, every
+- **Every zip carries the project file** (`….lamina.json`) that the library's *import* reads back: technique, every
   parameter and the uploaded model itself, so a printed part or a cut file found later leads back to what made it.
 
 ### The web UI
@@ -409,8 +409,42 @@ sheets are always the same plan. Hover a parameter name for its help.
 - **View cube**: the cube in the corner of the 3D view turns with the camera; click a face for a flat top, front or
   side view.
 - **Session and projects**: the session belongs to the browser tab, so a refresh resumes where you were; a second tab
-  is a second session, and on a shared server nobody sees anyone else's models or cut files. Project save / open
-  writes one file with the model embedded. Units mm / cm / in for every length field and for the DXF.
+  is a second session, and on a shared server nobody sees anyone else's models or cut files. A project is one file
+  with the model embedded ([Your projects](#your-projects)). Units mm / cm / in for every length field and for the DXF.
+
+### Your projects
+
+A project is a model with its technique, every setting, a name and a revision. **save** in the top bar puts the
+open project into the library; until then "● unsaved changes" shows beside the button. **library** opens a page
+with a card for each project, newest first: a picture of the model, the name, the revision and the date. Click a
+card to open the newest revision. A card with more than one revision has an "N revisions" badge that lists them,
+each with **open**, **export** and **delete**. A find box filters the cards by name. Opening a project or an example
+while there are unsaved changes asks first.
+
+Save writes the revision you are on. The `+0.1` and `+1` buttons start a new revision at the next free number:
+with 1.0 to 1.3 saved, `+0.1` from 1.0 gives 1.4. Every revision stays until you delete it. Change the name and
+save, and it is a new project; the old one stays. A save that would land on another revision that is already
+there asks: replace it, or take the next free number.
+
+The bundled examples are on the same page, under your projects. They cannot be changed or deleted; save an opened
+example and it becomes a project of yours.
+
+Where the projects are kept:
+
+- **In the browser** (every browser). Clearing the site data deletes them, so use **export all** for a backup.
+  **clear my data** does not touch the library.
+- **In a folder on your disk** (Chrome and Edge). **link a folder** on the library page moves the browser's
+  projects into the folder you pick. The folder then is the library: each revision is one `<name>_v<rev>.lamina.json`
+  file, a project file you put there appears in the library, and one you delete is gone. **unlink** leaves the files
+  where they are. The browser asks for permission to the folder again on a later visit, unless you allow it on
+  every visit; until you do, the page says the folder cannot be reached and a save fails instead of going
+  somewhere else.
+
+**export all** makes one zip of every project, the backup that lives somewhere else; **export** on a project or a
+revision downloads just that. **import** (or a drop on the library page) takes project files and such zips, several
+at once. When a project with the same name and revision is already there, it asks whether to replace it or keep
+both. Nothing of this goes to a server: the page reads and writes the projects itself, the same in the local
+version and in the browser version.
 
 ## How it is built
 

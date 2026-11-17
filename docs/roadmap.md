@@ -7,7 +7,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Original | Status | Notes |
 |---|---|---|
 | STL / OBJ import | ✅ | anything trimesh loads (STL, OBJ, 3MF, PLY, OFF, GLB); broken meshes are auto-shrinkwrapped |
-| `.3dmk` project files | ✅ | own format: **project save / open** (`.slicer.json`: technique, every parameter, and the uploaded model embedded) |
+| `.3dmk` project files | ✅ | own format: **save** into the library and open from it, or export and import (`.lamina.json`: technique, every parameter, and the uploaded model embedded) |
 | Fusion Team cloud open / save | — | not applicable (local tool) |
 | Up-axis correction | ✅ | `up_axis` |
 | CAD import (extra) | ✅ | STEP / BREP through CadQuery (`uv sync --extra cad`); IGES not supported (export STEP) |
@@ -79,6 +79,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | One-sheet strip | ✅ | `one_sheet`: everything on one sheet as wide as the stock and as long as it needs |
 | View cube | ✅ | click a face of the cube in the 3D view for a flat view |
 | Session kept by the server | ✅ | refresh, a new tab or another browser resumes the last slice |
+| Project library | ✅ | **library** opens a page of your projects, a preview picture each, and the examples (read-only); **save** writes the open project into it, with "● unsaved changes" beside the button until then; every revision is kept, a bump takes the next free number; kept in the browser (IndexedDB), or in Chrome and Edge in a folder you link, which then is the library (files dropped in appear); **export all** makes one zip, import takes project files and such zips; nothing goes to a server, and **clear my data** keeps it |
 | Identical pieces counted once | ✅ | the plan decides which pieces are the same part (same outline, any quarter turn, same stock): the Parts table lists each once with a quantity and its twins, the per-piece export writes one file named part, material, thickness, quantity (`Z-1 plywood x4`), quantity last and `x1` included, plus `cut-list.txt` with each part's width × height |
 | Mirror images counted once | ✅ | `mirror_ok` (off by default): a part and its mirror image share one file, cut twice and one turned over — only for stock that is the same both sides; the cut list and the table (⇄) name the ones to turn over |
 | Undo / redo | ✅ | Ctrl+Z / Ctrl+Y (or the ↶ ↷ buttons): one step per change that reaches the slicer, technique included; the model itself is not on the stack |

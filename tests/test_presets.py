@@ -15,6 +15,11 @@ def test_every_example_has_a_preset():
     assert set(PRESETS) == {p.stem for p in EXAMPLES.glob("*.stl")}
 
 
+def test_every_example_has_a_preview():
+    have = {p.stem for p in (ROOT / "web/static/examples").glob("*.webp")}
+    assert have == {p.stem for p in (ROOT / "examples").glob("*.stl")}
+
+
 @pytest.mark.parametrize("name", sorted(PRESETS))
 def test_preset_slices_without_an_error(name):
     pr = PRESETS[name]
