@@ -3,6 +3,7 @@ the zip module and the two stores under the library."""
 import base64
 import io
 import json
+import time
 import zipfile
 
 import pytest
@@ -641,7 +642,8 @@ def test_a_save_during_a_link_is_not_lost(page):
         await __t.lib.linkFolder(d, () => {{ s = __t.lib.saveCurrent(() => Promise.resolve('replace')); return Promise.resolve('replace') }});
         await s; return __t.lib.unsaved() }}""")
     disk = on_disk(page)
-    assert json.loads(disk["lamp_v1.0.lamina.json"])["state"]["thickness"] == 4 or unsaved
+    # the save ran after the link, into the folder: the new setting is in the file, and nothing is left unsaved
+    assert json.loads(disk["lamp_v1.0.lamina.json"])["state"]["thickness"] == 4 and unsaved is False
     assert browser_files(page) == []
 
 
@@ -810,3 +812,34 @@ def test_a_save_that_cannot_be_copied_rejects(page):
         try { return __t.lib.saveCurrent(() => Promise.resolve(null)).then(() => 'saved', e => 'rejected ' + e.name) }
         catch (e) { return 'threw ' + e.name } finally { delete s.unclonable } }""")
     assert r == "rejected DataCloneError"
+
+
+# --- linked folder, review round 3 ---
+def test_a_revision_saved_by_another_tab_during_the_link_stays(page):
+    """Another tab saves lamp while the link asks about it: the newer record is not deleted with the one that moved."""
+    name(page, "lamp"); save(page); drop(page, "lamp_v1.0.lamina.json", project("lamp"))
+    old = read_text(page, "lamp_v1.0.lamina.json")
+    newer = json.loads(old); newer["state"]["thickness"] = 9
+    r = page.evaluate(f"""async t => {{ const S = await import('/static/js/store.js'), d = await {LIB};
+        return await __t.lib.linkFolder(d, () => S.browserStore().write('lamp_v1.0.lamina.json', t).then(() => 'keep')) }}""",
+        json.dumps(newer))
+    assert r["skipped"] == ["lamp_v1.0.lamina.json"] and r["changed"] == ["lamp_v1.0.lamina.json"]
+    assert json.loads(read_text(page, "lamp_v1.0.lamina.json"))["state"]["thickness"] == 9   # still in the browser
+    disk = on_disk(page)
+    kept = json.loads(old); kept["rev"] = kept["state"]["rev"] = "1.1"                  # the copy read before: kept beside
+    assert disk["lamp_v1.0.lamina.json"] == project("lamp") and json.loads(disk["lamp_v1.1.lamina.json"]) == kept
+
+
+def test_a_call_before_start_up_waits_for_the_kept_folder(page):
+    """A call made before main.js has run restoreStore() (main.js is held back for a moment, so the library module is
+    loaded and called first) waits for it, and lists the folder, not the browser."""
+    name(page, "lamp"); save(page); folder(page); put(page, "b_v1.0.lamina.json", project("b"))   # b only in the browser
+    page.add_init_script("""if (sessionStorage.__early === '1') { sessionStorage.__early = '';
+        window.__early = import('/static/js/library.js').then(L => L.entries()).then(e => e.map(p => p.name)) }""")
+    held = lambda route: (time.sleep(1.5), route.continue_())
+    page.route("**/static/js/main.js", held)
+    try:
+        page.evaluate("sessionStorage.__early = '1'"); page.reload(); settle(page)
+    finally:
+        page.unroute("**/static/js/main.js", held)
+    assert page.evaluate("window.__early") == ["lamp"]

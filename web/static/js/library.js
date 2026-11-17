@@ -206,7 +206,8 @@ export const unlink=()=>one(async()=>{left=kept?.name||'';await kvDel('folder');
 // One link at a time, and none while a save runs: a second call gets the running one's answer
 export function linkFolder(dir,ask){return linking??=one(()=>link(dir,ask)).finally(()=>{linking=null})}
 async function link(dir,ask){
-  const from=browserStore(), to=folderStore(dir), moved=[], skipped=[];
+  // skipped: left in the browser; changed: those of them another tab saved again while they were being moved
+  const from=browserStore(), to=folderStore(dir), moved=[], skipped=[], changed=[];
   const there=new Map((await to.list()).map(f=>[lc(f.file),f.file])), files=await from.list();
   let rest;
   try{for(const f of files){
@@ -226,7 +227,11 @@ async function link(dir,ask){
     }
     const w=await to.write(dest,text);
     if(await to.read(dest)!==text)throw new Error(`${dest} did not read back as it was written`);
-    await from.remove(file);there.set(lc(dest),dest);moved.push(dest);
+    there.set(lc(dest),dest);
+    // the browser copy goes only if it is still the one that was read: a newer save (another tab, during the question)
+    // stays in the browser, and the folder holds the copy from before under `dest`
+    if(!await from.removeIf(file,got)){skipped.push(file);changed.push(file);continue}
+    moved.push(dest);
     // the revision in hand, moved as this tab last saw it (not as another tab saved it since): still this tab's to save without asking
     const s=ST.saved;
     if(s?.file===file&&dest===file&&s.store?.kind==='browser'&&s.mtime===got.mtime&&s.size===got.size)setSaved({...s,store:{kind:'folder',label:dir.name},mtime:w.mtime,size:w.size});
@@ -234,5 +239,5 @@ async function link(dir,ask){
   try{await kvSet('folder',dir)}
   catch(e){throw new Error(`Linking ${dir.name} stopped (${e.message||e.name}). The revisions were moved into ${dir.name}, but the folder is not linked: link it again.`)}
   left='';linked(dir,true);
-  return {moved,skipped};
+  return {moved,skipped,changed};
 }

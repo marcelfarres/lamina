@@ -4,9 +4,12 @@ const EXT='.lamina.json';
 
 // one connection per call, closed when its transaction ends: a long-held one would block a page in another tab
 // that opens a newer version of the database. All three object stores are made the first time it is opened.
-const open=()=>new Promise((ok,no)=>{const r=indexedDB.open('lamina_library',1);
+// Blocked (another tab holds the database while it must be made or deleted): said at once rather than waited for, so
+// a caller such as the library's start-up never hangs on it; a connection that opens after that is closed again
+const open=()=>new Promise((ok,no)=>{const r=indexedDB.open('lamina_library',1);let late=false;
   r.onupgradeneeded=()=>{const d=r.result;d.createObjectStore('revisions',{keyPath:'file'});d.createObjectStore('kv');d.createObjectStore('index')};
-  r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
+  r.onblocked=()=>{late=true;no(new Error("the browser's database is in use by another Lamina tab: close it, then try again"))};
+  r.onsuccess=()=>{if(late)r.result.close();else ok(r.result)};r.onerror=()=>no(r.error)});
 async function tx(name,mode,fn){
   const d=await open();
   // a call that throws (a value that cannot be stored) still lets go of the database; an abort always rejects with an Error
@@ -25,7 +28,11 @@ export function browserStore(){
     read:async file=>(await record(file)).text,
     // one transaction: either the whole new record is stored or the old one stays
     write:async(file,text)=>{const r={file,text,size:new Blob([text]).size,mtime:Date.now()};await tx('revisions','readwrite',s=>s.put(r));return {size:r.size,mtime:r.mtime}},
-    remove:file=>tx('revisions','readwrite',s=>s.delete(file)).then(()=>{})};
+    remove:file=>tx('revisions','readwrite',s=>s.delete(file)).then(()=>{}),
+    // removed only while it still has the time and size it was read with, checked and deleted in one transaction: a
+    // newer save from another tab stays. True when it is gone (removed here, or already gone)
+    removeIf:(file,{mtime,size})=>tx('revisions','readwrite',s=>{const g=s.get(file),out={result:false};
+      g.onsuccess=()=>{const r=g.result;if(!r||r.mtime===mtime&&r.size===size){if(r)s.delete(file);out.result=true}};return out})};
 }
 
 export function folderStore(dir){
@@ -43,6 +50,8 @@ export function folderStore(dir){
       const made=await dir.getFileHandle(file).then(()=>false,e=>{if(e.name!=='NotFoundError')throw e;return true}), h=await dir.getFileHandle(file,{create:true}), w=await h.createWritable();
       try{await w.write(text);await w.close()}
       catch(e){await w.abort().catch(()=>{});if(made)await dir.removeEntry(file).catch(()=>{});throw e}
+      // ponytail: time and size are read after close(), so a write from outside in those few milliseconds is taken as this
+      // tab's own (its next save does not ask); the File System API gives no way to read them in the same step
       const f=await h.getFile();return {size:f.size,mtime:f.lastModified}},
     remove:file=>dir.removeEntry(file)};
 }
