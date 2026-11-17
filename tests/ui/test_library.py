@@ -221,8 +221,11 @@ def test_snapshot_ignores_selection_ghost_steps_and_explode(page):
             el.value = v ?? el.max; el.dispatchEvent(new Event('input', {bubbles: true})) }
         sel ? __t.select(__t.parts()[1].userData.slice) : __t.deselect(); return __t.snapshot() }"""
     a = page.evaluate(ui, [False, None, 1, False])
-    b = page.evaluate(ui, [True, 3, 2, True])
-    assert page.evaluate("__t.banner()").startswith("step 3")                 # the view did change: short of the end
+    try:
+        b = page.evaluate(ui, [True, 3, 2, True])
+        assert page.evaluate("__t.banner()").startswith("step 3")             # the view did change: short of the end
+    finally:
+        page.evaluate(ui, [True, None, 1, False])   # the view bar's own defaults: no tab's reset puts them back
     assert a.startswith("data:image/") and b == a
 
 
@@ -1148,7 +1151,7 @@ def test_the_library_waits_for_start_up_to_pick_the_store(page):
 def test_a_change_of_size_at_the_same_time_asks(page):
     """A copy written in the same millisecond still asks: size and mtime are compared."""
     name(page, "lamp"); save(page)
-    page.evaluate("""() => new Promise((ok, no) => { const q = indexedDB.open('lamina_library', 1); q.onerror = () => no(q.error);
+    page.evaluate("""() => new Promise((ok, no) => { const q = indexedDB.open('lamina_library'); q.onerror = () => no(q.error);
         q.onsuccess = () => { const t = q.result.transaction('revisions', 'readwrite'), s = t.objectStore('revisions');
             s.get('lamp_v1.0.lamina.json').onsuccess = e => { const r = e.target.result; s.put({...r, text: r.text + ' ', size: r.size + 1}) };
             t.oncomplete = () => { q.result.close(); ok() } } })""")
@@ -1294,7 +1297,8 @@ def test_import_clash_replace_keep_and_rest(page):
     r, asked = import_files(page, [(f"lamp_v{v}.lamina.json", other(v), None) for v in ("1.0", "1.1", "1.2")],
                             [{"answer": "keep", "rest": True}])
     assert asked == [{"name": "lamp", "rev": "1.0", "next": "1.3"}]
-    assert r == {"imported": ["lamp_v1.3.lamina.json", "lamp_v1.4.lamina.json", "lamp_v1.2.lamina.json"], "bad": [], "skipped": []}
+    assert r == {"imported": ["lamp_v1.3.lamina.json", "lamp_v1.4.lamina.json", "lamp_v1.2.lamina.json"], "bad": [], "skipped": [],
+                 "kept": []}
     assert lib(page) == [("lamp", ["1.4", "1.3", "1.2", "1.1", "1.0"])]
     assert read(page, "lamp_v1.0.lamina.json") == json.loads(project("lamp"))   # nothing written over
     assert read(page, "lamp_v1.3.lamina.json")["rev"] == read(page, "lamp_v1.3.lamina.json")["state"]["rev"] == "1.3"
@@ -1307,6 +1311,7 @@ def test_import_clash_replace_keep_and_rest(page):
     put(page, "lamp_v1.5.lamina.json", "not json")
     r, asked = import_files(page, [("c.lamina.json", other("1.5"), None)], ["replace"])
     assert asked == [{"name": "lamp", "rev": "1.5", "next": "1.6"}] and r["imported"] == ["lamp_v1.6.lamina.json"]
+    assert r["kept"] == [{"rev": "lamp v1.5", "as": "1.6", "why": "unreadable"}]
     assert read(page, "lamp_v1.5.lamina.json") == "not json"
 
 
@@ -1317,7 +1322,7 @@ def test_import_reports_bad_files(page):
     t = 1_700_000_000_000                                                      # the File's own date
     r, asked = import_files(page, [("x.lamina.json", "{", None), ("more.zip", z, t), ("junk.zip", b"PK nothing", None)])
     assert asked == [] and r == {"imported": ["egg_v1.0.lamina.json"], "bad": ["x.lamina.json", "pear_v1.0.lamina.json", "junk.zip"],
-                                    "skipped": []}
+                                    "skipped": [], "kept": []}
     after = page.evaluate("__t.lib.entries()")
     egg = next(p for p in after if p["name"] == "egg")["revs"][0]
     assert egg["saved"] == "2023-11-14T22:13:20.000Z" and egg["preview"] == ""  # no date inside: the File's; no picture: none
@@ -1361,10 +1366,13 @@ def test_drop_files_on_the_library(page):
 
 
 # --- the folder line (Task 7, the page) ---
-def note(page):
-    """The message the library page shows in its folder line: what the person sees (the status line is under the page)."""
-    n = page.locator("#libwhere .note"); n.wait_for(state="visible")
-    return n.inner_text()
+def note(page, busy=False):
+    """The message the library page shows in its folder line: what the person sees (the status line is under the page).
+    The result of an action, not its "importing…" or "linking…" (unless `busy`)."""
+    page.locator("#libwhere .note").wait_for(state="visible")
+    if not busy:
+        page.wait_for_function("() => !document.querySelector('#libwhere .note').innerText.endsWith('…')")
+    return page.inner_text("#libwhere .note")
 
 
 def where(page):
@@ -1385,7 +1393,7 @@ def test_link_button_follows_the_browser(page):
     text, buttons = where(page)
     assert text.startswith("💾 kept in this browser only.") and buttons == ["liblink"]
     page.click("#liblink")
-    page.wait_for_function("() => /kept in the folder/.test(document.querySelector('#libwhere').innerText)")
+    page.wait_for_function("() => /kept in the folder lib · 1 file/.test(document.querySelector('#libwhere').innerText)")
     assert page.evaluate("window.__picked") == [{"mode": "readwrite"}]
     text, buttons = where(page)
     assert text.startswith("📁 kept in the folder lib · 1 file") and buttons == ["libchange", "libunlink"]
@@ -1419,7 +1427,7 @@ def test_the_folder_line_when_it_cannot_be_reached(page):
     try:
         page.evaluate("__t.lib.restoreStore()")
         page.click("#libclose"); page.click("#popen")                         # the library button asks, and is refused
-        page.wait_for_function("() => /cannot be reached/.test(document.querySelector('#libwhere').innerText)")
+        page.wait_for_function("() => /Reconnect it/.test(document.querySelector('#libyours').innerText)")
         text, buttons = where(page)
         assert text.startswith("⚠ The linked folder lib cannot be reached.") and buttons == ["libreconnect", "libchange", "libunlink"]
         assert page.inner_text("#libyours") == "Your projects are in lib. Reconnect it to see them here."
@@ -1541,7 +1549,7 @@ def test_revisions_left_in_the_browser_are_said_after_a_reload(page):
     assert page.evaluate("__t.lib.storeState().browser") == 1
     page.reload(); settle(page)
     library(page)
-    assert "1 revision is still in this browser: unlink to see it, or pick the folder again to move it." in where(page)[0]
+    assert "1 revision is still in this browser: unlink to see it, or press change folder and pick lib to move it." in where(page)[0]
 
 
 def test_change_folder_says_where_the_files_stayed(page):
@@ -1570,3 +1578,117 @@ def test_a_save_that_waits_for_reconnect_is_fixed_at_the_press(page):
         page.evaluate("""() => { const P = FileSystemDirectoryHandle.prototype;
             for (const k in window.__perm) window.__perm[k] ? Object.defineProperty(P, k, window.__perm[k]) : delete P[k] }""")
     assert json.loads(on_disk(page)["lamp_v1.0.lamina.json"])["state"]["thickness"] == t
+
+
+# --- texts (Task 9) ---
+def test_clear_my_data_keeps_the_library(page):
+    name(page, "lamp"); save(page)
+    assert "library" in page.get_attribute("#clear", "title")
+    asked = []
+    on_dialog(page, lambda d: (asked.append(d.message), d.accept()))
+    with page.expect_navigation():
+        page.click("#clear")
+    settle(page)
+    assert "The library is kept." in asked[0]
+    assert lib(page) == [("lamp", ["1.0"])]
+
+
+# --- export, import and the folder line, review leftovers (Task 9) ---
+def test_an_import_does_not_read_the_library_again_for_each_file(page):
+    """A listing reads the stored texts of new or changed revisions only: an import of 5 files into a library of 5
+    reads none of the 5 again (it used to read every stored text before each file)."""
+    for n in range(5):
+        put(page, f"old{n}_v1.0.lamina.json", project(f"old{n}"))
+    lib(page)                                                                  # indexed once
+    page.evaluate("""() => { const P = IDBObjectStore.prototype; window.__idb = [P.get, P.getAll]; window.__texts = 0;
+        for (const k of ['get', 'getAll']) { const f = P[k]; P[k] = function (...a) { const r = f.apply(this, a);
+            if (this.name === 'revisions') r.addEventListener('success', () => { window.__texts += [r.result ?? []].flat().length });
+            return r } } }""")
+    try:
+        r, _ = import_files(page, [(f"new{n}.lamina.json", project(f"new{n}"), None) for n in range(5)])
+        texts = page.evaluate("window.__texts")
+    finally:
+        page.evaluate("() => { const P = IDBObjectStore.prototype; [P.get, P.getAll] = window.__idb }")
+    assert len(r["imported"]) == 5 and texts == 0
+    assert sorted(p for p, _ in lib(page)) == [f"new{n}" for n in range(5)] + [f"old{n}" for n in range(5)]
+
+
+def test_a_field_that_cannot_be_text_is_one_bad_file(page):
+    r, _ = import_files(page, [("a.lamina.json", project("a"), None),
+                               ("odd.lamina.json", '{"name":{"toString":1},"mode":"stacked"}', None),
+                               ("b.lamina.json", project("b"), None)])
+    assert r["imported"] == ["a_v1.0.lamina.json", "b_v1.0.lamina.json"] and r["bad"] == ["odd.lamina.json"]
+
+
+def test_a_replace_that_kept_both_says_why(page):
+    put(page, "lamp_v1.0.lamina.json", project("lamp"))
+    two = [(f"{n}.lamina.json", json.dumps({"name": "lamp", "rev": "1.0", "mode": "stacked", "state": {"n": n}}), None) for n in "ab"]
+    r, _ = import_files(page, two, [{"answer": "replace", "rest": True}])
+    assert r["kept"] == [{"rev": "lamp v1.0", "as": "1.1", "why": "twice"}]
+    library(page)
+    with page.expect_file_chooser() as fc:
+        page.click("#libimport")
+    put(page, "egg_v1.0.lamina.json", project("egg"))
+    egg = lambda n: json.dumps({"name": "egg", "rev": "1.0", "mode": "stacked", "state": {"n": n}}).encode()
+    fc.value.set_files([{"name": f"{n}.lamina.json", "mimeType": "application/json", "buffer": egg(n)} for n in "ab"])
+    page.wait_for_selector("#libask[open]")
+    page.check("#libask_rest"); page.click("#libask_replace")
+    page.wait_for_function("() => /^imported/.test(document.querySelector('#libwhere .note')?.innerText)")
+    assert note(page) == "imported 2 files. 1 kept as a new revision instead of replacing: egg v1.0 as v1.1 (this import had that revision twice)"
+
+
+def test_a_saved_date_in_another_form_is_sorted_as_a_date(page):
+    put(page, "old_v1.0.lamina.json", json.dumps({"name": "old", "mode": "stacked", "saved": "Nov 5 2023"}))
+    put(page, "new_v1.0.lamina.json", json.dumps({"name": "new", "mode": "stacked", "saved": "2024-01-01T00:00:00.000Z"}))
+    ps = page.evaluate("__t.lib.entries()")
+    assert [p["name"] for p in ps] == ["new", "old"]
+    assert ps[1]["revs"][0]["saved"] == page.evaluate("new Date('Nov 5 2023').toISOString()")
+
+
+def test_a_number_as_name_opens_under_the_cards_name(page):
+    put(page, "42_v2.lamina.json", json.dumps({"name": 42, "rev": 2, "mode": "stacked", "state": {}}))
+    put(page, "egg_v1.0.lamina.json", json.dumps({"example": "egg", "mode": "stacked", "state": {}}))   # no name: the example's
+    page.evaluate("__t.lib.openRevision('42_v2.lamina.json')"); settle(page)
+    assert [page.evaluate("__t.state().project"), page.evaluate("__t.state().rev")] == ["42", "2"]
+    assert save(page) == [{"file": "42_v2.lamina.json"}, []]
+    page.evaluate("__t.lib.openRevision('egg_v1.0.lamina.json')"); settle(page)
+    assert page.evaluate("__t.state().project") == "egg"
+    assert save(page) == [{"file": "egg_v1.0.lamina.json"}, []]
+    assert sorted(lib(page)) == [("42", ["2"]), ("egg", ["1.0"])]
+
+
+def test_the_note_clears_after_a_good_listing_and_names_five(page):
+    page.evaluate("""() => import('/static/js/store.js').then(S => { const b = S.browserStore();
+        __t.lib.useStore({...b, list: () => Promise.reject(new Error('the list failed'))}) })""")
+    page.click("#popen")
+    assert note(page) == "⚠ the list failed"
+    page.evaluate("import('/static/js/store.js').then(S => { __t.lib.useStore(S.browserStore()); __t.lib.setSaved(null) })")
+    page.wait_for_function("() => document.querySelector('#libyours').dataset.listed && !document.querySelector('#libwhere .note')")
+    with page.expect_file_chooser() as fc:
+        page.click("#libimport")
+    fc.value.set_files([{"name": f"x{n}.lamina.json", "mimeType": "application/json", "buffer": b"{"} for n in range(7)])
+    page.wait_for_function("() => /cannot be read/.test(document.querySelector('#libwhere .note')?.innerText)")
+    assert note(page) == "⚠ imported 0 files. Not imported, as they cannot be read: x0.lamina.json, x1.lamina.json, " \
+                         "x2.lamina.json, x3.lamina.json, x4.lamina.json and 2 more"
+
+
+def test_progress_and_delete_errors_are_said_on_the_page(page):
+    put(page, "lamp_v1.0.lamina.json", project("lamp"))
+    page.evaluate("""() => import('/static/js/store.js').then(S => { const b = S.browserStore();
+        __t.lib.useStore({...b, remove: () => Promise.reject(new Error('the disk said no'))}) })""")
+    try:
+        library(page)
+        with page.expect_file_chooser() as fc:
+            page.click("#libimport")
+        fc.value.set_files([{"name": "lamp.lamina.json", "mimeType": "application/json", "buffer": project("lamp").encode()}])
+        page.wait_for_selector("#libask[open]")
+        assert note(page, busy=True) == "importing 1 file…"
+        page.click("#libask_cancel")
+        page.wait_for_function("() => /skipped/.test(document.querySelector('#libwhere .note')?.innerText)")
+        card(page, "lamp").locator(".more").click(); page.wait_for_selector("#libyours .rev")
+        on_dialog(page, lambda d: d.accept())
+        card(page, "lamp").locator(".delete").click()
+        page.wait_for_function("() => /disk said no/.test(document.querySelector('#libwhere .note')?.innerText)")
+        assert note(page) == "⚠ the disk said no"
+    finally:
+        page.evaluate("import('/static/js/store.js').then(S => __t.lib.useStore(S.browserStore()))")

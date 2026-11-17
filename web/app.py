@@ -177,7 +177,7 @@ def modes():
 # The project file's layout version. The page writes it when it saves, this server writes it into every export zip, and
 # the page reads it back to tell an old project from a current one (before 4 a `size` ran along the view's axes, from
 # 4 on along the model's): one number, here, so no writer can claim a layout it does not write. Bump it when the layout
-# changes, and give the page's openProject the migration for the version below.
+# changes, and give the page's openProjectText (web/static/js/project.js) the migration for the version below.
 PROJECT_VERSION = 4
 
 
@@ -313,7 +313,7 @@ def with_units(plan: dict, units: str) -> dict:
 
 
 def project_file(client: str, jd: pathlib.Path, plan: dict) -> tuple[str, str]:
-    """The job as the project file the UI's "open project" reads back (technique, every parameter, per-technique
+    """The job as the project file the library's import reads back (technique, every parameter, per-technique
     memory, and an uploaded model itself), for the zips: a cut file or a printed part found later has to lead back
     to the model that made it. The session has the parameters as the form holds them; the plan's are the fallback."""
     sess = {}

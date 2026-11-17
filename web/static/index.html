@@ -52,6 +52,19 @@
       change its numbers to move it. Every pair of layers it passes through gets a hole. Two lines hold each layer,
       one lets it turn.</li>
     <li>A layer that nothing joins is never deleted: the Checks tab says so and what would hold it.</li></ul>
+  <h4>Library</h4>
+  <ul><li><b>library</b> in the header opens your saved projects, newest first, each with a picture, and the examples
+      under them. Click a card to open its newest revision; <b>N&nbsp;revisions&nbsp;▾</b> lists the others, each with
+      <b>open</b>, <b>export</b> and <b>delete</b>.</li>
+    <li><b>save</b> writes the revision you are on (the name and the v number beside it). <b>+0.1</b> or <b>+1</b>
+      moves to the next free revision number, and the next save writes it beside the old ones; a revision that is already there is never written over
+      without a question (replace, keep both or cancel). <b>● unsaved changes</b> shows what is not saved yet.</li>
+    <li>Your projects are kept in this browser. In Chrome and Edge, <b>link a folder</b> keeps them as files in a
+      folder on your computer instead; the folder line at the top of the library says which. <b>clear my data</b>
+      leaves the library as it is; clearing the site data in the browser deletes the projects kept in this browser.</li>
+    <li><b>export all (.zip)</b> is your backup: keep it somewhere else. <b>import files…</b> (or drop the files on
+      the library) takes it back, and single <b>.lamina.json</b> files too.</li>
+    <li>An example opens as it is; save it and it becomes a project of yours.</li></ul>
   <h4>Keyboard</h4>
   <ul><li><kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Ctrl</kbd>+<kbd>Y</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redo — the last 60 changes, including a part you moved by accident (⌘ on a Mac); the <b>↶ undo</b> button in the header does the same</li>
     <li><kbd>?</kbd> this help · <kbd>Esc</kbd> close a dialog or deselect</li></ul>
@@ -66,7 +79,7 @@
 <button class="small" id="undo" title="undo the last change (Ctrl+Z)" disabled>↶ undo</button><button class="small" id="redo" title="redo (Ctrl+Y or Ctrl+Shift+Z)" disabled>↷</button>
 <button class="small" id="helpbtn" title="how it works, every shortcut, and what to do when something does not fit (?)">? help</button>
 <button class="small" id="newsbtn" title="what changed in this version, and every version before it">what's new</button>
-<button class="small" id="clear" title="delete everything this tab sliced — uploaded models, cut files, session (presets stay)">clear my data</button>
+<button class="small" id="clear" title="delete everything this tab sliced — uploaded models, cut files, session (presets and the library stay)">clear my data</button>
 <span class="sp"></span><span id="dot" title="green = ready · orange = slicing · red = error"></span><span id="status"></span>
 <label style="font-size:12px;color:var(--muted)">view <select id="viewmode"><option value="both">3D + sheets</option><option value="only3d">3D only</option><option value="only2d">sheets only</option></select></label>
 <label style="font-size:12px;color:var(--muted)">units <select id="unit"><option>mm</option><option>cm</option><option>in</option></select></label>

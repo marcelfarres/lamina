@@ -70,7 +70,7 @@ async function init(){
   whatsNew();
   $('#oops_go').onclick=()=>oops.close('go'); $('#oops_no').onclick=()=>oops.close('');
   phoneNotice();
-  $('#clear').onclick=async()=>{if(!confirm('Delete everything this tab has sliced — uploaded models, cut files and the session? Presets are kept.'))return;await fetch(`api/session?client=${CLIENT}`,{method:'DELETE'});location.reload()};
+  $('#clear').onclick=async()=>{if(!confirm('Delete everything this tab has sliced — uploaded models, cut files and the session? Presets are kept. The library is kept.'))return;await fetch(`api/session?client=${CLIENT}`,{method:'DELETE'});location.reload()};
   $('#pname').oninput=e=>{state.project=e.target.value;schedule();lib.changed()};
   // a bump straight after a refresh lists the library first, so it too lands on a free number
   $('#pminor').onclick=async()=>{await lib.listed();bump(false,lib.revsOf(state.project))}; $('#pmajor').onclick=async()=>{await lib.listed();bump(true,lib.revsOf(state.project))};

@@ -5,9 +5,12 @@ const EXT='.lamina.json';
 // one connection per call, closed when its transaction ends: a long-held one would block a page in another tab
 // that opens a newer version of the database. All three object stores are made the first time it is opened.
 // Blocked (another tab holds the database while it must be made or deleted): said at once rather than waited for, so
-// a caller such as the library's start-up never hangs on it; a connection that opens after that is closed again
-const open=()=>new Promise((ok,no)=>{const r=indexedDB.open('lamina_library',1);let late=false;
-  r.onupgradeneeded=()=>{const d=r.result;d.createObjectStore('revisions',{keyPath:'file'});d.createObjectStore('kv');d.createObjectStore('index')};
+// a caller such as the library's start-up never hangs on it; a connection that opens after that is closed again.
+// Version 2 adds the revisions' size and mtime as an index, so a listing reads no text
+const open=()=>new Promise((ok,no)=>{const r=indexedDB.open('lamina_library',2);let late=false;
+  r.onupgradeneeded=e=>{const d=r.result;
+    if(!e.oldVersion){d.createObjectStore('revisions',{keyPath:'file'});d.createObjectStore('kv');d.createObjectStore('index')}
+    r.transaction.objectStore('revisions').createIndex('meta',['size','mtime'])};
   r.onblocked=()=>{late=true;no(new Error("the browser's database is in use by another Lamina tab: close it, then try again"))};
   r.onsuccess=()=>{if(late)r.result.close();else ok(r.result)};r.onerror=()=>no(r.error)});
 async function tx(name,mode,fn){
@@ -22,9 +25,10 @@ export function browserStore(){
   // the whole record, {file, text, size, mtime}: the text with the time and size it was stored with (linkFolder)
   const record=async file=>{const r=await tx('revisions','readonly',s=>s.get(file));if(!r)throw new Error(`${file} is not in this browser`);return r};
   return {kind:'browser',label:'this browser',record,
-    // ponytail: getAll reads every revision's text to list them, fine for hundreds of small files; a cursor over a
-    // size/mtime index if the library grows past that
-    list:async()=>(await tx('revisions','readonly',s=>s.getAll())).filter(r=>r.file.endsWith(EXT)).map(({file,size,mtime})=>({file,size,mtime})),
+    // the keys of the size/mtime index only: no revision's text is read. Sorted by file, as the records are kept
+    list:async()=>(await tx('revisions','readonly',s=>{const out={result:[]}, c=s.index('meta').openKeyCursor();
+      c.onsuccess=()=>{const k=c.result;if(!k)return;if(k.primaryKey.endsWith(EXT))out.result.push({file:k.primaryKey,size:k.key[0],mtime:k.key[1]});k.continue()};
+      return out})).sort((a,b)=>a.file<b.file?-1:a.file>b.file?1:0),
     read:async file=>(await record(file)).text,
     // one transaction: either the whole new record is stored or the old one stays
     write:async(file,text)=>{const r={file,text,size:new Blob([text]).size,mtime:Date.now()};await tx('revisions','readwrite',s=>s.put(r));return {size:r.size,mtime:r.mtime}},

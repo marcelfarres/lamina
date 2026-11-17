@@ -3,7 +3,7 @@
 // No page here (librarypage.js draws it): every rule is reachable through window.__t.lib.
 import {state, ST} from './state.js';
 import {browserStore, folderStore, idxGet, idxSet, kvGet, kvSet, kvDel} from './store.js';
-import {projectObj, openProjectText, syncProject, nextFree} from './project.js';
+import {projectObj, openProjectText, syncProject, nextFree, nameOf, revOf as revText} from './project.js';
 import {snapshot} from './scene.js';
 import {memo, schedule} from './form.js';
 import {zip, unzip} from './zip.js';
@@ -30,11 +30,11 @@ const sameStore=()=>ST.saved?.store?.kind===store.kind&&ST.saved.store.label===s
 // a file is a project when it is an object with a technique or settings: `{}` or `42` parses, and is not one
 function parse(text){const p=JSON.parse(text);
   if(!p||typeof p!=='object'||Array.isArray(p)||!('state' in p||'mode' in p))throw new Error('not a Lamina project');return p}
-const nameOf=p=>String(p.name||p.model?.name||p.example||'model');
 const isDate=v=>typeof v==='string'&&!isNaN(Date.parse(v));
 // The index entry of a project file, for a listing and an import alike: every field text, whatever the file holds. A
-// number as `saved` made the newest-first sort throw, and with it every listing after: no page, no save, no export
-const entryOf=(at,p)=>({...at,name:nameOf(p),rev:String(p.rev||'1.0'),saved:isDate(p.saved)?p.saved:at.saved,preview:typeof p.preview==='string'?p.preview:''});
+// number as `saved` made the newest-first sort throw, and with it every listing after: no page, no save, no export.
+// A date is kept as ISO text, so newest-first compares dates, not "Nov 5 2023" as text
+const entryOf=(at,p)=>({...at,name:nameOf(p),rev:revText(p),saved:isDate(p.saved)?new Date(p.saved).toISOString():at.saved,preview:typeof p.preview==='string'?p.preview:''});
 // an index entry is trusted only as entryOf makes them: one stored before this rule is read again
 const sane=e=>['name','rev','saved','preview'].every(k=>typeof e?.[k]==='string');
 // one index entry per revision file: what a card needs, without reading the file again
@@ -167,7 +167,7 @@ export const openRevision=file=>one(async()=>{
   await entries();const f=seen.get(lc(file));   // listed before it is read: a change after this makes the next save ask
   const text=await store.read(file), p=parse(text);
   await openProjectText(text,file);
-  setSaved({name:p.name||'',rev:p.rev||'1.0',snap:snap(),file,store:here(),mtime:f?.mtime,size:f?.size});
+  setSaved({name:nameOf(p),rev:revText(p),snap:snap(),file,store:here(),mtime:f?.mtime,size:f?.size});
 });
 
 const unreadable=file=>new Error(`${file} cannot be read, and Lamina does not delete a file it cannot read. Delete it in ${store.label} yourself if you do not need it.`);
@@ -203,33 +203,37 @@ export async function exportAll(){await entries();const s=store, files=[], skipp
 // is written for it. Each revision lands where a save of it would (place); a clash asks as a link does, and
 // {answer, rest:true} answers the rest of them. keep takes a number free in the library and among the files still to
 // come in this call; replace never lands on a file that cannot be read, nor on one this import has just written (two
-// files of one revision): both are kept instead. A skip changes nothing and is named in `skipped`
+// files of one revision): both are kept instead, and named in `kept` with the reason. A skip changes nothing and is
+// named in `skipped`
 export const importFiles=(files,ask)=>one(async()=>{
-  const todo=[], bad=[], imported=[], skipped=[];
+  const todo=[], bad=[], imported=[], skipped=[], both=[];
   for(const f of files){let got;
     try{got=/\.zip$/i.test(f.name)?await unzip(await f.arrayBuffer()):[{name:f.name,text:await f.text()}]}catch(e){bad.push(f.name);continue}
     bad.push(...got.bad||[]);
-    // a file with a date in it is written as it is (as a link moves it); one without gets the File's date
+    // a file with a date in it is written as it is (as a link moves it); one without gets the File's date. Its name
+    // and revision are made text here: a field that cannot be is this one bad file, not a stopped import
     for(const g of got)try{const p=parse(g.text), dated=isDate(p.saved);if(!dated)p.saved=new Date(f.lastModified).toISOString();
-      todo.push({p,text:dated?g.text:null})}catch(e){bad.push(g.name)}
+      todo.push({p,text:dated?g.text:null,name:nameOf(p),rev:revText(p)})}catch(e){bad.push(g.name)}
   }
   let rest;
-  try{for(const [i,{p,text}] of todo.entries()){const name=nameOf(p);let rev=String(p.rev||'1.0'), out=text, consented='';
+  try{for(const [i,{p,text,name,rev:r0}] of todo.entries()){let rev=r0, out=text, consented='';
     for(;;){
       // listed before each file and after each question, with no wait but the question before the write: another tab
       // can save a revision of this name meanwhile
       await entries();const {file,hit,taken}=place(name,rev);
       if(!hit||!hit.bad&&lc(file)===consented){const dest=hit?.file||file, w=await store.write(dest,out??JSON.stringify(p));
         imported.push(dest);await reindex(dest,entryOf({file:dest,size:w.size,mtime:w.mtime,saved:p.saved},p));break}
-      const next=nextFree([...taken,...todo.slice(i+1).filter(q=>nameOf(q.p)===name).map(q=>String(q.p.rev||'1.0'))],rev,false);
+      const next=nextFree([...taken,...todo.slice(i+1).filter(q=>q.name===name).map(q=>q.rev)],rev,false);
       let a=rest;if(a===undefined){const r=await ask({name,rev,next});a=typeof r==='object'&&r?r.answer:r;if(r?.rest)rest=a}
-      if(a==='replace'&&!hit.bad&&!imported.some(f=>lc(f)===lc(hit.file)))consented=lc(file);
-      else if(a==='replace'||a==='keep'){rev=p.rev=next;if(p.state&&typeof p.state==='object')p.state.rev=next;out=null}
+      const twice=imported.some(f=>lc(f)===lc(hit.file));
+      if(a==='replace'&&!hit.bad&&!twice)consented=lc(file);
+      else if(a==='replace'||a==='keep'){if(a==='replace')both.push({rev:`${name} v${rev}`,as:next,why:twice?'twice':'unreadable'});
+        rev=p.rev=next;if(p.state&&typeof p.state==='object')p.state.rev=next;out=null}
       else{skipped.push(`${name} v${rev}`);break}
     }
   }}catch(e){throw new Error(`The import stopped (${e.message||e.name}). ${imported.length} of the files were written into ${store.label}; the others were not.`)}
   if(kept)await countBrowser();
-  return {imported,bad,skipped};
+  return {imported,bad,skipped,kept:both};
 });
 
 // ---------------------------------------------------------------- the linked folder

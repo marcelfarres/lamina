@@ -13,25 +13,39 @@ What changed in each release. The GitHub release for a version is this section, 
   lower than the size you give and leaves the rest of the model as it is. The warning about panels of stiff sheet
   that press into each other now offers it as a fix, beside bigger triangles, which make the whole model coarser.
 - **A library of your projects.** The **library** button in the top bar opens a page with all your saved projects,
-  each with a picture of its model. Click a card to open the project. **save** puts the open project into the
-  library. Until you save, "unsaved changes" shows beside the button, and Lamina asks before another project or an
-  example replaces the one you work on. Your projects stay on your computer: nothing is sent to a server.
+  newest first, each with a picture of its model. Click a card to open the newest revision. **save** puts the
+  project you work on into the library. Until you save, "● unsaved changes" shows beside the button, and Lamina asks
+  before another project or an example replaces the one you work on. Your projects stay on your computer: nothing
+  is sent to a server.
 - **Every revision is kept.** A save writes the revision you are on. A bump starts a new revision, and the older
-  ones stay in the library until you delete them. A project's card shows how many revisions it has, and you can
-  open any of them.
-- **Keep your projects in a folder on your disk.** In Chrome and Edge you can link a folder to the library. The
-  folder then is the library: each revision is a project file in it, and a project file you put there shows up in
-  the library. The files stay yours when you unlink the folder. In other browsers the projects are kept in the
-  browser.
-- **Export all, and import.** **export all** makes one zip of every project, as a backup or to move them to another
-  computer. **import** takes project files and such zips back, several at once. When a project with the same name and
-  revision is already there, Lamina asks whether to replace it or keep both.
+  ones stay in the library until you delete them. The **N revisions ▾** button on a card lists them, each with
+  **open**, **export** and **delete**. A save onto a revision that is already there, and is not the one you opened
+  or last saved, asks first: replace it, keep both (the save takes the next free number), or cancel.
+- **Keep your projects in a folder on your disk.** In Chrome and Edge, **link a folder** on the library page moves
+  your projects into a folder you pick. The folder then is the library: each revision is a project file in it, and
+  a project file you put there shows up in the library. The line at the top of the library says where the projects
+  are kept and names the folder, and it counts any revisions still left in the browser. **change folder** and
+  **unlink** leave the files where they are. When the browser has not given Lamina the folder again after a
+  restart, the line says so and offers **reconnect folder**, **pick another folder** and **unlink**; a save then
+  fails rather than go somewhere else. In other browsers the projects are kept in the browser.
+- **Export all, and import.** **export all (.zip)** makes one zip of every project, as a backup or to move them to
+  another computer. **import files…**, or dropping files on the library page, takes project files and such zips
+  back, several at once. When a revision with the same name and number is already there, Lamina asks: replace it,
+  keep both, or cancel. A box answers the same for the rest of that import.
 
 ### Changed
 
-- **The examples are in the library.** The example list in the Model tab is gone. The library page shows the
-  examples below your projects, each with a picture. The examples themselves cannot be changed or deleted: save an
-  opened example to make a project of your own from it.
+- **The examples are in the library.** The example list in the Model tab is gone: its **pick an example…** button
+  opens the library at the examples, below your projects, each with a picture of the example as it opens. Once one
+  is loaded, the button names it. The examples themselves cannot be changed or deleted: save an opened example to
+  make a project of your own from it.
+- **The app's keys rest while the library is open.** Ctrl+Z, Ctrl+Y and the other keys of the app do nothing to the
+  model behind the library page.
+- **fit view shows a plaque from the side of its slices.** The fit view button and the first view of a plaque look
+  at the slices, not at the back of the plate.
+- **The second family of slices is not told by colour alone.** In the 3D view the rings of a radial model, and one
+  direction of an interlocked or curve model, carry stripes and a different lightness. A part with errors carries a
+  net.
 - **A bump goes to the next free revision.** With 1.0 to 1.3 saved, a bump from 1.0 gives 1.4, not 1.1, so a bump
   never lands on a revision that exists.
 - **clear my data keeps the library.** It still deletes your uploaded models, cut files and session, but not your

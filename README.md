@@ -99,8 +99,9 @@ sheet before you commit expensive material.
   send. **Email needs no account anywhere**; an issue is public, an email is not.
 - **[The issue form](https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml)**, filled in by
   hand. It asks for the model and the settings that reproduce the problem; the quickest way to give both is
-  **export** on the project in the library, which downloads one file with the model embedded and every parameter
-  in it — the same file the button attaches.
+  **export** on the revision in the library (**library**, then **N revisions ▾** on the project's card), which
+  downloads one `.lamina.json` file with the model embedded and every parameter in it — the same file the button
+  attaches.
 
 **A question, an idea, or stuck on a build?** Ask in [r/Lamina3D](https://www.reddit.com/r/Lamina3D) on Reddit or on the
 [Lamina Discord](https://discord.gg/N66bCQxmt3), where
@@ -372,8 +373,9 @@ does not slip through. It carries the most signal for stacked and folded work; d
   fit test** (Downloads) is at 1:1 for the real machine and predicts the model's fit; the **print fit test**
   (Prototyping) dials in the print's own **print slot offset**, in printed millimetres whatever the scale, which the
   prototype set uses in place of the job's.
-- **Every zip carries the project file** (`….lamina.json`) that the library's **import** reads back: technique, every
-  parameter and the uploaded model itself, so a printed part or a cut file found later leads back to what made it.
+- **Every zip carries the project file** (`….lamina.json`): technique, every parameter and the uploaded model
+  itself, so a printed part or a cut file found later leads back to what made it. Take it out of the zip, and
+  **import files…** on the library page reads it back.
 
 ### The web UI
 
@@ -416,36 +418,44 @@ sheets are always the same plan. Hover a parameter name for its help.
 ### Your projects
 
 A project is a model with its technique, every setting, a name and a revision. **save** in the top bar puts the
-open project into the library; until then "● unsaved changes" shows beside the button. **library** opens a page
-with a card for each project, newest first: a picture of the model, the name, the revision and the date. Click a
-card to open the newest revision. A card with more than one revision has an "N revisions" badge that lists them,
-each with **open**, **export** and **delete**. A find box filters the cards by name. Opening a project or an example
-while there are unsaved changes asks first.
+project you are working on into the library; until then "● unsaved changes" shows beside the button. **library**
+opens a page with a card for each project, newest first: a picture of the model, the name, the revision and the
+date. Click a card to open the newest revision. The **N revisions ▾** button on a card lists every revision, each
+with **open**, **export** and **✕ delete**, and under them **export all N** and **✕ delete project** for the whole
+project. A find box filters the cards by name. Opening a project or an example while there are unsaved changes asks
+first.
 
 Save writes the revision you are on. The `+0.1` and `+1` buttons start a new revision at the next free number:
 with 1.0 to 1.3 saved, `+0.1` from 1.0 gives 1.4. Every revision stays until you delete it. Change the name and
-save, and it is a new project; the old one stays. A save that would land on another revision that is already
-there asks: replace it, or take the next free number.
+save, and it is a new project; the old one stays. A save that would land on a revision that is already there, and
+is not the one this tab opened or last saved, asks: **replace** it, **keep both** (the save takes the next free
+number), or **cancel**.
 
-The bundled examples are on the same page, under your projects. They cannot be changed or deleted; save an opened
-example and it becomes a project of yours.
+The bundled examples are on the same page, under your projects, marked "example · read-only". **pick an example…**
+on the Model tab opens the library at them; once one is loaded, the button reads "<name> · pick another…". Save an
+opened example and it becomes a project of yours.
 
-Where the projects are kept:
+Where the projects are kept, said on the folder line at the top of the library page:
 
-- **In the browser** (every browser). Clearing the site data deletes them, so use **export all** for a backup.
-  **clear my data** does not touch the library.
-- **In a folder on your disk** (Chrome and Edge). **link a folder** on the library page moves the browser's
-  projects into the folder you pick. The folder then is the library: each revision is one `<name>_v<rev>.lamina.json`
-  file, a project file you put there appears in the library, and one you delete is gone. **unlink** leaves the files
-  where they are. The browser asks for permission to the folder again on a later visit, unless you allow it on
-  every visit; until you do, the page says the folder cannot be reached and a save fails instead of going
-  somewhere else.
+- **In this browser** (every browser): "💾 kept in this browser only". Clearing the site data deletes them, so use
+  **export all (.zip)** for a backup. **clear my data** does not touch the library.
+- **In a folder on your disk** (Chrome and Edge). **link a folder** moves the browser's projects into the folder you
+  pick; the folder line then reads "📁 kept in the folder <its name> · N files", with **change folder** and
+  **unlink**. The folder is the library: each revision is one `<name>_v<rev>.lamina.json` file, a project file you
+  put there appears in the library, and one you delete is gone. A revision that stays in the browser (a link whose
+  question was cancelled) is counted on the folder line. **unlink** and **change folder** leave the files where they
+  are, and the folder line says where. The browser asks for permission to the folder again on a later visit, unless
+  you allow it on every visit; **library** and **save** ask for it from their click. Until it is given, the folder
+  line says "⚠ The linked folder <its name> cannot be reached", with **reconnect folder**, **pick another folder**
+  and **unlink**, and a save fails instead of going somewhere else.
 
-**export all** makes one zip of every project, the backup that lives somewhere else; **export** on a project or a
-revision downloads just that. **import** (or a drop on the library page) takes project files and such zips, several
-at once. When a project with the same name and revision is already there, it asks whether to replace it or keep
-both. Nothing of this goes to a server: the page reads and writes the projects itself, the same in the local
-version and in the browser version.
+**export all (.zip)** makes one zip of every project, the backup that lives somewhere else; **export** on a revision
+downloads that one file, and **export all N** the project as a zip. **import files…** (or a drop on the library page)
+takes project files and such zips, several at once. When a revision with the same name and number is already there,
+it asks: **replace**, **keep both** (the import takes the next free number), or **cancel** (that file is skipped);
+"the same for the rest" answers once for every clash of that import. Linking a folder asks the same way when the
+folder already has that revision. Nothing of this goes to a server: the page reads and writes the projects itself,
+the same in the local version and in the browser version.
 
 ## How it is built
 
