@@ -48,7 +48,7 @@ details.fold>summary{cursor:pointer;list-style:none}details.fold>summary h2{disp
 details.info>summary::-webkit-details-marker,details.fold>summary::-webkit-details-marker{display:none}
 /* the tools of the 3D view: the one in use is outlined, bold and ticked */
 #tools{position:absolute;left:10px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:4px;align-items:flex-start}
-#tools button{padding:4px 9px;border:1px solid var(--line);background:#0f1012dd;color:var(--ink);border-radius:5px;cursor:pointer;font-size:11.5px;white-space:nowrap}#tools button[hidden]{display:none}
+#tools button{padding:4px 9px;border:1px solid var(--line);background:#0f1012dd;color:var(--ink);border-radius:5px;cursor:pointer;font-size:11.5px;white-space:nowrap}#tools[hidden],#tools button[hidden]{display:none}
 #tools button[aria-pressed=true]{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset;font-weight:700}#tools button[aria-pressed=true]::after{content:" ✓"}
 #tabs.finding section[data-tab]{display:block}#tabs.finding .miss{display:none!important}#tabs.finding .sec.folded>.f{display:grid}
 #tabs.finding section[data-tab]::before{content:attr(data-name);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--acc);margin:12px 0 4px}
