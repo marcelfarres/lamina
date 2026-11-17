@@ -5,6 +5,7 @@ import {state, ST} from './state.js';
 import {COLORS, LOOKS, PLANE_IDX} from './catalog.js';
 import {$, status} from './util.js';
 import {highlight, deselect, drawGizmo} from './edit3d.js';
+import {renderSeams, showSeamLines} from './seams.js';
 
 // ---------------------------------------------------------------- 3D view
 export const view=$('#v3d'), renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(devicePixelRatio); view.appendChild(renderer.domElement);
@@ -143,6 +144,7 @@ export function render3D(modelUrl){
   clipGhost();
   ghost.visible=$('#ghost').checked; ST.dirty=true;
   if(ST.selected){const m=parts.children.find(c=>c.userData.slice===ST.selected);m?highlight(m):deselect()}
+  renderSeams();
   if(!ST.fitted){fitView();ST.fitted=true}
 }
 // The translucent model behind the parts, loaded on its own: the build finishes with the mesh a second or two in and
@@ -213,7 +215,7 @@ export function applyFold(){const s=+$('#fold').value,v=new THREE.Vector3();let 
     for(const [o,n,fi] of f.ranges)for(let j=o;j<o+n;j++){v.fromArray(f.base,3*j).applyMatrix4(D[fi]);pos.setXYZ(j,v.x,v.y,v.z)}
     pos.needsUpdate=true;m.geometry.computeVertexNormals();m.geometry.computeBoundingSphere();m.geometry.computeBoundingBox()}
   $('#foldl').hidden=!any; ghost.visible=$('#ghost').checked&&!(any&&s<1);   // the model would stand in the unfolded panel
-  $('#fold_val').textContent=Math.round(s*100)+' %'; ST.dirty=true}
+  $('#fold_val').textContent=Math.round(s*100)+' %'; showSeamLines(); ST.dirty=true}
 const FOLD_STEPS=20; let nParts=0;   // the steps a folded job takes to fold up, and the parts in the build order before them
 export function applyExplode(){const e=+$('#explode').value,st=$('#steps'),k=+st.value;for(const m of parts.children){if(m.userData.group==='B')continue;m.position.copy(m.userData.origin).multiplyScalar(e-1);m.visible=m.userData.i<k}
   const folding=+st.max>nParts, share=folding?Math.min(1,Math.max(0,(k-nParts)/FOLD_STEPS)):1;
@@ -222,7 +224,7 @@ export function applyExplode(){const e=+$('#explode').value,st=$('#steps'),k=+st
   showBanner(going?`step ${k} / ${+st.max}  ·  ${(ST.plan&&ST.plan.label_tag?ST.plan.label_tag+' ':'')}${going.userData.piece}`:folding&&k<+st.max?`step ${k} / ${+st.max}  ·  folding ${Math.round(share*100)} %`:'');
   $('#steps_val').textContent=`${k} / ${+st.max||0}`;   // the step counter, live while the slider is dragged
   const s=ST.selected&&parts.children.find(c=>c.userData.slice===ST.selected); if(s)drawGizmo(s);   // the handles ride with the part
-  ST.dirty=true}
+  showSeamLines(); ST.dirty=true}
 $('#explode').oninput=$('#steps').oninput=applyExplode; $('#fold').oninput=applyFold; $('#ghost').onchange=()=>{ghost.visible=$('#ghost').checked;ST.dirty=true}; $('#fit').onclick=()=>{fitView();ST.dirty=true}; $('#look').onchange=$('#opacity').oninput=applyLook;
 // The build order as a video: the steps slider played into a MediaRecorder reading the canvas the view already
 // draws. Nothing is uploaded and nothing is rendered twice — the file is made in the page and saved from it.

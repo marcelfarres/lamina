@@ -24,7 +24,8 @@ MAX_SLICES = 500                      # the count slider's ceiling, and the ceil
 #   labels        list of slice labels (chips)                  value: [label, …]
 #   chips         list of numbers or labels                   value: [v, …]
 #   curve         the spacing curve, drawn in the graph under the 3D view   value: [[t, s], …] t 0..1, s mm or deg
-LIST_TYPES = ("vec2", "vec3", "points", "lines3", "map", "labels", "chips", "curve")
+#   edges         edges of the model, picked in the 3D view or on a sheet   value: [[[x,y,z],[x,y,z]], …] the two ends of each
+LIST_TYPES = ("vec2", "vec3", "points", "lines3", "map", "labels", "chips", "curve", "edges")
 
 
 @dataclass
@@ -267,6 +268,7 @@ def view_defaults():
         "bounds3d": [],           # the planes between lobes or at a branch's joint, moved and tilted like slices
         "core_d_min": None,       # radial: the smallest core the half-slices allow
         "spacing": [],            # the drawn spacing curves' outcome, for the graph: [{param, positions, length, unit, scale}]
+        "edges3d": None,          # folded: [k, fold | seam | chosen, end, end, way out] per edge, drawn and picked to choose the seams
         "clip": None,             # plaque: [point, normal] of the plate's front face — the 3D view shows the model in front of it only, and coverage is measured on that
     }
 
