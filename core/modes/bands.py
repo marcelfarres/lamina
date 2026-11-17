@@ -7,11 +7,17 @@ and each stretch is one joint: a slot in each band, from opposite ends, meeting 
 Assembly is family by family, in `order`. The first family stays whole. A band of a later family slides onto the
 bands already in place along the crossing line of each joint, inward from the surface; a band whose joints ask for
 different directions — the top and the bottom of a ring, or joints with two families — cannot go in whole, so it is
-cut between them into pieces that each slide one way, rejoined by puzzle tabs. So each joint's slot opens outward in
-the band placed first and inward in the band placed after it, and runs through the rest of that band's wall along
-the line, so nothing of either is in the other's way as it slides in."""
+cut between them into pieces that each slide one way. So each joint's slot opens outward in the band placed first and
+inward in the band placed after it, and runs through the rest of that band's wall along the line, so nothing of either
+is in the other's way as it slides in.
+
+A puzzle tab mates only pressed in from above, and a band's piece arrives in its own plane, held there by its slots: so
+a later band's cuts are rejoined by a straight tongue along the way the later piece at the cut slides in, which needs
+the order the pieces go in. `lattice` cuts every band plainly, asks core/slidein.py for that order, cuts again with
+the tongues, and checks the order once more on the pieces as cut — a piece that cannot get in is an error."""
 from __future__ import annotations
 import itertools
+from dataclasses import dataclass
 
 import numpy as np
 from shapely.geometry import Point
@@ -22,9 +28,24 @@ from ..model import Slice
 from ..notch import _clip_segments, slot_polygon
 from ..ring import ring as ring_of
 from ..ringcut import STEP, Ring, shorten
+from ..slidein import Part, solve
 
 FAMS = "xyz"
 ORDERS = ["auto"] + ["".join(o) for o in itertools.permutations(FAMS)]
+SQUARE = np.cos(np.radians(45))      # a tongue only where the later piece slides into the cut within 45° of square to it
+ALONG = 0.1                          # and a piece slides along a cut it meets up to 6° the wrong way: the kerf is its room
+
+
+@dataclass
+class Band(Slice):
+    """A band, with the pieces `Bands.lattice` cut it into (None: whole) for plan.build's `cut` hook."""
+    cut_to: list | None = None
+
+
+def inplane(M, d):
+    """World direction d, in M's plane, as a 2D unit vector in M's frame."""
+    v = (np.linalg.inv(M)[:3, :3] @ d)[:2]
+    return v / np.linalg.norm(v)
 
 
 class Joint:
@@ -55,11 +76,13 @@ class Bands(Mode):
     title = "Band Lattice"
     rank = 1                           # listed after the original's techniques
     description = ("Rings (bands) cut along any of x, y and z — only a wall left inside each section — half-lapped where two "
-                   "bands cross. The first family stays whole; a band that cannot slide in whole is cut into pieces joined by "
-                   "puzzle tabs.")
+                   "bands cross. The first family stays whole; a band that cannot slide in whole is cut into pieces, each cut "
+                   "rejoined by a straight tongue the later piece slides onto, and every piece is checked to get past the "
+                   "ones already in.")
     legend = ("X-2 = the 2nd band across x, Y-4 the 4th across y, Z-1 the 1st across z, each counted from the low end · "
-              "X-2-1, X-2-2 = the pieces a band is cut into, joined by puzzle tabs · assembly: the first family's bands go "
-              "in whole, then each later family's pieces, each slid in along its slots from outside the model")
+              "X-2-1, X-2-2 = the pieces a band is cut into, each cut a straight tongue the later piece slides onto (a puzzle "
+              "tab in the first family) · assembly: the first family's bands go in whole, then the other pieces one at a time, "
+              "each slid in along its slots from outside the model")
     params = [
         Param("x", "bool", True, "Bands across x (planes square to x)", label="x bands", section="Families — which bands, and how many"),
         Param("y", "bool", True, "Bands across y (planes square to y)", label="y bands"),
@@ -80,11 +103,12 @@ class Bands(Mode):
               "needs the fewest cuts", choices=ORDERS, label="assembly order", section="Assembly — the order, and the cuts it needs",
               choice_labels={"auto": "auto (fewest cuts)", **{o: " → ".join(o.upper()) for o in ORDERS[1:]}}),
         Param("band_cuts", "bool", True, "Cut every band that cannot slide in whole into pieces that can, between the joints that "
-              "ask for different directions, each cut rejoined by a puzzle tab (`tab` wide). Off = such a band is an error",
+              "ask for different directions, each cut rejoined by a straight tongue (`tab` wide) along the way the later piece slides "
+              "in, or glued where none fits. Off = such a band is an error",
               label="cut locked bands"),
         Param("max_length", "number", 0.0, "Longest piece (mm), measured along the band: a longer one is cut again, the cuts spread "
-              "evenly between the joints, clear of the slots, each with a puzzle tab. 0 = no limit. A piece too big for the sheet "
-              "is always cut", 0, 10000, 5, unit="mm", label="max piece length"),
+              "evenly between the joints, clear of the slots, each with a tongue (a puzzle tab in the first family). 0 = no "
+              "limit. A piece too big for the sheet is always cut", 0, 10000, 5, unit="mm", label="max piece length"),
         Param("cut_shift", "map", {}, "Slide a band's cuts along it (mm), each within the stretch between its two joints", group="slices", unit="mm", label="cut shifts"),
     ]
 
@@ -92,7 +116,7 @@ class Bands(Mode):
     def build(self, ctx):
         p = ctx.p
         on = [f for f in FAMS if p[f]]
-        self.joints, self.first = [], None
+        self.joints, self.first, self.order = [], None, []
         if len(on) < 2:
             e = "band lattice: turn on at least two of x, y and z bands — one family alone has nothing to cross"
             ctx.errors.append(e)
@@ -110,15 +134,11 @@ class Bands(Mode):
         rank = {f: i for i, f in enumerate(order)}
         # a joint's `a` is the band placed first
         self.joints = [j if rank[j.a.group.lower()] < rank[j.b.group.lower()] else Joint(j.b, j.a, j.p0, j.d, j.lo, j.hi, j.out) for j in joints]
-        self.first = order[0]
+        self.first, self.order = order[0], order
         bands = [b for f in order for b in fams[f]]
         for j in self.joints:
             self.slot(ctx, j)
         self.flag(ctx, bands)
-        cuts = sum(len(self.cut_points(b)) for b in bands if b.group.lower() != self.first)
-        ctx.notes_extra = (f"assembly: {' → '.join(f.upper() for f in order)} — the {order[0].upper()} bands go in whole, then each later "
-                           f"band slides in along its slots from outside the model; {cuts} cut(s) let the locked bands in"
-                           + ("" if p["band_cuts"] else " (cutting is off)"))
         ctx.cover_r = max(float(np.ptp((ctx.mesh.vertices - ctx.mid) @ ctx.ax[FAMS.index(f)])) / max(1, len(v)) for f, v in fams.items()) / 2 + p["thickness"]
         return bands
 
@@ -132,7 +152,7 @@ class Bands(Mode):
         out = []
         for j, s in enumerate(ctx.positions(L, [p["thickness"]] * n)):
             lab = f"{f.upper()}-{j + 1}"
-            out.append(Slice(lab, f.upper(), ctx.frame(lab, ctx.mid + e * (c + s), e, up_hint=up), ctx.thickness_of(lab)))
+            out.append(Band(lab, f.upper(), ctx.frame(lab, ctx.mid + e * (c + s), e, up_hint=up), ctx.thickness_of(lab)))
         out = ctx.keep(out)
         for b in out:
             b.raw = ring_of(section_polygons(ctx.mesh, b.M), ctx.override("wall", b.label, p["ring_wall"]), p["min_feature"])
@@ -259,11 +279,133 @@ class Bands(Mode):
 
     # ---------------------------------------------------------------- pieces
     def cut(self, ctx, sl):
-        """plan.build's hook: the pieces a band is cut into, each cut a line across the wall with a puzzle tab — the
-        cuts a locked band needs to slide in, then more wherever a piece is longer than `max_length` or too big for
-        the sheet — or None to leave the band whole."""
-        if sl.group.lower() not in FAMS or not self.joints:
-            return None
+        """plan.build's hook: the pieces `lattice` cut the band into, or None to leave it whole."""
+        return sl.cut_to
+
+    def guide_outlines(self, ctx, slices):
+        self.lattice(ctx, slices)                      # the outlines are final here, and what it finds is counted
+
+    def lattice(self, ctx, bands, tongue=True):
+        """Every band cut, the order its pieces go in, and the pieces that cannot: the first family's cuts (only for
+        length or the sheet) with puzzle tabs — placed first, its pieces are pressed together flat — and every later
+        band's cuts plain, to solve which piece at each cut goes in later; then those cut again with a tongue against
+        the way that piece slides, and solved once more on the pieces as cut. `tongue` off keeps the puzzle tab there
+        too, which the check has to catch."""
+        if not bands:
+            return
+        p = ctx.p; later = [b for b in bands if b.group.lower() != self.first]
+        if self.joints:
+            for b in bands:
+                if b not in later:
+                    b.cut_to = self.cut_band(ctx, b, None)[0]
+            said = [(b, list(b.warnings), list(b.errors)) for b in later]
+            plain = {b.label: self.cut_band(ctx, b, self.plain(b)) for b in later}
+            for b, w, e in said:                           # only the last cut of a band speaks
+                b.warnings[:], b.errors[:] = w, e
+                b.cut_to = plain[b.label][0]
+            steps = self.solved(ctx, bands)[0]
+            for b in later:
+                b.cut_to = self.cut_band(ctx, b, self.face(b, plain[b.label][1], steps) if tongue else None)[0]
+            steps, locked = self.solved(ctx, bands)
+            for q, o in locked.items():
+                if p["band_cuts"] or not self.cut_points(q.band):     # with cutting off, flag() has said so already
+                    q.band.errors.append(f"{q.label} cannot slide in: " + (f"{o.label} is in its way" if o else "no way along its slots is clear")
+                                         + " — move one of them (offset), or change the assembly order")
+            ctx.view["steps"] = {lab: n for lab, (n, _) in steps.items()}
+        n = sum(len(b.cut_to or as_multi(b.profile).geoms) for b in later)
+        cuts = sum(len(self.cut_points(b)) for b in later)
+        ctx.notes_extra = (f"assembly: {' → '.join(f.upper() for f in self.order)} — the {self.first.upper()} bands go in whole, then the "
+                           f"other {n} pieces one at a time, each slid in along its slots, in an order worked out piece by piece; "
+                           f"{cuts} cut(s) let the locked bands in" + ("" if p["band_cuts"] else " (cutting is off)"))
+
+    def parts(self, bands):
+        """Every band's pieces as core/slidein.py takes them, labelled as plan.build will label them, each with the ways
+        it can slide in: inward along its joints with bands placed before it; where those leave it open (a joint solid
+        right across, or none), either way along the lines of its joints, or else of its band's."""
+        out = []
+        for b in bands:
+            geoms = b.cut_to or list(as_multi(b.profile).geoms)
+            names = [f"{b.label}-{i + 1}" for i in range(len(geoms))] if b.cut_to or len(geoms) > 1 else [b.label]
+            moves = [[] for _ in geoms]; lines = [[] for _ in geoms]
+            for j in self.joints:
+                if b is j.a or b is j.b:
+                    q = Point(to_local(b.M, [j.mid])[0])
+                    k = min(range(len(geoms)), key=lambda i: geoms[i].distance(q))
+                    d = inplane(b.M, j.d)
+                    lines[k] += [d, -d]
+                    if b is j.b and j.out:
+                        moves[k].append(-j.out * d)
+            every = [v for m in moves for v in m]
+            for g, lab, m, ln in zip(geoms, names, moves, lines):
+                ways = list({tuple(np.round(v, 3)): v for v in (m or ln or every + [-v for v in every])}.values())
+                out.append(Part(lab, b, g, ways, b.group.lower() == self.first or not ways))
+        return out
+
+    def solved(self, ctx, bands):
+        """The step each moving piece goes in at, with the way it slides ({label: (step, move)}), and the locked ones."""
+        order, locked = solve(self.parts(bands), ctx.span)
+        return {q.label: (i + 1, v) for i, (q, v) in enumerate(order)}, locked
+
+    @staticmethod
+    def across(comps, e, i):
+        """A cut from e to i in one of a band's rings `comps`: its normal, turned to the piece after it round the
+        outline, which ring, and how far round that ring's outline it starts."""
+        E = Point(e)
+        k = min(range(len(comps)), key=lambda k: comps[k].exterior.distance(E))
+        ext = comps[k].exterior; t = ext.project(E)
+        p0, p1 = ext.interpolate(t - 0.5), ext.interpolate(t + 0.5)
+        u = (i - e) / np.linalg.norm(i - e); n = np.array([-u[1], u[0]])
+        return (n if n @ (p1.x - p0.x, p1.y - p0.y) >= 0 else -n), k, t
+
+    def plain(self, b):
+        """The joint for a later band's first cuts: a butt cut where one of the pieces either side can go in after the
+        other — sliding toward it, or along the cut — and no cut where neither can: straight across a curved wall,
+        between pieces that slide in square to each other, a cut can face away from both."""
+        comps = list(b.raw.geoms)
+        runs = [[(s, inplane(b.M, -j.out * j.d) if j.out else None) for s, j in run] for _, run in self.runs(b, self.joints)]
+
+        def joint(e, i):
+            n, k, t = self.across(comps, e, i)
+            run = runs[k]
+            if len(run) < 2:
+                return True
+            before = next((m for s, m in reversed(run) if s <= t), run[-1][1])
+            after = next((m for s, m in run if s > t), run[0][1])
+            return bool(before is None or after is None or before @ n >= -ALONG or after @ n <= ALONG)
+        return joint
+
+    def face(self, b, rings, steps):
+        """The joint for a later band's cuts, once the order is known: for a cut from e to i, its tongue's axis —
+        against the way the later of the two pieces either side slides in, so that piece slides onto it — or None for
+        no tongue here, where that piece slides into the cut more than 45° off square (one further along may do); True
+        for a butt cut and no more looking, where the order does not say; False where the later piece would slide away
+        from the earlier, through it. Which pieces those are comes from the plain cut nearest it: the cut made now
+        lands near it, between the same joints."""
+        geoms = b.cut_to
+        if not geoms:
+            return lambda e, i: True
+        comps = list(b.raw.geoms)
+        names = [f"{b.label}-{k + 1}" for k in range(len(geoms))]
+        side = lambda pt: min(range(len(geoms)), key=lambda k: geoms[k].distance(pt))   # noqa: E731
+        plain = [(rg.ext.interpolate(t % rg.L), side(rg.ext.interpolate((t - 1) % rg.L)), side(rg.ext.interpolate((t + 1) % rg.L)))
+                 for rg in rings for t, _, _ in rg.cuts]
+
+        def axis(e, i):
+            _, before, after = min(plain, key=lambda c: c[0].distance(Point(e)))
+            sb, sa = steps.get(names[before]), steps.get(names[after])
+            if before == after or sb is None or sa is None:
+                return True
+            n = self.across(comps, e, i)[0]
+            if sb[0] > sa[0]:                                  # the piece before it goes in later: n into that one
+                n = -n
+            a = -np.asarray(max(sb, sa, key=lambda s: s[0])[1])
+            return a if a @ n >= SQUARE else None if a @ n >= -ALONG else False
+        return axis
+
+    def cut_band(self, ctx, sl, joint):
+        """A band's cuts, each a line across the wall with `joint` (as ringcut.cut_line takes it) — the cuts a locked
+        band needs to slide in, then more wherever a piece is longer than `max_length` or too big for the sheet:
+        (the pieces, or None to leave it whole; its rings with the cuts made in them)."""
         p = ctx.p; shift = ctx.override("cut_shift", sl.label)
         locked = p["band_cuts"] and sl.group.lower() != self.first
         points = self.cut_points(sl) if locked else []
@@ -283,7 +425,7 @@ class Bands(Mode):
             n = min(400, int((s1 - s0) / STEP) + 1)
             tries = sorted((s0 + (s1 - s0) * k / max(1, n - 1) for k in range(n)), key=lambda t: abs(t - mid))
             slants = [np.asarray(to_local(sl.M, [j.mid, j.mid + j.d])[1][:2]) - np.asarray(to_local(sl.M, [j.mid])[0][:2]) for j in pair]
-            got = rg.place(tries, sl, p, slants)
+            got = rg.place(tries, sl, p, slants, joint)
             if got is None:
                 missed += 1
                 continue
@@ -294,16 +436,15 @@ class Bands(Mode):
         if missed:
             sl.warnings.append(f"{missed} of the {len(points)} cut(s) it needs to slide in found no clean place between its joints (slots in the way, "
                                "or a solid wall): it cannot go in as it is — cut it there by hand, or move it or a band it crosses (offset)")
-        geom, more, plain, stuck = shorten(sl, p, p["max_length"], rings.values(), geom)
+        geom, more, plain, stuck = shorten(sl, p, p["max_length"], rings.values(), geom, joint)
         made += more; glued += plain
         if stuck:
             sl.warnings.append(f"{stuck} piece(s) longer than `max_length` or too big for the sheet found no clean place to be cut "
                                "(slots close together all along): cut by hand, or move a band it crosses (offset)")
         if glued:
-            sl.warnings.append(f"{glued} of its {made} cut(s) have no room for a puzzle tab (joints close together, or a narrow wall): glue those")
-        if not made:
-            return None
-        return list(as_multi(geom).geoms)
+            sl.warnings.append(f"{glued} of its {made} cut(s) are plain butt joints — no room for a tongue or tab there (joints close "
+                               "together, or a narrow wall), or the piece slides along the cut, not into it: glue those")
+        return (list(as_multi(geom).geoms) if made else None), list(rings.values())
 
     @staticmethod
     def fit(p):

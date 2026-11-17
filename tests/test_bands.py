@@ -1,13 +1,20 @@
 """Band lattice: rings along any of x, y and z, half-lapped where they cross. The first family stays whole, each slot
 opens outward in the band placed first and inward in the one placed after it, and a band that cannot slide in whole
-is cut into pieces that can, joined by puzzle tabs."""
+is cut into pieces that can, each cut a straight tongue the later piece slides onto — and every piece is checked to
+slide in past the ones already there (core/slidein.py)."""
 import pathlib
+import re
 
+import numpy as np
 import pytest
-from shapely.geometry import Point, Polygon
+from shapely.geometry import Point, Polygon, box
 from shapely.ops import unary_union
 
+from core.modes.bands import Bands
 from core.plan import build
+from core.ringcut import tongue
+from core.slidein import FREE_AREA, covers, sweep
+from core.split import tab
 
 EXAMPLES = pathlib.Path(__file__).resolve().parent.parent / "examples"
 CUBE = EXAMPLES / "cube.stl"                        # 180 mm, centred
@@ -43,8 +50,9 @@ def test_the_slot_opens_outward_in_the_first_band_and_inward_in_the_second():
     assert x2.contains(Point(10, 87)) and y2.contains(Point(10, 81))      # and only a slot wide
 
 
-def test_three_families_cut_the_later_bands_and_join_every_cut_with_a_tab():
+def test_three_families_cut_the_later_bands_and_join_every_cut_with_a_tongue():
     plan = build(CUBE, "bands", BASE)
+    # no warning: not one cut is a glued butt joint, every one has its tongue
     assert plan["counts"]["slices"] == 9 and plan["counts"]["errors"] == 0 and plan["counts"]["warnings"] == 0
     note = next(n for n in plan["notes"] if n.startswith("assembly"))
     first = note.split(": ")[1][0]
@@ -53,9 +61,53 @@ def test_three_families_cut_the_later_bands_and_join_every_cut_with_a_tab():
     whole = [s for s in plan["slices"] if s["label"].startswith(first)]
     assert whole and all(len(s["pieces"]) == 1 for s in whole)
     assert plan["counts"]["parts"] == len(whole) + cuts                 # a closed ring cut k times is k pieces
-    # a puzzle tab: a piece's outline bulges past the straight cut, so no piece is a plain arc of the ring
-    cut = [s for s in plan["slices"] if len(s["pieces"]) > 1]
-    assert all(any(len(f["rings"][0][0]) > 40 for pc in s["pieces"] for f in pc["facets"]) for s in cut)
+    later = {pc["label"] for s in plan["slices"] if s not in whole for pc in s["pieces"]}
+    assert set(plan["steps"]) == later and sorted(plan["steps"].values()) == list(range(1, len(later) + 1))
+
+
+def later_pieces(plan):
+    first = next(n for n in plan["notes"] if n.startswith("assembly")).split(": ")[1][0]
+    return {pc["label"]: s for s in plan["slices"] if not s["label"].startswith(first) for pc in s["pieces"]}
+
+
+# The sphere and the head at their defaults have pieces that cannot get in, so these two are a finding, held strict:
+# the sphere's three bands cross close to one point at Z-2's corners, where its two slots overlap and no cut can part
+# them; the head has cuts that find no clean place between their joints (slots too close together).
+@pytest.mark.parametrize("model, prm", [
+    ("cube.stl", {}),
+    pytest.param("sphere.stl", {"nx": 3, "ny": 3, "nz": 3}, marks=pytest.mark.xfail(strict=True, reason="Z-2's corners lock pieces")),
+    pytest.param("head_igea.stl", {}, marks=pytest.mark.xfail(strict=True, reason="cuts with no clean place lock pieces")),
+])
+def test_every_piece_slides_in_past_the_ones_already_there(model, prm):
+    plan = build(EXAMPLES / model, "bands", prm)
+    later = later_pieces(plan)
+    locked = set(later) - set(plan["steps"])
+    for lab in locked:                                                  # a piece that cannot get in is its band's error
+        assert any(e.startswith(f"{lab} cannot slide in: ") for e in later[lab]["errors"])
+    assert not any(e.startswith(f"{lab} cannot") for s in plan["slices"] for e in s["errors"] for lab in plan["steps"])
+    assert not locked, sorted(locked)
+
+
+def test_the_check_catches_a_joint_that_cannot_slide_together(monkeypatch):
+    # the old joint, the puzzle tab, forced on every cut of the lattice that passes with tongues (above): a round head
+    # goes in only from above the sheet, and a band's piece slides in its own plane — so pieces lock, each is named
+    monkeypatch.setattr(Bands, "guide_outlines", lambda self, ctx, slices: self.lattice(ctx, slices, tongue=False))
+    plan = build(CUBE, "bands", BASE)
+    found = [m for s in plan["slices"] for e in s["errors"] if (m := re.match(r"((\w-\d)-\d) cannot slide in: ((\w-\d)(-\d)?) is in its way", e))]
+    assert found and any(m[2] == m[4] for m in found)                   # held by a piece of its own band: the tab
+    assert {m[1] for m in found} == set(later_pieces(plan)) - set(plan["steps"])
+
+
+def test_a_tongue_slides_in_and_a_round_head_does_not():
+    # a piece arriving from above, along (0, -1), onto a joint fixed in place, with a socket cut round the joint with
+    # the kerf's play. Straight sides let it down; a head wider than its neck catches under the piece
+    v = np.array([0.0, -500.0])
+    for joint, free in ((tongue(np.array([10.0, 0.0]), np.array([1.0, 0.0]), np.array([0.0, 1.0]), 6.0), True),
+                        (tab(10.0, 0.0, (1.0, 0.0), 6.0, 7.2, 1), False)):
+        piece = box(0, 0, 20, 12).difference(joint.buffer(0.05))
+        assert joint.bounds[3] > 5 and piece.area > 150                # the joint reaches well into the piece
+        assert (covers(joint, piece, v) <= FREE_AREA) == free, covers(joint, piece, v)
+    assert abs(sweep(box(0, 0, 1, 1), np.array([10.0, 0.0])).area - 11.0) < 1e-9
 
 
 def test_the_order_decides_which_family_stays_whole():

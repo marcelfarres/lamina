@@ -1,5 +1,5 @@
 """Pieces cut short: a band or a ring slice longer than `max_length`, or too big for the sheet, is cut across its wall into
-pieces joined by puzzle tabs."""
+pieces joined by puzzle tabs — or, in a band that slides in, by straight tongues."""
 import math
 import pathlib
 
@@ -22,17 +22,19 @@ def _polys(plan):
 def test_bands_are_cut_to_the_longest_piece_asked_for():
     whole = build(CUBE, "bands", BANDS)
     short = build(CUBE, "bands", {**BANDS, "max_length": 200})
-    assert short["counts"]["errors"] == 0 and short["counts"]["warnings"] == 0
+    assert short["counts"]["errors"] == 0
+    # each Y band's top and bottom are cut once more, across the face both halves slide in along: no tongue mates a
+    # piece that slides along its cut, so those are glued butt joints — and every other cut has its tongue or tab
+    said = {s["label"]: s["warnings"] for s in short["slices"] if s["warnings"]}
+    assert set(said) == {"Y-1", "Y-2", "Y-3"} and all(w == [said["Y-1"][0]] and w[0].startswith("2 of its 4 cut(s) are plain butt") for w in said.values())
     assert short["counts"]["parts"] > whole["counts"]["parts"]
     for sl in short["slices"]:
         assert len(sl["pieces"]) >= math.ceil(4 * 180 / 200)          # the outline is 720 mm round
         for pc in sl["pieces"]:
             g = unary_union([Polygon(r[0], r[1:]) for f in pc["facets"] for r in f["rings"]])
             x0, y0, x1, y1 = g.bounds
-            # along a square ring, 200 mm of outline spans at most 200 mm, plus the wall and a puzzle tab
+            # along a square ring, 200 mm of outline spans at most 200 mm, plus the wall and a tongue or tab
             assert math.hypot(x1 - x0, y1 - y0) <= 200 + 12 + 2 * 8
-    # every cut has its tab: no piece is a plain stretch of the ring
-    assert all(len(f["rings"][0][0]) > 40 for sl in short["slices"] for pc in sl["pieces"] for f in pc["facets"])
 
 
 def test_a_band_too_big_for_the_sheet_is_cut_across_its_wall():

@@ -10,14 +10,19 @@ What changed in each release. The GitHub release for a version is this section, 
   slice and cuts the middle away, so the stack is a shell of rings and uses much less material. Every hole and
   island gets its own wall, narrow parts stay solid, and the first and last slice can stay solid to close the
   ends. A slice can have its own wall: select it in the 3D view. Dowels and spacers get a collar of material
-  where the wall is too thin for them. Thanks to @DaveLauber.
+  where the wall is too thin for them. Thanks to @DaveLauber, who made this in his fork. It was adapted for
+  this release, not merged as it was.
 - **Band lattice.** A new technique, *Band Lattice*, cuts the model into rings across x, y and z that lock
   together with half-lap slots where they cross. The first family goes in whole; a band that cannot slide in
-  whole is cut into pieces joined by puzzle tabs. You choose the assembly order, or let Lamina pick the one with
-  the fewest cuts, and each band can have its own wall and move its cuts. Thanks to @DaveLauber.
+  whole is cut into pieces, each cut a straight tongue that the later piece slides onto. Lamina checks that every
+  piece can slide in past the pieces already there, and names a piece that cannot and what is in its way. You
+  choose the assembly order, or let Lamina pick the one with the fewest cuts, and each band can have its own wall
+  and move its cuts. Thanks to @DaveLauber, who made the technique in his fork. The tongue and the slide-in
+  check were added when it was adapted for this release.
 - **Max piece length.** Ring slices and bands take a longest piece, measured along the ring: a longer ring is
-  cut across its wall into shorter pieces joined by puzzle tabs, clear of the holes and slots. A ring too big
-  for the sheet is always cut this way, not in straight strips. Thanks to @DaveLauber.
+  cut across its wall into shorter pieces joined by puzzle tabs (straight tongues in a band that slides in), clear
+  of the holes and slots. A ring too big for the sheet is always cut this way, not in straight strips. Thanks to
+  @DaveLauber, who made this in his fork. It was adapted for this release.
 - **Two more folded examples.** *fold_box* is a six-sided box with a turned lid, printed flat in PETG and folded up:
   every fold has its own angle. *fold_lantern* is the lamp shade at 420 mm for 3 mm plywood: 72 separate pieces,
   each with a window and lacing holes, numbered on the inside.

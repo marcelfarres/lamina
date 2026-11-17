@@ -228,8 +228,8 @@ class Mode:
         return None
 
     def cut(self, ctx, sl):
-        """Optional: the pieces `sl` is cut into before nesting (a band lattice's locked bands, rejoined by puzzle
-        tabs) → a list of polygons, or None for the usual: split when it does not fit the sheet, else one per island."""
+        """Optional: the pieces `sl` is cut into before nesting (a band lattice's locked bands, rejoined by
+        tongues) → a list of polygons, or None for the usual: split when it does not fit the sheet, else one per island."""
         return None
 
     @staticmethod
@@ -276,6 +276,7 @@ def view_defaults():
         "bounds3d": [],           # the planes between lobes or at a branch's joint, moved and tilted like slices
         "core_d_min": None,       # radial: the smallest core the half-slices allow
         "spacing": [],            # the drawn spacing curves' outcome, for the graph: [{param, positions, length, unit, scale}]
+        "steps": None,            # band lattice: the step each piece that slides in goes in at, {label: n}; a locked piece has none
         "clip": None,             # plaque: [point, normal] of the plate's front face — the 3D view shows the model in front of it only, and coverage is measured on that
     }
 
