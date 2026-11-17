@@ -13,6 +13,12 @@ What changed in each release. The GitHub release for a version is this section, 
   of their own. From outside you see only the seam line. *snap fit* sets how tight the clips are: print one seam
   first and set it for your printer. A seam that bends more than 100° is left plain, because its walls would lean
   too far to print without support, and Lamina says which ones.
+- **Or one with no loose parts at all: the *click* joint.** The same idea without the clips. At each seam one
+  panel gets a small tooth on its inside face and the other gets a small bar, printed as a bridge between two posts.
+  You press the seam shut: the tooth goes under the bar, the bar springs up to let it past and drops behind it.
+  Nothing extra to print, nothing to lose, nothing on the outside. *snap fit* sets the room between the tooth and
+  the bar. A seam shorter than 22 mm is left plain, because the bar needs its length to spring, and Lamina says
+  which ones.
 - **Two more folded examples.** *fold_box* is a six-sided box with a turned lid, printed flat in PETG and folded up:
   every fold has its own angle. *fold_lantern* is the lamp shade at 420 mm for 3 mm plywood: 72 separate pieces,
   each with a window and lacing holes, numbered on the inside.

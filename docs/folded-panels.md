@@ -103,6 +103,26 @@ The walls travel in the plan with each piece (`rails`, a `Rail` each: its line i
 panel, its cross-section) and `core.solid.rail` fuses them onto the panel. The 3D view draws each as a facet of its
 face. A clip is a part of its own (`K-n`, group J, 5 mm thick, `springy`: the thin-part checks pass it). The joint
 needs a printed material, a hinge and `score side` inside, because the walls stand on the face that is up on the bed.
+
+### The click joint: a tooth under a bridged bar, no part of its own
+The `click` joint closes a printed seam with nothing loose. It uses the same plane as the snap joint: one panel
+gets a wall with a tooth (`CLICK_NOSE` wide) that goes through the plane, the other gets a bar (`CLICK_BAR`) whose
+front is on the plane, bridged between two posts `CLICK_SPAN` apart. Pressed shut, the tooth goes under the bar and
+stands `CLICK_BITE` up behind it. `Folded.click_parts` makes the five cross-sections; all of them are walls in the
+plan (`rails`), so `core.solid` needs nothing new.
+
+Why a bridge: a part that grows up from a flat panel bends across its layers, the weak way. A bar between two posts
+is printed as a bridge and bends along its layers, like the clip's legs (1.7 % at the default sizes). The tooth is
+rigid.
+
+The underside of the tooth rises as steeply as prints without support (`SNAP_LEAN`) and stays 0.3 mm over the other
+panel's inside face. So the sharper the seam, the higher the bar sits. A seam whose tooth needs walls higher than
+`snap wall` is left plain with a warning, like a seam bent over 100°, a seam shorter than `CLICK_LONG` and its
+margins, or a window frame narrower than a wall's foot. Two low guides beside the tooth stop the seam from sliding
+along its length.
+
+Across the thickness of the sheet the tooth sits between the bar and the other panel's inside face, so the two
+edges stay level: the panel stops it one way, the bar's spring the other.
 Mountain folds are grooved from the face up on the bed, valley folds from the
 bed side. Edges between faces in one plane get no groove. The grooves travel in the plan with each piece (`grooves`, a `Groove` each: its line, flat bottom, skin, half opening and face)
 and `core/solid.py` cuts them from the printed part; the browser build has no boolean engine and exports plain parts,

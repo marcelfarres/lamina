@@ -258,7 +258,7 @@ def test_folded_holes_keep_the_wall_the_check_asks_for(joint):
     assert sum(1 for s in plan["slices"] if s["group"] == "F" for _ in s["pieces"]) >= 1
 
 
-@pytest.mark.parametrize("joint", [j for j in JOINTS if j != "snap"])     # snap is for printed panels: a cut sheet gets an error (tests/test_snap.py)
+@pytest.mark.parametrize("joint", [j for j in JOINTS if j not in ("snap", "click")])     # snap and click are for printed panels: a cut sheet gets an error (tests/test_snap.py)
 def test_folded_tabs_stay_on_their_panel(joint):
     """Found by the release's media run on Linux: the ticked joint's ticks touch the panel only along its edge, and
     rounding put their base a hair outside it, so each tick came off as a 5 × 6 mm piece of its own (9 errors on the

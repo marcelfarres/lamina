@@ -49,4 +49,8 @@ The words Lamina uses for its parts. One word for one thing.
 - **Snap wall**: a short wall that stands on the inside face of a printed panel along a seam. The two walls of a
   seam lie face to face when the seam is shut. The joint is *snap*.
 - **Clip**: the small printed part that is pushed over the two snap walls of a seam and holds them together.
+- **Tooth**: the rigid hook on the inside of one panel at a seam. It goes under the bar of the other panel and
+  stands up behind it. The joint is *click*.
+- **Bar**: the small beam on the inside of the other panel, printed as a bridge between two posts. It springs up to
+  let the tooth past.
 - **Tab**: a flap on a seam edge that is glued to the next panel. On a printed panel a tab is only as thick as the skin.
