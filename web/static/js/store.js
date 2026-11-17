@@ -35,9 +35,10 @@ export function folderStore(dir){
       return out},
     read:async file=>(await (await dir.getFileHandle(file)).getFile()).text(),
     // createWritable writes to a side file that close() swaps in, so a write that fails leaves the old file whole;
-    // a file this write created is removed again, not left behind empty
+    // a file this write created is removed again, not left behind empty. Only "not found" makes it new: any other
+    // error stops the write, so a file that was there is never taken for one this write made
     async write(file,text){
-      const made=await dir.getFileHandle(file).then(()=>false,()=>true), h=await dir.getFileHandle(file,{create:true}), w=await h.createWritable();
+      const made=await dir.getFileHandle(file).then(()=>false,e=>{if(e.name!=='NotFoundError')throw e;return true}), h=await dir.getFileHandle(file,{create:true}), w=await h.createWritable();
       try{await w.write(text);await w.close()}
       catch(e){await w.abort().catch(()=>{});if(made)await dir.removeEntry(file).catch(()=>{});throw e}
       const f=await h.getFile();return {size:f.size,mtime:f.lastModified}},
