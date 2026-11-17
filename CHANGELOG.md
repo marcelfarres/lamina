@@ -15,7 +15,9 @@ What changed in each release. The GitHub release for a version is this section, 
 - **Band lattice.** A new technique, *Band Lattice*, cuts the model into rings across x, y and z that lock
   together with half-lap slots where they cross. The first family goes in whole; a band that cannot slide in
   whole is cut into pieces, each cut a straight tongue that the later piece slides onto. Lamina checks that every
-  piece can slide in past the pieces already there, and names a piece that cannot and what is in its way. You
+  piece can slide in past the pieces already there, and names a piece that cannot and what is in its way. Where
+  two crossings sit close together on a band, the cut goes along one of the joints, or a small corner between the
+  two slots is cut off and glued in last, so that the pieces beside it can slide in. You
   choose the assembly order, or let Lamina pick the one with the fewest cuts, and each band can have its own wall
   and move its cuts. Thanks to @DaveLauber, who made the technique in his fork. The tongue and the slide-in
   check were added when it was adapted for this release.

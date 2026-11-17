@@ -70,13 +70,13 @@ def later_pieces(plan):
     return {pc["label"]: s for s in plan["slices"] if not s["label"].startswith(first) for pc in s["pieces"]}
 
 
-# The sphere and the head at their defaults have pieces that cannot get in, so these two are a finding, held strict:
-# the sphere's three bands cross close to one point at Z-2's corners, where its two slots overlap and no cut can part
-# them; the head has cuts that find no clean place between their joints (slots too close together).
+# The head at its defaults still has pieces that cannot get in, a finding held strict: lines of X-5, Y-5 and X-2 run
+# along a wall of a band they cross (a grazing joint), so the slot lies along that wall and no cut across it clears it.
 @pytest.mark.parametrize("model, prm", [
     ("cube.stl", {}),
-    pytest.param("sphere.stl", {"nx": 3, "ny": 3, "nz": 3}, marks=pytest.mark.xfail(strict=True, reason="Z-2's corners lock pieces")),
-    pytest.param("head_igea.stl", {}, marks=pytest.mark.xfail(strict=True, reason="cuts with no clean place lock pieces")),
+    ("sphere.stl", {"nx": 3, "ny": 3, "nz": 3}),
+    ("sphere.stl", {"nx": 4, "ny": 4, "nz": 4}),
+    pytest.param("head_igea.stl", {}, marks=pytest.mark.xfail(strict=True, reason="grazing joints lock pieces")),
 ])
 def test_every_piece_slides_in_past_the_ones_already_there(model, prm):
     plan = build(EXAMPLES / model, "bands", prm)
@@ -86,6 +86,39 @@ def test_every_piece_slides_in_past_the_ones_already_there(model, prm):
         assert any(e.startswith(f"{lab} cannot slide in: ") for e in later[lab]["errors"])
     assert not any(e.startswith(f"{lab} cannot") for s in plan["slices"] for e in s["errors"] for lab in plan["steps"])
     assert not locked, sorted(locked)
+
+
+def test_a_corner_boxed_in_by_two_bands_is_cut_off_and_glued_in_last():
+    # sphere 3×2×2: the lines of X-1 (x = −60) and Y-1 (y = −45) cross inside Z-1's wall, both slots beyond the crossing.
+    # The bit of wall between the two slots can slide in neither way; cut off, the rest of Z-1 goes in in two halves
+    plan = build(EXAMPLES / "sphere.stl", "bands", {"nx": 3, "ny": 2, "nz": 2})
+    assert plan["counts"]["errors"] == 0
+    g, z1 = shape(plan, "Z-1")
+    corners = [w for w in z1["warnings"] if " is the corner between its slots for " in w]
+    assert len(corners) == 4 and len(z1["pieces"]) == 6
+    assert any("for X-1 and Y-1" in w for w in corners)
+    small = [pc for pc in z1["pieces"] if pc["area"] < 50]                # the four corners, 18 mm² each
+    assert len(small) == 4
+    steps = plan["steps"]
+    assert set(steps) == set(later_pieces(plan))                        # every piece has a step: none locked
+    corner = {pc["label"] for s in plan["slices"] for pc in s["pieces"] if pc["area"] < 50}   # Z-2 has its four too
+    assert min(steps[lab] for lab in corner) > max(n for lab, n in steps.items() if lab not in corner)   # glued in last
+    # both earlier bands keep their slots there: the crossing still holds Z-1
+    for lab in ("X-1", "Y-1"):
+        assert "Z-1" in shape(plan, lab)[1]["engages"]
+    assert not g.contains(Point(-60, -40)) and not g.contains(Point(-55, -45))   # Z-1's slots for X-1 and Y-1
+
+
+def test_a_band_is_cut_along_a_joint_where_no_cut_fits_between_two():
+    # sphere 2×4×4: X-1 (x = −45) and Y-2 (y = −22.5) cross just inside Z-1's hollow; no cut fits between their slots,
+    # so Z-1 is cut along X-1's line from the surface to its slot, and the two pieces clamp X-1 between them
+    plan = build(EXAMPLES / "sphere.stl", "bands", {"nx": 2, "ny": 4, "nz": 4})
+    assert plan["counts"]["errors"] == 0
+    g, z1 = shape(plan, "Z-1")
+    assert not any(" is the corner " in w for w in z1["warnings"])
+    assert not g.contains(Point(-45, -36)) and g.contains(Point(-44, -36)) and g.contains(Point(-46, -36))
+    assert set(plan["steps"]) == set(later_pieces(plan))
+    assert "Z-1" in shape(plan, "X-1")[1]["engages"]
 
 
 def test_the_check_catches_a_joint_that_cannot_slide_together(monkeypatch):

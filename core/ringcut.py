@@ -38,8 +38,10 @@ def cut_line(E, I, p, sl, mf, joint=None):
     and where it gives False no cut at all: a band's pieces could not slide in past a cut that way."""
     e, i = np.array([E.x, E.y]), np.array([I.x, I.y]); L = float(np.linalg.norm(i - e)); u = (i - e) / L
     straight = LineString([e - u * 1.0, i + u * 1.0])
-    a = None if joint is None else joint(e, i)
-    if a is False or any(straight.distance(c) < mf for c in sl.cuts):   # a distance, not a buffer per cut: 200 bands tried 800 000 of them
+    if any(straight.distance(c) < mf for c in sl.cuts):   # a distance, not a buffer per cut: 200 bands tried 800 000 of them
+        return None, False
+    a = None if joint is None else joint(e, i)           # after: a band's joint sweeps pieces, the dearer test
+    if a is False:
         return None, False
     if a is True:
         return straight.buffer(CUT_W / 2, cap_style=2), None
@@ -129,7 +131,7 @@ def shorten(sl, p, limit, rings, geom, joint=None):
             continue                                             # solid, and no length to it: a plate, left whole
         # a ring many sheets round is a wrong setting, not a puzzle (as split.py says of a strip): a ring takes more
         # pieces than a strip does, so four times as many
-        n = math.ceil(rg.L / min(limit or math.inf, max(sheet) - 2 * margin))
+        n = math.ceil(rg.L / max(1e-3, min(limit or math.inf, max(sheet) - 2 * margin)))   # a sheet all margin: no room at all
         if n > 4 * MAX_PIECES:
             sl.errors.append(f"a ring {rg.L:.0f} mm round would be cut into {n} pieces: use a bigger sheet"
                              + (" or a longer `max_length`" if limit else "") + ", a smaller model, or fewer, larger parts")
