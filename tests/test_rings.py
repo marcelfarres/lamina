@@ -72,3 +72,16 @@ def test_dowels_wider_than_the_wall_sit_in_a_collar_with_no_thin_spots():
     assert plan["counts"]["errors"] == 0 and plan["counts"]["warnings"] == 0
     assert plan["rods"]                                                              # the stack is held
     assert all("dowel" in sl["engages"] for sl in plan["slices"])
+
+
+def test_a_ring_inside_the_hole_of_the_next_is_held_by_a_lug():
+    """A vase flares by more than the wall from one slice to the next: a ring then lies inside the hole of the ring
+    beside it and no dowel passes through both walls (8 of 10 rings were left unheld). The wider ring grows a lug in
+    to where the other's wall is, so every ring is on a dowel, for little more material than the bare rings."""
+    job = {"distribution": "count", "count": 10, "ring_slices": True, "ring_wall": 8}
+    plan = build(str(EXAMPLES / "vase.stl"), "stacked", job)
+    loose = [s["label"] for s in plan["slices"] for e in s.get("errors", []) if "not connected" in e]
+    assert not loose and plan["counts"]["errors"] == 0, (loose, plan["counts"])
+    area = lambda p: sum(pc["area"] for s in p["slices"] if s["label"].startswith("Z-") for pc in s["pieces"])   # noqa: E731
+    solid = build(str(EXAMPLES / "vase.stl"), "stacked", {"distribution": "count", "count": 10})
+    assert area(plan) < 0.4 * area(solid), (area(plan), area(solid))    # still rings: the lugs are a few percent

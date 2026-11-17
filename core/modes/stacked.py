@@ -105,16 +105,30 @@ class Stacked(Mode):
     def ring_up(ctx, slices, conn):
         """Ring slices, first half: each slice keeps its section and the ring it will be cut as (`ring`), and `raw` is
         set to a ring wide enough for one connector to sit in it with a full wall all round, which the connectors
-        are placed in."""
+        are placed in. Where that ring does not reach a neighbour's — a small ring inside the hole of the one beside
+        it, near the pole of a round model or on a steep flare — it also takes connectors where the neighbour passes
+        over its own section: `collared` then leaves a lug from the wall to each."""
         p = ctx.p; mf = p["min_feature"]
         room = 2 * (conn.reach + conn.mf) + 0.5 if conn else 0.0      # a connector's reach and a wall, either side
+        wide = {}
         for i, sl in enumerate(slices):
             if p["ring_caps"] and i in (0, len(slices) - 1):
                 continue
             w = ctx.override("wall", sl.label, p["ring_wall"])
             sl.ring = (sl.raw, ring_of(sl.raw, w, mf))
-            sl.raw = ring_of(sl.raw, room, mf) if room > w else sl.ring[1]
+            wide[i] = ring_of(sl.raw, room, mf) if room > w else sl.ring[1]
             sl.inner = None
+        solid = {i: sl.raw for i, sl in enumerate(slices) if i not in wide}
+        for i, sl in enumerate(slices):
+            if i not in wide:
+                continue
+            reach = [wide[i]]
+            for k in (i - 1, i + 1):
+                if conn and 0 <= k < len(slices):
+                    there = into(slices[k].M, sl.M, wide.get(k, solid.get(k)))
+                    if wide[i].intersection(there).buffer(-room / 2).is_empty:      # no room for a connector where the two walls meet
+                        reach.append(sl.ring[0].intersection(there))
+            sl.raw = as_multi(unary_union(reach))
 
     @staticmethod
     def ring_down(ctx, slices):

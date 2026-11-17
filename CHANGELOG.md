@@ -10,7 +10,9 @@ What changed in each release. The GitHub release for a version is this section, 
   slice and cuts the middle away, so the stack is a shell of rings and uses much less material. Every hole and
   island gets its own wall, narrow parts stay solid, and the first and last slice can stay solid to close the
   ends. A slice can have its own wall: select it in the 3D view. Dowels and spacers get a collar of material
-  where the wall is too thin for them. Thanks to @DaveLauber, who made this in his fork. It was adapted for
+  where the wall is too thin for them. On a steep or round shape a ring can lie inside the hole of the ring
+  beside it: the wider ring then grows a lug in to the dowel that joins the two, so every ring is held. Thanks to
+  @DaveLauber, who made this in his fork. It was adapted for
   this release, not merged as it was.
 - **Band lattice.** A new technique, *Band Lattice*, cuts the model into rings across x, y and z that lock
   together with half-lap slots where they cross. The first family goes in whole; a band that cannot slide in
