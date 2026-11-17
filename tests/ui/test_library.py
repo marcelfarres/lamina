@@ -16,7 +16,8 @@ def wipe(page):
     delete the database instead; both leave it empty, and the library opens it again on its next call."""
     page.evaluate("""async () => { const S = await import('/static/js/store.js'), b = S.browserStore();
         for (const f of await b.list()) await b.remove(f.file); await S.idxSet('browser', []);
-        __t.lib.useStore(b); __t.lib.setSaved(null);
+        await (await navigator.storage.getDirectory()).removeEntry('lib', {recursive: true}).catch(() => {});
+        await S.kvDel('folder'); await __t.lib.restoreStore(); __t.lib.setSaved(null);
         const s = __t.state(); s.project = ''; s.rev = '1.0'; (await import('/static/js/project.js')).syncProject() }""")
 
 
@@ -457,3 +458,163 @@ def test_folder_list_skips_a_file_that_vanished(page):
         P.getFile = function () {{ return this.name === 'gone_v1.0.lamina.json' ? Promise.reject(new DOMException('gone', 'NotFoundError')) : g.call(this) }};
         try {{ return (await s.list()).map(e => e.file) }} finally {{ P.getFile = g }} }}""")
     assert r == ["a_v1.0.lamina.json"]
+
+
+# --- linked folder (Task 7) ---
+LIB = "(await navigator.storage.getDirectory()).getDirectoryHandle('lib', {create: true})"
+
+
+def folder(page, answer="keep"):
+    """Link the private folder 'lib' as the library, the way #liblink does after the picker; a clash answers `answer`."""
+    page.evaluate(f"async a => {{ await __t.lib.linkFolder(await {LIB}, () => Promise.resolve(a)) }}", answer)
+
+
+def drop(page, file, text):
+    """A file written into the folder behind the library's back: by hand, or by another tab."""
+    page.evaluate(f"""async ([f, t]) => {{ const w = await (await (await {LIB}).getFileHandle(f, {{create: true}})).createWritable();
+        await w.write(t); await w.close() }}""", [file, text])
+
+
+def on_disk(page):
+    """Everything in the folder: {name: its text, or None for a sub-folder}."""
+    return page.evaluate(f"""async () => {{ const out = {{}};
+        for await (const [n, h] of (await {LIB}).entries()) out[n] = h.kind === 'file' ? await (await h.getFile()).text() : null;
+        return out }}""")
+
+
+def browser_files(page):
+    return page.evaluate("import('/static/js/store.js').then(S => S.browserStore().list())")
+
+
+def read_text(page, file):
+    return page.evaluate("f => import('/static/js/store.js').then(S => S.browserStore().read(f))", file)
+
+
+def project(name, rev="1.0"):
+    return json.dumps({"name": name, "rev": rev, "mode": "stacked", "state": {"rev": rev}})
+
+
+def test_linking_moves_the_browser_projects_into_the_folder(page):
+    name(page, "lamp"); save(page); name(page, "vase"); save(page)
+    texts = {f: read_text(page, f) for f in ("lamp_v1.0.lamina.json", "vase_v1.0.lamina.json")}
+    drop(page, "egg_v1.0.lamina.json", project("egg"))
+    folder(page)
+    assert sorted(lib(page)) == [("egg", ["1.0"]), ("lamp", ["1.0"]), ("vase", ["1.0"])]
+    assert browser_files(page) == []
+    disk = on_disk(page)
+    assert sorted(disk) == ["egg_v1.0.lamina.json", "lamp_v1.0.lamina.json", "vase_v1.0.lamina.json"]
+    assert all(disk[f] == t for f, t in texts.items())                         # moved as they were
+    assert page.evaluate("__t.lib.storeState()") == {"kind": "folder", "label": "lib", "state": "folder", "files": 3, "left": ""}
+    assert save(page) == [{"file": "vase_v1.0.lamina.json"}, []]               # the revision in hand moved with it
+
+
+def test_linking_asks_on_a_clash_and_moves_unreadable_files_as_they_are(page):
+    name(page, "lamp"); save(page); name(page, "lamp2"); save(page); put(page, "junk_v1.0.lamina.json", "not json")
+    drop(page, "lamp_v1.0.lamina.json", project("lamp")); drop(page, "lamp2_v1.0.lamina.json", project("lamp2"))
+    r, asked = page.evaluate(f"""async () => {{ const asked = [];
+        const r = await __t.lib.linkFolder(await {LIB}, c => {{ asked.push(c); return Promise.resolve({{answer: 'keep', rest: true}}) }});
+        return [r, asked] }}""")
+    assert len(asked) == 1 and asked[0]["next"] == "1.1"                       # the answer served the second clash too
+    assert sorted(r["moved"]) == ["junk_v1.0.lamina.json", "lamp2_v1.1.lamina.json", "lamp_v1.1.lamina.json"]
+    disk = on_disk(page)
+    assert disk["junk_v1.0.lamina.json"] == "not json" and disk["lamp_v1.0.lamina.json"] == project("lamp")
+    assert json.loads(disk["lamp_v1.1.lamina.json"])["rev"] == "1.1" and browser_files(page) == []
+
+
+def test_the_folder_is_the_library(page):
+    folder(page)
+    drop(page, "egg_v1.0.lamina.json", project("egg")); drop(page, "egg_v1.1.lamina.json", project("egg", "1.1"))
+    assert lib(page) == [("egg", ["1.1", "1.0"])]
+    page.evaluate("__t.lib.removeProject('egg')")
+    assert lib(page) == [] and on_disk(page) == {}
+
+
+def test_unchanged_files_are_not_read_again(page):
+    folder(page)
+    drop(page, "a_v1.0.lamina.json", project("a")); drop(page, "b_v1.0.lamina.json", project("b"))
+    reads = page.evaluate(f"""async () => {{ const S = await import('/static/js/store.js'), f = S.folderStore(await {LIB});
+        window.__reads = 0; __t.lib.useStore({{...f, read: x => {{ window.__reads++; return f.read(x) }}}});
+        const n = []; await __t.lib.entries(); n.push(__reads); await __t.lib.entries(); n.push(__reads); return n }}""")
+    assert reads == [2, 2]                                                     # the second listing read nothing
+    drop(page, "a_v1.0.lamina.json", project("a-touched"))
+    assert page.evaluate("__t.lib.entries().then(() => __reads)") == 3 and sorted(lib(page))[0] == ("a-touched", ["1.0"])
+
+
+def test_delete_lists_the_library_once(page):
+    name(page, "lamp"); save(page); bump(page); settle(page); save(page)
+    n = page.evaluate("""async () => { const S = await import('/static/js/store.js'), b = S.browserStore(); let n = 0;
+        __t.lib.useStore({...b, list: () => { n++; return b.list() }});
+        try { await __t.lib.removeProject('lamp'); return n } finally { __t.lib.useStore(b) } }""")
+    assert n == 1 and lib(page) == []
+
+
+def test_other_things_in_the_folder(page):
+    folder(page)
+    drop(page, "notes.json", "{}"); drop(page, "x_v1.0.lamina.json", '{"name":"x","mo')
+    page.evaluate(f"async () => {{ await (await {LIB}).getDirectoryHandle('sub.lamina.json', {{create: true}}) }}")
+    (p,) = page.evaluate("__t.lib.entries()")
+    assert p["name"] == "x_v1.0.lamina.json" and [r["bad"] for r in p["revs"]] == [True]
+    err = page.evaluate("__t.lib.removeProject('x_v1.0.lamina.json').then(() => null, e => e.message)")
+    assert err and "cannot be read" in err
+    assert on_disk(page) == {"notes.json": "{}", "x_v1.0.lamina.json": '{"name":"x","mo', "sub.lamina.json": None}
+
+
+def test_a_file_changed_on_disk_asks_before_save(page):
+    folder(page); name(page, "lamp")
+    assert save(page) == [{"file": "lamp_v1.0.lamina.json"}, []]
+    assert save(page)[1] == []                                                 # unchanged since this tab saved it
+    by_hand = on_disk(page)["lamp_v1.0.lamina.json"] + " "
+    drop(page, "lamp_v1.0.lamina.json", by_hand)
+    assert save(page) == [None, [{"name": "lamp", "rev": "1.0", "next": "1.1"}]]
+    assert on_disk(page)["lamp_v1.0.lamina.json"] == by_hand
+
+
+def test_no_fallback_when_the_folder_cannot_be_reached(page):
+    folder(page); name(page, "lamp")
+    r = page.evaluate("""async () => { const P = FileSystemDirectoryHandle.prototype, keep = {}, out = {};
+        for (const k of ['queryPermission', 'requestPermission']) keep[k] = Object.getOwnPropertyDescriptor(P, k);
+        P.queryPermission = async () => 'prompt'; P.requestPermission = async () => 'denied';
+        try { out.restored = await __t.lib.restoreStore();
+            out.err = await __t.lib.saveCurrent(() => Promise.resolve('replace')).then(() => null, e => e.message);
+            out.reconnected = await __t.lib.reconnect(); out.state = __t.lib.storeState() }
+        finally { for (const k in keep) keep[k] ? Object.defineProperty(P, k, keep[k]) : delete P[k] }
+        return out }""")
+    assert r["restored"] == "needs-permission" and r["reconnected"] is False
+    assert r["err"] and "Reconnect" in r["err"] and "export" in r["err"]
+    assert (r["state"]["kind"], r["state"]["label"], r["state"]["state"]) == ("folder", "lib", "needs-permission")
+    assert browser_files(page) == [] and on_disk(page) == {}
+    assert page.evaluate("__t.lib.reconnect()") is True and page.evaluate("__t.lib.storeState().state") == "folder"
+    assert save(page)[0] == {"file": "lamp_v1.0.lamina.json"}
+
+
+def test_unlink_leaves_the_files(page):
+    name(page, "lamp"); save(page); folder(page)
+    page.evaluate("__t.lib.unlink()")
+    assert lib(page) == [] and sorted(on_disk(page)) == ["lamp_v1.0.lamina.json"]
+    assert page.evaluate("__t.lib.storeState()") == {"kind": "browser", "label": "this browser", "state": "browser",
+                                                     "files": 0, "left": "lib"}
+    assert page.evaluate("import('/static/js/store.js').then(S => S.kvGet('folder'))") is None
+
+
+def test_link_state_survives_reload(page):
+    name(page, "lamp"); save(page); folder(page)
+    before = page.evaluate("__t.lib.entries()")
+    page.reload(); settle(page)
+    assert page.evaluate("__t.lib.storeState()")["kind"] == "folder" and page.evaluate("__t.lib.entries()") == before
+    assert page.evaluate("__t.lib.storeState().state") == "folder"
+
+
+def test_a_save_writes_the_settings_it_started_with(page):
+    """A change made while the model is read for a save belongs to the next save, not half to this one."""
+    name(page, "lamp"); t = page.evaluate("__t.state().thickness")
+    page.evaluate("async () => { const p = __t.lib.saveCurrent(() => Promise.resolve(null)); __t.state().thickness += 1; await p }")
+    assert read(page, "lamp_v1.0.lamina.json")["state"]["thickness"] == t
+    assert page.evaluate("__t.lib.unsaved()") is True
+
+
+def test_a_failed_listing_is_tried_again(page):
+    name(page, "lamp"); save(page)
+    r = page.evaluate("""async () => { const S = await import('/static/js/store.js'), b = S.browserStore(); let n = 0;
+        __t.lib.useStore({...b, list: () => n++ ? b.list() : Promise.reject(new Error('busy'))});
+        try { return [(await __t.lib.listed()).length, (await __t.lib.listed()).length] } finally { __t.lib.useStore(b) } }""")
+    assert r == [0, 1]

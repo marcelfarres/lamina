@@ -133,7 +133,7 @@ async function init(){
   else{setMode(location.hash.slice(1)||'interlocked',false);applyMachine(matOf(state.material).machine);applyPreset()}   // a fresh start gets the machine's compensation and the example's preset (the #technique in the URL is the app's own mirror of its state, not a request)
   ST.fresh=sess.mode?'page reloaded, last session resumed':'page opened on example '+ST.example; applyUnit();
   if(!sess.mode)lib.baseline();   // a fresh start is an example as it opened; it also replaces a mirror left by a cleared session
-  slice(); lib.listed();
+  await lib.restoreStore(); slice(); lib.listed();   // the linked folder, if one is kept, before anything lists or saves
 }
 init();
 

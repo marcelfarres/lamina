@@ -2,7 +2,7 @@
 // What save, open, bump and delete mean for the projects kept in the library, and when the page has unsaved changes.
 // No page here (librarypage.js draws it): every rule is reachable through window.__t.lib.
 import {state, ST} from './state.js';
-import {browserStore, idxGet, idxSet} from './store.js';
+import {browserStore, folderStore, idxGet, idxSet, kvGet, kvSet, kvDel} from './store.js';
 import {projectObj, openProjectText, syncProject, nextFree} from './project.js';
 import {snapshot} from './scene.js';
 import {memo, schedule} from './form.js';
@@ -42,14 +42,15 @@ export async function entries(){
   const idx=new Map((await idxGet(store.kind)).map(e=>[e.file,e])), files=await store.list();
   seen=new Map(files.map(f=>[lc(f.file),f]));
   let changed=files.length!==idx.size;
-  // Task 7 puts its trust rule here: an entry is used while its file's size and mtime are unchanged
-  rows=[];for(const f of files){let e=idx.get(f.file);if(!e){e=await readEntry(f);changed=true}rows.push(e)}
+  // an entry is trusted while its file's size and mtime are unchanged: a library of big models opens without reading them
+  rows=[];for(const f of files){let e=idx.get(f.file);if(e?.size!==f.size||e.mtime!==f.mtime){e=await readEntry(f);changed=true}rows.push(e)}
   if(changed)await idxSet(store.kind,rows);
   return group();
 }
 export const revsOf=name=>last.find(p=>p.name===name)?.revs.map(r=>r.rev)||[];
-// listed once when nothing has listed it yet (a bump straight after a refresh); a store that cannot be listed gives what is known
-export const listed=()=>first??=entries().catch(()=>last);
+// listed once when nothing has listed it yet (a bump straight after a refresh); a store that cannot be listed gives what
+// is known, and is listed again on the next call
+export const listed=()=>first??=entries().catch(()=>{first=null;return last});
 
 // the cached listing first, then the index, read again before it is changed: a listing made before useStore() is not this store's.
 // Ordered so that an index that cannot be written leaves the page's own listing right
@@ -85,10 +86,11 @@ export function saveCurrent(ask){return saving??=save(ask).finally(()=>{saving=n
 async function save(ask){
   // the fallback name: the model's file name, or the example's ('model' for an upload whose name this tab never saw)
   if(!state.project){const id=modelId();state.project=(Array.isArray(id)?id[0].replace(/\.[^.]*$/,''):held().up?'':id)||'model';syncProject();schedule()}
-  // What is written is fixed first: reading the model can take seconds. The listing, the checks and the write follow
-  // with no wait between them but the question, and after an answer the library is listed and checked again
-  const proj=await projectObj(), preview=snapshot(), model=modelId();
-  proj.state=structuredClone(state);proj.memo=structuredClone(memo);if(preview)proj.preview=preview;
+  // What is written is fixed first, before the model is read (that can take seconds, and a change made meanwhile is the
+  // next save's). The listing, the checks and the write follow with no wait between them but the question, and after
+  // an answer the library is listed and checked again
+  const st=structuredClone(state), me=structuredClone(memo), model=modelId(), proj=await projectObj(), preview=snapshot();
+  proj.state=st;proj.memo=me;if(preview)proj.preview=preview;
   const name=proj.name;let consented='';
   for(;;){
     await entries();
@@ -99,7 +101,8 @@ async function save(ask){
     if(!stem){const other=new Set(rows.map(r=>lc(stemOf(r.file)))),base=legal(name);stem=base;for(let k=2;other.has(lc(stem));k++)stem=`${base}~${k}`}
     const file=fileName(stem,proj.rev), hit=rows.find(r=>lc(r.file)===lc(file));
     if(hit?.bad)throw new Error(`${hit.file} in ${store.label} cannot be read, and Lamina does not write onto it: bump the revision, or use export to keep a copy of this project.`);
-    // without asking only onto the file this tab opened or last saved, in this store, as it was then (another tab can have saved it since)
+    // without asking only onto the file this tab opened or last saved, in this store, as it was then: another tab, or a
+    // hand in the linked folder, can have changed it since (the index is no help here: listing just rebuilt it)
     const s=ST.saved, mine=!!s?.file&&lc(s.file)===lc(file)&&sameStore()&&seen.get(lc(file))?.mtime===s.mtime;
     if(!hit||mine||lc(file)===consented)return write(hit?.file||file,proj,model);
     const taken=rows.filter(r=>lc(stemOf(r.file))===lc(stem)).map(r=>r.file.slice(stem.length+2,-EXT.length));   // unreadable ones too
@@ -132,13 +135,67 @@ export async function openRevision(file){
 }
 
 const unreadable=file=>new Error(`${file} cannot be read, and Lamina does not delete a file it cannot read. Delete it in ${store.label} yourself if you do not need it.`);
-export async function removeRevision(file){
-  await entries();if(rows.find(r=>r.file===file)?.bad)throw unreadable(file);
+async function drop(file){
   await store.remove(file);await reindex(file,null);
   if(ST.saved?.file&&lc(ST.saved.file)===lc(file)&&sameStore())setSaved(null);   // the revision in hand is no longer saved
+}
+export async function removeRevision(file){
+  await entries();if(rows.find(r=>r.file===file)?.bad)throw unreadable(file);
+  await drop(file);
 }
 export async function removeProject(name){
   const p=(await entries()).find(p=>p.name===name);if(!p)return;
   const bad=p.revs.find(r=>r.bad);if(bad)throw unreadable(bad.file);
-  for(const r of p.revs)await removeRevision(r.file);
+  for(const r of p.revs)await drop(r.file);   // listed once, above
+}
+
+// ---------------------------------------------------------------- the linked folder
+// While a folder is linked it is the library; the browser store is the library only when none is. A linked folder that
+// cannot be reached is not swapped for the browser store (the library would split in two): every call on it rejects
+const LOST='The linked folder cannot be reached. Reconnect it in the library, or export the project.';
+const lost=dir=>{const no=()=>Promise.reject(new Error(LOST));return {kind:'folder',label:dir.name,list:no,read:no,write:no,remove:no}};
+// kept: the linked folder's handle; reach: the folder line's state; left: the folder an unlink left the files in
+let kept=null, reach='browser', left='';
+export const canLink=()=>'showDirectoryPicker' in window;
+export const storeState=()=>({kind:store.kind,label:store.label,state:reach,files:rows.length,left});
+function linked(dir,ok){kept=dir;reach=!dir?'browser':ok?'folder':'needs-permission';useStore(!dir?browserStore():ok?folderStore(dir):lost(dir));return reach}
+// the private file system (the tests) has no permission calls: there, absent means granted
+const granted=async(dir,request)=>{const f=request?dir.requestPermission:dir.queryPermission;return !f||await f.call(dir,{mode:'readwrite'})==='granted'};
+// at start-up, without a click: only asks whether permission is there. A folder deleted or moved away lists nothing: not reachable either
+export async function restoreStore(){left='';
+  const dir=await kvGet('folder').catch(()=>null)??null;
+  return linked(dir,!!dir&&await granted(dir,false).then(ok=>ok&&dir.entries().next().then(()=>true)).catch(()=>false))}
+// from a click only: the browser shows its prompt
+export async function reconnect(){if(!kept)return false;const ok=await granted(kept,true).catch(()=>false);if(ok)linked(kept,true);return ok}
+export async function unlink(){left=kept?.name||'';await kvDel('folder');linked(null)}
+
+// Every browser revision moves into the folder: written, read back and compared, and only then removed from the browser,
+// so a failure half-way leaves each one in at least one of the two places. The bytes move as they are: a file that
+// cannot be read goes too, unchanged. A clash asks as an import does; {answer, rest:true} answers the rest of them
+export async function linkFolder(dir,ask){
+  const from=browserStore(), to=folderStore(dir), moved=[], skipped=[];
+  const there=new Map((await to.list()).map(f=>[lc(f.file),f.file]));
+  let rest;
+  try{for(const {file} of await from.list()){
+    let text=await from.read(file), dest=file;
+    if(there.has(lc(file))){
+      const stem=stemOf(file), revOf=f=>f.slice(stem.length+2,-EXT.length), rev=revOf(file);
+      let p=null;try{p=parse(text)}catch(e){}
+      const next=nextFree([...there.values()].filter(f=>lc(stemOf(f))===lc(stem)).map(revOf),rev,false);
+      let a=rest;if(a===undefined){const r=await ask({name:p?.name||file,rev,next});a=r?.answer??r;if(r?.rest)rest=a}
+      // a file in the folder that cannot be read is never written onto: replace keeps both instead
+      if(a==='replace'&&await to.read(there.get(lc(file))).then(parse).then(()=>false,()=>true))a='keep';
+      if(a==='replace')dest=there.get(lc(file));   // the folder's own spelling of the name
+      else if(a==='keep'){dest=`${stem}_v${next}${EXT}`;if(p){p.rev=next;if(p.state)p.state.rev=next;text=JSON.stringify(p)}}
+      else{skipped.push(file);continue}   // left in the browser, where unlink finds it again
+    }
+    const w=await to.write(dest,text);
+    if(await to.read(dest)!==text)throw new Error(`${dest} did not read back as it was written`);
+    await from.remove(file);there.set(lc(dest),dest);moved.push(dest);
+    // the revision in hand moved as it was: still this tab's to save without asking
+    if(ST.saved?.file===file&&dest===file&&ST.saved.store?.kind==='browser')setSaved({...ST.saved,store:{kind:'folder',label:dir.name},mtime:w.mtime});
+  }}catch(e){throw new Error(`Linking ${dir.name} stopped (${e.message||e.name}). ${moved.length} revisions were moved into ${dir.name}; the others are still in this browser.`)}
+  await idxSet('folder',[]);   // the index of a folder linked before: not this one's
+  await kvSet('folder',dir);left='';linked(dir,true);
+  return {moved,skipped};
 }
