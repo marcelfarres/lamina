@@ -90,23 +90,28 @@ export const baseline=()=>setSaved({name:'',rev:'',snap:snap(),file:null,store:n
 
 // Save, link, open, delete, unlink and reconnect run one at a time, after start-up has picked the store: a save that
 // lands while a link moves the files is removed with the browser copy, or stays behind in the browser unseen
-let queue=Promise.resolve(), ready=Promise.resolve();
+// `ready` stays pending until restoreStore() has picked the store (main.js starts it first thing), so no call reaches
+// the browser store while a folder is kept
+let queue=Promise.resolve(), start, ready=new Promise(ok=>start=ok);
 const one=fn=>{const r=queue.then(()=>ready).then(fn);queue=r.catch(()=>{});return r};
 // one save at a time: a second press while one runs gets the first one's answer
-export function saveCurrent(ask){return saving??=one(fixed(ask)).finally(()=>{saving=null})}
+export function saveCurrent(ask){if(saving)return saving;
+  let run;try{run=fixed(ask)}catch(e){return Promise.reject(e)}   // a state that cannot be copied: the caller hears it
+  return saving=one(run).finally(()=>{saving=null})}
 // What is written is fixed at the press, before the queue and before the model is read (both can take seconds, and a
-// change made meanwhile is the next save's): projectObj takes name, revision and technique as it starts
+// change made meanwhile is the next save's): projectObj takes name, revision and technique as it starts, and the
+// preview is the scene of the press
 function fixed(ask){
   // the fallback name: the model's file name, or the example's ('model' for an upload whose name this tab never saw)
   if(!state.project){const id=modelId();state.project=(Array.isArray(id)?id[0].replace(/\.[^.]*$/,''):held().up?'':id)||'model';syncProject();schedule()}
-  const st=structuredClone(state), me=structuredClone(memo), model=modelId(), obj=projectObj();
+  const st=structuredClone(state), me=structuredClone(memo), model=modelId(), preview=snapshot(), obj=projectObj();
   obj.catch(()=>{});   // answered in save(), once the queue lets it run
-  return ()=>save(ask,obj,st,me,model);
+  return ()=>save(ask,obj,st,me,model,preview);
 }
 // The listing, the checks and the write follow with no wait between them but the question, and after an answer the
 // library is listed and checked again
-async function save(ask,obj,st,me,model){
-  const proj=await obj, preview=snapshot();
+async function save(ask,obj,st,me,model,preview){
+  const proj=await obj;
   proj.state=st;proj.memo=me;if(preview)proj.preview=preview;
   const name=proj.name;let consented='';
   for(;;){
@@ -182,14 +187,17 @@ function guarded(s,dir){const g={...s};
 function linked(dir,ok){kept=dir;reach=!dir?'browser':ok?'folder':'needs-permission';useStore(!dir?browserStore():ok?guarded(folderStore(dir),dir):lost(dir));return reach}
 // the private file system (the tests) has no permission calls: there, absent means granted. A folder deleted or moved
 // away lists nothing: not reachable either
-const reachable=(dir,request)=>Promise.resolve(request?dir.requestPermission:dir.queryPermission)
-  .then(f=>!f||f.call(dir,{mode:'readwrite'}).then(p=>p==='granted')).then(ok=>ok&&dir.entries().next().then(()=>true)).catch(()=>false);
-// at start-up, without a click: only asks whether permission is there. Every library call waits for it (`ready`), so
-// none reaches the browser store while a folder is kept
+const allowed=ask=>{try{return Promise.resolve(ask()).then(p=>p===undefined||p==='granted')}catch(e){return Promise.resolve(false)}};
+const reachable=(dir,asked)=>asked.then(ok=>ok&&dir.entries().next().then(()=>true)).catch(()=>false);
+// at start-up, without a click: only asks whether permission is there. Every library call waits for it (`ready`)
 export function restoreStore(){left='';
-  return ready=kvGet('folder').catch(()=>null).then(async dir=>linked(dir??null,!!dir&&await reachable(dir,false)))}
-// from a click only: the browser shows its prompt
-export const reconnect=()=>one(async()=>{if(!kept)return false;const ok=await reachable(kept,true);if(ok)linked(kept,true);return ok});
+  const p=kvGet('folder').catch(()=>null).then(async dir=>linked(dir??null,!!dir&&await reachable(dir,allowed(()=>dir.queryPermission?.({mode:'readwrite'})))));
+  start(p);return ready=p}
+// from a click only. The prompt is asked for here, at once: the click's permission to show it runs out in a few seconds,
+// and a save or a link ahead in the queue can take longer. Only the check and the switch of store wait their turn
+export function reconnect(){const dir=kept;if(!dir)return Promise.resolve(false);
+  const asked=allowed(()=>dir.requestPermission?.({mode:'readwrite'}));
+  return one(async()=>{const ok=await reachable(dir,asked)&&kept===dir;if(ok)linked(dir,true);return ok})}
 export const unlink=()=>one(async()=>{left=kept?.name||'';await kvDel('folder');linked(null)});
 
 // Every browser revision moves into the folder: written, read back and compared, and only then removed from the browser,
@@ -202,7 +210,8 @@ async function link(dir,ask){
   const there=new Map((await to.list()).map(f=>[lc(f.file),f.file])), files=await from.list();
   let rest;
   try{for(const f of files){
-    const {file}=f;let text=await from.read(file), dest=file;
+    // read with its own time and size: another tab can have saved it since the listing, and those bytes are the ones that move
+    const {file}=f, got=await from.record(file);let text=got.text, dest=file;
     if(there.has(lc(file))){
       const stem=stemOf(file), rev=revOf(file);
       let p=null;try{p=parse(text)}catch(e){}
@@ -220,7 +229,7 @@ async function link(dir,ask){
     await from.remove(file);there.set(lc(dest),dest);moved.push(dest);
     // the revision in hand, moved as this tab last saw it (not as another tab saved it since): still this tab's to save without asking
     const s=ST.saved;
-    if(s?.file===file&&dest===file&&s.store?.kind==='browser'&&s.mtime===f.mtime&&s.size===f.size)setSaved({...s,store:{kind:'folder',label:dir.name},mtime:w.mtime,size:w.size});
+    if(s?.file===file&&dest===file&&s.store?.kind==='browser'&&s.mtime===got.mtime&&s.size===got.size)setSaved({...s,store:{kind:'folder',label:dir.name},mtime:w.mtime,size:w.size});
   }}catch(e){throw new Error(`Linking ${dir.name} stopped (${e.message||e.name}). ${moved.length} revisions were moved into ${dir.name}; the others are still in this browser.`)}
   try{await kvSet('folder',dir)}
   catch(e){throw new Error(`Linking ${dir.name} stopped (${e.message||e.name}). The revisions were moved into ${dir.name}, but the folder is not linked: link it again.`)}

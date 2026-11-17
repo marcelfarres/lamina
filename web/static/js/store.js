@@ -16,11 +16,13 @@ async function tx(name,mode,fn){
 }
 
 export function browserStore(){
-  return {kind:'browser',label:'this browser',
+  // the whole record, {file, text, size, mtime}: the text with the time and size it was stored with (linkFolder)
+  const record=async file=>{const r=await tx('revisions','readonly',s=>s.get(file));if(!r)throw new Error(`${file} is not in this browser`);return r};
+  return {kind:'browser',label:'this browser',record,
     // ponytail: getAll reads every revision's text to list them, fine for hundreds of small files; a cursor over a
     // size/mtime index if the library grows past that
     list:async()=>(await tx('revisions','readonly',s=>s.getAll())).filter(r=>r.file.endsWith(EXT)).map(({file,size,mtime})=>({file,size,mtime})),
-    read:async file=>{const r=await tx('revisions','readonly',s=>s.get(file));if(!r)throw new Error(`${file} is not in this browser`);return r.text},
+    read:async file=>(await record(file)).text,
     // one transaction: either the whole new record is stored or the old one stays
     write:async(file,text)=>{const r={file,text,size:new Blob([text]).size,mtime:Date.now()};await tx('revisions','readwrite',s=>s.put(r));return {size:r.size,mtime:r.mtime}},
     remove:file=>tx('revisions','readwrite',s=>s.delete(file)).then(()=>{})};

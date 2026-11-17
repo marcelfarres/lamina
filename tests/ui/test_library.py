@@ -633,11 +633,13 @@ def link(page, answers=()):
 
 
 def test_a_save_during_a_link_is_not_lost(page):
-    name(page, "lamp"); save(page)
+    """The save is pressed in the middle of the link (while it asks about a clash): lamp has moved, vase not yet."""
+    name(page, "vase"); save(page); name(page, "lamp"); save(page)
     set_fields(page, [("p_thickness", 4)]); settle(page)
-    unsaved = page.evaluate(f"""async () => {{ const d = await {LIB};
-        const s = __t.lib.saveCurrent(() => Promise.resolve('replace')), l = __t.lib.linkFolder(d, () => Promise.resolve('replace'));
-        await Promise.all([s, l]); return __t.lib.unsaved() }}""")
+    drop(page, "vase_v1.0.lamina.json", project("vase"))
+    unsaved = page.evaluate(f"""async () => {{ const d = await {LIB}; let s;
+        await __t.lib.linkFolder(d, () => {{ s = __t.lib.saveCurrent(() => Promise.resolve('replace')); return Promise.resolve('replace') }});
+        await s; return __t.lib.unsaved() }}""")
     disk = on_disk(page)
     assert json.loads(disk["lamp_v1.0.lamina.json"])["state"]["thickness"] == 4 or unsaved
     assert browser_files(page) == []
@@ -766,3 +768,45 @@ def test_folder_write_never_deletes_a_file_it_could_not_check(page):
         try {{ await s.write('x_v1.0.lamina.json', 'new').catch(() => {{}}) }} finally {{ P.getFileHandle = g; W.write = w }}
         return await s.read('x_v1.0.lamina.json').catch(e => e.name) }}""")
     assert r == "old"
+
+
+# --- linked folder, review round 2 ---
+def test_reconnect_asks_at_once_while_a_save_waits(page):
+    """The browser's prompt needs the click it came from: reconnect asks before the queue, not after a waiting save."""
+    folder(page); name(page, "lamp"); save(page); page.evaluate("__t.lib.setSaved(null)")   # the next save asks
+    calls = page.evaluate("""async () => { const P = FileSystemDirectoryHandle.prototype, keep = Object.getOwnPropertyDescriptor(P, 'requestPermission'), calls = [];
+        P.requestPermission = async () => { calls.push('request'); return 'granted' };
+        try { let answer; await new Promise(ok => { window.__s = __t.lib.saveCurrent(() => { ok(); return new Promise(r => answer = r) }) });
+            const r = __t.lib.reconnect(); calls.push('before the answer'); answer(null); await window.__s; calls.push(String(await r)); return calls }
+        finally { keep ? Object.defineProperty(P, 'requestPermission', keep) : delete P.requestPermission } }""")
+    assert calls == ["request", "before the answer", "true"]
+
+
+def test_the_preview_is_the_scene_at_the_press(page):
+    """A save that waits in the queue (here behind a link's question) keeps the picture of when it was pressed."""
+    name(page, "lamp"); save(page); drop(page, "lamp_v1.0.lamina.json", project("lamp")); name(page, "pot")
+    page.evaluate(f"""async () => {{ const d = await {LIB}; window.__pre = __t.snapshot();
+        await new Promise(ok => {{ window.__l = __t.lib.linkFolder(d, () => {{ ok(); return new Promise(r => window.__answer = r) }}) }});
+        window.__s = __t.lib.saveCurrent(() => Promise.resolve(null)) }}""")
+    example(page, "vase")
+    pre = page.evaluate("async () => { window.__answer(null); await window.__l; await window.__s; return window.__pre }")
+    assert json.loads(on_disk(page)["pot_v1.0.lamina.json"])["preview"] == pre and page.evaluate("__t.snapshot()") != pre
+
+
+def test_the_revision_in_hand_follows_only_as_it_was_read(page):
+    """Another tab saves lamp while the link is busy with another file: the newer bytes move, and the next save asks."""
+    name(page, "lamp"); save(page)
+    put(page, "a_v1.0.lamina.json", project("a")); drop(page, "a_v1.0.lamina.json", project("a"))
+    newer = read(page, "lamp_v1.0.lamina.json"); newer["state"]["thickness"] = 9
+    page.evaluate(f"""async t => {{ const S = await import('/static/js/store.js'), d = await {LIB};
+        await __t.lib.linkFolder(d, () => S.browserStore().write('lamp_v1.0.lamina.json', t).then(() => 'keep')) }}""", json.dumps(newer))
+    assert json.loads(on_disk(page)["lamp_v1.0.lamina.json"])["state"]["thickness"] == 9
+    assert save(page)[1] == [{"name": "lamp", "rev": "1.0", "next": "1.1"}]
+
+
+def test_a_save_that_cannot_be_copied_rejects(page):
+    name(page, "lamp")
+    r = page.evaluate("""() => { const s = __t.state(); s.unclonable = () => {};
+        try { return __t.lib.saveCurrent(() => Promise.resolve(null)).then(() => 'saved', e => 'rejected ' + e.name) }
+        catch (e) { return 'threw ' + e.name } finally { delete s.unclonable } }""")
+    assert r == "rejected DataCloneError"

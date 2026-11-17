@@ -17,6 +17,7 @@ import * as lib from './library.js';
 
 // ---------------------------------------------------------------- init
 async function init(){
+  lib.restoreStore();   // first: the library's calls wait for it (the kept folder, if any); nothing else does
   ST.MODES=await (await fetch('api/modes')).json(); ST.PROJECT_VERSION=(await (await fetch('api/project')).json()).version; const ex=await (await fetch('api/examples')).json();
   const PRESETS=await fetch('api/presets').then(r=>r.ok?r.json():{}).catch(()=>({}));
   $('#example').innerHTML=ex.map(e=>`<option>${e}</option>`).join(''); $('#example').value=ST.example=ex.includes('blob')?'blob':ex[0];
@@ -133,7 +134,7 @@ async function init(){
   else{setMode(location.hash.slice(1)||'interlocked',false);applyMachine(matOf(state.material).machine);applyPreset()}   // a fresh start gets the machine's compensation and the example's preset (the #technique in the URL is the app's own mirror of its state, not a request)
   ST.fresh=sess.mode?'page reloaded, last session resumed':'page opened on example '+ST.example; applyUnit();
   if(!sess.mode)lib.baseline();   // a fresh start is an example as it opened; it also replaces a mirror left by a cleared session
-  lib.restoreStore(); slice(); lib.listed();   // the library's calls wait for the kept folder, if any; the slice does not
+  slice(); lib.listed();
 }
 init();
 
