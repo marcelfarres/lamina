@@ -184,7 +184,8 @@ longest edge. The stored triangles of a region lie edge to edge, so a line throu
 flat projection onto each triangle leaves a gap along every ridge between two. The far side of a thin wall faces
 the other way and stays.
 
-- A seam the user chose that is now on the rim, or among the removed faces, is left out and nothing is said.
+- A seam the user chose that is now on the rim, or among the removed faces, is left out and nothing is said. The
+  page takes it off the list when the face is removed; undo brings back the face and the seam.
 - A piece of the surface that the removed faces cut off from the rest is cut as panels of its own. A warning names
   the panels. It is not deleted.
 - When every face is removed, the plan has an error and no parts.
@@ -193,6 +194,9 @@ the other way and stays.
 Measured on `head_igea` in 0.5 mm card (2026-11-17): the back of the head picked at facet 20 mm, 246 faces, leaves
 451 cm² of 944 cm². At facet 12 mm with the same list, 703 faces are removed and 456 cm² is left.
 Not done: a smooth rim along a drawn line. The rim follows the edges of the triangles.
+Limit: where the surface folds over itself within half an edge length and both layers face the same way (the
+curls of a carved mane), a face under a removed one can be at the same place and go with it. On the lion head
+at face size 25 mm, one selection of 617 faces removed 618.
 
 On the page (`web/static/js/faces.js`) the `select faces` tool of the 3D view makes the list. The plan gives the
 faces that are left (`faces3d`: the corners, the faces, and the two faces across each edge, numbered as `edges3d`).

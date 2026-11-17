@@ -24,7 +24,7 @@ let paintFrom=null, painted=0;                                     // a drag tha
 const rodAt=(A,B,r,M=new THREE.Matrix4())=>{const d=B.clone().sub(A),L=d.length()||1e-6;return M.compose(A.clone().lerp(B,.5),new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),d.divideScalar(L)),new THREE.Vector3(r,L,r))};
 function rods(segs,r,color){const m=new THREE.InstancedMesh(rodGeo,new THREE.MeshBasicMaterial({color}),segs.length);segs.forEach(([A,B],i)=>m.setMatrixAt(i,rodAt(A,B,r)));m.frustumCulled=false;return m}   // one draw for every rod; its own bounds are the unit rod's, so never culled
 const seamEdge=k=>ST.plan?.edges3d?.find(e=>e[0]===k);
-const sameEnds=(l,e)=>{const n=(p,q)=>Math.max(...p.map((v,i)=>Math.abs(v-q[i])))<0.05;return n(l[0],e[2])&&n(l[1],e[3])||n(l[0],e[3])&&n(l[1],e[2])};   // a seam is kept by its two ends, either way round
+export const sameEnds=(l,e)=>{const n=(p,q)=>Math.max(...p.map((v,i)=>Math.abs(v-q[i])))<0.05;return n(l[0],e[2])&&n(l[1],e[3])||n(l[0],e[3])&&n(l[1],e[2])};   // a seam is kept by its two ends, either way round
 export const seamsFolded=()=>+$('#fold').value===1&&+$('#explode').value===1&&+$('#steps').value===+$('#steps').max;   // the edges are the folded model's
 export function showSeamLines(){edgeLines.visible=seamMode&&seamsFolded();$('#seam_off').hidden=!seamMode||edgeLines.visible;if(!edgeLines.visible)seamRod.visible=false}
 export function renderSeams(){   // the edges on the model, from the plan just drawn

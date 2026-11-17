@@ -361,16 +361,22 @@ def test_faces_are_selected_removed_and_stay_removed_when_the_faces_are_made_aga
     assert whole["off"] == whole["places"] == 0 and not page.is_visible("#facebar")
     page.click('#tools button[data-tool="face"]')
     assert page.is_visible("#facebar") and page.evaluate("() => window.__t.faces().shown") and "none removed" in whole["bar"] + page.evaluate(seen)["bar"]
-    # a click selects one face; grow adds the three across its edges; a drag paints more, and does not turn the view
-    p = page.evaluate(here)["face"]; page.mouse.click(p["x"], p["y"])
+    # a click selects one face; grow adds the faces across its edges, but not across a seam of the user's; a drag
+    # paints more, and does not turn the view
+    p = page.evaluate(here)["face"]
+    page.evaluate("i => { const F = __t.plan().faces3d, [a, b] = F.adj.find(e => e.includes(i)); __t.applyFix({seams: [F.f[a].filter(v => F.f[b].includes(v)).map(v => F.v[v])]}) }", p["i"]); wait()
+    assert len(state(page)["seams"]) == 1 and page.evaluate(here)["face"]["i"] == p["i"]
+    page.mouse.click(p["x"], p["y"])
     assert page.evaluate("() => window.__t.faces().selected") == [p["i"]]
-    page.click('[data-faces="grow"]'); assert page.evaluate(seen)["sel"] == 4
+    page.click('[data-faces="grow"]'); assert page.evaluate(seen)["sel"] == 3
     was = eye(); page.mouse.move(p["x"] - 70, p["y"] - 40); page.mouse.down(); page.mouse.move(p["x"] + 70, p["y"] + 40, steps=14); page.mouse.up()
-    n = page.evaluate(seen)["sel"]; assert n > 4 and eye() == was, n
+    n = page.evaluate(seen)["sel"]; assert n > 3 and eye() == was, n
     page.click('[data-faces="remove"]'); wait()
     s = page.evaluate(seen)
     assert s["faces"] == whole["faces"] - n and s["off"] == s["places"] == s["ghosts"] == n and s["sel"] == 0 and f"{n} removed" in s["bar"], s
     assert s["area"] < whole["area"] and not s["errors"]
+    # the seam was on an edge of a face that went: it went with it, and nothing says a seam was lost
+    assert state(page)["seams"] == [] and "on no edge" not in page.inner_text("#seam_n")
     # the faces made again at another size: the same places are off, without a click
     set_fields(page, [("p_facet", 20)]); wait()
     t = page.evaluate(seen)

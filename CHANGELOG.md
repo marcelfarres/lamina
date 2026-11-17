@@ -25,6 +25,9 @@ What changed in each release. The GitHub release for a version is this section, 
   faces* is on, the right mouse button turns the view and the middle button moves it. The edge under the pointer lights up on the model and on the sheet at the same time, so
   you can pick it where it is easier to see. Your seams are saved with the project. If you change the facet size or
   the model size afterwards, the edges change, and Lamina tells you which of your seams it could not find.
+- **A lion head to make a mask from.** The new example *lion_head* is a carved lion head (by Tina, from Poly Haven,
+  public domain: cut it and sell it as you like). It opens in Folded Panels. Put a seam round the face, select the
+  back with *select faces* and remove it, and what is left is a mask.
 - **Two more folded examples.** *fold_box* is a six-sided box with a turned lid, printed flat in PETG and folded up:
   every fold has its own angle. *fold_lantern* is the lamp shade at 420 mm for 3 mm plywood: 72 separate pieces,
   each with a window and lacing holes, numbered on the inside.

@@ -5,7 +5,7 @@ import {act} from './history.js';
 import {schedule} from './form.js';
 import {deselect} from './edit3d.js';
 import {scene, parts, ray, camera, renderer, V3} from './scene.js';
-import {foldUp, seamsFolded} from './seams.js';
+import {foldUp, seamsFolded, sameEnds} from './seams.js';
 
 // ---------------------------------------------------------------- selecting and removing faces (folded panels)
 // To keep only a part of a model (a mask from a head), the `select faces` tool takes faces off its surface. A click or
@@ -66,6 +66,9 @@ function grow(all){   // the faces across an edge of the selection: one ring, or
   draw()}
 function remove(){if(!sel.size)return;const back=new THREE.Matrix4().set(...ST.plan.frame.flat()).invert(), p=new THREE.Vector3();
   const add=[...sel].map(i=>[tris[i].a,tris[i].b,tris[i].c].map(q=>p.copy(q).applyMatrix4(back).toArray().map(v=>+v.toFixed(4))));
+  // a seam of the user's on an edge of a face that goes has done its work: it goes with the face, and undo brings both back
+  const dead=(ST.plan.edges3d||[]).filter(e=>e[1]==='chosen'&&ST.plan.faces3d.adj[e[0]].some(i=>sel.has(i)));
+  if(dead.length)state.seams=(state.seams||[]).filter(l=>!dead.some(e=>sameEnds(l,e)));
   state.removed=[...(state.removed||[]),...add]; act(`removed ${add.length} face${add.length===1?'':'s'}`); renderFaces(); schedule()}
 function putAllBack(){if(!(state.removed||[]).length)return;state.removed=[];act('put all the removed faces back');renderFaces();schedule()}
 export function setFaceMode(on){faceMode=!!on&&!!ST.plan?.faces3d; if(faceMode){deselect();foldUp()} else sel.clear();
