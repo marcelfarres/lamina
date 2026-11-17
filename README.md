@@ -402,6 +402,8 @@ sheets are always the same plan.
 - **Tools in the 3D view**: buttons at the left of the view add or remove a dowel, a curve point or an axis, add a
   branch, and tilt or roll a slice. Pick one, then click or drag the model. The keys (alt-click, shift-drag,
   ctrl-drag) do the same.
+- **Lamp**: tick *lamp* over the 3D view to light the model from inside and see the shadows it throws on a floor
+  and a wall. *Bulb height* moves the bulb.
 - **Export tab**: the buttons first. The text about a file opens with a click on the line under its button.
 - **Top bar**: project name, open and save, a *version* menu, undo and redo, and a *help* menu with the guide, the
   release notes, the links and *clear my data*.

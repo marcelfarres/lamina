@@ -341,3 +341,15 @@ def test_a_connector_left_out_is_counted_and_the_export_text_opens_on_a_click(pa
     assert not info.locator(".hint").is_visible(); info.locator("summary").click(); assert info.locator(".hint").is_visible()
     assert not page.locator("#parts table").is_visible(); page.click("#parts_fold > summary"); assert page.locator("#parts table").is_visible()
 
+
+def test_the_lamp_lights_the_model_from_inside_and_leaves_the_view_as_it_was(page):
+    """The lamp tick turns on a bulb, the shadow pass and the bulb-height slider; a re-slice keeps it on; off, the
+    view has no shadow pass and the slider is gone. The 3D bar holds its controls on the vase without a page error."""
+    use(page, "vase", "stacked"); errs = []; page.on("pageerror", lambda e: errs.append(str(e)))
+    shadows = lambda: page.evaluate("() => window.__t.lamp()")   # noqa: E731
+    assert not shadows() and not page.is_visible("#lampl")
+    page.check("#lamp"); assert shadows() and page.is_visible("#lampl")
+    page.eval_on_selector("#lampz", "e => { e.value = 0.9; e.dispatchEvent(new Event('input')) }")
+    set_fields(page, [["p_count", 12]]); settle(page); assert shadows() and plan(page)["counts"]["slices"] == 12
+    page.uncheck("#lamp"); assert not shadows() and not page.is_visible("#lampl") and not errs, errs
+
