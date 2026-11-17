@@ -61,9 +61,10 @@ SNAP_LEG, SNAP_BITE = 1.0, 0.3        # a clip's leg: its thickness, and how far
 SNAP_CLIP, SNAP_LONG = 5.0, 8.0       # a clip's width along the seam, and the length of wall it sits on
 SNAP_LEAN = math.radians(50)          # a wall leans by half the seam's bend: past this it does not print without support
 # The click joint (printed panels): a tooth on one panel's wall and a bar on the other's, bridged between two posts.
-CLICK_BAR = (1.4, 1.0)                # the bar's cross-section: across the seam, and the way it bends (up the wall)
-CLICK_SPAN, CLICK_POST = 12.0, 2.0    # the bar's free length between its two posts, and a post's length along the seam
-CLICK_NOSE, CLICK_BITE = 4.0, 0.4     # the tooth's width along the seam, and how far it stands up behind the bar
+CLICK_BAR = (2.0, 1.2)                # the bar's cross-section: across the seam, and the way it bends (up the wall)
+CLICK_SPAN, CLICK_POST = 14.0, 3.0    # the bar's free length between its two posts, and a post's length along the seam
+CLICK_NOSE, CLICK_BITE = 6.0, 0.5     # the tooth's width along the seam, and how far it stands up behind the bar
+CLICK_WALL, CLICK_NECK = 1.8, 1.6     # the thickness of the wall the tooth stands on, and of the tooth where it goes under the bar
 CLICK_LONG = CLICK_SPAN + 2 * CLICK_POST   # the length of seam one click takes
 FLAT = math.radians(1)                # two faces closer to one plane than this are one flat piece: no score between them
 MAX_HOLES = 60                       # holes along one seam (rivet / laced / strip)
@@ -118,6 +119,11 @@ class Rail(NamedTuple):
     b: tuple
     into: tuple
     profile: list
+
+    def foot(self):
+        """The room the wall takes in the net, seen from above: where it stands and what it hangs over."""
+        a, b, n = (np.asarray(v, float) for v in (self.a, self.b, self.into)); us = [u for u, _ in self.profile]
+        return Polygon([a + n * min(us), b + n * min(us), b + n * max(us), a + n * max(us)])
 
     def json(self):
         r = lambda v: [round(float(x), 4) for x in v]         # noqa: E731
@@ -929,24 +935,25 @@ class Folded(Mode):
         stays clear of the other panel, so the sharper the seam, the higher the bar sits. The bar is a bridge between
         its two posts and bends up the wall, along its layers, to let the tooth past."""
         t = self.t; fit = self.p["snap_fit"]; D, tb = CLICK_BAR; h = bend / 2
-        wall, at, up, back, _ = self.snap_wall(bend, convex, 1.0, SNAP_WALL, False)
+        wall, at, up, back, _ = self.snap_wall(bend, convex, 1.0, CLICK_WALL, False)
         q = lambda s, m: tuple(float(x) for x in at + up * s + back * m)   # noqa: E731
         slope = math.tan(math.pi / 2 - SNAP_LEAN - (h if convex else -h))     # the printable underside, seen from the plane
         # under the tooth, d past the plane: over the slope that prints, and 0.3 mm over the other panel's inside face
-        low = lambda d: max(0.2 + d * slope, (t + 0.3 - at[1] - back[1] * d) / up[1])   # noqa: E731
-        d1 = D + fit; d2 = d1 + 1.0                         # the back of the bar, where the tooth stands up; the tooth's tip
-        neck = max(low(0) + 1.2, low(d1) + 1.2, low(d2) + 0.9)   # the top of the tooth's neck: it is 1.2 mm thick at least
+        clear = lambda d: (t + 0.3 - at[1] - back[1] * d) / up[1]   # noqa: E731
+        low = lambda d: max(clear(d), max(0.0, clear(0)) + d * slope)   # noqa: E731
+        d1 = D + fit; d2 = d1 + 1.2                         # the back of the bar, where the tooth stands up; the tooth's tip
+        neck = max(low(0) + CLICK_NECK, low(d1) + CLICK_NECK, low(d2) + 1.2)   # the top of the tooth's neck
         sb = neck + fit + 0.05; top = sb + tb               # the bar's underside and its top
         if top > self.p["snap_h"]:
             return f"the tooth needs walls {top:.1f} mm high: raise `snap wall`"
         peak = sb + CLICK_BITE                              # the top of the tooth, behind the bar
-        wall = self.snap_wall(bend, convex, peak, SNAP_WALL, False)[0]
+        wall = self.snap_wall(bend, convex, peak, CLICK_WALL, False)[0]
         under = [q(low(d), -d) for d in np.linspace(0, d2, 9)]
-        tooth = Polygon([q(low(0), 0.3), *under, q(neck - 0.3, -d2), q(peak, -d1 - 0.25), q(peak, -d1), q(neck, -d1), q(neck, 0.3)])
+        tooth = Polygon([q(low(0), 0.3), *under, q(neck - 0.3, -d2), q(peak, -d1 - 0.5), q(peak, -d1), q(neck, -d1), q(neck, 0.3)])
         nose = [tuple(c) for c in orient(Polygon(wall).buffer(0).union(tooth)).exterior.coords[:-1]]
         post = self.snap_wall(bend, convex, top, D, False)[0]
         bar = [q(sb, 0), q(top, 0), q(top, D), q(sb, D)]
-        guide = self.snap_wall(bend, convex, max(sb - 0.8, 0.6), D, False)[0]
+        guide = self.snap_wall(bend, convex, max(sb - 1.0, 0.6), D, False)[0]
         return wall, nose, post, bar, guide, max(wall[-1][0], post[-1][0])
 
     def stand(self, s, va, e, c0, c1, profile):
@@ -970,7 +977,7 @@ class Folded(Mode):
         parts = "the seam bends more than 100°: the walls would lean too far to print" if bend / 2 > SNAP_LEAN else self.click_parts(bend, convex)
         n = max(1, int(L // max(p["spacing"], 2 * CLICK_LONG)))
         room = min(min((c.distance(LineString([s.A, s.B])) for c in self.face_cuts.get(s.f, ())), default=s.h) for s in sides)
-        why = (parts if isinstance(parts, str) else "the seam is too short" if L / n < CLICK_LONG + 6 else
+        why = (parts if isinstance(parts, str) else "the seam is too short" if L / n < CLICK_LONG + 3 else
                "the frame beside the window is too narrow" if room < parts[5] + 0.8 else "")
         if why:
             sides[0].sl.skipped.setdefault(f"click joint ({why})", []).append(j)
@@ -978,13 +985,27 @@ class Folded(Mode):
         wall, nose, post, bar, guide, _ = parts; a, b = sides
         va, vb = m.face_adjacency_edges[k]; e = m.vertices[vb] - m.vertices[va]; e /= np.linalg.norm(e)
         half, tooth = CLICK_SPAN / 2, CLICK_NOSE / 2
-        for i in range(n):
-            c = (i + 0.5) / n * L
-            self.stand(a, va, e, c - tooth - 2, c + tooth + 2, wall); self.stand(a, va, e, c - tooth, c + tooth, nose)
-            self.stand(b, va, e, c - half - 0.5, c + half + 0.5, bar)       # half a millimetre into each post
+
+        def pieces(c):                                        # what a click centred c along the seam stands on each side
+            out = [(a, c - tooth - 3, c + tooth + 3, wall), (a, c - tooth, c + tooth, nose), (b, c - half - 0.5, c + half + 0.5, bar)]   # the bar: half a millimetre into each post
             for sign in (-1, 1):
-                self.stand(b, va, e, *sorted((c + sign * half, c + sign * (half + CLICK_POST))), post)
-                self.stand(b, va, e, *sorted((c + sign * (tooth + 0.25), c + sign * (tooth + 1.75))), guide)
+                out.append((b, *sorted((c + sign * half, c + sign * (half + CLICK_POST))), post))
+                out.append((b, *sorted((c + sign * (tooth + 0.25), c + sign * (half + 0.5))), guide))     # a block from the tooth to the post, 1 mm under the bar
+            return out
+        # the walls that stand on the two pieces already (other seams, round the corner): a click slides along its
+        # seam to stand clear of them, and is left out when it cannot. Two walls grown into one would not fold
+        taken = {id(s.sl): unary_union([r.foot() for r in s.sl.rails]).buffer(0.4) for s in sides}
+        free = lambda s, c0, c1, prof: not Rail(tuple(s.A + s.d * c0), tuple(s.A + s.d * c1), tuple(s.n), prof).foot().intersects(taken[id(s.sl)])   # noqa: E731
+        placed = 0
+        for i in range(n):
+            lo, hi = i / n * L + CLICK_LONG / 2 + 1.5, (i + 1) / n * L - CLICK_LONG / 2 - 1.5
+            for c in sorted(np.arange(lo, hi + 1e-9, 1.0), key=lambda c: abs(c - (lo + hi) / 2)):
+                if all(free(*q) for q in pieces(c)):
+                    for q in pieces(c):
+                        self.stand(q[0], va, e, *q[1:])
+                    placed += 1; break
+        if not placed:
+            a.sl.skipped.setdefault("click joint (no room beside the joints of the seams next to it)", []).append(j)
         return []
 
     def snap_clip(self):

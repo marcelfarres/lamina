@@ -112,14 +112,16 @@ stands `CLICK_BITE` up behind it. `Folded.click_parts` makes the five cross-sect
 plan (`rails`), so `core.solid` needs nothing new.
 
 Why a bridge: a part that grows up from a flat panel bends across its layers, the weak way. A bar between two posts
-is printed as a bridge and bends along its layers, like the clip's legs (1.7 % at the default sizes). The tooth is
-rigid.
+is printed as a bridge and bends along its layers, like the clip's legs (1.8 % at the default sizes). The tooth is
+rigid. The parts are sized to be handled: the bar is 2 by 1.2 mm, its posts 3 mm long, the tooth 6 mm wide on a
+1.8 mm wall. A click slides along its seam to stand clear of the walls of the seams round the corner (`Rail.foot`)
+and is left out, with a warning, when it finds no room: two walls grown into one would not fold.
 
 The underside of the tooth rises as steeply as prints without support (`SNAP_LEAN`) and stays 0.3 mm over the other
 panel's inside face. So the sharper the seam, the higher the bar sits. A seam whose tooth needs walls higher than
 `snap wall` is left plain with a warning, like a seam bent over 100°, a seam shorter than `CLICK_LONG` and its
-margins, or a window frame narrower than a wall's foot. Two low guides beside the tooth stop the seam from sliding
-along its length.
+margins, or a window frame narrower than a wall's foot. A block each side of the tooth, from it to the post and
+1 mm under the bar, stops the seam from sliding along its length.
 
 Across the thickness of the sheet the tooth sits between the bar and the other panel's inside face, so the two
 edges stay level: the panel stops it one way, the bar's spring the other.
