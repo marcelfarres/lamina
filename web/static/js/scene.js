@@ -186,8 +186,9 @@ function mergeGeos(geos){
   for(const g of ngs){pos.set(g.attributes.position.array,o);nor.set(g.attributes.normal.array,o);o+=g.attributes.position.array.length}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('normal',new THREE.BufferAttribute(nor,3));return g}
 // the standard view of what is shown (the parts, or the model until there are any): its centre, its diagonal, the eye
-function fitPose(){const b=new THREE.Box3().setFromObject(parts.children.length?parts:ghost);if(b.isEmpty())return null;const c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3()).length();
-  return {c,s,eye:c.clone().add(new THREE.Vector3(.7,-1,.6).normalize().multiplyScalar(s*1.5))}}
+const EYE=new THREE.Vector3(.7,-1,.6);   // where the standard view looks from, before it is scaled to the model
+function fitPose(dir=EYE){const b=new THREE.Box3().setFromObject(parts.children.length?parts:ghost);if(b.isEmpty())return null;const c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3()).length();
+  return {c,s,eye:c.clone().add(dir.clone().normalize().multiplyScalar(s*1.5))}}
 function fitView(){const p=fitPose();if(!p)return;const {c,s,eye}=p;controls.target.copy(c);camera.position.copy(eye);
   // close enough to read a slot, never onto the point it turns about (from 0 no zoom ever comes back), never so far the
   // model is lost; the clipping planes outside both, so nothing is cut away at either end
@@ -197,15 +198,19 @@ function fitView(){const p=fitPose();if(!p)return;const {c,s,eye}=p;controls.tar
 // and folded up, no highlight, no lobe planes (a guide, not material), the see-through model only while there are no
 // parts. The dowel rods stay: they are the axes group's meshes, its arrows and letters are the helper. The renderer
 // keeps no picture between frames, so it is read in the same task it is drawn, and the view is drawn again at its own
-// size before the task ends: the page never shows the small frame. '' when there is nothing to show.
+// size before the task ends: the page never shows the small frame. '' when there is nothing to show. A plaque is seen
+// from the side away from its plate (the plan's `back`, an axis of the scene), so the card shows the slices, not the
+// plate's back; the page's own fit view stays on the standard side.
 export function snapshot(w=320,h=240){
+  const dir=EYE.clone(), back=ST.plan?.mode==='plaque'&&ST.plan.params.back;
+  if(back){const k='xyz'.indexOf(back[1]);dir.setComponent(k,(back[0]==='-'?1:-1)*Math.abs(dir.getComponent(k)))}
   const P=parts.children,fold=$('#fold'),fv=fold.value,
     flags=[...[rings,gizmo,guides,banner,...axes.children.filter(o=>!o.isMesh)].map(o=>[o,false]),[ghost,!P.length],...P.map(m=>[m,m.userData.group!=='B'])],
     was=flags.map(([o])=>o.visible),pos=P.map(m=>m.position.clone()),glow=P.map(m=>m.material.emissive.getHex()),
     size=renderer.getSize(new THREE.Vector2()),pr=renderer.getPixelRatio(),dirty=ST.dirty;
   let url='';
   try{fold.value=1;applyFold(); flags.forEach(([o,v])=>o.visible=v); P.forEach(m=>{m.position.set(0,0,0);m.material.emissive.set(0)});
-    const p=fitPose(); if(!p)return url;
+    const p=fitPose(dir); if(!p)return url;
     const cam=new THREE.PerspectiveCamera(camera.fov,w/h,p.s/200,p.s*20); cam.up.set(0,0,1); cam.position.copy(p.eye); cam.lookAt(p.c);
     renderer.setPixelRatio(1); renderer.setSize(w,h,false); renderer.render(scene,cam);
     url=renderer.domElement.toDataURL('image/webp',.8);   // a browser without WebP gives PNG
