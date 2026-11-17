@@ -5,7 +5,7 @@ import {$, $$, esc, status} from './util.js';
 import {state, ST} from './state.js';
 import * as lib from './library.js';
 
-let ex={}, shown=[], opened=new Set(), listing=0, drawn='';   // ex: the examples and how to open one, for the Examples section
+let ex={}, shown=[], opened=new Set(), listing=0, drawn='', toExamples=false;   // ex: the examples and how to open one, for the Examples section; toExamples: scroll there once Yours is drawn
 const two=n=>String(n).padStart(2,'0');
 const when=iso=>{const d=new Date(iso);return `${d.getFullYear()}-${two(d.getMonth()+1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`};
 // the picture comes from a file: anything but a picture is shown as none
@@ -33,6 +33,7 @@ async function render(){const k=++listing, ps=await lib.entries().catch(e=>{stat
   const html=ps.length?`<h2>Yours · ${plural(ps.length,'project')}</h2><div class="grid">${ps.map(p=>card(p,now)).join('')}</div>`
     :'<p class="hint">No projects yet. Save one with <b>save</b>, or import files.</p>';
   if(html!==drawn){y.innerHTML=drawn=html;find()}
+  if(toExamples){toExamples=false;$('#libexamples').scrollIntoView()}   // after Yours is drawn: drawing it moves the section
   y.dataset.listed=1}
 function find(){const q=$('#libfind').value.trim().toLowerCase();for(const c of $$('#library .card'))c.hidden=!(c.dataset.name??c.dataset.example).toLowerCase().includes(q)}
 
@@ -51,8 +52,9 @@ async function onCard(e){const c=e.target.closest('.card');if(!c||c.classList.co
 function onExample(e){const c=e.target.closest('.card');if(c&&leave()){hideLibrary();ex.openExample(c.dataset.example)}}
 
 export function showLibrary(){$('#library').hidden=false;delete $('#libyours').dataset.listed;return render()}
-// closed, it keeps no cards and drops a listing on its way: a reopen draws from a new listing, never under the pointer
-export function hideLibrary(){$('#library').hidden=true;listing++;$('#libyours').innerHTML=drawn=''}
+// closed, it keeps no cards (nor which were expanded) and drops a listing on its way: a reopen draws from a new
+// listing, every card short, never under the pointer
+export function hideLibrary(){$('#library').hidden=true;listing++;toExamples=false;opened.clear();$('#libyours').innerHTML=drawn=''}
 // before the first technique there is nothing to compare, and the change listeners call this from the start
 export function refreshUnsaved(){if(ST.mode)$('#punsaved').hidden=!lib.unsaved()}
 
@@ -68,10 +70,13 @@ export function initLibraryPage(o){ex=o;
   $('#popen').onclick=showLibrary;$('#libclose').onclick=hideLibrary;$('#libyours').onclick=onCard;$('#libfind').oninput=find;
   $('#libexamples').innerHTML=`<h2>Examples · open one, save it, and it becomes a project of yours</h2><div class="grid">${o.examples.map(exCard).join('')}</div>`;
   $('#libexamples').onclick=onExample;
-  $('#exopen').onclick=()=>showLibrary().then(()=>$('#libexamples').scrollIntoView());   // once Yours is drawn: it moves the section
-  // a save that fails after its file was written says so in its own words. What was saved is named from the page's
-  // own fields: the library has no revision in hand when its store changed meanwhile
-  $('#psave2').onclick=async()=>{try{const r=await lib.saveCurrent(askClash);if(r)status(`saved ${r.name??state.project} v${r.rev??state.rev}`)}catch(e){status(e.message,'err')}};
+  $('#exopen').onclick=()=>{toExamples=true;showLibrary()};
+  // a save that fails after its file was written says so in its own words. A save names the project's own name and
+  // revision as they stand after it (a fallback name, or a 'keep' that took the next revision, are in them by then),
+  // not the library's revision in hand: there is none when the store changed meanwhile
+  $('#psave2').onclick=async()=>{try{if(await lib.saveCurrent(askClash))status(`saved ${state.project} v${state.rev}`)}catch(e){status(e.message,'err')}};
   for(const a of ['replace','keep','cancel'])$('#libask_'+a).onclick=()=>$('#libask').close(a==='cancel'?'':a);
   addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#library').hidden&&!document.querySelector('dialog[open]'))hideLibrary()});
-  lib.onChange(()=>{refreshUnsaved();if(!$('#library').hidden)render()})}
+  // the Model tab's button names the example in hand (a slice tells onChange once its job is back)
+  lib.onChange(()=>{refreshUnsaved();$('#exopen').textContent=ST.job?.startsWith('ex_')?`${ST.job.slice(3)} · pick another…`:'pick an example…';
+    if(!$('#library').hidden)render()})}

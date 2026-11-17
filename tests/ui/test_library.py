@@ -30,7 +30,7 @@ def wipe(page):
 ANSWERS = []
 
 
-def answer(page, fn):
+def on_dialog(page, fn):
     """`fn` answers the page's next dialog (confirm). One a test left unused is taken off when it ends: a failed test's
     answer must not answer the next test's question."""
     ANSWERS.append(fn); page.once("dialog", fn)
@@ -603,11 +603,11 @@ def test_opening_with_unsaved_changes_asks(page):
     set_fields(page, [("p_thickness", saved + 1)]); settle(page)
     library(page)
     asked = []
-    answer(page, lambda d: (asked.append(d.message), d.dismiss()))
+    on_dialog(page, lambda d: (asked.append(d.message), d.dismiss()))
     card(page, "lamp").locator(".t").click()
     assert asked and "unsaved" in asked[0]
     assert page.is_visible("#library") and page.evaluate("__t.state().thickness") == saved + 1
-    answer(page, lambda d: d.accept())
+    on_dialog(page, lambda d: d.accept())
     card(page, "lamp").locator(".t").click()
     assert page.is_hidden("#library")
     page.wait_for_function("() => !__t.lib.unsaved()"); settle(page)
@@ -618,15 +618,17 @@ def test_delete_asks_and_removes(page):
     revisions(page, "lamp", ["1.0", "1.1"])
     library(page)
     card(page, "lamp").locator(".more").click()
+    page.wait_for_selector("#libyours .rev")
+    assert card(page, "lamp").locator(".more").inner_text() == "2 revisions ▴"   # opened by this click, not left open before
     asked = []
-    answer(page, lambda d: (asked.append(d.message), d.dismiss()))
+    on_dialog(page, lambda d: (asked.append(d.message), d.dismiss()))
     card(page, "lamp").locator('.rev[data-file="lamp_v1.1.lamina.json"] .delete').click()
     assert "lamp v1.1" in asked[0] and lib(page) == [("lamp", ["1.1", "1.0"])]
-    answer(page, lambda d: d.accept())
+    on_dialog(page, lambda d: d.accept())
     card(page, "lamp").locator('.rev[data-file="lamp_v1.1.lamina.json"] .delete').click()
     page.wait_for_function("() => document.querySelectorAll('#libyours .rev').length === 1")
     assert lib(page) == [("lamp", ["1.0"])] and page.is_visible("#punsaved")   # the revision in hand is gone
-    answer(page, lambda d: (asked.append(d.message), d.accept()))
+    on_dialog(page, lambda d: (asked.append(d.message), d.accept()))
     card(page, "lamp").locator(".deleteproject").click()
     page.wait_for_function("() => /No projects yet/.test(document.querySelector('#libyours').textContent)")
     assert "lamp" in asked[-1] and lib(page) == []
@@ -696,6 +698,15 @@ def test_snapshot_of_a_plaque_looks_from_the_front(page):
     assert shot[1][1] > target[1] and before[1] > target[1]
     assert shot[1] == pytest.approx(before)                                    # the picture and the fit button agree
     assert page.evaluate(FIT) == [target, before]
+
+
+def test_fit_of_the_model_alone_is_from_the_standard_side(page):
+    """Before a model's parts land, the view shows its ghost and ST.plan is still the last model's: the plaque's side
+    rule is the plan's, so the ghost alone is seen from the standard side (-y), not from the last plaque's front."""
+    example(page, "bonsai")
+    target, eye = page.evaluate("""async () => { const S = await import('/static/js/scene.js'), kids = [...S.parts.children];
+        S.parts.clear(); try { return (%s)() } finally { S.parts.add(...kids) } }""" % FIT)
+    assert eye[1] < target[1]
 
 
 def test_fit_of_a_model_that_is_no_plaque_is_as_before(page):
@@ -780,7 +791,7 @@ def test_examples_section_opens_an_example(page):
     assert page.eval_on_selector_all("#libexamples img", "is => is.map(i => i.naturalWidth)") == [320] * len(names)
     c = page.locator('#libexamples .card[data-example="cow"]')
     assert c.locator(".n").inner_text() == "cow" and c.locator(".m").inner_text() == "example · read-only"
-    answer(page, lambda d: d.accept())                                         # the tab resets before a test can count as changes
+    on_dialog(page, lambda d: d.accept())                                         # the tab resets before a test can count as changes
     c.click()
     assert page.is_hidden("#library")
     settle(page)
@@ -791,7 +802,7 @@ def test_an_example_asks_before_unsaved_changes_go(page):
     set_fields(page, [("p_thickness", 4)]); settle(page)
     library(page)
     asked = []
-    answer(page, lambda d: (asked.append(d.message), d.dismiss()))
+    on_dialog(page, lambda d: (asked.append(d.message), d.dismiss()))
     page.click('#libexamples .card[data-example="cow"]')
     assert asked and "unsaved" in asked[0] and page.is_visible("#library") and page.evaluate("__t.job()") == "ex_egg"
 
@@ -806,10 +817,15 @@ def test_saving_an_example_makes_a_project_of_yours(page):
 def test_the_dropdown_is_gone(page):
     assert page.locator("#example").count() == 0
     page.click('nav button[data-t="model"]')
-    assert page.text_content("#exopen") == "pick an example…"
+    assert page.text_content("#exopen") == "egg · pick another…"              # the example in hand
+    assert page.get_attribute("#libfind", "placeholder") == "find a project or example"
+    name(page, "lamp"); save(page)                                             # Yours is drawn above the section
     page.click("#exopen")
     page.wait_for_function("() => !document.querySelector('#library').hidden && document.querySelector('#libyours').dataset.listed")
     page.wait_for_function("() => Math.abs(document.querySelector('#libexamples').getBoundingClientRect().top) < 2")
+    page.click("#libclose")
+    page.set_input_files("#file", str(ROOT / "examples" / "bracket.stl")); settle(page)
+    assert page.text_content("#exopen") == "pick an example…"                  # an upload is no example
 
 
 def test_find_filters_examples_too(page):

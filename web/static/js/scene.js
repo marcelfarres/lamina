@@ -187,10 +187,12 @@ function mergeGeos(geos){
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('normal',new THREE.BufferAttribute(nor,3));return g}
 // the standard view of what is shown (the parts, or the model until there are any): its centre, its diagonal, the eye.
 // A plaque is seen from the side away from its plate (the plan's `back`, an axis of the scene), so the fit button and
-// the library's picture show the slices, not the plate's back
+// the library's picture show the slices, not the plate's back. Only the parts are the plan's (render3D builds them from
+// it): a model's ghost lands before its plan, while ST.plan is still the last model's, so the ghost alone is seen from
+// the standard side
 const EYE=new THREE.Vector3(.7,-1,.6);   // where the standard view looks from, before it is scaled to the model
-function fitPose(){const b=new THREE.Box3().setFromObject(parts.children.length?parts:ghost);if(b.isEmpty())return null;const c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3()).length();
-  const dir=EYE.clone(), back=ST.plan?.mode==='plaque'&&ST.plan.params.back;
+function fitPose(){const P=parts.children.length, b=new THREE.Box3().setFromObject(P?parts:ghost);if(b.isEmpty())return null;const c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3()).length();
+  const dir=EYE.clone(), back=P&&ST.plan?.mode==='plaque'&&ST.plan.params.back;
   if(back){const k='xyz'.indexOf(back[1]);dir.setComponent(k,(back[0]==='-'?1:-1)*Math.abs(dir.getComponent(k)))}
   return {c,s,eye:c.clone().add(dir.normalize().multiplyScalar(s*1.5))}}
 function fitView(){const p=fitPose();if(!p)return;const {c,s,eye}=p;controls.target.copy(c);camera.position.copy(eye);
