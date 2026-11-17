@@ -92,8 +92,8 @@ class Slice:
     note: str = ""                      # extra text shown with the label (e.g. rib angle)
     springy: bool = False               # a part drawn thin on purpose, to bend (a snap clip): the size and thin-spot checks pass it
 
-    def piece_extra(self) -> dict:
-        """What this slice adds to each of its pieces in the plan, beyond what every slice has."""
+    def piece_extra(self, pc) -> dict:
+        """What this slice adds to its piece `pc` in the plan, beyond what every slice has."""
         return {}
 
     def facet_extra(self, i) -> dict:

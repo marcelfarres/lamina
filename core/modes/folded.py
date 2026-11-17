@@ -19,7 +19,7 @@ from ..model import Issue, Slice
 from ..geometry import as_multi, circle, min_dims, rect_along, frame_xy, poly_coords
 from ..labels import mark_box, mark_rot
 from ..mesh import simplify, merge_small
-from ..unfold import unfold, closing_shortfall
+from ..unfold import unfold, closing_shortfall, edges_at
 
 JOINTS = ["seam", "tab", "multitab", "diamond", "ticked", "gear", "tongue", "puzzle", "snap", "click", "rivet", "laced", "loops", "strip", "rib"]
 # The thickest sheet of each material that folds along a score line (mm); 0 = it does not fold at all, it cracks or
@@ -157,6 +157,7 @@ class FoldedSlice(Slice):
     """A folded panel: the shared Slice plus what unfolding and joining it keeps while it is built."""
     pn: object = None                   # the Panel this slice is cut from
     rails: list = field(default_factory=list)       # printed: a Rail per wall standing on the panel (the snap joint)
+    edges: list = field(default_factory=list)       # [(adjacency index, LineString)] the panel's fold and seam edges in its net, for the page to mark and pick
     additions: list = field(default_factory=list)   # tabs added to the panel's outline
     skipped: dict = field(default_factory=dict)     # what → seams whose joint found no room
     room: MultiPolygon | None = None    # the panel with its tabs so far, a hair in, where a seam number may go (cached)
@@ -176,11 +177,23 @@ class FoldedSlice(Slice):
     tab_of: list = field(default_factory=list)      # the face each of `tab_facets` lies on
     tab_facets: list = field(default_factory=list)  # the tabs as the 3D view shows them, folded onto their panel
 
-    def piece_extra(self):
-        """What a printed folded panel carries beyond its outline, for core.solid to cut: a groove per fold and mitred seam
-        edge, and its glue tabs with the thickness they keep. (A folded net is one piece.)"""
+    def piece_extra(self, pc):
+        """What a folded panel carries beyond its outline. Printed, for core.solid to cut: a groove per fold and mitred
+        seam edge, and its glue tabs with the thickness they keep. And where its fold and seam edges lie on the sheet,
+        for the page to mark and pick. (A folded net is one piece.)"""
         return {**({"grooves": [g.json() for g in self.grooves]} if self.grooves else {}), **({"rails": [r.json() for r in self.rails]} if self.rails else {}),
-                **({"thin": [r for g in self.thin for r in poly_coords(as_multi(g))], "thin_t": self.thin_t} if self.thin else {})}
+                **({"thin": [r for g in self.thin for r in poly_coords(as_multi(g))], "thin_t": self.thin_t} if self.thin else {}),
+                **({"edges": self.placed_edges(pc)} if self.edges else {})}
+
+    def placed_edges(self, pc):
+        """The panel's fold and seam edges where its piece lies on the sheet: [k, x0, y0, x1, y1] each, k the edge's
+        number in the plan's `edges3d`. The piece was turned about the origin and then moved (nest._put): the move is
+        what takes the turned outline's corner to the placed one's."""
+        a = math.radians(pc.place[3]); c, s = math.cos(a), math.sin(a)
+        turn = np.array([[c, s], [-s, c]])                               # for row vectors: p @ turn
+        move = np.array(pc.placed.bounds[:2]) - (np.array(pc.kerfed.convex_hull.exterior.coords) @ turn).min(0)
+        ends = np.array([ln.coords for _, ln in self.edges]) @ turn + move
+        return [[k, *np.round(e.ravel(), 3).tolist()] for (k, _), e in zip(self.edges, ends)]
 
     def facet_extra(self, i):
         """hinge: how a folded panel's face unfolds, bevel: its grooved edges, t: its thickness when it is not the sheet's."""
@@ -194,6 +207,7 @@ class FoldedSlice(Slice):
         flip = lambda g: affinity.scale(g, -1, 1, origin=(0, 0))   # noqa: E731
         self.raw = flip(self.raw); self.cuts = [flip(c) for c in self.cuts]; self.thin = [flip(g) for g in self.thin]
         self.lines = [(style, flip(ln)) for style, ln in self.lines]
+        self.edges = [(k, flip(ln)) for k, ln in self.edges]
         self.marks = [(-m[0], m[1], m[2], -(m[3] if len(m) > 3 else 0.0)) for m in self.marks]
         self.grooves = [g._replace(a=(-g.a[0], g.a[1]), b=(-g.b[0], g.b[1])) for g in self.grooves]
         self.rails = [r._replace(a=(-r.a[0], r.a[1]), b=(-r.b[0], r.b[1]), into=(-r.into[0], r.into[1])) for r in self.rails]
@@ -233,19 +247,26 @@ class Folded(Mode):
               "the cutter (the inside of the model unless `score side` says outside); the short score across a tab's base is "
               "where the tab folds, the rest of the outline is cut")
     params = [
-        Param("facet", "number", 15, "Detail: average triangle edge after simplification (mm). Bigger = fewer, simpler panels; joints need triangles a few times bigger than the joint. 0 = keep every triangle of the model", 0, 200, 1, unit="mm"),
+        Param("facet", "number", 15, "Detail: average triangle edge after simplification (mm). Bigger = fewer, simpler panels; joints need triangles a few times bigger than the joint. 0 = keep every triangle of the model", 0, 200, 1, unit="mm", label="face size", section="Faces — how the model is cut into flat faces"),
         Param("min_face", "number", 0.0, "Merge the faces too small to work with into their neighbours: a face whose least height is "
               "under this (mm) is closed up along its shortest edge, and the rest of the model stays as it is. 0 = keep every "
               "face. For a model where a few small faces carry warnings and a bigger facet size would lose detail everywhere", 0, 100, 0.5, unit="mm", label="smallest face"),
-        Param("separate", "bool", False, "Every face is its own panel (no folds): each triangle is cut alone and joined to its neighbours along every edge"),
-        Param("strategy", "choice", "auto", "How panels grow: flat = flattest fold first; strip = long strips along the model's axis; area = big faces first; auto = try all and keep the fewest, most compact panels (≤ 800 faces)", choices=["auto", "flat", "strip", "area"], show_if=("separate", False)),
-        Param("max_faces", "int", 0, "Max triangles per panel (0 = as many as fit the sheet without overlapping)", 0, 5000, 1, show_if=("separate", False)),
-        Param("joint", "choice", "laced", JOINT_HELP, choices=JOINTS),
-        Param("hole_d", "number", 2.5, "Hole diameter for rivet / laced / strip (mm); shrinks where the triangle is small", 0.5, 30, 0.1, unit="mm"),
-        Param("inset", "number", 4.0, "Distance from the seam to the hole centres / slots / second bend (mm); shrinks where the triangle is small", 0.5, 100, 0.5, unit="mm"),
-        Param("spacing", "number", 20.0, "Hole spacing along a seam (mm); laced makes ≥ 2 per edge, rivet ≥ 1", 2, 500, 1, unit="mm"),
-        Param("tab_h", "number", 10.0, "Tab height for tab / multitab / diamond / gear / tongue / puzzle (mm)", 1, 100, 0.5, unit="mm"),
-        Param("tab_angle", "number", 30, "Side angle of trapezoid tabs (deg)", 0, 80, 5, unit="deg"),
+        Param("separate", "bool", False, "Every face is its own panel (no folds): each triangle is cut alone and joined to its neighbours along every edge", label="every face separate"),
+        Param("strategy", "choice", "auto", "How panels grow: flat = flattest fold first; strip = long strips along the model's axis; area = big faces first; auto = try all and keep the fewest, most compact panels (≤ 800 faces)", choices=["auto", "flat", "strip", "area"], show_if=("separate", False), label="panel strategy"),
+        Param("seams", "edges", [], "The seams you chose: the sheet is cut apart at each of these edges and never folded there, and the "
+              "panels are laid out round them. Turn on `choose seams`, then click an edge on the model or on a sheet to put a seam "
+              "there; click a seam of yours again to give the edge back to the program. A closed model needs as many seams whoever "
+              "chooses them: a seam of yours takes the place of one the program would have put somewhere else", show_if=("separate", False)),
+        Param("max_faces", "int", 0, "Max triangles per panel (0 = as many as fit the sheet without overlapping)", 0, 5000, 1, show_if=("separate", False), label="most faces per panel"),
+        Param("window", "number", 0.0, "Open every face with a window of its own shape, for light (lamp shades, lanterns): how "
+              "much of the face it takes, 0 = none, 1 = as much as the frame allows. The frame left round it is never "
+              "narrower than the minimum feature width plus the room its folds need; a face too small for that stays whole", 0, 1, 0.05, label="windows in faces"),
+        Param("joint", "choice", "laced", JOINT_HELP, choices=JOINTS, section="Joining — how panels meet at a seam"),
+        Param("hole_d", "number", 2.5, "Hole diameter for rivet / laced / strip (mm); shrinks where the triangle is small", 0.5, 30, 0.1, unit="mm", label="hole diameter"),
+        Param("inset", "number", 4.0, "Distance from the seam to the hole centres / slots / second bend (mm); shrinks where the triangle is small", 0.5, 100, 0.5, unit="mm", label="distance from seam"),
+        Param("spacing", "number", 20.0, "Hole spacing along a seam (mm); laced makes ≥ 2 per edge, rivet ≥ 1", 2, 500, 1, unit="mm", label="hole spacing"),
+        Param("tab_h", "number", 10.0, "Tab height for tab / multitab / diamond / gear / tongue / puzzle (mm)", 1, 100, 0.5, unit="mm", label="tab height"),
+        Param("tab_angle", "number", 30, "Side angle of trapezoid tabs (deg)", 0, 80, 5, unit="deg", label="tab side angle"),
         Param("snap_h", "number", 10.5, "Snap and click joints: how high the walls stand on the inside of the panels (mm). Snap: higher walls give "
               "the clip longer legs, which go on more easily. Click: the most a wall may stand; a seam whose tooth needs more is left plain", 6, 20, 0.5,
               unit="mm", show_if=("joint", ["snap", "click"]), label="snap wall"),
@@ -272,32 +293,29 @@ class Folded(Mode):
               "the piece of bar over the tooth is free: much stronger, but that short piece cannot spring, so the seam has to give "
               "somewhere else to shut. Bars break or bow: more. Does not go in: less, or a lower tooth. Above 0 the bar is as thick "
               "as `bar thickness` says, and Lamina warns when it would be stretched too far", 0, 1, 0.1, show_if=("joint", ["click"]), label="bar support"),
-        Param("rib_w", "number", 12.0, "Rib joint: arm width above the panel and tab width through the slot (mm); shrinks where the triangle is small", 2, 100, 0.5, unit="mm"),
-        Param("rib_thick", "number", 0.0, "Rib material thickness (mm) when the ribs are cut from a different sheet; 0 = same as the panels. Slots in the panels follow it", 0, 20, 0.1, unit="mm", show_if=("joint", "rib")),
-        Param("perforate", "bool", False, "Fold lines as dashed perforation instead of a continuous score (thick material)"),
-        Param("score_side", "choice", "inside", "The face of the sheet that is up on the cutter, and so carries the scores and "
-              "seam numbers: inside = the net is mirrored, they end up inside the model and the outside stays one clean "
-              "surface; outside = they show on the outside, as on a printed paper model", choices=["inside", "outside"]),
-        Param("hinge", "number", 0.4, "3D printed panels (PLA, PETG): the skin left at every fold (mm). The panel prints at its "
-              "full thickness with a V groove along each fold, cut to that fold's own angle: it folds to the model's shape and "
-              "stops there, and with the plain `seam` joint the seam edges are mitred the same way, so the panels meet face to "
-              "face for glue. Two layers (0.4 mm) is a good start; PETG bends, PLA is brittle and folds once. 0 = no groove", 0, 5, 0.05, unit="mm", show_if=("printed", True)),
-        Param("hinge_w", "number", 0.4, "3D printed panels: width of the flat strip of skin at the bottom of each fold's groove (mm), "
-              "the length that bends. Wider folds more easily and stops less sharply", 0, 5, 0.05, unit="mm", label="hinge width", show_if=("printed", True)),
-        Param("hinge_stop", "number", 0.0, "3D printed panels: where each fold stops, in degrees past (+) or short of (−) the "
-              "model's angle. 0 = the groove walls meet at the model's angle. Folds that go too far on your printer: set it "
-              "below 0 for a tighter groove; folds that stop short: above 0", -20, 20, 0.5, unit="deg", label="fold stop", show_if=("printed", True)),
+        Param("rib_w", "number", 12.0, "Rib joint: arm width above the panel and tab width through the slot (mm); shrinks where the triangle is small", 2, 100, 0.5, unit="mm", label="rib width"),
+        Param("rib_thick", "number", 0.0, "Rib material thickness (mm) when the ribs are cut from a different sheet; 0 = same as the panels. Slots in the panels follow it", 0, 20, 0.1, unit="mm", show_if=("joint", "rib"), label="rib thickness"),
         Param("edge_fit", "choice", "inner", "Where two panels meet at a seam. inner = at their inside edges: every outward seam "
               "edge is cut back by thickness × tan(bend / 2), so stiff sheet (metal, wood, acrylic) closes instead of its "
               "inside corners colliding, and an open V is left on the outside; through = one panel runs to the model's edge "
               "and only the other is cut back, to butt against its inside face: the outside closes (fully at 90°) and one "
               "sheet shows its edge (seam, rivet and laced joints; the others use inner); outer = both edges reach the "
               "model's edge (edges you bevel yourself). Joints with a tab or loop on the edge, and printed panels (mitred "
-              "instead), are not cut back", choices=["inner", "through", "outer"]),
-        Param("window", "number", 0.0, "Open every face with a window of its own shape, for light (lamp shades, lanterns): how "
-              "much of the face it takes, 0 = none, 1 = as much as the frame allows. The frame left round it is never "
-              "narrower than the minimum feature width plus the room its folds need; a face too small for that stays whole", 0, 1, 0.05),
-        Param("edge_labels", "bool", True, "Engrave the seam number beside every joint on both panels, so mating edges can be found"),
+              "instead), are not cut back", choices=["inner", "through", "outer"], label="how seams meet"),
+        Param("edge_labels", "bool", True, "Engrave the seam number beside every joint on both panels, so mating edges can be found", label="seam numbers"),
+        Param("perforate", "bool", False, "Fold lines as dashed perforation instead of a continuous score (thick material)", label="dashed fold lines", section="Folds — how the sheet bends"),
+        Param("score_side", "choice", "inside", "The face of the sheet that is up on the cutter, and so carries the scores and "
+              "seam numbers: inside = the net is mirrored, they end up inside the model and the outside stays one clean "
+              "surface; outside = they show on the outside, as on a printed paper model", choices=["inside", "outside"]),
+        Param("hinge", "number", 0.4, "3D printed panels (PLA, PETG): the skin left at every fold (mm). The panel prints at its "
+              "full thickness with a V groove along each fold, cut to that fold's own angle: it folds to the model's shape and "
+              "stops there, and with the plain `seam` joint the seam edges are mitred the same way, so the panels meet face to "
+              "face for glue. Two layers (0.4 mm) is a good start; PETG bends, PLA is brittle and folds once. 0 = no groove", 0, 5, 0.05, unit="mm", show_if=("printed", True), label="hinge skin thickness"),
+        Param("hinge_w", "number", 0.4, "3D printed panels: width of the flat strip of skin at the bottom of each fold's groove (mm), "
+              "the length that bends. Wider folds more easily and stops less sharply", 0, 5, 0.05, unit="mm", label="hinge width", show_if=("printed", True)),
+        Param("hinge_stop", "number", 0.0, "3D printed panels: where each fold stops, in degrees past (+) or short of (−) the "
+              "model's angle. 0 = the groove walls meet at the model's angle. Folds that go too far on your printer: set it "
+              "below 0 for a tighter groove; folds that stop short: above 0", -20, 20, 0.5, unit="deg", label="fold stop", show_if=("printed", True)),
     ]
     hidden_common = ("notch_ratio", "notch_factor", "notch_angle", "relief", "tool_d", "margin", "tab", "offset", "tilt", "roll", "thick", "center", "skip")
 
@@ -339,7 +357,8 @@ class Folded(Mode):
             mesh = merge_small(mesh, p["min_face"])
         self.mesh = mesh
         ctx.cover_r = t                                       # coverage: surface points within the sheet thickness of a panel
-        frames, local, panels, seams = unfold(mesh, p["separate"], p["max_faces"], self.usable_sheet(p), p["strategy"])
+        chosen, lost = (set(), 0) if p["separate"] else edges_at(mesh, p["seams"])     # every face its own panel: every edge is a seam already
+        frames, local, panels, seams = unfold(mesh, p["separate"], p["max_faces"], self.usable_sheet(p), p["strategy"], chosen)
         self.frames, self.local = frames, local
         convex = mesh.face_adjacency_convex
         slices, owner = [], {}
@@ -354,6 +373,7 @@ class Folded(Mode):
                 va, vb = mesh.face_adjacency_edges[k]
                 f = mesh.face_adjacency[k][0]
                 sl.lines.append((self.fold_line(convex[k]), LineString([pn.tri[f][fa.index(va)], pn.tri[f][fa.index(vb)]])))
+                sl.edges.append((k, sl.lines[-1][1]))
                 self.groove(sl, pn.tri[f][fa.index(va)], pn.tri[f][fa.index(vb)], k)
             slices.append(sl)
             for f in pn.faces:
@@ -369,6 +389,8 @@ class Folded(Mode):
             fa, fb = (int(x) for x in mesh.face_adjacency[k])
             va, vb = mesh.face_adjacency_edges[k]
             all_sides[k] = [self.side(owner[f], f, va, vb) for f in (fa, fb)]
+            for s in all_sides[k]:                            # a seam lies on two panel edges: the page marks both
+                s.sl.edges.append((k, LineString([s.A, s.B])))
             bend = float(mesh.face_adjacency_angles[k])
             outward = convex[k] and bend > math.radians(1)
             need = t * math.tan(min(bend, math.radians(150)) / 2) if outward else 0
@@ -510,7 +532,26 @@ class Folded(Mode):
         if len(ctx.errors) == said:                           # a sheet that does not fold at all has said so: how far it folds is moot
             self.check_closing(slices)
         ctx.notes_extra = f"unfolded {len(mesh.faces)} triangles into {n_panels} panel(s), {len(seams)} seams"
+        if not p["separate"]:
+            ctx.view["edges3d"] = self.edges3d(seams, chosen)
+        if lost and slices:
+            slices[0].warnings.append(f"{lost} of the {len(p['seams'])} seams you chose are on no edge of the model as it is now, and are left "
+                                      f"out: the facet size, the model or its size changed after you chose them. Choose them again "
+                                      f"(`choose seams`), or go back to the settings you chose them with")
         return slices + extra
+
+    def edges3d(self, seams, chosen):
+        """Every edge the surface is folded or cut apart at, for the page to draw on the model and pick: [k, kind, end,
+        end, way out] — its adjacency index, "fold", "seam" (the unfolder's) or "chosen" (the user's seam), its two
+        ends, and the direction out of the model there, so the line can be drawn a hair outside the surface. The joins
+        inside one flat face are left out: nothing folds there, and a seam across a flat face is no one's choice."""
+        m = self.mesh; cut = set(seams); out = []
+        for k, ((fa, fb), ends) in enumerate(zip(m.face_adjacency, m.face_adjacency_edges)):
+            if k in cut or m.face_adjacency_angles[k] >= FLAT:
+                n = m.face_normals[fa] + m.face_normals[fb]
+                out.append([k, "chosen" if k in chosen else "seam" if k in cut else "fold",
+                            *np.round(m.vertices[ends], 3).tolist(), np.round(n / (np.linalg.norm(n) or 1), 3).tolist()])
+        return out
 
     def check_walls(self, slices):
         """The sheet lies inside the surface, one thickness deep. Where the model itself is thinner than two sheets (the

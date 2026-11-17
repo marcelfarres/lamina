@@ -48,7 +48,27 @@ Every mesh edge is exactly one of: fold (inside a panel, exported on the SCORE l
 dashed, dotted when `perforate`) or seam (numbered; the number is engraved beside the joint on **both** panels so
 the mating edges can be found on the cut sheet). A fold between two faces in one plane (less than 1° apart: the
 diagonal of a rectangle, the spokes of a hexagon cap) is not scored: the SCORE layer holds only the edges to bend.
-An edge whose two faces already lie side by side in a panel is a fold, never a seam.
+An edge whose two faces already lie side by side in a panel is a fold, never a seam, unless the user chose a seam
+there.
+
+### Seams the user chooses
+`seams` is a list of edges, each kept by its two end points in model coordinates. `edges_at` finds the mesh edge
+for each (both ends within 0.05 mm of a vertex). The unfolder leaves these edges out of the graph it grows panels
+over, so no panel grows across one, and the last step above does not make one a fold again. Everything after the
+unfolding reads the same list of seams, so a chosen seam gets its joint, its number and its edge fit like any other.
+
+A closed surface in *n* panels has a fixed number of seams (edges − faces + *n*). A chosen seam therefore takes the
+place of one the unfolder would have put somewhere else; it does not add work, unless it splits off a new panel.
+
+An edge is kept by its place, not by its index, because the indices belong to one simplified mesh. Another facet
+size, model size or `smallest face` gives other edges. A chosen seam that is on no edge of the new mesh is left out
+and the first panel carries a warning that says how many.
+
+For the page, the plan lists every edge that is a seam or a bent fold (`edges3d`: index, `fold` / `seam` / `chosen`,
+the two ends, the direction out of the model), and every folded piece lists where its edges lie on the sheet
+(`edges`: index, x0, y0, x1, y1). The page draws them on the model with three line styles (thin, dashed, thick),
+lights the edge under the pointer in both views, and adds or removes a seam on a click. The joins inside one flat
+face are not listed: there is nothing to fold there.
 
 ## Which face is up, and how thick a sheet can fold
 The sheet's outer face lies on the model's surface and its thickness goes inwards, so the outside of the built model
@@ -175,7 +195,7 @@ The example `fold_test` (48 × 48 × 32 mm, 2 mm PETG) carries 45°, 76°, 80°,
 
 ## Stiff sheet: seams meet at the inside edges
 Two square-cut panels that both reach the model's edge occupy the same corner on every outward (convex) seam: a
-t × t square at 90°. Paper gives; metal, wood and acrylic do not, and the part cannot close. With `edge fit` =
+t × t square at 90°. Paper gives; metal, wood and acrylic do not, and the part cannot close. With `how seams meet` =
 inner (the default) each outward seam edge is cut back by t · tan(bend / 2), so the inside edges of the two
 panels meet and the gap is on the outside. Holes, slots and seam numbers are measured from the new edge. Inward
 seams need nothing: their material moves apart. Joints with a tab or loop on the edge are not cut back, and
@@ -231,7 +251,9 @@ It needs the ray engine's rtree, which the browser build has not.
 `window` opens every face with a hole of its own shape, for a lamp shade or a lantern. The frame left around it is
 what the share asks for and never less than 1.35 × the minimum feature width, plus what the face's grooves or
 cut-back edges take, plus the reach of the joint's holes or slots. A face too small for that stays whole.
-The example `fold_lamp` uses it: a twisted, swelling tube of 72 triangles, printed in 2 mm PETG on one plate.
+The example `fold_lamp` uses it: a twisted, swelling tube of 30 triangles (about 58 × 29 mm each, 12 seams to close), printed in 2 mm PETG on one
+plate. It had 72 triangles of 38 × 19 mm and 32 seams at first: too many and too small to put together by hand.
+The lantern keeps the 72: at 420 mm they are big enough.
 
 ## The fold slider
 Each panel face remembers the face it was unfolded from (`Panel.parent`). The plan gives every facet a `hinge`:
@@ -281,10 +303,16 @@ In tests/test_modes.py: the built cube is exactly the model's size (the sheet li
 convex folds are valley lines with `score side` inside and mountain lines with outside, and a 5 mm sphere warns that
 its folds cannot close in an 8 mm sheet but not in a 1.5 mm one.
 
+In tests/test_seams.py: a chosen seam is never a fold and the net still folds back; a chosen seam across a flat face
+stays a seam; the plan marks every fold once and every seam twice on the sheets, a fold on its score line and a seam
+on the cut outline, with the net mirrored and not; a seam on no edge is reported and left out. In tests/ui/test_edit3d.py:
+a seam is chosen on the model, another on a sheet, one is given back, and both views mark the same edges.
+
 Run: `uv run python tests/test_unfold.py`.
 
 ## Roadmap for this technique
 1. Simulated annealing / tabu search over the spanning tree when `auto` still leaves many panels (Korpitsch, Zawallich).
 2. Shape relaxation until a single patch unfolds (Bhargava 2024) — for paper models where fidelity can give a little.
-3. Click-to-add / remove seams in the 3D view (Pepakura-style manual control).
+3. Edges the user wants kept as folds ("keep this area in one piece"): possible only as a preference, because an
+   overlap or the sheet size can still force a seam there.
 4. Tab placement by stability, not on every seam (Korpitsch 2020).
