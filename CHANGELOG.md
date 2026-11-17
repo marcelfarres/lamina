@@ -21,7 +21,9 @@ What changed in each release. The GitHub release for a version is this section, 
   two crossings sit close together on a band, the cut goes along one of the joints, or a small corner between the
   two slots is cut off and glued in last, so that the pieces beside it can slide in. You
   choose the assembly order, or let Lamina pick the one with the fewest cuts, and each band can have its own wall
-  and move its cuts. Thanks to @DaveLauber, who made the technique in his fork. The tongue and the slide-in
+  and move its cuts. It suits simple round or boxy shapes, such as a sphere, an egg or a box. On a shape with
+  necks or long flat sides, such as the head, some pieces may have no way in: the Checks tab names each one, so
+  you know before you cut. Thanks to @DaveLauber, who made the technique in his fork. The tongue and the slide-in
   check were added when it was adapted for this release.
 - **Max piece length.** Ring slices and bands take a longest piece, measured along the ring: a longer ring is
   cut across its wall into shorter pieces joined by puzzle tabs (straight tongues in a band that slides in), clear

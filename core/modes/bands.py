@@ -86,7 +86,8 @@ class Bands(Mode):
     description = ("Rings (bands) cut along any of x, y and z — only a wall left inside each section — half-lapped where two "
                    "bands cross. The first family stays whole; a band that cannot slide in whole is cut into pieces, each cut "
                    "rejoined by a straight tongue the later piece slides onto, and every piece is checked to get past the "
-                   "ones already in.")
+                   "ones already in. It suits simple round or boxy shapes (a sphere, an egg, a box); on a shape with necks or long "
+                   "flat sides some pieces may have no way in, and the Checks tab names each one.")
     legend = ("X-2 = the 2nd band across x, Y-4 the 4th across y, Z-1 the 1st across z, each counted from the low end · "
               "X-2-1, X-2-2 = the pieces a band is cut into, each cut a straight tongue the later piece slides onto (a puzzle "
               "tab in the first family) · assembly: the first family's bands go in whole, then the other pieces one at a time, "
