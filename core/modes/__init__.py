@@ -205,8 +205,8 @@ COMMON: list[Param] = [
 # router corners. Everything else is basic: how many slices, what joins them, the sheet, the thickness, the kerf and
 # the slot fit. One table, so a setting moves between the two by moving its name. "common" is every tab but Technique.
 ALL_ONLY = {k: v.split() for k, v in {
-    "common": "shrinkwrap hollow thicken round smooth scale_check sheet_margin gap grain one_sheet mirror_ok split tab "
-              "label_model short_name label_style label_place orient_mark font notch_factor notch_angle relief tool_d "
+    "common": "shrinkwrap thicken round smooth scale_check sheet_margin gap grain one_sheet mirror_ok split tab "
+              "label_model short_name label_style label_place orient_mark font notch_factor notch_angle "
               "margin center min_part trim_thin",
     "stacked": "shift surface next_outline next_outline_offset dowel_shape spacer_dir spacing_fix",
     "radial": "axes angle spine spacing_fix",
