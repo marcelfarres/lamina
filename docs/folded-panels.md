@@ -166,6 +166,32 @@ what the share asks for and never less than 1.35 × the minimum feature width, p
 cut-back edges take, plus the reach of the joint's holes or slots. A face too small for that stays whole.
 The example `fold_lamp` uses it: a twisted, swelling tube of 72 triangles, printed in 2 mm PETG on one plate.
 
+## Removed faces
+`removed` holds the faces the user took off the surface, to keep only a part of the model (a mask from a head). They
+go after the model is simplified and before it is unfolded. What is left is an open surface: the rim round the
+removed faces is a boundary like any other, a plain cut edge with no seam and no joint.
+
+A removed face is kept by its place, not by its number: its triangle, in the coordinates of the model file. The plan
+gives the 4 × 4 matrix from the file's coordinates to the plan's millimetres (`frame`; `core/mesh.py` builds it from
+every scale, turn and move it applies). So the same places are removed after a change of facet size, of the model's
+size or of its rotation. After a change of facet size the rim moves by one triangle at most.
+
+`faces_at` (`core/unfold.py`) finds the faces at those places. A face is removed when the line through its middle,
+along its own normal, meets a stored triangle that faces the same way, no further off than half that triangle's
+longest edge. The stored triangles of a region lie edge to edge, so a line through the region meets one of them; a
+flat projection onto each triangle leaves a gap along every ridge between two. The far side of a thin wall faces
+the other way and stays.
+
+- A seam the user chose that is now on the rim, or among the removed faces, is left out and nothing is said.
+- A piece of the surface that the removed faces cut off from the rest is cut as panels of its own. A warning names
+  the panels. It is not deleted.
+- When every face is removed, the plan has an error and no parts.
+- Coverage is measured on the model without the points at the removed places.
+
+Measured on `head_igea` in 0.5 mm card (2026-11-17): the back of the head picked at facet 20 mm, 246 faces, leaves
+451 cm² of 944 cm². At facet 12 mm with the same list, 703 faces are removed and 456 cm² is left.
+Not done: a smooth rim along a drawn line. The rim follows the edges of the triangles.
+
 ## The fold slider
 Each panel face remembers the face it was unfolded from (`Panel.parent`). The plan gives every facet a `hinge`:
 its parent facet, the fold line on the model (a point and a direction) and the turn that lays it flat beside the

@@ -25,7 +25,8 @@ MAX_SLICES = 500                      # the count slider's ceiling, and the ceil
 #   chips         list of numbers or labels                   value: [v, …]
 #   curve         the spacing curve, drawn in the graph under the 3D view   value: [[t, s], …] t 0..1, s mm or deg
 #   edges         edges of the model, picked in the 3D view or on a sheet   value: [[[x,y,z],[x,y,z]], …] the two ends of each
-LIST_TYPES = ("vec2", "vec3", "points", "lines3", "map", "labels", "chips", "curve", "edges")
+#   faces         faces of the model, picked in the 3D view         value: [[[x,y,z],[x,y,z],[x,y,z]], …] each one's triangle, in the model file's coordinates
+LIST_TYPES = ("vec2", "vec3", "points", "lines3", "map", "labels", "chips", "curve", "edges", "faces")
 
 
 @dataclass
@@ -269,6 +270,7 @@ def view_defaults():
         "core_d_min": None,       # radial: the smallest core the half-slices allow
         "spacing": [],            # the drawn spacing curves' outcome, for the graph: [{param, positions, length, unit, scale}]
         "edges3d": None,          # folded: [k, fold | seam | chosen, end, end, way out] per edge, drawn and picked to choose the seams
+        "frame": None,            # folded: the 4 × 4 from the model file's coordinates to the plan's mm; the removed faces are kept in the file's
         "clip": None,             # plaque: [point, normal] of the plate's front face — the 3D view shows the model in front of it only, and coverage is measured on that
     }
 
@@ -288,7 +290,8 @@ class Ctx:
         self.fixes = []           # … and their one-click fixes
         self.notes_extra = ""     # what the technique wants said in the plan's notes
         self.cover_r = None       # how far across its plane a part counts as covering the surface (plan.coverage); None = a default
-        self.view = view_defaults()   # what the technique hands the 3D view, merged into the plan as is: set ctx.view[key]
+        self.cover_skip = None    # triangles (n × 3 × 3, mm) where the parts are not meant to cover the model (folded: the removed faces)
+        self.view = view_defaults()  # what the technique hands the 3D view, merged into the plan as is: set ctx.view[key]
 
     def override(self, key, label, default=0.0):
         return float(dict(self.p[key]).get(label, default))
