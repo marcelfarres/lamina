@@ -6,7 +6,7 @@ import re
 
 import pytest
 
-from .helpers import settle, plan, set_fields, zip_of, state, use
+from .helpers import settle, plan, set_fields, zip_of, state, use, menu
 
 
 @pytest.mark.timeout(600)
@@ -257,9 +257,9 @@ def test_every_control_does_what_it_says_and_every_download_holds_the_plan(page,
 
     # -- header: revisions and help
     rev = page.text_content("#prev")
-    page.click("#pminor"); assert page.text_content("#prev") != rev
-    page.click("#pmajor"); assert page.text_content("#prev").endswith(".0")
-    page.click("#helpbtn"); assert page.locator("#helpdlg[open]").count(); page.click("#help_go")
+    menu(page, "#pminor"); assert page.text_content("#prev") != rev
+    menu(page, "#pmajor"); assert page.text_content("#prev").endswith(".0")
+    menu(page, "#helpbtn"); assert page.locator("#helpdlg[open]").count(); page.click("#help_go")
     assert not page.locator("#helpdlg[open]").count()
 
     # -- the Sheet & fit lists: a saved preset, a thickness, a sheet size — added, then removed
@@ -316,6 +316,7 @@ def test_every_control_does_what_it_says_and_every_download_holds_the_plan(page,
     page.check("#x_key"); page.check("#x_labels")
 
     # -- prototyping: the fields reach the request, and the zips hold a plate
+    page.eval_on_selector("#pr_fold", "d => { d.open = true }")            # the group opens on its heading (a printed job opened it already)
     page.fill("#pr_size", "120"); page.select_option("#pr_labels", "hole"); page.fill("#pr_font", "4")
     page.fill("#pr_min", "1"); page.fill("#pr_offset", "0.3"); page.fill("#pr_step", "0.05")
     for btn, want in (("#pr_go", "plate.3mf"), ("#fit_go", "plate.3mf")):

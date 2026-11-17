@@ -91,8 +91,8 @@ class Slice:
     fixes: list = field(default_factory=list)     # [{"error", "options": [{"title", "set"}]}] one-click fixes (checks.suggest_fixes)
     note: str = ""                      # extra text shown with the label (e.g. rib angle)
 
-    def piece_extra(self) -> dict:
-        """What this slice adds to each of its pieces in the plan, beyond what every slice has."""
+    def piece_extra(self, pc) -> dict:
+        """What this slice adds to its piece `pc` in the plan, beyond what every slice has."""
         return {}
 
     def facet_extra(self, i) -> dict:

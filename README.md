@@ -92,7 +92,7 @@ sheet before you commit expensive material.
 
 **Found a bug?** There are two ways to say so, and neither is better than the other.
 
-- **report a problem**, in the app's header and on the landing page. Write a sentence and it fills in the rest:
+- **report a problem**, in the app's *help* menu and on the landing page. Write a sentence and it fills in the rest:
   the technique, every setting, what the checks said, and — unless you untick the box — the model itself, saved
   ready to attach, which is what makes a report reproducible. It shows you exactly what it has gathered, then
   opens either a prefilled email to `lamina.3d.app@gmail.com` or the prefilled GitHub issue form, and you press
@@ -232,7 +232,7 @@ and `docker compose pull && docker compose up -d` moves it to the newest build. 
 
 Several people can share one server: each browser tab holds a random id, everything it slices lives under that id,
 and no other tab can name it. A tab nobody has touched for `LAMINA_TTL_HOURS` (24 by default, 0 = never) is deleted,
-models and all, the next time anyone slices; the header's **clear my data** button deletes a tab's own at once.
+models and all, the next time anyone slices; **Clear my data** in the *help* menu deletes a tab's own at once.
 Uploads are not capped by default — your own computer's memory is the only limit, and a cap that refused a 40 MB
 mesh on a laptop with 32 GB was simply wrong. Set `LAMINA_MAX_UPLOAD_MB` when the server faces other people, where a
 stranger's 2 GB scan is not yours to hold. `WEB_CONCURRENCY` is how many slices run at the same
@@ -267,7 +267,7 @@ The original's six techniques as five modes (its *3D Slices* is stacked with `su
 | `radial` | half-slices around an axis (move it with `center`, turn the fan with `angle`) locked by horizontal ring slices with radial slots; ring count or spacing. **Several axes**: a fan per lobe — an axis through each of a dumbbell's balls, one per ball of a snowman, tilted to follow it. Neighbouring lobes are parted by a flat plane between their axes — a translucent part in the 3D view that you click and move or tilt like any slice — so the fans never run into each other, and a **spine** — one full plane through every axis, cut whole and slotted into every ring — ties the lobes together: automatic, found from how the axes lie (on one line, any number; on one plane, exactly one; on no plane, an error naming the fix). Every axis is drawn in the 3D view where it passes through the model: drag it whole or by either end (it stays on the plane the other axes share, so the spine survives the drag), alt-click the model for a parallel axis through that point, `+` to split one in two, alt-click an axis to remove it | `R-na/b` (`R2-na/b` per axis), rings `Z-n`, spines `SP-n` |
 | `curve` | ribs perpendicular to a curve through the model (its centre line by default, following the body across the plane too; drag the blue dots, alt-click to add or remove one, or type them in the `curve` table), so they follow a bend instead of staying parallel; locked together by spine slices. The turn between neighbouring ribs is limited so they do not meet inside the model. **Branches**: a straight line per leg, arm or tail, each with ribs square to it and a spine of its own that reaches back into the body and slots into the body's ribs, so a horse's legs are held instead of cut across by body ribs. Shift+alt-click a hoof to add one, drag its ends, alt-click it to remove it; a branch that starts past the body's ribs is an error, not a loose leg | `R-n`, spines `K-n`; branch 2: ribs `R2-n`, spine `K2`, joint `J-2` |
 | `plaque` | the model cut off at a flat back plate (`back`, `sink`), its slices standing on edge on the plate, side by side, as a radial fan round a centre hole, or as two crossed families half-lapped into each other (`layout`, `planes`, `radius`, `nx`, `ny`), with teeth through plate slots (`teeth`, `tooth_width`, `tooth_spacing`); the plate has its own `plate_thickness` and outline (circle, ellipse, rectangle, rounded, hexagon, shield, the model's silhouette, or an SVG / DXF file placed with `plate_scale`, `plate_mirror`, `plate_rotation`, `plate_offset`); a piece that does not reach the plate hangs from the slice beside it on flat spacers | `W-1` (plate), `X-n`, `X-na`, `R-n`, `Y-n` |
-| `folded` | surface unfolded into flat panels with score lines (strategies flat / strip / area, or auto); thirteen joints: seam, tab, multitab, diamond, ticked, gear, tongue, puzzle, rivet, laced, loops, strip, rib, each sized to its triangle; **separate** mode cuts every triangle alone. The model need not be closed: panels are cut from the surface, so a clothing pattern, a mask or a shell with a neck hole is panelled as it is — its boundary edges stay open and carry no joints. **Printed** (PLA, PETG), a panel keeps its full thickness and gets a V groove at every fold, cut to the fold's angle, with a thin skin as the hinge (`hinge`, `hinge_w`): print flat, fold up. `window` opens every face for a lamp shade; `edge_fit` cuts stiff sheet back at the seams so the panels meet at their inside edges; `score_side` puts scores and seam numbers inside or outside. The 3D view's fold slider folds the panels from flat to the model | `P-n`, strips `S-n`, ribs `R-n` |
+| `folded` | surface unfolded into flat panels with score lines (strategies flat / strip / area, or auto); thirteen joints: seam, tab, multitab, diamond, ticked, gear, tongue, puzzle, rivet, laced, loops, strip, rib, each sized to its triangle; **separate** mode cuts every triangle alone. The model need not be closed: panels are cut from the surface, so a clothing pattern, a mask or a shell with a neck hole is panelled as it is — its boundary edges stay open and carry no joints. **Printed** (PLA, PETG), a panel keeps its full thickness and gets a V groove at every fold, cut to the fold's angle, with a thin skin as the hinge (`hinge`, `hinge_w`): print flat, fold up. `window` opens every face for a lamp shade; `edge_fit` cuts stiff sheet back at the seams so the panels meet at their inside edges; `score_side` puts scores and seam numbers inside or outside. `choose seams` lets you say where the sheet is cut apart: click an edge on the model or on a sheet, and the panels are laid out round your seams. The 3D view's fold slider folds the panels from flat to the model | `P-n`, strips `S-n`, ribs `R-n` |
 
 Common to all: model `rotate` (three angles) and slicing `center`, per-slice `offset` / `tilt` / `roll` / `thick` /
 `skip` (delete), `size` (a target size on any axis) with `scale` multiplying it, `up_axis`, Modify Form (`shrinkwrap`,
@@ -299,13 +299,21 @@ does not slip through. It carries the most signal for stacked and folded work; d
   nested on sheets of its own. Every sheet title says the stock it is cut from, the sheet header in the UI repeats
   it, and as soon as a job mixes thicknesses the file names carry it (`sheet2 6mm.svg`, `Z-2 6mm x1.svg`) — a sheet cut
   from the wrong stock fits nothing. Every file name also carries the material it is cut from (`sheet1 plywood.svg`).
-- **One sheet** ignores the sheet height: every part goes on one strip as wide as the sheet and as long as it needs,
+- **One long sheet** (`one_sheet`) ignores the sheet height: every part goes on one strip as wide as the sheet and as long as it needs,
   to be cut apart at the machine.
-- **Non-uniform spacing**: stacked, interlocked, radial and curve can spread their slices by a curve you draw in a
-  graph under the 3D view (`spacing_vary`) — the distance between neighbours against the position along the way,
-  the angle between planes round the axis for radial (periodic), one graph per family for interlocked — dense where
-  the shape changes fast, sparse where it does not. Keep the count and the drawn spacings are scaled to span the
-  model, or keep the spacings and the count follows. The `vase`, `ripple`, `berry` and `hook` examples open with one.
+- **Non-uniform spacing**: stacked, interlocked, radial, curve and plaque can spread their slices by a curve you
+  draw. Tick *vary the spacing* (`spacing_vary`) and a graph opens under the tick: the gap between neighbours against
+  the position along the way. For radial it is the angle between planes round the axis (periodic). Interlocked has one
+  graph per family. The upright lines in the graph are the slices, and a strip under it draws the model from them.
+  Start from a shape (even, dense at both ends, dense in the middle, dense at the start) or press *follow the model*:
+  it makes the gaps small where the width of the model changes fast. Buttons add a point, remove one, smooth the
+  curve and reset it, and you can type the two numbers of a point. Keep the count and the drawn gaps are scaled to
+  span the model, or keep the gaps and the count follows. The `vase`, `ripple`, `berry` and `hook` examples open
+  with one.
+
+  [![The spacing graph, step by step: the box ticked, a starting shape picked, a point dragged, the curve drawn from the model](docs/media/spacing_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#spacing)
+
+  [Watch the walk-through](https://marcelfarres.github.io/lamina/?ref=github-readme#spacing).
 - **Labels** go on the part itself wherever the whole label fits on its material — inside the next layer's outline
   where the technique marks one (stacked, `next_outline`), so the layer glued on top hides it, upright or turned along
   the part, clear of its holes and marks — and otherwise beside the part with a leader line, in free space inside the
@@ -354,7 +362,7 @@ does not slip through. It carries the most signal for stacked and folded work; d
   material's density, and gives the sheet area to buy — m², or ft² in inches, on whole sheets with their offcuts —
   with the area that becomes parts and the share of the stock used. Every material on the list has a typical density
   you can correct, and a material of your own (+ beside the material) keeps the density you give it.
-- **Scale check**: every export carries a calibration bar, 10 cm or 4 in following the units, to cut first and
+- **Calibration bar** (`scale_check`): every export carries a calibration bar, 10 cm or 4 in following the units, to cut first and
   measure before committing to the whole set.
 - **Kerf compensation is off by default**: many machines compensate their own kerf, and compensating twice ruins
   the fit. Turn it on under Machine & cut compensation when yours does not.
@@ -377,8 +385,29 @@ does not slip through. It carries the most signal for stacked and folded work; d
 
 ### The web UI
 
-Dark, five tabs (Model · Technique · Sheet & fit · Checks · Export). Every change re-slices; the 3D view and the cut
-sheets are always the same plan. Hover a parameter name for its help.
+Dark, five tabs (Model · Technique · Sheet & fit · Checks · Export). Every change re-slices. The 3D view and the cut
+sheets are always the same plan.
+
+- **Settings**: each tab is in sections (Slices, Joining, Spacing, Position and so on). Click a heading to fold a
+  section. A setting that another one switches on is set in under it. Every setting has a full name: the name in
+  backticks in this README is its key, the one a project file and the command line use.
+- **Find a setting**: type a word in the box over the tabs. Only the settings that match stay, from every tab.
+- **Help**: hover the name of a setting, or click it and the explanation opens under it.
+- **Basic / all**: the switch under the search box. *Basic* shows the settings a first piece needs and names the
+  others at the foot of each group. A setting you changed always shows. The result is the same either way.
+- **Changed settings**: a setting that is not at its default has a bold name and a ↺ sign. Click the sign to put the
+  default back.
+- **Techniques** are six cards, each with a drawing of what it makes.
+- **Messages** say what they are: a warning starts with ⚠ WARNING and an error with ✖ ERROR. Several notes fold into
+  one line. A connector that was asked for and left out is a warning, with a ring in the 3D view at each place.
+- **Tools in the 3D view**: buttons at the left of the view add or remove a dowel, a curve point or an axis, add a
+  branch, and tilt or roll a slice. Pick one, then click or drag the model. The keys (alt-click, shift-drag,
+  ctrl-drag) do the same.
+- **Lamp**: tick *lamp* over the 3D view to light the model from inside and see the shadows it throws on a floor
+  and a wall. *Bulb height* moves the bulb.
+- **Export tab**: the buttons first. The text about a file opens with a click on the line under its button.
+- **Top bar**: project name, open and save, a *version* menu, undo and redo, and a *help* menu with the guide, the
+  release notes, the links and *clear my data*.
 
 - **3D view**: drag to orbit, wheel to zoom, right-drag to pan. Click a part to select it: a yellow arrow slides it
   along its normal, shift-drag tilts, ctrl-drag rolls, and the panel gets sliders for offset / tilt / roll /

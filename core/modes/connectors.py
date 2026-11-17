@@ -79,8 +79,10 @@ class Connectors:
             # what slice a already carries, for every placement: an aligned point repeats exactly and is kept
             taken = [(x, y) for x, y, *_ in a.cutkeys]
             pts = self.points_for_pair(a, b, i, taken) if self.typed else []
-            got = [q for q in (self.place(a, b, i, j, x, y) for j, (x, y) in enumerate(pts)) if q]
+            placed = [self.place(a, b, i, j, x, y) for j, (x, y) in enumerate(pts)]
+            got = [q for q in placed if q]
             self.skipped += len(pts) - len(got)
+            ctx.view["left_out"] += [[round(float(v), 3) for v in (a.M @ np.array([x, y, 0, 1]))[:3]] for (x, y), q in zip(pts, placed) if not q]
             for isl in self.islands_of(a, b):
                 got += self.hold(a, b, i, isl, got)
             if not got:      # nothing this size fits here: remember the biggest hole these two layers would take
@@ -88,10 +90,10 @@ class Connectors:
                 both = a.raw.intersection(b.raw)
                 if not both.is_empty:
                     self.rooms.append(max(shapely.maximum_inscribed_circle(g, 0.5).length * 2 for g in as_multi(both).geoms))
-        # what went short is about the whole stack, so it goes in the plan's notes, not on a slice
-        said = self._said() if self.typed else []
-        if said:
-            ctx.notes_extra = " · ".join([ctx.notes_extra] + said).strip(" ·")
+        # what went short is about the whole stack, so it is a warning of the plan, not of a slice: something that
+        # was asked for is not in the cut files (as a note it sat under a green "0 warnings")
+        if self.typed:
+            ctx.warnings += self._said()
         if p["placement"] == "aligned" and p["dowels"]:
             used = {(round(x, 2), round(y, 2)) for s in self.slices for x, y, *_ in s.cutkeys}
             for x, y in p["dowels"]:
@@ -440,13 +442,14 @@ class Connectors:
         return out
 
     def _said(self):
-        """The notes about connectors that could not be placed: points skipped for want of a wall, and pairs of
+        """The warnings about connectors that could not be placed: points skipped for want of a wall, and pairs of
         layers that got none — with the size that would fit them, when one would."""
         p = self.p; d = self.d; mf = self.mf; said = []
         skipped, bare, rooms, margin = self.skipped, self.bare, self.rooms, self.margin
         if skipped:
-            said.append(f"{skipped} connection point(s) skipped — no spot there keeps a {mf:g} mm wall from the outline and "
-                        "from the other connectors: move the points inward (alt-click) or reduce dowel_d")
+            said.append(f"{skipped} connector(s) left out — no spot there keeps a {mf:g} mm wall from the outline and from "
+                        "the other connectors (the 3D view marks each place with a ring): move the points inward or "
+                        "make the dowel diameter smaller")
         if bare and p["placement"] == "lines":
             # Here nothing was short of room: the lines put no point there. Offering a smaller dowel sent people
             # looking for a size problem that did not exist.
@@ -467,7 +470,7 @@ class Connectors:
             room = float(np.median(rooms)) if rooms else 0.0
             fits = round((room / 2 - mf) / (reach + 1 / (2 * math.sqrt(math.pi))) - p["slot_offset"], 1)
             said.append(f"{bare} pair(s) of slices got no connector — a {p['dowel_d']:g} mm one does not fit them: "
-                        + (f"set dowel_d to about {fits:g} mm" if MIN_DOWEL <= fits < p["dowel_d"] else
+                        + (f"set the dowel diameter to about {fits:g} mm" if MIN_DOWEL <= fits < p["dowel_d"] else
                            "they overlap only in strips too narrow to hold one — fewer slices, a thicker hollow wall, "
                            "or set connect to tab")
                         + ", or set connect to none and line them up by eye")

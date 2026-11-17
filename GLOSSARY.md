@@ -33,6 +33,8 @@ The words Lamina uses for its parts. One word for one thing.
   away from you, a valley fold toward you. The same fold is a mountain from one face and a valley from the other.
 - **Seam**: an edge between two faces that are cut apart. A **joint** holds a seam together. An **outward seam** is on
   an outside corner of the model, an **inward seam** on an inside corner.
+- **Chosen seam**: a seam the user put on an edge. The unfolder never folds there. Every other seam is the
+  program's: the unfolder decides it.
 - **Score**: a line cut part of the way through, where a panel folds. Not a *cut*, which goes through.
 - **Score side**: the face of the sheet that is up on the cutter. It carries the scores and the seam numbers.
 - **Groove**: the V cut along a fold of a printed panel. Its two walls meet when the fold reaches its bend.

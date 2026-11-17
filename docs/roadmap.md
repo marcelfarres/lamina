@@ -52,7 +52,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Folded: score side | ✅ | `score_side`: inside (default; the net mirrored, scores and seam numbers inside the model) or outside; the sheet lies inside the surface; a warning when folds cannot close in the sheet thickness |
 | Folded: Split Panels | ✅ | `separate` (every triangle cut alone) |
 | Folded: unfolding quality | ✅ | strategies flat / strip / area / auto (best of several runs), joints sized to their triangles, tabs shown folded in 3D — see docs/folded-panels.md for the papers |
-| Folded: Add / Remove seams by clicking an edge | ⬜ | seams are chosen automatically (flattest-edge unfolding); `max_faces` limits panel size |
+| Folded: Add / Remove seams by clicking an edge | ✅ | `choose seams`: click an edge on the model or on a sheet to put a seam there, click it again to give it back; the other seams are still chosen automatically (`seams`, kept by the two ends of each edge) |
 | Folded: 10 joint types | ✅ | seam, tab, multitab, diamond, ticked, gear, tongue, puzzle, rivet, laced (+ loops, strip, rib) |
 | Folded: score vs cut, yellow fold lines | ✅ | SCORE layer: solid mountain, dashed valley, dotted perforate |
 | Folded: the material folds (extra) | ✅ | fold lines, and tabs or strips bending over a seam, in a sheet thicker than its material folds at are an error; one click cuts every face alone, joined by ribs |
@@ -74,7 +74,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Connecting strips | ✅ | joint `strip`: rounded strips with mirrored holes, fold angle on the label |
 | Sheet-metal ribs | ✅ | joint `rib`: slots + angle ribs cut at the dihedral angle |
 | Assembly collision simulation | ✅ | every slotted part is slid along its crossing line out through the slot's mouth; material of the slotted part left in that path (a hollow section crossed twice, a concave outline) is an error with fixes |
-| Live update, dark UI, tooltips, tabs | ✅ | |
+| Live update, dark UI, tooltips, tabs | ✅ | settings in folding sections with full names, a search box over the tabs, a mark on every changed setting, help that opens under a setting |
 | Material / machine / stock-sheet presets | ✅ | 21 materials: thickness by gauge (steel's and stainless's own tables), ounce, point or fraction with mm and inch, sheet sizes per material, a density for the weight, and only the machines that can cut it; kerf / slot / relief per machine (CO2 laser, fiber laser, plasma, router, knife, by hand, 3D printer, and machines by name). PLA and PETG print the parts at full size: whole-layer thicknesses, print beds as sheets, 0.2 mm slot clearance |
 | Weight | ✅ | Export tab: the parts as cut (net of holes and slots, each at its own thickness, a line per stock), the sheets, the dowels and the assembled total, in g/kg or oz/lb |
 | 3D-printed parts at full size (extra) | ✅ | PLA / PETG tick **3D printed**: sheets are print beds, the page counts plates, the Export tab gives one 3MF per plate with the print's own slot offset |
@@ -95,7 +95,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 |---|---|
 | Summary stats (sheets, slices, parts) | ✅ plus sheet usage % and material area |
 | Cut sheets view, click to magnify | ✅ |
-| Non-uniform spacing | ✅ a spacing curve drawn under the 3D view for stacked, interlocked (one per family), radial (round the axis, periodic) and curve; the count kept or the spacings kept — not in the original |
+| Non-uniform spacing | ✅ a spacing curve drawn in a graph under its tick for stacked, interlocked (one per family), radial (round the axis, periodic) and curve; the count kept or the spacings kept — not in the original |
 | Part labels `Axis-Slice-Part` | ✅ engraved beside the part with a leader line, after the model's short name (`BUNN Z-3`, `short_name` sets it) so two models' parts are never mixed up; `label_model` turns that off; by default on the part where the whole label fits, under the next layer where there is one, else beside it in free space; `label_place` forces either |
 | Automatic nesting | ✅ no-fit-polygon nesting on the part outlines after [Deepnest](https://github.com/Jack000/Deepnest) (min-rect angle plus quarter turns, lowest-left free point, parts slide into cavities and holes); a bounding-rectangle packer takes over above 150 parts, for speed |
 | Colour coding blue / green / yellow / red | ✅ OUTER / INNER / SCORE layers, plus GUIDE (orange) for the next layer's outline engraved on a stacked slice (`next_outline`); parts with errors are drawn red in the UI (3D and sheet) |
