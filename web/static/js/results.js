@@ -8,6 +8,7 @@ import {dens} from './presets.js';
 import {renderFields, lenMM} from './form.js';
 import {slice} from './slice.js';
 import {parts} from './scene.js';
+import {sheetSeams, toggleSeam} from './seams.js';
 
 // ---------------------------------------------------------------- sheets + report
 const pieceToSlice=()=>{const m={};for(const s of ST.plan?.slices||[])for(const pc of s.pieces)m[pc.label]=s.label;return m};
@@ -19,9 +20,11 @@ export function renderSheets(svgs){
   // status line: what is selected (so a click is never silent)
   if(ST.selected)status(`${$('#status').textContent.replace(/ · selected.*$/,'')} · selected ${ST.selected}`);
   for(const p of $$('#sheets path[data-label]'))if(bad.has(p.dataset.label))p.setAttribute('stroke','#ff5555');
-  $('#sheets').onclick=e=>{const a=e.target.closest('a[data-open]');if(a){const s=$$('#sheets svg')[+a.dataset.open];window.open(URL.createObjectURL(new Blob([s.outerHTML],{type:'image/svg+xml'})));return}
+  $('#sheets').onclick=e=>{const a=e.target.closest('a[data-open]');if(a){const s=$$('#sheets svg')[+a.dataset.open].cloneNode(true);s.querySelector('g.seams')?.remove();window.open(URL.createObjectURL(new Blob([s.outerHTML],{type:'image/svg+xml'})));return}
+    const edge=e.target.closest('line.hit');if(edge)return toggleSeam(+edge.dataset.k);   // choosing seams: an edge of the net
     const p=e.target.closest('path[data-label]');if(!p)return;const lab=pieceToSlice()[p.dataset.label],m=parts.children.find(c=>c.userData.slice===lab);if(m)highlight(m)};
   if(ST.selected)hlSheet(ST.selected);
+  sheetSeams();
 }
 export function applyFix(set){act('clicked a fix');for(const [k,v] of Object.entries(set)){if(v&&typeof v==='object'&&!Array.isArray(v))state[k]={...(state[k]||{}),...v};else if(Array.isArray(v)&&['skip','extra_x','extra_y'].includes(k))state[k]=[...new Set([...(state[k]||[]),...v])];else state[k]=v}renderFields();slice()}
 // what the printed prototype parts come out at — and the re-plan the server does when that is under the printer's minimum
@@ -68,15 +71,15 @@ export function renderDownloads(){ // the labels checkbox applies to every cut f
   protoHint(); renderWeight();
   const b=`api/job/${CLIENT}/${ST.job}`,L=$('#x_labels').checked?1:0,K=$('#x_key').checked?1:0,G=$('#x_grouped').checked?1:0,step=lenMM('#pr_step',0.1),U=`&units=${ST.unit}`;   // the cut files come out in the unit on show, without a re-slice
   // what the labels on the parts mean, before the cut rather than after it
-  $('#legend').innerHTML=`<b>how the parts are labelled</b><br>${(ST.mode.legend||'every part carries its own label').replace(/ · /g,'<br>')}`
+  $('#legend').innerHTML=`${(ST.mode.legend||'every part carries its own label').replace(/ · /g,'<br>')}`
     +(state.label_style==='code'?'<br><b>puzzle mode:</b> the parts are engraved with codes instead — assembly-key.txt maps them back':'');
   // a printed job has nothing to cut: the plates are under Print, and the cut files and their fit test step aside
   for(const el of $$('.cutonly,.protoonly'))el.hidden=state.printed;
-  $('#pr_title').textContent=state.printed?'Print plates':'Prototyping (3D print)';
+  $('#pr_title').textContent=state.printed?'Print plates':'Prototyping (3D print)'; if(state.printed)$('#pr_fold').open=true;   // a printed job: the plates are the files
   $('#pr_go').textContent=state.printed?`download print plates (plate-1.3mf … plate-${ST.plan.sheets}.3mf, one per bed, + one STL per part)`
     :'download prototype set (plate.3mf for OrcaSlicer + one STL per part)';
   // every file says what it is for: eight buttons in a row left the reader to know which program wants which format
-  const rows=r=>r.map(([t,u,use])=>`<div class="r"><a href="${u}">${t}</a>${use?`<span class="hint">${use}</span>`:''}</div>`).join('');
+  const rows=r=>r.map(([t,u,use])=>`<div class="r"><a href="${u}">${t}</a>${use?`<details class="info"><summary>what is it for?</summary><span class="hint">${use}</span></details>`:''}</div>`).join('');
   const more=[['assembled STL',`${b}/stl`,'the whole model built from its parts, as one 3D file: to look at it or render it in another program'],
     ['assembled STEP',`${b}/step`,'the same model as true solids, for CAD (Fusion, FreeCAD, Onshape): every part a body with flat faces, not a triangle mesh'],
     ['plan.json',`jobs/${CLIENT}/${ST.job}/plan.json`,'everything Lamina worked out, for scripts and other tools']];
@@ -99,16 +102,22 @@ export function renderReport(){
   const kinds=p.slices.flatMap(s=>s.pieces.filter(pc=>!copies.has(pc.label)).map(pc=>[s,pc,[pc.label,...twins(pc)],pc.flipped||[]]));
   $('#stats').innerHTML=`<div class="stats"><div><b>${c.parts}</b>parts</div><div class="k" data-tip="How many different parts to cut: identical ones (same outline, any quarter turn, same stock — and with mirror ok also mirror images) count once — the Parts table and the per-piece export list them once, with the quantity"><b>${kinds.length}</b>different</div><div><b>${p.sheets}</b>${SH()}(s)</div><div><b>${(p.sheet_usage*100).toFixed(0)}%</b>${SH()} used</div>
    <div class="k" data-tip="How much of the model the parts represent: sample points inside the model that lie within a slice spacing of some part. Below 90 % parts of the model (legs, ears) have no geometry — add slices or change the axis"><b style="color:${p.coverage<0.9?'var(--warn)':'var(--ok)'}">${(p.coverage*100).toFixed(0)}%</b>model covered</div>
-   <div><b>${(p.material_area_mm2/1e4).toFixed(1)}</b>dm² material</div><div><b>${p.bbox.map(inU).join(' × ')}</b>model ${ST.unit}</div>
-   <div><b style="color:${c.errors?'var(--err)':'var(--ok)'}">${c.errors}</b>errors</div><div><b style="color:${c.warnings?'var(--warn)':'var(--ok)'}">${c.warnings}</b>warnings</div></div>`;
+   <div><b>${(p.material_area_mm2/1e4).toFixed(1)}</b>dm² material</div><div><b>${p.bbox.map(v=>+(+inU(v)).toPrecision(3)).join(' × ')}</b>model ${ST.unit}</div>
+   <div><b style="color:${c.errors?'var(--err)':'var(--ok)'}">${c.errors?'✖':'✓'} ${c.errors}</b>errors</div><div><b style="color:${c.warnings?'var(--warn)':'var(--ok)'}">${c.warnings?'⚠':'✓'} ${c.warnings}</b>warnings</div></div>`;   // a sign with each count: the colour is not the only thing that tells good from bad
   // the planner writes in mm; each message and fix is shown in the unit on show, and matched to its fixes on the raw text
   const fixBtns=(s,e)=>{const f=(s.fixes||[]).find(x=>x.error===e);return f?'<br>'+f.options.map((o,i)=>`<span class="fix" data-fix='${JSON.stringify(o.set).replace(/'/g,'&#39;')}' title="${inUnit(o.note||'')}">${inUnit(o.title)}</span>`).join(''):''};
-  const msgs=[...p.notes.map(n=>`<div class="msg note">${inUnit(n)}</div>`),...p.errors.map(e=>`<div class="msg err">${inUnit(e)}${fixBtns({fixes:p.fixes||[]},e)}</div>`),
-    ...p.dropped.flatMap(s=>s.errors.map(e=>`<div class="msg err">${s.label}: ${inUnit(e)}</div>`)),
-    ...p.slices.flatMap(s=>[...s.errors.map(e=>`<div class="msg err" data-s="${s.label}" title="click to select this part">${s.label}: ${inUnit(e)}${fixBtns(s,e)}</div>`),
-                            ...s.warnings.map(w=>`<div class="msg warn" data-s="${s.label}" title="click to select this part">${s.label}: ${inUnit(w)}${fixBtns(s,w)}</div>`)])];
-  const html=msgs.length?msgs.slice(0,40).join('')+(msgs.length>40?`<div class="msg note">… ${msgs.length-40} more</div>`:''):'<div class="msg ok">All physical checks passed.</div>';
-  $('#msgs').innerHTML=html; $('#report').innerHTML=html;
+  // every message says what it is in a sign and a word, not by its colour alone; several notes fold into one line that
+  // names them, so they do not push the sheets down (the Checks tab shows them open)
+  const ERR='<b>✖ ERROR</b> · ', WARN='<b>⚠ WARNING</b> · ', short=n=>esc(inUnit(n).replace(/<[^>]+>/g,'').split(' — ')[0].slice(0,48));
+  const notes=p.notes.length>1?[`<details class="msg note"><summary>ⓘ <b>${p.notes.length} notes</b> on how this was sliced · <span>${p.notes.map(short).join(' · ')}</span></summary>${p.notes.map(n=>`<div>${inUnit(n)}</div>`).join('')}</details>`]
+    :p.notes.map(n=>`<div class="msg note">ⓘ ${inUnit(n)}</div>`);
+  const msgs=[...notes,...p.errors.map(e=>`<div class="msg err">${ERR}${inUnit(e)}${fixBtns({fixes:p.fixes||[]},e)}</div>`),
+    ...(p.warnings||[]).map(w=>`<div class="msg warn">${WARN}${inUnit(w)}</div>`),   // of the whole plan: what was asked for and left out
+    ...p.dropped.flatMap(s=>s.errors.map(e=>`<div class="msg err">${ERR}${s.label}: ${inUnit(e)}</div>`)),
+    ...p.slices.flatMap(s=>[...s.errors.map(e=>`<div class="msg err" data-s="${s.label}" title="click to select this part">${ERR}${s.label}: ${inUnit(e)}${fixBtns(s,e)}</div>`),
+                            ...s.warnings.map(w=>`<div class="msg warn" data-s="${s.label}" title="click to select this part">${WARN}${s.label}: ${inUnit(w)}${fixBtns(s,w)}</div>`)])];
+  const html=msgs.length?msgs.slice(0,40).join('')+(msgs.length>40?`<div class="msg note">… ${msgs.length-40} more</div>`:''):'<div class="msg ok">✓ All physical checks passed.</div>';
+  $('#msgs').innerHTML=html; $('#report').innerHTML=html; $('#report details')?.setAttribute('open','');
   for(const el of $$('.fix'))el.onclick=e=>{e.stopPropagation();applyFix(JSON.parse(el.dataset.fix))};
   for(const box of [$('#msgs'),$('#report')])box.onclick=e=>{   // clicking a message selects the part it is about, in 3D and on the sheet
     if(e.target.closest('.fix'))return; const d=e.target.closest('.msg[data-s]'); if(!d)return;

@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from .helpers import settle, plan, set_fields, sweep_values, CUT_OFF, state, use, ROOT
+from .helpers import settle, plan, set_fields, sweep_values, CUT_OFF, state, use, menu, ROOT
 
 
 @pytest.mark.timeout(1800)
@@ -80,7 +80,7 @@ def test_no_number_on_screen_is_cut_off(page):
 def test_the_tables_take_a_row(page):
     """The list-shaped parameters: + on a points / axes table and a chip typed into a chips box. These add geometry
     the 3D view usually places, and each has thrown at some point — a row of zeros, an axis with no length."""
-    page.click('nav button[data-t="technique"]')
+    page.click('nav button[data-t="technique"]'); page.click('#level button[data-level="all"]')   # the branches and the axes show on "all"
     for m in ("curve", "radial"):
         page.click(f'#modes button[data-m="{m}"]')
         settle(page)
@@ -95,6 +95,7 @@ def test_the_tables_take_a_row(page):
             assert {"curve", "branches"} <= set(names), names
             assert len(p["params"]["curve"]) == len(before["curve_pts"]) + 1, p["params"]["curve"]
             assert len(p["params"]["branches"]) == 1 and any(s["label"] == "K1" for s in p["slices"])
+    page.click('#level button[data-level="basic"]')
 
 
 @pytest.mark.timeout(600)
@@ -159,6 +160,6 @@ def test_the_whole_job_from_upload_to_cut_files(page):
     ok = lambda d: d.accept()
     page.on("dialog", ok)
     with page.expect_navigation():                       # the reload comes after the session's DELETE returns
-        page.click("#clear")
+        menu(page, "#clear")
     settle(page)
     page.remove_listener("dialog", ok)                   # left in place it would answer the next test's dialogs

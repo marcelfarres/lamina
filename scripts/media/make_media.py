@@ -44,8 +44,10 @@ CLIPS = {                             # name: (crop, width, fps)
     "axes": (VIEW43, 1100, 18),       # radial with an axis per lobe: the dumbbell, its neck plane moved and tilted
     "lobes": (FULL, 1200, 16),        # the plane between two lobes selected, its sliders in frame
     "square": (FULL, 1200, 16),       # a cube 8° off square, then the Model tab's square it up button
-    "spacing": (FULL, 1200, 16),      # the spacing graph under the 3D view, its middle point dragged, the vase re-sliced
+    "spacing": (FULL, 1200, 16),      # the spacing graph in the form: ticked on, a shape picked, a point dragged, follow the model
 }
+
+POSTER = {"spacing": 54}             # the frame a clip's poster is, where the first one does not show its subject (the graph opens at frame 8)
 
 
 def px(crop):
@@ -92,7 +94,7 @@ for name, (crop, width, fps) in CLIPS.items():
         w = width - width % 2
         im = im.resize((w, (round(im.height * w / im.width)) // 2 * 2), Image.LANCZOS)
         im.convert("RGB").save(tmp / f"{i:03d}.png")
-    save(Image.open(tmp / "000.png"), OUT / f"{name}_poster.jpg", width)
+    save(Image.open(tmp / f"{POSTER.get(name, 0):03d}.png"), OUT / f"{name}_poster.jpg", width)
     if not ffmpeg:
         print("no ffmpeg, skipping", name); continue
     out = OUT / f"{name}.mp4"                     # the page plays mp4 only (h264 plays everywhere)

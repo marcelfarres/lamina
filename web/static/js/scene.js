@@ -5,6 +5,7 @@ import {state, ST} from './state.js';
 import {COLORS, LOOKS, PLANE_IDX, STRIPED} from './catalog.js';
 import {$, status} from './util.js';
 import {highlight, deselect, drawGizmo} from './edit3d.js';
+import {renderSeams, showSeamLines} from './seams.js';
 
 // ---------------------------------------------------------------- 3D view
 export const view=$('#v3d'), renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(devicePixelRatio); view.appendChild(renderer.domElement);
@@ -20,7 +21,7 @@ view.addEventListener('wheel',e=>{if(e.target!==renderer.domElement||e.lamina)re
   e.stopPropagation();e.preventDefault();
   const w=new WheelEvent('wheel',{deltaY:y,clientX:e.clientX,clientY:e.clientY,ctrlKey:e.ctrlKey,metaKey:e.metaKey,shiftKey:e.shiftKey,bubbles:true,cancelable:true});
   w.lamina=true;renderer.domElement.dispatchEvent(w)},{capture:true,passive:false});
-scene.add(new THREE.HemisphereLight(0xffffff,0x334455,1.1)); const dl=new THREE.DirectionalLight(0xffffff,1.2); dl.position.set(1,-1,2); scene.add(dl);
+const hemi=new THREE.HemisphereLight(0xffffff,0x334455,1.1); scene.add(hemi); const dl=new THREE.DirectionalLight(0xffffff,1.2); dl.position.set(1,-1,2); scene.add(dl);
 export const parts=new THREE.Group(), ghost=new THREE.Group(), guides=new THREE.Group(), gizmo=new THREE.Group(), axes=new THREE.Group(), rings=new THREE.Group(); scene.add(parts,ghost,guides,gizmo,axes,rings);
 rings.visible=true;   // turn rings belong to the Model tab; showTab() hides them elsewhere
 export const ray=new THREE.Raycaster(); export let ghostUrl=null;
@@ -68,7 +69,7 @@ function renderRings(){
   for(const [i,col] of [[0,0xff5c5c],[1,0x5cff7a],[2,0x5c9cff]]){const r=new THREE.Mesh(new THREE.TorusGeometry(L,L*0.012,8,96),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.55,depthTest:false}));
     if(i===0)r.rotation.y=Math.PI/2;else if(i===1)r.rotation.x=Math.PI/2; r.userData.ring=i;r.renderOrder=9;rings.add(r)}
 }
-function label3d(text,color){const c=document.createElement('canvas');c.width=64;c.height=32;const g=c.getContext('2d');g.font='bold 26px sans-serif';g.fillStyle=color;g.fillText(text,6,26);const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false}));return s}
+function label3d(text,color,mid){const c=document.createElement('canvas');c.width=64;c.height=32;const g=c.getContext('2d');g.font='bold 26px sans-serif';g.fillStyle=color;g.textAlign=mid?'center':'left';g.fillText(text,mid?32:6,26);const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false}));return s}
 function renderAxes(){ // world axes at the model's corner with X/Y/Z labels + dowel rods (stacked)
   axes.clear(); const L=Math.max(...ST.plan.bbox)*0.6, o=new THREE.Vector3(-ST.plan.bbox[0]/2,-ST.plan.bbox[1]/2,-ST.plan.bbox[2]/2).multiplyScalar(1.15);
   for(const [i,col,name] of [[0,0xff5c5c,'X'],[1,0x5cff7a,'Y'],[2,0x5c9cff,'Z']]){const dir=new THREE.Vector3(i===0?1:0,i===1?1:0,i===2?1:0);
@@ -77,6 +78,8 @@ function renderAxes(){ // world axes at the model's corner with X/Y/Z labels + d
   for(const [a,b,,sec,xa] of ST.plan.rods||[]){const A=V3(a),z=V3(b).sub(A),len=z.length(),x=V3(xa);z.normalize();
     const m=new THREE.Mesh(new THREE.ExtrudeGeometry(new THREE.Shape(sec.map(([u,v])=>new THREE.Vector2(u,v))),{depth:len,bevelEnabled:false}),new THREE.MeshStandardMaterial({color:0xc8b48a,roughness:.6}));
     m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x,z.clone().cross(x),z));m.position.copy(A);axes.add(m)}
+  // where a connector that was asked for found no room (the warning says how many): a crossed ring, seen through the parts
+  for(const q of ST.plan.left_out||[]){const s=label3d('⊗','#f5b642',true);s.position.copy(V3(q));s.scale.set(L*.2,L*.1,1);s.renderOrder=10;axes.add(s)}
   renderRings();
 }
 export function placeRod(rod,A,B){rod.position.copy(A).lerp(B,.5);rod.scale.set(1,Math.max(A.distanceTo(B),1e-3),1);rod.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),B.clone().sub(A).normalize())}
@@ -111,6 +114,23 @@ function renderGuides(){
 // too. sRGB, so the band is the dark it is drawn as (read as linear it came out a light grey)
 const STRIPES=(()=>{const c=document.createElement('canvas');c.width=c.height=16;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,16,16);g.fillStyle='#555';g.fillRect(0,0,16,8);
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.rotation=Math.PI/4;return t})();
+// Lamp: a bulb inside the model, a floor and a wall that catch the shadows the parts throw (three.js shadow maps).
+// Off, nothing of it is on the scene, the shadow pass is off and the view is the one without it.
+// ponytail: one point light and two flat catchers; paper that glows through and a bulb dragged in 3D are not here
+const lamp=new THREE.Group(), bulb=new THREE.PointLight(0xffb870,3,0,0), bulbMark=new THREE.Mesh(new THREE.SphereGeometry(1,16,12),new THREE.MeshBasicMaterial({color:0xfff0c0})),
+  catcher=new THREE.MeshStandardMaterial({color:0xd0d0d0,roughness:1}), floor=new THREE.Mesh(new THREE.PlaneGeometry(1,1),catcher), wall=new THREE.Mesh(new THREE.PlaneGeometry(1,1),catcher); let lampOn=false;
+bulb.castShadow=floor.receiveShadow=wall.receiveShadow=true; bulb.shadow.mapSize.set(2048,2048); bulb.shadow.bias=-.0005; bulb.shadow.normalBias=.3; wall.rotation.x=Math.PI/2; lamp.add(bulb,bulbMark,floor,wall); lamp.visible=false; scene.add(lamp);
+export function applyLamp(){const on=$('#lamp').checked; $('#lampl').hidden=!on;
+  if(on){const b=new THREE.Box3(); for(const m of parts.children)if(m.userData.group!=='B')b.expandByObject(m);   // every part, shown or not: the floor stays put while the steps run
+    if(b.isEmpty())b.setFromObject(ghost); if(b.isEmpty())return;
+    const c=b.getCenter(new THREE.Vector3()),S=b.getSize(new THREE.Vector3()),r=S.length(),z=b.min.z+$('#lampz').value*S.z;
+    bulb.position.set(c.x,c.y,z); bulbMark.position.copy(bulb.position); bulbMark.scale.setScalar(r*.025); bulb.shadow.camera.far=r*4; bulb.shadow.camera.updateProjectionMatrix();
+    floor.scale.setScalar(r*3); floor.position.set(c.x,c.y,b.min.z-r*.01); wall.scale.setScalar(r*3); wall.position.set(c.x,b.max.y+r*.6,b.min.z+r*1.5-r*.01)}
+  for(const m of parts.children)m.castShadow=on&&m.userData.group!=='B';
+  lamp.visible=on; renderer.shadowMap.enabled=on; hemi.intensity=on?.1:1.1; dl.intensity=on?0:1.2; scene.background.set(on?0x050506:0x141517);
+  if(on!==lampOn){lampOn=on; for(const m of [...parts.children,floor])m.material.needsUpdate=true}   // the shaders gain or lose the shadow lookup
+  ST.dirty=true}
+$('#lamp').onchange=$('#lampz').oninput=applyLamp;
 export function render3D(modelUrl){
   parts.clear(); let i=0; STRIPES.repeat.setScalar(20/Math.max(...ST.plan.bbox));
   for(const s of ST.plan.slices)for(const pc of s.pieces){
@@ -155,8 +175,9 @@ export function render3D(modelUrl){
   $('#steps').max=max; $('#steps').value=max; applyExplode(); applyFold();
   if(!ST.ghostLive)showGhost(modelUrl);   // already shown mid-build: the same mesh, and fetching it again is not free
   clipGhost();
-  ghost.visible=$('#ghost').checked; ST.dirty=true;
+  ghost.visible=$('#ghost').checked; applyLamp();
   if(ST.selected){const m=parts.children.find(c=>c.userData.slice===ST.selected);m?highlight(m):deselect()}
+  renderSeams();
   if(!ST.fitted){fitView();ST.fitted=true}
 }
 // The translucent model behind the parts, loaded on its own: the build finishes with the mesh a second or two in and
@@ -258,7 +279,7 @@ export function applyFold(){const s=+$('#fold').value,v=new THREE.Vector3();let 
     for(const [o,n,fi] of f.ranges)for(let j=o;j<o+n;j++){v.fromArray(f.base,3*j).applyMatrix4(D[fi]);pos.setXYZ(j,v.x,v.y,v.z)}
     pos.needsUpdate=true;m.geometry.computeVertexNormals();m.geometry.computeBoundingSphere();m.geometry.computeBoundingBox()}
   $('#foldl').hidden=!any; ghost.visible=$('#ghost').checked&&!(any&&s<1);   // the model would stand in the unfolded panel
-  $('#fold_val').textContent=Math.round(s*100)+' %'; ST.dirty=true}
+  $('#fold_val').textContent=Math.round(s*100)+' %'; showSeamLines(); ST.dirty=true}
 const FOLD_STEPS=20; let nParts=0;   // the steps a folded job takes to fold up, and the parts in the build order before them
 export function applyExplode(){const e=+$('#explode').value,st=$('#steps'),k=+st.value;for(const m of parts.children){if(m.userData.group==='B')continue;m.position.copy(m.userData.origin).multiplyScalar(e-1);m.visible=m.userData.i<k}
   const folding=+st.max>nParts, share=folding?Math.min(1,Math.max(0,(k-nParts)/FOLD_STEPS)):1;
@@ -267,7 +288,7 @@ export function applyExplode(){const e=+$('#explode').value,st=$('#steps'),k=+st
   showBanner(going?`step ${k} / ${+st.max}  ·  ${(ST.plan&&ST.plan.label_tag?ST.plan.label_tag+' ':'')}${going.userData.piece}`:folding&&k<+st.max?`step ${k} / ${+st.max}  ·  folding ${Math.round(share*100)} %`:'');
   $('#steps_val').textContent=`${k} / ${+st.max||0}`;   // the step counter, live while the slider is dragged
   const s=ST.selected&&parts.children.find(c=>c.userData.slice===ST.selected); if(s)drawGizmo(s);   // the handles ride with the part
-  ST.dirty=true}
+  showSeamLines(); applyLamp()}
 $('#explode').oninput=$('#steps').oninput=applyExplode; $('#fold').oninput=applyFold; $('#ghost').onchange=()=>{ghost.visible=$('#ghost').checked;ST.dirty=true}; $('#fit').onclick=()=>{fitView();ST.dirty=true}; $('#look').onchange=$('#opacity').oninput=applyLook;
 // The build order as a video: the steps slider played into a MediaRecorder reading the canvas the view already
 // draws. Nothing is uploaded and nothing is rendered twice — the file is made in the page and saved from it.

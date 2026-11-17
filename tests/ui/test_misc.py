@@ -2,7 +2,7 @@
 the spacing graph, the name field and the build order."""
 import pytest
 
-from .helpers import example, settle, plan, set_fields, state, use, ROOT
+from .helpers import example, settle, plan, set_fields, state, use, menu, ROOT
 
 
 @pytest.mark.timeout(600)
@@ -15,7 +15,7 @@ def test_a_report_is_gathered_while_the_slicer_is_stuck(page):
     settle(page)
     page.evaluate("""() => { const real = window.fetch;   // the slicer is busy: whatever asks it for the model waits forever
         window.fetch = (u, o) => /\\/source/.test(String(u)) ? new Promise(() => {}) : real(u, o) }""")
-    page.click("header [data-feedback]")                  # the report dialog, as the reporter opens it
+    menu(page, "[data-feedback]")                     # the report dialog, as the reporter opens it
     got = page.evaluate("""() => Promise.race([
         window.__feedback.build().then(async fd => JSON.parse(await fd.get('project').text()).model?.name ?? 'no model'),
         new Promise(r => setTimeout(() => r('still gathering after 10 s'), 10000))])""")
@@ -62,7 +62,7 @@ def test_what_is_new_shows_itself_once_when_the_version_changes(page, server):
     page.wait_for_timeout(600)
     assert not page.locator("#newsdlg[open]").count(), "the release notes came back a second time"
 
-    page.click("#newsbtn")                               # the button still opens them, newest version first
+    menu(page, "#newsbtn")                               # the button still opens them, newest version first
     page.wait_for_timeout(400)
     assert page.locator("#newsdlg[open]").count()
     heads = page.eval_on_selector_all("#news_body h5", "els => els.map(e => e.textContent)")
@@ -185,18 +185,65 @@ def test_a_phone_is_told_once_that_lamina_is_made_for_a_computer(page, server):
 
 
 def test_the_spacing_graph_follows_the_technique_and_the_switch(page):
-    """An example that opens with a spacing curve shows the graph under the 3D view — one per family for interlocked —
-    and the plan carries the positions it drew; the switch off hides it and the slices go back to even."""
-    use(page, "vase")
-    assert not page.evaluate("() => document.getElementById('spacing').hidden")
-    assert page.evaluate("() => document.querySelectorAll('#spacing canvas').length") == 1
+    """An example that opens with a spacing curve shows the graph in the form under its tick — one per family for
+    interlocked — and the plan carries the positions it drew; the switch off hides it and the slices go back to even."""
+    use(page, "vase"); page.click('nav button[data-t="technique"]')
+    assert page.locator(".spc canvas").first.is_visible()
+    assert page.evaluate("() => document.querySelectorAll('.spc canvas').length") == 1
     assert plan(page)["spacing"] and plan(page)["params"]["spacing_vary"]
-    example(page, "ripple")
-    assert page.evaluate("() => document.querySelectorAll('#spacing canvas').length") == 2    # x and y families
-    page.click('nav button[data-t="technique"]')
+    example(page, "ripple"); page.click('nav button[data-t="technique"]')
+    assert page.evaluate("() => document.querySelectorAll('.spc canvas').length") == 2    # x and y families
     set_fields(page, [["p_spacing_vary", False]]); settle(page)
-    assert page.evaluate("() => document.getElementById('spacing').hidden")
+    assert not page.locator(".spc canvas").first.is_visible()
     assert not plan(page).get("spacing")
+
+
+def test_the_spacing_graph_buttons_change_the_curve_and_the_slices(page):
+    """Every gesture of the graph has a button: a starting shape, a point added, its gap typed, the point removed, the
+    curve reset. Each one changes the curve in the state, and the plan that comes back follows it."""
+    use(page, "vase")
+    page.click('nav button[data-t="technique"]')
+    curve = lambda: page.evaluate("() => window.__t.state().spacing_curve")
+    gaps = lambda: [round(b - a, 2) for a, b in zip(plan(page)["spacing"][0]["positions"], plan(page)["spacing"][0]["positions"][1:])]
+    page.click('.spc button[data-arg="ends"]'); settle(page)
+    assert len(curve()) == 3 and curve()[0][1] < curve()[1][1] > curve()[2][1]
+    g = gaps(); assert g[0] < g[len(g) // 2] > g[-1], g                       # dense at both ends, as the chip says
+    page.click('.spc button[data-spc="add"]'); settle(page)
+    assert len(curve()) == 4
+    page.fill('.spc [data-spc="v"]', "7")                                     # the added point is the selected one
+    page.click('.spc button[data-spc="del"]'); settle(page)                   # pressed straight after typing: the value lands, then the point goes
+    assert len(curve()) == 3
+    page.click('.spc button[data-arg="model"]'); settle(page)                 # read off the slices on screen
+    assert len(curve()) == 7 and len({v for _, v in curve()}) > 1
+    page.click('.spc button[data-spc="reset"]'); settle(page)
+    assert len(curve()) == 3 and not page.locator('.f[data-p="spacing_curve"].changed').count()   # the default again: its mark is gone
+
+
+def test_the_panel_folds_finds_and_puts_a_default_back(page):
+    """A section folds on its heading, a changed setting is marked and its sign puts the default back, a click on a name
+    opens its help, the search box leaves only the rows that match — from every tab — and a warning says it is one in
+    words."""
+    page.click('nav button[data-t="technique"]'); page.click('#modes button[data-m="stacked"]'); settle(page)
+    sec = page.locator('#g-technique .sec[data-sec="Joining"]')
+    assert sec.locator(".f").first.is_visible()
+    sec.locator("h3").click(); assert not sec.locator(".f").first.is_visible()
+    sec.locator("h3").click(); assert sec.locator(".f").first.is_visible()
+    default = page.evaluate("() => window.__t.state().space")
+    assert not page.locator('.f[data-p="space"].changed').count()
+    set_fields(page, [["p_space", default + 3]]); settle(page)
+    assert page.locator('.f[data-p="space"].changed').count() and plan(page)["params"]["space"] == default + 3
+    page.click('.f[data-p="space"] .chg'); settle(page)
+    assert plan(page)["params"]["space"] == default and not page.locator('.f[data-p="space"].changed').count()
+    page.click('.f[data-p="axis"] > .k'); assert page.locator('.f[data-p="axis"] .help').is_visible()
+    page.click('.f[data-p="axis"] > .k'); assert not page.locator('.f[data-p="axis"] .help').count()
+    page.fill("#find", "kerf")
+    shown = page.evaluate("() => [...document.querySelectorAll('#tabs .f[data-p]')].filter(f => f.offsetParent).map(f => f.dataset.p)")
+    assert shown and all("kerf" in n or n == "compensate" for n in shown), shown     # rows of the Sheet & fit tab, seen from Technique
+    page.press("#find", "Escape")
+    assert page.locator('.f[data-p="axis"]').is_visible()
+    use(page, "blob")
+    warns = page.locator("#msgs .msg.warn").all_text_contents()
+    assert all(w.startswith("⚠ WARNING") for w in warns), warns
 
 
 def test_the_short_name_field_sets_what_the_labels_start_with(page):
@@ -250,3 +297,59 @@ def test_a_folded_job_folds_up_at_the_end_of_its_steps(page):
     assert fold == 0.5 and "folding 50 %" in text
     step(n); fold, text = state()
     assert fold == 1 and text == ""
+
+
+def test_basic_holds_back_the_fine_settings_until_they_are_asked_for(page):
+    """The form starts on basic: a group shows what a first piece needs and names the others at its foot. A click
+    there, the search box or "all" shows them, and a setting that is not at its default is never held back."""
+    use(page, "vase", "stacked"); page.click('nav button[data-t="technique"]')
+    row = lambda n: page.locator(f'.f[data-p="{n}"]')                                  # noqa: E731
+    assert page.locator("#tabs.basic").count() and row("count").is_visible() and not row("shift").is_visible()
+    more = page.locator('.sec[data-sec="Slices"] > .more'); assert "shift stack" in more.inner_text()
+    more.click(); assert row("shift").is_visible()
+    page.click('#level button[data-level="all"]'); assert row("surface").is_visible() and not more.is_visible()
+    page.select_option("#p_surface", "outer"); settle(page)
+    page.click('#level button[data-level="basic"]')
+    assert row("surface").is_visible() and not row("shift").is_visible()               # the changed one stays; the group is shut again
+    page.fill("#find", "shift"); assert row("shift").is_visible(); page.fill("#find", "")
+    page.click('.f[data-p="surface"] .chg'); settle(page); assert not row("surface").is_visible()
+
+
+def test_a_tool_in_the_3d_view_does_what_the_key_does(page):
+    """Tilting a slice needed shift held down, which no button said and a tablet cannot do. The tool is picked, a click
+    selects the slice and a drag tilts it; Esc goes back to turning the view; a technique shows only its own tools."""
+    use(page, "vase", "stacked")
+    tools = lambda: page.evaluate("() => [...document.querySelectorAll('#tools button')].filter(b => !b.hidden).map(b => b.dataset.tool)")   # noqa: E731
+    assert tools() == ["", "alt", "tilt", "roll"]
+    box = page.locator("#v3d canvas").bounding_box(); x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] * 0.3
+    page.click('#tools button[data-tool="tilt"]'); page.mouse.click(x, y)
+    page.mouse.move(x, y); page.mouse.down(); page.mouse.move(x + 40, y, steps=6); page.mouse.up(); settle(page)
+    tilt = state(page)["tilt"]; assert len(tilt) == 1 and list(tilt.values())[0], tilt
+    page.keyboard.press("Escape"); assert page.get_attribute('#tools button[data-tool=""]', "aria-pressed") == "true"
+    use(page, mode="curve"); assert tools() == ["", "alt", "branch", "tilt", "roll"]
+    use(page, mode="folded"); assert not page.is_visible("#tools")     # nothing but turning the view: no column
+
+
+def test_a_connector_left_out_is_counted_and_the_export_text_opens_on_a_click(page):
+    """The vase leaves dowels out: that is a warning the count shows, with a ring in the 3D view for each place. On
+    the Export tab the text about a file is behind its own line, and the parts table opens on its heading."""
+    use(page, "vase", "stacked"); pl = plan(page)
+    assert pl["warnings"] and "left out" in pl["warnings"][0], (pl["warnings"], pl["notes"])
+    assert pl["counts"]["warnings"] >= 1 and len(pl["left_out"]) == int(pl["warnings"][0].split("connector")[0])
+    assert page.locator("#msgs .msg.warn").first.inner_text().startswith("⚠ WARNING")
+    page.click('nav button[data-t="export"]'); info = page.locator("#dl details.info").first
+    assert not info.locator(".hint").is_visible(); info.locator("summary").click(); assert info.locator(".hint").is_visible()
+    assert not page.locator("#parts table").is_visible(); page.click("#parts_fold > summary"); assert page.locator("#parts table").is_visible()
+
+
+def test_the_lamp_lights_the_model_from_inside_and_leaves_the_view_as_it_was(page):
+    """The lamp tick turns on a bulb, the shadow pass and the bulb-height slider; a re-slice keeps it on; off, the
+    view has no shadow pass and the slider is gone. The 3D bar holds its controls on the vase without a page error."""
+    use(page, "vase", "stacked"); errs = []; page.on("pageerror", lambda e: errs.append(str(e)))
+    shadows = lambda: page.evaluate("() => window.__t.lamp()")   # noqa: E731
+    assert not shadows() and not page.is_visible("#lampl")
+    page.check("#lamp"); assert shadows() and page.is_visible("#lampl")
+    page.eval_on_selector("#lampz", "e => { e.value = 0.9; e.dispatchEvent(new Event('input')) }")
+    set_fields(page, [["p_count", 12]]); settle(page); assert shadows() and plan(page)["counts"]["slices"] == 12
+    page.uncheck("#lamp"); assert not shadows() and not page.is_visible("#lampl") and not errs, errs
+

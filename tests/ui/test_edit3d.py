@@ -266,3 +266,59 @@ def test_the_cube_snaps_on_a_click_and_a_drag_turns_the_view_not_the_model(page)
     assert not flat(look())
     assert state(page)["rotate"] == [0, 0, 0]
     assert page.evaluate("() => window.__t.idle()")
+
+
+def test_a_seam_is_chosen_on_the_model_or_on_a_sheet_and_shows_on_both(page):
+    """Asked for: to say where a folded model is cut apart. With `choose seams` on, a click on an edge of the model puts
+    a seam there and a click on an edge of the net does the same; the edge under the pointer lights up in both views;
+    a seam of the user's is marked on the model and on both panel edges it lies on; a click on it gives it back."""
+    # the middle of an edge of one kind: on the model (facing the camera, nearest the middle of the view) and on a sheet
+    on_model = """kind => { const cam = __t.camera, V3 = cam.position.constructor, r = __t.canvas().getBoundingClientRect(); let best = null;
+      for (const e of __t.plan().edges3d) { if (e[1] !== kind) continue; const mid = new V3(...e[2]).add(new V3(...e[3])).multiplyScalar(.5), to = mid.clone().sub(cam.position);
+        if (new V3(...e[4]).dot(to) > -0.5 * to.length()) continue; const q = mid.clone().project(cam), x = r.left + (q.x + 1) / 2 * r.width, y = r.top + (1 - q.y) / 2 * r.height;
+        const d = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2)); if (!best || d < best.d) best = {k: e[0], x, y, d} }
+      return best }"""
+    on_sheet = """kind => { const K = new Map(__t.plan().edges3d.map(e => [e[0], e[1]]));
+      const l = [...document.querySelectorAll('#sheets line.hit')].find(l => K.get(+l.dataset.k) === kind); l.scrollIntoView({block: 'center'});
+      const b = l.getBoundingClientRect(); return {k: +l.dataset.k, x: b.left + b.width / 2, y: b.top + b.height / 2} }"""
+    seen = """() => { const p = __t.plan(), n = k => p.edges3d.filter(e => e[1] === k).length;
+      return {yours: __t.state().seams.length, chosen: n('chosen'), cut: n('chosen') + n('seam'), panels: p.slices.filter(s => s.group === 'F').length,
+              marks: document.querySelectorAll('#sheets line.mine').length, lit: document.querySelectorAll('#sheets line.hov').length, hover: __t.seams().hover,
+              tip: document.getElementById('seamtip').hidden ? '' : document.getElementById('seamtip').innerText} }"""
+    top = lambda: page.evaluate("() => document.getElementById('v3d').scrollIntoView()")   # noqa: E731
+    page.click('nav button[data-t="technique"]')
+    page.click('#modes button[data-m="folded"]'); settle(page)
+    set_fields(page, [("p_facet", 30)]); page.wait_for_timeout(600); settle(page)
+    page.click("#fit")
+    start = page.evaluate(seen)
+    assert start["yours"] == start["chosen"] == start["marks"] == 0 and not page.is_visible("#seampanel")
+    assert not page.evaluate("() => window.__t.seams().shown")               # no edge lines until they are asked for
+    page.click('[data-p="seams"] [data-seams="mode"]')
+    assert page.is_visible("#seampanel") and page.evaluate("() => window.__t.seams().shown")
+    # on the model: the fold under the pointer lights up there and on its sheet, and says what a click does
+    top(); e = page.evaluate(on_model, "fold"); page.mouse.move(e["x"], e["y"]); page.wait_for_timeout(200)
+    s = page.evaluate(seen)
+    assert s["hover"] == e["k"] and s["lit"] == 1 and "put a seam here" in s["tip"], s
+    page.mouse.click(e["x"], e["y"]); page.wait_for_timeout(600); settle(page)
+    s = page.evaluate(seen)
+    assert s["yours"] == s["chosen"] == 1 and s["marks"] == 2, s            # a seam lies on two panel edges
+    assert page.evaluate("k => window.__t.plan().edges3d.find(e => e[0] === k)[1]", e["k"]) == "chosen"
+    assert s["cut"] - s["panels"] == start["cut"] - start["panels"]         # as many seams as before, per panel: one of the program's went
+    # on a sheet: the same, and the edge lights up on the model
+    f = page.evaluate(on_sheet, "fold"); page.mouse.move(f["x"], f["y"]); page.wait_for_timeout(200)
+    s = page.evaluate(seen)
+    assert s["hover"] == f["k"] and s["lit"] == 1 and "put a seam here" in s["tip"], s
+    page.mouse.click(f["x"], f["y"]); page.wait_for_timeout(600); settle(page)
+    s = page.evaluate(seen)
+    assert s["yours"] == s["chosen"] == 2 and s["marks"] == 4, s
+    # a click on a seam of the user's gives the edge back to the program
+    top(); g = page.evaluate(on_model, "chosen"); page.mouse.move(g["x"], g["y"]); page.wait_for_timeout(200)
+    s = page.evaluate(seen)
+    assert s["lit"] == 2 and "your seam" in s["tip"], s
+    page.mouse.click(g["x"], g["y"]); page.wait_for_timeout(600); settle(page)
+    s = page.evaluate(seen)
+    assert s["yours"] == s["chosen"] == 1 and s["marks"] == 2, s
+    page.click('#seampanel [data-seams="clear"]'); page.wait_for_timeout(600); settle(page)
+    assert page.evaluate(seen)["yours"] == 0 and page.evaluate(seen)["chosen"] == 0
+    page.keyboard.press("Escape")
+    assert not page.is_visible("#seampanel") and not page.evaluate("() => window.__t.seams().shown")

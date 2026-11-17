@@ -340,7 +340,7 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
       coarser 25 mm facet, ribs at that facet, tabs again, and back to 15 mm.</p>
       <p class="clip"><b>Parameters:</b> facet size · growth strategy and faces per panel · joint · hole, inset,
       spacing and tab sizes · rib width and material · perforated folds · seam numbers on both panels · score side · printed hinge and its width ·
-      windows · edge fit.</p>
+      windows · how seams meet.</p>
     </div>
   </article>
   <article class="tech">
@@ -455,15 +455,16 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
 <section id="spacing"><div class="wrap">
   <h2>Draw the spacing</h2>
   <p class="sub">Even spacing wastes slices where the shape barely changes and starves it where it does. Tick
-  <i>vary the spacing</i> and a graph appears under the 3D view: the distance between neighbouring slices against the
-  position along the model. Drag its points and the model re-slices as you let go.</p>
+  <i>vary the spacing</i> and a graph opens under the tick: the gap between neighbouring slices against the
+  position along the model. Start from a shape, or press <i>follow the model</i> and the model draws the curve.
+  Drag a point and the model re-slices as you let go.</p>
   <figure>
     <video src="media/spacing.mp4" poster="media/spacing_poster.jpg" width="1200" height="690"
            muted loop playsinline controls preload="none"
-           aria-label="The vase sliced with a spacing curve; the curve's middle point dragged down, the slices crowding the waist, then back up"></video>
-    <figcaption>The vase: dense at the foot, the shoulder and the lip, sparse up the straight sides. The ticks under
-    the graph are where the slices went. Keep the count and the drawn spacings scale to span the model, or keep the
-    spacings and the count follows.</figcaption>
+           aria-label="The vase evenly sliced; vary the spacing ticked and the graph opens; dense at both ends picked; the middle point dragged down; follow the model pressed; a point added and the curve smoothed"></video>
+    <figcaption>The vase, step by step: tick the box, pick a starting shape, drag a point, then let the model draw
+    the curve. The upright lines in the graph are the slices. The strip under the graph is the model, drawn from
+    them. Keep the count and the drawn gaps scale to span the model, or keep the gaps and the count follows.</figcaption>
   </figure>
   <ul class="clean" style="margin-top:18px">
     <li><b>Every technique</b> — stacked and curve along their length, interlocked with a graph per family, radial
