@@ -48,6 +48,8 @@ What changed in each release. The GitHub release for a version is this section, 
 - **The technique buttons are cards with a drawing** of what each technique makes.
 - **Messages say what they are.** A warning starts with ⚠ WARNING and an error with ✖ ERROR, so the colour is not
   the only sign. Several notes fold into one line that names them. The model size is shown rounded.
+- **The lamp example is easier to put together.** *fold_lamp* now has 30 bigger triangles, not 72 small ones, and
+  12 seams to close, not 32. It still prints on one plate. The wooden *fold_lantern* keeps its 72 pieces.
 - **The steps slider folds a folded job up.** After the last part is in, the steps slider has twenty more steps
   that fold the panels from flat to the model, with the share shown at the top of the 3D view. The *fold* slider
   still does the same on its own.

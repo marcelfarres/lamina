@@ -510,7 +510,7 @@ def test_folded_lamp_has_a_window_in_its_faces_and_unfolds_flat():
     plan = build(EXAMPLES / "fold_lamp.stl", "folded", {**pr["params"], "material_kind": "PETG", "autofix": "off"})
     assert plan["counts"]["errors"] == 0 and plan["counts"]["warnings"] == 0
     pc = max((sl["pieces"][0] for sl in plan["slices"]), key=lambda pc: len(pc["facets"]))
-    assert sum(len(poly) - 1 for poly in pc["kerfed"]) > 40                 # windows: holes in the net
+    assert sum(len(poly) - 1 for poly in pc["kerfed"]) == len(pc["facets"]) > 20    # windows: a hole in the net for every face
     assert {g["top"] for g in pc["grooves"]} == {True, False}                      # valley folds are grooved from the other face
 
     def turn(h, s):                                                        # as the page's applyFold builds it

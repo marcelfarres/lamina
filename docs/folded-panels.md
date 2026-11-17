@@ -144,7 +144,9 @@ It needs the ray engine's rtree, which the browser build has not.
 `window` opens every face with a hole of its own shape, for a lamp shade or a lantern. The frame left around it is
 what the share asks for and never less than 1.35 × the minimum feature width, plus what the face's grooves or
 cut-back edges take, plus the reach of the joint's holes or slots. A face too small for that stays whole.
-The example `fold_lamp` uses it: a twisted, swelling tube of 72 triangles, printed in 2 mm PETG on one plate.
+The example `fold_lamp` uses it: a twisted, swelling tube of 30 triangles (about 58 × 29 mm each, 12 seams to close), printed in 2 mm PETG on one
+plate. It had 72 triangles of 38 × 19 mm and 32 seams at first: too many and too small to put together by hand.
+The lantern keeps the 72: at 420 mm they are big enough.
 
 ## The fold slider
 Each panel face remembers the face it was unfolded from (`Panel.parent`). The plan gives every facet a `hinge`:

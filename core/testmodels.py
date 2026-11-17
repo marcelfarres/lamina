@@ -138,10 +138,12 @@ def fold_box():
     return trimesh.convex.convex_hull(np.vstack([base, lid]) / 3)      # the export scales every model × 3
 
 
-def fold_lamp(rings=6, around=6, height=120.0):
+def fold_lamp(rings=3, around=5, height=120.0):
     """A lamp shade to print flat and fold (folded panels, printed, with `window`): an open tube of triangles whose
     radius swells and narrows like the blob in a lava lamp, each ring half a step round from the one below and the
-    whole given a twist, so no two folds line up. Open at both ends; about 80 mm across and 120 mm tall as exported."""
+    whole given a twist, so no two folds line up. Open at both ends; about 80 mm across and 120 mm tall as exported.
+    30 triangles of about 58 × 29 mm: the first version had 72 of 38 × 19 mm and 32 seams, too many and too small to
+    put together by hand at this size."""
     def ring(i):
         u = i / rings; z = height * u
         a = 2 * np.pi * (np.arange(around) + 0.5 * i) / around + 0.5 * np.sin(2.2 * u * np.pi)
@@ -251,7 +253,7 @@ MODELS = {
     "fold_test": fold_test,
     "fold_lamp": fold_lamp,
     "fold_box": fold_box,
-    "fold_lantern": lambda: fold_lamp().apply_scale(3.5),      # the lamp shade at 420 mm, for sheet: every face a part of its own
+    "fold_lantern": lambda: fold_lamp(6, 6).apply_scale(3.5),      # the lamp shade at 420 mm, for sheet: every face a part of its own
     # for the plaque
     "droplet": droplet,
     "bonsai": bonsai,
