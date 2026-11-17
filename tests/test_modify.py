@@ -306,8 +306,8 @@ def test_a_stack_with_nothing_joining_its_layers_keeps_every_layer():
     off = build(EXAMPLES / "horse.stl", "stacked", {**job, "autofix": "off"})
     layers = lambda plan: {s["label"] for s in plan["slices"] if s["group"] == "S"}      # noqa: E731
     assert layers(on) == layers(off) and len(layers(on)) == 20, sorted(layers(off) - layers(on))
-    note = next(n for n in on["notes"] if "got no connector" in n)
-    assert "line" in note and "set dowel_d" not in note, note
+    note = next(n for n in on["warnings"] if "got no connector" in n)
+    assert "line" in note and "dowel diameter" not in note, note
 
 
 @pytest.mark.parametrize("model", ["egg", "dumbbell", "torus"])
@@ -426,22 +426,22 @@ def test_a_wall_too_thin_for_the_dowel_says_so():
     thin = build(EXAMPLES / "cow_spot.stl", "stacked",
                  {"connect": "dowel", "dowel_d": 6, "n_points": 2, "thickness": 3, "hollow": 6,
                   "distribution": "count", "count": 20})
-    note = [n for n in thin["notes"] if "no connector" in n]
+    note = [n for n in thin["warnings"] if "no connector" in n]
     assert note and not thin["rods"], (note, len(thin["rods"]))
-    assert "set dowel_d" not in note[0], f"names a size, but none of them work here: {note[0]}"
+    assert "dowel diameter" not in note[0], f"names a size, but none of them work here: {note[0]}"
 
     job = {"connect": "dowel", "dowel_d": 6, "n_points": 2, "thickness": 3, "hollow": 8,
            "distribution": "count", "count": 20}
     plan = build(EXAMPLES / "cow_spot.stl", "stacked", job)
-    said = [n for n in plan["notes"] if "set dowel_d to about" in n]
+    said = [n for n in plan["warnings"] if "set the dowel diameter to about" in n]
     assert said, plan["notes"]
-    d = float(re.search(r"set dowel_d to about ([\d.]+) mm", said[0]).group(1))
+    d = float(re.search(r"set the dowel diameter to about ([\d.]+) mm", said[0]).group(1))
     assert d < job["dowel_d"], f"offers {d} mm, no smaller than the {job['dowel_d']} mm that just failed"
     after = build(EXAMPLES / "cow_spot.stl", "stacked", {**job, "dowel_d": d})
     assert len(after["rods"]) > 3 * len(plan["rods"]) + 20, f"following the advice ({d} mm) placed few more dowels"
 
     def bare(plan):                                   # pairs the note says got no connector
-        return sum(int(re.search(r"(\d+) pair\(s\) of slices got no connector", n).group(1)) for n in plan["notes"] if "no connector" in n)
+        return sum(int(re.search(r"(\d+) pair\(s\) of slices got no connector", n).group(1)) for n in plan["warnings"] if "no connector" in n)
 
     assert bare(after) <= bare(plan) // 4, (bare(plan), bare(after))      # measured 18 → 4
 
