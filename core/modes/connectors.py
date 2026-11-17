@@ -24,6 +24,7 @@ class Layer(Slice):
     cutnames: dict = field(default_factory=dict)  # stacked: the same key → its dowel's name (Z-3a), so a rod carried up keeps its name
     inner: MultiPolygon | None = None   # stacked: raw eroded by min_feature, where a cut keeps a full wall (cached)
     dowel_room: list = field(default_factory=list)  # stacked: where a rod through this slice and a neighbour can go (checks)
+    ring: tuple | None = None           # stacked ring slices: (its section, the ring it is cut back to once the connectors are in)
 
 
 def hole_mark(sl, hole, text, font):

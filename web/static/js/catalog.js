@@ -97,6 +97,7 @@ export const SHEETS={
   foam:[['20 × 30 in · 508 × 762 mm',inch(20,30)],['32 × 40 in · 813 × 1016 mm',inch(32,40)],['40 × 60 in · 1016 × 1524 mm',inch(40,60)],['A2 · 594 × 420 mm',[594,420]],['A1 · 841 × 594 mm',[841,594]],['A0 · 1189 × 841 mm',[1189,841]],['1000 × 2000 mm',[1000,2000]]],
   // print beds: one sheet is one plate
   print:[['180 × 180 mm bed',[180,180]],['220 × 220 mm bed',[220,220]],['250 × 210 mm bed',[250,210]],['256 × 256 mm bed',[256,256]],['300 × 300 mm bed',[300,300]],['325 × 320 mm bed',[325,320]],['350 × 350 mm bed',[350,350]]]};
-export const COLORS={X:0xd9a760,Y:0x7fb0d9,S:0xd9c080,R:0x8fd08f,C:0xc07070,F:0xc9a0e0,J:0xf0c060,P:0x9a9a9a,B:0x4fd1ff,W:0x0072b2};
+// Z: the band lattice's third family, Okabe-Ito reddish purple; its label (Z-1) tells it apart as X-1 and Y-1 do
+export const COLORS={X:0xd9a760,Y:0x7fb0d9,Z:0xcc79a7,S:0xd9c080,R:0x8fd08f,C:0xc07070,F:0xc9a0e0,J:0xf0c060,P:0x9a9a9a,B:0x4fd1ff,W:0x0072b2};
 export const LOOKS={cardboard:[0xb98a5a,.9,0],paper:[0xf2f0e6,.95,0],plywood:[0xd9b98a,.7,0],steel:[0xaab2bb,.35,.8],plastic:[0x6fb7e8,.25,.05],brass:[0xc9a44c,.3,.85],copper:[0xc27a52,.3,.85],foam:[0x45484f,.95,0]};
 export const PLANE_IDX={xz:[0,2],yz:[1,2],xy:[0,1]};

@@ -97,11 +97,13 @@ export function highlight(m){for(const c of parts.children)c.material.emissive.s
   $('#sel').hidden=false;$('#sel').innerHTML=`<b>${ST.selected}</b> <span class="hint">${m.userData.piece!==ST.selected?'('+m.userData.piece+')':''} ${s?.note||''}</span>
    ${row('offset','offset',g('offset')||0,LEN(-ext/2,ext/2,0.5),ST.unit)}${row('tilt','tilt',g('tilt')||0,DEG,'°')}${row('roll','roll',g('roll')||0,DEG,'°')}
    ${bound?'':row('thick','thick',g('thick')||state.thickness,LEN(0.1,20,0.1),ST.unit)}
+   ${walled()&&!bound&&!synthetic?row('wall','wall',g('wall')||state.ring_wall,LEN(0.5,100,0.5),ST.unit):''}
+   ${ST.mode.params.some(p=>p.name==='cut_shift')&&!bound&&!synthetic?row('cut_shift','cut shift',g('cut_shift')||0,LEN(-100,100,0.5),ST.unit):''}
    <div class="row"><span></span><span style="grid-column:2/4"><button class="small" id="s_reset">reset</button> ${synthetic?'':'<button class="small" id="s_del" style="color:var(--err)">delete</button>'} <button class="small" id="s_close">close</button></span></div>
    <small>slide or type · drag the yellow arrow to move it along its normal · drag the <b style="color:#5fcf80">green</b> ring to tilt, the <b style="color:#4f8cff">blue</b> one to roll — it turns where it stands</small>`;
-  for(const k of ['offset','tilt','roll','thick']){const r=$('#r_'+k),n=$('#n_'+k);if(!r)continue;   // a lobe boundary has no thickness row
+  for(const k of ['offset','tilt','roll','thick','wall','cut_shift']){const r=$('#r_'+k),n=$('#n_'+k);if(!r)continue;   // a lobe boundary has no thickness row
     r.oninput=()=>{n.value=r.value;preview(k,+r.value)}; r.onchange=()=>commit(k,+r.value); n.onchange=()=>{r.value=n.value;commit(k,+n.value)}}
-  $('#s_reset').onclick=()=>{for(const k of ['offset','tilt','roll','thick','pivot'])delete state[k]?.[ST.selected];syncEdits();slice()}; $('#s_close').onclick=deselect;
+  $('#s_reset').onclick=()=>{for(const k of ['offset','tilt','roll','thick','wall','cut_shift','pivot'])delete state[k]?.[ST.selected];syncEdits();slice()}; $('#s_close').onclick=deselect;
   if($('#s_del'))$('#s_del').onclick=()=>{state.skip=[...(state.skip||[]),ST.selected];syncEdits();deselect();slice()};
   hlSheet(ST.selected); status(`${$('#status').textContent.replace(/ · selected.*$/,'')} · selected ${ST.selected}`,$('#dot').className);
 }
@@ -109,11 +111,13 @@ function preview(k,v){ // live feedback while sliding, before the re-slice
   const ms=parts.children.filter(c=>c.userData.slice===ST.selected), M=(ST.plan.slices.find(x=>x.label===ST.selected)||ST.plan.bounds3d.find(x=>x.label===ST.selected)).M, f=UNIT[ST.unit];
   for(const m of ms){m.matrixAutoUpdate=true;m.position.set(0,0,0);m.rotation.set(0,0,0);
     if(k==='offset'){m.position.copy(m.userData.normal).multiplyScalar(v/f-(state.offset?.[ST.selected]||0))}
-    else if(k!=='thick'){const ax=k==='tilt'?0:1,axis=new THREE.Vector3(M[0][ax],M[1][ax],M[2][ax]),o=pivot3||m.userData.origin,   // about the part's own middle, like the server
+    else if(k!=='thick'&&k!=='wall'&&k!=='cut_shift'){const ax=k==='tilt'?0:1,axis=new THREE.Vector3(M[0][ax],M[1][ax],M[2][ax]),o=pivot3||m.userData.origin,   // about the part's own middle, like the server
       T=new THREE.Matrix4().makeTranslation(o.x,o.y,o.z),R=new THREE.Matrix4().makeRotationAxis(axis,(v-(state[k]?.[ST.selected]||0))*Math.PI/180);m.matrixAutoUpdate=false;m.matrix.copy(T).multiply(R).multiply(T.clone().invert())}}
   ST.dirty=true;
 }
-function commit(k,v){setEdit(k,k==='offset'||k==='thick'?toMM(v):v,k==='thick'?state.thickness:0)}
+function commit(k,v){setEdit(k,k==='offset'||k==='thick'||k==='wall'||k==='cut_shift'?toMM(v):v,k==='thick'?state.thickness:k==='wall'?state.ring_wall:0)}
+// ring slices: a slice can have its own wall, set here like its thickness (stacked with `ring_slices` on, and the band lattice)
+const walled=()=>ST.mode.params.some(p=>p.name==='wall')&&(state.ring_slices||!ST.mode.params.some(p=>p.name==='ring_slices'))
 export function deselect(){ST.selected=null;$('#sel').hidden=true;gizmo.clear();for(const c of parts.children)c.material.emissive.set(0);hlSheet(null);ST.dirty=true}
 // stored as given: rounding here to 0.01 mm turned 1/16 in (1.5875 mm) into 1.59 mm; toPrecision(12) only drops float noise
 function setEdit(k,v,neutral=0){state[k]=state[k]||{};if(Math.abs(v-neutral)>1e-9)state[k][ST.selected]=+v.toPrecision(12);else delete state[k][ST.selected];
@@ -146,7 +150,7 @@ export function dropLine(i){const n=i+1,re=x=>x>n?x-1:x;
     if((m=l.match(/^(J-|[RK])(\d+)(-.*)?$/)))return +m[2]===n?null:m[1]+re(+m[2])+(m[3]||'');
     if((m=l.match(/^B-(\d+)-(\d+)$/)))return +m[1]===n||+m[2]===n?null:`B-${re(+m[1])}-${re(+m[2])}`;
     return l};
-  for(const k of ['offset','tilt','roll','thick','pivot'])if(state[k])state[k]=Object.fromEntries(Object.entries(state[k]).map(([l,v])=>[name(l),v]).filter(([l])=>l));
+  for(const k of ['offset','tilt','roll','thick','wall','cut_shift','pivot'])if(state[k])state[k]=Object.fromEntries(Object.entries(state[k]).map(([l,v])=>[name(l),v]).filter(([l])=>l));
   if(state.skip)state.skip=state.skip.map(name).filter(Boolean);
   const list=axisList();list.splice(i,1);return list}
 export const rnd=Q=>[+Q.x.toFixed(1),+Q.y.toFixed(1),+Q.z.toFixed(1)];

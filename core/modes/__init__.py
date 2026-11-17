@@ -208,6 +208,7 @@ class Mode:
     params: list[Param] = []           # assembly-key.txt beside the cut files, and the only key in puzzle mode
     hidden_common: tuple = ()          # common params that make no sense for this mode
     surface: bool = False              # cut from the model's surface, not its volume: an open edge is the input, not a defect
+    rank: int = 0                      # where the page lists it: higher goes later
 
     def build(self, ctx) -> list:
         raise NotImplementedError
@@ -224,6 +225,11 @@ class Mode:
     def guide_outlines(self, ctx, slices):
         """Optional: lines the technique engraves once the outlines are final — grown, slivers shed, slots and holes
         taken out of `profile` — such as stacked's next-layer guide. `slices` are the kept ones, in order."""
+        return None
+
+    def cut(self, ctx, sl):
+        """Optional: the pieces `sl` is cut into before nesting (a band lattice's locked bands, rejoined by puzzle
+        tabs) → a list of polygons, or None for the usual: split when it does not fit the sheet, else one per island."""
         return None
 
     @staticmethod
@@ -252,6 +258,9 @@ def register(cls):
 def load_all():
     for m in pkgutil.iter_modules(__path__):
         importlib.import_module(f"{__name__}.{m.name}")
+    # the page lists the techniques in this order: by `rank`, then as imported
+    for name in sorted(REGISTRY, key=lambda n: REGISTRY[n].rank):
+        REGISTRY[name] = REGISTRY.pop(name)
     return REGISTRY
 
 
