@@ -20,7 +20,7 @@ view.addEventListener('wheel',e=>{if(e.target!==renderer.domElement||e.lamina)re
   e.stopPropagation();e.preventDefault();
   const w=new WheelEvent('wheel',{deltaY:y,clientX:e.clientX,clientY:e.clientY,ctrlKey:e.ctrlKey,metaKey:e.metaKey,shiftKey:e.shiftKey,bubbles:true,cancelable:true});
   w.lamina=true;renderer.domElement.dispatchEvent(w)},{capture:true,passive:false});
-scene.add(new THREE.HemisphereLight(0xffffff,0x334455,1.1)); const dl=new THREE.DirectionalLight(0xffffff,1.2); dl.position.set(1,-1,2); scene.add(dl);
+const hemi=new THREE.HemisphereLight(0xffffff,0x334455,1.1); scene.add(hemi); const dl=new THREE.DirectionalLight(0xffffff,1.2); dl.position.set(1,-1,2); scene.add(dl);
 export const parts=new THREE.Group(), ghost=new THREE.Group(), guides=new THREE.Group(), gizmo=new THREE.Group(), axes=new THREE.Group(), rings=new THREE.Group(); scene.add(parts,ghost,guides,gizmo,axes,rings);
 rings.visible=true;   // turn rings belong to the Model tab; showTab() hides them elsewhere
 export const ray=new THREE.Raycaster(); export let ghostUrl=null;
@@ -104,6 +104,23 @@ function renderGuides(){
   (ST.plan.curve_pts||[]).forEach(([u,v,w=0],i)=>{const s=onTop(new THREE.Mesh(new THREE.SphereGeometry(r*1.5,12,8),new THREE.MeshBasicMaterial({color:0x4f8cff})));s.userData.cp=i;   // a handle: drag it in the curve's plane
     s.position.copy(mid).addScaledVector(V3(ST.plan.axes[idx[0]]),u).addScaledVector(V3(ST.plan.axes[idx[1]]),v).addScaledVector(V3(ST.plan.axes[wi]),w);guides.add(s)})
 }
+// Lamp: a bulb inside the model, a floor and a wall that catch the shadows the parts throw (three.js shadow maps).
+// Off, nothing of it is on the scene, the shadow pass is off and the view is the one without it.
+// ponytail: one point light and two flat catchers; paper that glows through and a bulb dragged in 3D are not here
+const lamp=new THREE.Group(), bulb=new THREE.PointLight(0xffb870,3,0,0), bulbMark=new THREE.Mesh(new THREE.SphereGeometry(1,16,12),new THREE.MeshBasicMaterial({color:0xfff0c0})),
+  catcher=new THREE.MeshStandardMaterial({color:0xd0d0d0,roughness:1}), floor=new THREE.Mesh(new THREE.PlaneGeometry(1,1),catcher), wall=new THREE.Mesh(new THREE.PlaneGeometry(1,1),catcher); let lampOn=false;
+bulb.castShadow=floor.receiveShadow=wall.receiveShadow=true; bulb.shadow.mapSize.set(2048,2048); bulb.shadow.bias=-.0005; bulb.shadow.normalBias=.3; wall.rotation.x=Math.PI/2; lamp.add(bulb,bulbMark,floor,wall); lamp.visible=false; scene.add(lamp);
+export function applyLamp(){const on=$('#lamp').checked; $('#lampl').hidden=!on;
+  if(on){const b=new THREE.Box3(); for(const m of parts.children)if(m.userData.group!=='B')b.expandByObject(m);   // every part, shown or not: the floor stays put while the steps run
+    if(b.isEmpty())b.setFromObject(ghost); if(b.isEmpty())return;
+    const c=b.getCenter(new THREE.Vector3()),S=b.getSize(new THREE.Vector3()),r=S.length(),z=b.min.z+$('#lampz').value*S.z;
+    bulb.position.set(c.x,c.y,z); bulbMark.position.copy(bulb.position); bulbMark.scale.setScalar(r*.025); bulb.shadow.camera.far=r*4; bulb.shadow.camera.updateProjectionMatrix();
+    floor.scale.setScalar(r*3); floor.position.set(c.x,c.y,b.min.z-r*.01); wall.scale.setScalar(r*3); wall.position.set(c.x,b.max.y+r*.6,b.min.z+r*1.5-r*.01)}
+  for(const m of parts.children)m.castShadow=on&&m.userData.group!=='B';
+  lamp.visible=on; renderer.shadowMap.enabled=on; hemi.intensity=on?.1:1.1; dl.intensity=on?0:1.2; scene.background.set(on?0x050506:0x141517);
+  if(on!==lampOn){lampOn=on; for(const m of [...parts.children,floor])m.material.needsUpdate=true}   // the shaders gain or lose the shadow lookup
+  ST.dirty=true}
+$('#lamp').onchange=$('#lampz').oninput=applyLamp;
 export function render3D(modelUrl){
   parts.clear(); let i=0;
   for(const s of ST.plan.slices)for(const pc of s.pieces){
@@ -143,7 +160,7 @@ export function render3D(modelUrl){
   $('#steps').max=max; $('#steps').value=max; applyExplode(); applyFold();
   if(!ST.ghostLive)showGhost(modelUrl);   // already shown mid-build: the same mesh, and fetching it again is not free
   clipGhost();
-  ghost.visible=$('#ghost').checked; ST.dirty=true;
+  ghost.visible=$('#ghost').checked; applyLamp();
   if(ST.selected){const m=parts.children.find(c=>c.userData.slice===ST.selected);m?highlight(m):deselect()}
   if(!ST.fitted){fitView();ST.fitted=true}
 }
@@ -224,7 +241,7 @@ export function applyExplode(){const e=+$('#explode').value,st=$('#steps'),k=+st
   showBanner(going?`step ${k} / ${+st.max}  ·  ${(ST.plan&&ST.plan.label_tag?ST.plan.label_tag+' ':'')}${going.userData.piece}`:folding&&k<+st.max?`step ${k} / ${+st.max}  ·  folding ${Math.round(share*100)} %`:'');
   $('#steps_val').textContent=`${k} / ${+st.max||0}`;   // the step counter, live while the slider is dragged
   const s=ST.selected&&parts.children.find(c=>c.userData.slice===ST.selected); if(s)drawGizmo(s);   // the handles ride with the part
-  ST.dirty=true}
+  applyLamp()}
 $('#explode').oninput=$('#steps').oninput=applyExplode; $('#fold').oninput=applyFold; $('#ghost').onchange=()=>{ghost.visible=$('#ghost').checked;ST.dirty=true}; $('#fit').onclick=()=>{fitView();ST.dirty=true}; $('#look').onchange=$('#opacity').oninput=applyLook;
 // The build order as a video: the steps slider played into a MediaRecorder reading the canvas the view already
 // draws. Nothing is uploaded and nothing is rendered twice — the file is made in the page and saved from it.

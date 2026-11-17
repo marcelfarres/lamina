@@ -6,6 +6,9 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ### Added
 
+- **See it as a lamp.** Tick *lamp* over the 3D view and a bulb lights the model from inside. A floor and a wall
+  catch the shadows that the parts throw, so you see the pattern before you cut. *Bulb height* moves the bulb from
+  the bottom to the top. Untick it and the view is as before.
 - **Two more folded examples.** *fold_box* is a six-sided box with a turned lid, printed flat in PETG and folded up:
   every fold has its own angle. *fold_lantern* is the lamp shade at 420 mm for 3 mm plywood: 72 separate pieces,
   each with a window and lacing holes, numbered on the inside.
