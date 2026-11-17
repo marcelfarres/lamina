@@ -5,6 +5,7 @@ import contextlib
 import io
 import json
 import re
+import time
 import zipfile
 
 import pytest
@@ -18,7 +19,11 @@ def wipe(page):
     delete the database instead; both leave it empty, and the library opens it again on its next call."""
     page.evaluate("""async () => { const S = await import('/static/js/store.js'), b = S.browserStore();
         for (const f of await b.list()) await b.remove(f.file); await S.idxSet('browser', []);
-        __t.lib.useStore(b); __t.lib.setSaved(null);
+        const root = await navigator.storage.getDirectory();
+        for (const d of ['lib', 'lib2']) await root.removeEntry(d, {recursive: true}).catch(() => {});
+        const st = __t.lib.storeState();
+        if (st.kind !== 'browser' || st.left) { await S.kvDel('folder'); await __t.lib.restoreStore() } else __t.lib.useStore(b);
+        __t.lib.setSaved(null);
         const s = __t.state(); s.project = ''; s.rev = '1.0'; (await import('/static/js/project.js')).syncProject() }""")
 
 
@@ -278,9 +283,10 @@ def test_bump_then_save_keeps_both(page):
 
 
 def test_bump_from_an_old_revision_goes_to_the_next_free(page):
-    name(page, "lamp")
-    for _ in range(4):
-        save(page); bump(page); settle(page)
+    name(page, "lamp"); save(page)
+    one = read(page, "lamp_v1.0.lamina.json")
+    for rev in ("1.1", "1.2", "1.3"):                                          # copies made by hand: no slice each
+        put(page, f"lamp_v{rev}.lamina.json", json.dumps({**one, "rev": rev, "state": {**one["state"], "rev": rev}}))
     assert lib(page) == [("lamp", ["1.3", "1.2", "1.1", "1.0"])]
     page.evaluate("__t.lib.openRevision('lamp_v1.0.lamina.json')"); settle(page)
     bump(page)
@@ -814,3 +820,382 @@ def test_find_filters_examples_too(page):
     assert examples(page) == [n for n in page.evaluate("fetch('api/examples').then(r => r.json())") if "horse" in n]
     page.fill("#libfind", "")
     assert len(examples(page)) > 10
+
+# --- linked folder (Task 7) ---
+LIB = "(await navigator.storage.getDirectory()).getDirectoryHandle('lib', {create: true})"
+
+
+def folder(page, answer="keep"):
+    """Link the private folder 'lib' as the library, the way #liblink does after the picker; a clash answers `answer`."""
+    page.evaluate(f"async a => {{ await __t.lib.linkFolder(await {LIB}, () => Promise.resolve(a)) }}", answer)
+
+
+def drop(page, file, text):
+    """A file written into the folder behind the library's back: by hand, or by another tab."""
+    page.evaluate(f"""async ([f, t]) => {{ const w = await (await (await {LIB}).getFileHandle(f, {{create: true}})).createWritable();
+        await w.write(t); await w.close() }}""", [file, text])
+
+
+def on_disk(page):
+    """Everything in the folder: {name: its text, or None for a sub-folder}."""
+    return page.evaluate(f"""async () => {{ const out = {{}};
+        for await (const [n, h] of (await {LIB}).entries()) out[n] = h.kind === 'file' ? await (await h.getFile()).text() : null;
+        return out }}""")
+
+
+def browser_files(page):
+    return page.evaluate("import('/static/js/store.js').then(S => S.browserStore().list())")
+
+
+def read_text(page, file):
+    return page.evaluate("f => import('/static/js/store.js').then(S => S.browserStore().read(f))", file)
+
+
+def project(name, rev="1.0"):
+    return json.dumps({"name": name, "rev": rev, "mode": "stacked", "state": {"rev": rev}})
+
+
+def test_linking_moves_the_browser_projects_into_the_folder(page):
+    name(page, "lamp"); save(page); name(page, "vase"); save(page)
+    texts = {f: read_text(page, f) for f in ("lamp_v1.0.lamina.json", "vase_v1.0.lamina.json")}
+    drop(page, "egg_v1.0.lamina.json", project("egg"))
+    folder(page)
+    assert sorted(lib(page)) == [("egg", ["1.0"]), ("lamp", ["1.0"]), ("vase", ["1.0"])]
+    assert browser_files(page) == []
+    disk = on_disk(page)
+    assert sorted(disk) == ["egg_v1.0.lamina.json", "lamp_v1.0.lamina.json", "vase_v1.0.lamina.json"]
+    assert all(disk[f] == t for f, t in texts.items())                         # moved as they were
+    assert page.evaluate("__t.lib.storeState()") == {"kind": "folder", "label": "lib", "state": "folder", "files": 3, "left": ""}
+    assert save(page) == [{"file": "vase_v1.0.lamina.json"}, []]               # the revision in hand moved with it
+
+
+def test_linking_asks_on_a_clash_and_moves_unreadable_files_as_they_are(page):
+    name(page, "lamp"); save(page); name(page, "lamp2"); save(page); put(page, "junk_v1.0.lamina.json", "not json")
+    drop(page, "lamp_v1.0.lamina.json", project("lamp")); drop(page, "lamp2_v1.0.lamina.json", project("lamp2"))
+    r, asked = page.evaluate(f"""async () => {{ const asked = [];
+        const r = await __t.lib.linkFolder(await {LIB}, c => {{ asked.push(c); return Promise.resolve({{answer: 'keep', rest: true}}) }});
+        return [r, asked] }}""")
+    assert len(asked) == 1 and asked[0]["next"] == "1.1"                       # the answer served the second clash too
+    assert sorted(r["moved"]) == ["junk_v1.0.lamina.json", "lamp2_v1.1.lamina.json", "lamp_v1.1.lamina.json"]
+    disk = on_disk(page)
+    assert disk["junk_v1.0.lamina.json"] == "not json" and disk["lamp_v1.0.lamina.json"] == project("lamp")
+    assert json.loads(disk["lamp_v1.1.lamina.json"])["rev"] == "1.1" and browser_files(page) == []
+
+
+def test_the_folder_is_the_library(page):
+    folder(page)
+    drop(page, "egg_v1.0.lamina.json", project("egg")); drop(page, "egg_v1.1.lamina.json", project("egg", "1.1"))
+    assert lib(page) == [("egg", ["1.1", "1.0"])]
+    page.evaluate("__t.lib.removeProject('egg')")
+    assert lib(page) == [] and on_disk(page) == {}
+
+
+def test_unchanged_files_are_not_read_again(page):
+    folder(page)
+    drop(page, "a_v1.0.lamina.json", project("a")); drop(page, "b_v1.0.lamina.json", project("b"))
+    reads = page.evaluate(f"""async () => {{ const S = await import('/static/js/store.js'), f = S.folderStore(await {LIB});
+        window.__reads = 0; __t.lib.useStore({{...f, read: x => {{ window.__reads++; return f.read(x) }}}});
+        const n = []; await __t.lib.entries(); n.push(__reads); await __t.lib.entries(); n.push(__reads); return n }}""")
+    assert reads == [2, 2]                                                     # the second listing read nothing
+    drop(page, "a_v1.0.lamina.json", project("a-touched"))
+    assert page.evaluate("__t.lib.entries().then(() => __reads)") == 3 and sorted(lib(page))[0] == ("a-touched", ["1.0"])
+
+
+def test_delete_lists_the_library_once(page):
+    name(page, "lamp"); save(page); bump(page); settle(page); save(page)
+    n = page.evaluate("""async () => { const S = await import('/static/js/store.js'), b = S.browserStore(); let n = 0;
+        __t.lib.useStore({...b, list: () => { n++; return b.list() }});
+        try { await __t.lib.removeProject('lamp'); return n } finally { __t.lib.useStore(b) } }""")
+    assert n == 1 and lib(page) == []
+
+
+def test_other_things_in_the_folder(page):
+    folder(page)
+    drop(page, "notes.json", "{}"); drop(page, "x_v1.0.lamina.json", '{"name":"x","mo')
+    page.evaluate(f"async () => {{ await (await {LIB}).getDirectoryHandle('sub.lamina.json', {{create: true}}) }}")
+    (p,) = page.evaluate("__t.lib.entries()")
+    assert p["name"] == "x_v1.0.lamina.json" and [r["bad"] for r in p["revs"]] == [True]
+    err = page.evaluate("__t.lib.removeProject('x_v1.0.lamina.json').then(() => null, e => e.message)")
+    assert err and "cannot be read" in err
+    assert on_disk(page) == {"notes.json": "{}", "x_v1.0.lamina.json": '{"name":"x","mo', "sub.lamina.json": None}
+
+
+def test_a_file_changed_on_disk_asks_before_save(page):
+    folder(page); name(page, "lamp")
+    assert save(page) == [{"file": "lamp_v1.0.lamina.json"}, []]
+    assert save(page)[1] == []                                                 # unchanged since this tab saved it
+    by_hand = on_disk(page)["lamp_v1.0.lamina.json"] + " "
+    drop(page, "lamp_v1.0.lamina.json", by_hand)
+    assert save(page) == [None, [{"name": "lamp", "rev": "1.0", "next": "1.1"}]]
+    assert on_disk(page)["lamp_v1.0.lamina.json"] == by_hand
+
+
+def test_no_fallback_when_the_folder_cannot_be_reached(page):
+    folder(page); name(page, "lamp")
+    r = page.evaluate("""async () => { const P = FileSystemDirectoryHandle.prototype, keep = {}, out = {};
+        for (const k of ['queryPermission', 'requestPermission']) keep[k] = Object.getOwnPropertyDescriptor(P, k);
+        P.queryPermission = async () => 'prompt'; P.requestPermission = async () => 'denied';
+        try { out.restored = await __t.lib.restoreStore();
+            out.err = await __t.lib.saveCurrent(() => Promise.resolve('replace')).then(() => null, e => e.message);
+            out.reconnected = await __t.lib.reconnect(); out.state = __t.lib.storeState() }
+        finally { for (const k in keep) keep[k] ? Object.defineProperty(P, k, keep[k]) : delete P[k] }
+        return out }""")
+    assert r["restored"] == "needs-permission" and r["reconnected"] is False
+    assert r["err"] and "Reconnect" in r["err"] and "export" in r["err"]
+    assert (r["state"]["kind"], r["state"]["label"], r["state"]["state"]) == ("folder", "lib", "needs-permission")
+    assert browser_files(page) == [] and on_disk(page) == {}
+    assert page.evaluate("__t.lib.reconnect()") is True and page.evaluate("__t.lib.storeState().state") == "folder"
+    assert save(page)[0] == {"file": "lamp_v1.0.lamina.json"}
+
+
+def test_unlink_leaves_the_files(page):
+    name(page, "lamp"); save(page); folder(page)
+    page.evaluate("__t.lib.unlink()")
+    assert lib(page) == [] and sorted(on_disk(page)) == ["lamp_v1.0.lamina.json"]
+    assert page.evaluate("__t.lib.storeState()") == {"kind": "browser", "label": "this browser", "state": "browser",
+                                                     "files": 0, "left": "lib"}
+    assert page.evaluate("import('/static/js/store.js').then(S => S.kvGet('folder'))") is None
+
+
+def test_link_state_survives_reload(page):
+    name(page, "lamp"); save(page); folder(page)
+    before = page.evaluate("__t.lib.entries()")
+    page.reload(); settle(page)
+    assert page.evaluate("__t.lib.entries()") == before                        # it waits for start-up to pick the store
+    assert page.evaluate("__t.lib.storeState()")["kind"] == "folder" and page.evaluate("__t.lib.storeState().state") == "folder"
+
+
+def test_a_save_writes_the_settings_it_started_with(page):
+    """A change made while the model is read for a save belongs to the next save, not half to this one."""
+    name(page, "lamp"); t = page.evaluate("__t.state().thickness")
+    page.evaluate("async () => { const p = __t.lib.saveCurrent(() => Promise.resolve(null)); __t.state().thickness += 1; await p }")
+    assert read(page, "lamp_v1.0.lamina.json")["state"]["thickness"] == t
+    assert page.evaluate("__t.lib.unsaved()") is True
+
+
+def test_a_failed_listing_is_tried_again(page):
+    name(page, "lamp"); save(page)
+    r = page.evaluate("""async () => { const S = await import('/static/js/store.js'), b = S.browserStore(); let n = 0;
+        __t.lib.useStore({...b, list: () => n++ ? b.list() : Promise.reject(new Error('busy'))});
+        try { return [(await __t.lib.listed()).length, (await __t.lib.listed()).length] } finally { __t.lib.useStore(b) } }""")
+    assert r == [0, 1]
+
+
+# --- linked folder, review round 1 ---
+def link(page, answers=()):
+    """linkFolder with `ask` giving `answers` in turn (then None): [its result, the clashes it was asked about]."""
+    return page.evaluate(f"""async a => {{ const asked = [];
+        const r = await __t.lib.linkFolder(await {LIB}, c => {{ asked.push(c); return Promise.resolve(a[asked.length - 1] ?? null) }});
+        return [r, asked] }}""", list(answers))
+
+
+def test_a_save_during_a_link_is_not_lost(page):
+    """The save is pressed in the middle of the link (while it asks about a clash): lamp has moved, vase not yet."""
+    name(page, "vase"); save(page); name(page, "lamp"); save(page)
+    set_fields(page, [("p_thickness", 4)]); settle(page)
+    drop(page, "vase_v1.0.lamina.json", project("vase"))
+    unsaved = page.evaluate(f"""async () => {{ const d = await {LIB}; let s;
+        await __t.lib.linkFolder(d, () => {{ s = __t.lib.saveCurrent(() => Promise.resolve('replace')); return Promise.resolve('replace') }});
+        await s; return __t.lib.unsaved() }}""")
+    disk = on_disk(page)
+    # the save ran after the link, into the folder: the new setting is in the file, and nothing is left unsaved
+    assert json.loads(disk["lamp_v1.0.lamina.json"])["state"]["thickness"] == 4 and unsaved is False
+    assert browser_files(page) == []
+
+
+def test_two_links_at_once_give_one_result(page):
+    name(page, "lamp"); save(page); name(page, "vase"); save(page)
+    a, b = page.evaluate(f"""async () => {{ const d = await {LIB}, ask = () => Promise.resolve(null);
+        return await Promise.all([__t.lib.linkFolder(d, ask), __t.lib.linkFolder(d, ask)]) }}""")
+    assert a == b and sorted(a["moved"]) == ["lamp_v1.0.lamina.json", "vase_v1.0.lamina.json"]
+    assert sorted(on_disk(page)) == ["lamp_v1.0.lamina.json", "vase_v1.0.lamina.json"] and browser_files(page) == []
+
+
+def test_a_revision_another_tab_saved_asks_after_the_link(page):
+    name(page, "lamp"); save(page)
+    other = read(page, "lamp_v1.0.lamina.json"); other["state"]["thickness"] = 9
+    put(page, "lamp_v1.0.lamina.json", json.dumps(other))                      # another tab saved it since
+    folder(page)
+    assert save(page)[1] == [{"name": "lamp", "rev": "1.0", "next": "1.1"}]
+    assert json.loads(on_disk(page)["lamp_v1.0.lamina.json"])["state"]["thickness"] == 9
+
+
+def test_keep_skips_the_revisions_still_in_the_browser(page):
+    name(page, "lamp"); save(page)
+    x = read_text(page, "lamp_v1.0.lamina.json"); y = project("lamp", "1.1"); z = project("lamp") + " "
+    put(page, "lamp_v1.1.lamina.json", y); drop(page, "lamp_v1.0.lamina.json", z)
+    link(page, ["keep", "replace"])
+    disk = on_disk(page)
+    assert disk["lamp_v1.0.lamina.json"] == z and disk["lamp_v1.1.lamina.json"] == y
+    assert {k: v for k, v in json.loads(disk["lamp_v1.2.lamina.json"]).items() if k not in ("rev", "state")} == \
+        {k: v for k, v in json.loads(x).items() if k not in ("rev", "state")}
+
+
+def test_a_link_that_fails_half_way_loses_nothing(page):
+    name(page, "a"); save(page); name(page, "b"); save(page)
+    err = page.evaluate(f"""async () => {{ const d = await {LIB}, P = FileSystemWritableFileStream.prototype, w = P.write; let n = 0;
+        P.write = function (...x) {{ return n++ ? Promise.reject(new DOMException('full', 'QuotaExceededError')) : w.apply(this, x) }};
+        try {{ return await __t.lib.linkFolder(d, () => Promise.resolve(null)).then(() => null, e => e.message) }} finally {{ P.write = w }} }}""")
+    assert err and "stopped" in err and "still in this browser" in err and "lib" in err
+    places = sorted([f["file"] for f in browser_files(page)] + list(on_disk(page)))
+    assert places == ["a_v1.0.lamina.json", "b_v1.0.lamina.json"]
+    assert page.evaluate("__t.lib.storeState().kind") == "browser"
+    assert page.evaluate("import('/static/js/store.js').then(S => S.kvGet('folder'))") is None
+
+
+def test_keep_replace_and_skip_never_lose_a_file(page):
+    """keep on an unreadable browser file moves its bytes; replace onto an unreadable folder file keeps both; a skip
+    leaves the revision in the browser and says so."""
+    put(page, "junk_v1.0.lamina.json", "not json"); drop(page, "junk_v1.0.lamina.json", "other")
+    name(page, "lamp"); save(page); drop(page, "lamp_v1.0.lamina.json", "broken")
+    name(page, "vase"); save(page); drop(page, "vase_v1.0.lamina.json", project("vase"))
+    r, asked = link(page, ["keep", "replace", None])
+    assert [c["name"] for c in asked] == ["junk_v1.0.lamina.json", "lamp", "vase"]
+    disk = on_disk(page)
+    assert disk["junk_v1.0.lamina.json"] == "other" and disk["junk_v1.1.lamina.json"] == "not json"
+    assert disk["lamp_v1.0.lamina.json"] == "broken" and json.loads(disk["lamp_v1.1.lamina.json"])["rev"] == "1.1"
+    assert disk["vase_v1.0.lamina.json"] == project("vase")
+    assert r["skipped"] == ["vase_v1.0.lamina.json"] and [f["file"] for f in browser_files(page)] == ["vase_v1.0.lamina.json"]
+
+
+def test_a_file_name_without_a_revision_keeps_its_name(page):
+    put(page, "foo.lamina.json", project("foo")); drop(page, "foo.lamina.json", project("foo") + " ")
+    r, _ = link(page, ["keep"])
+    assert r["moved"] == ["foo_v1.1.lamina.json"] and sorted(on_disk(page)) == ["foo.lamina.json", "foo_v1.1.lamina.json"]
+
+
+def test_the_index_belongs_to_its_folder(page):
+    """An index made for another folder is not trusted, even for a file of the same name, size and time."""
+    folder(page); drop(page, "x_v1.0.lamina.json", project("x"))
+    r = page.evaluate(f"""async () => {{ const S = await import('/static/js/store.js'), d = await {LIB};
+        const d2 = await (await navigator.storage.getDirectory()).getDirectoryHandle('lib2', {{create: true}});
+        const f = (await S.folderStore(d).list())[0], forged = [{{...f, name: 'forged', rev: '1.0', saved: new Date(f.mtime).toISOString(), preview: ''}}];
+        await S.idxSet('folder', {{dir: d2, entries: forged}}); const a = (await __t.lib.entries())[0].name;
+        await S.idxSet('folder', {{dir: d, entries: forged}}); const b = (await __t.lib.entries())[0].name; return [a, b] }}""")
+    assert r == ["x", "forged"]
+
+
+def test_a_listing_overtaken_by_another_store_changes_nothing(page):
+    name(page, "lamp"); save(page)
+    r = page.evaluate("""async () => { const S = await import('/static/js/store.js'), b = S.browserStore();
+        __t.lib.useStore({...b, list: () => new Promise(ok => setTimeout(() => ok(b.list()), 200))});
+        const p = __t.lib.entries(); await new Promise(ok => setTimeout(ok, 50));
+        __t.lib.useStore({...b, list: async () => []}); await p; const files = __t.lib.storeState().files;
+        __t.lib.useStore(b); return files }""")
+    assert r == 0
+
+
+def test_reconnect_needs_the_folder_to_be_there(page):
+    folder(page)
+    r = page.evaluate("""async () => { await (await navigator.storage.getDirectory()).removeEntry('lib', {recursive: true});
+        return [await __t.lib.restoreStore(), await __t.lib.reconnect()] }""")
+    assert r == ["needs-permission", False]
+
+
+def test_the_library_waits_for_start_up_to_pick_the_store(page):
+    name(page, "lamp"); save(page); drop(page, "egg_v1.0.lamina.json", project("egg"))
+    names = page.evaluate(f"""async () => {{ const S = await import('/static/js/store.js'); await S.kvSet('folder', await {LIB});
+        const r = __t.lib.restoreStore(), e = await __t.lib.entries(); await r; return e.map(p => p.name) }}""")
+    assert names == ["egg"]
+
+
+def test_a_change_of_size_at_the_same_time_asks(page):
+    """A copy written in the same millisecond still asks: size and mtime are compared."""
+    name(page, "lamp"); save(page)
+    page.evaluate("""() => new Promise((ok, no) => { const q = indexedDB.open('lamina_library', 1); q.onerror = () => no(q.error);
+        q.onsuccess = () => { const t = q.result.transaction('revisions', 'readwrite'), s = t.objectStore('revisions');
+            s.get('lamp_v1.0.lamina.json').onsuccess = e => { const r = e.target.result; s.put({...r, text: r.text + ' ', size: r.size + 1}) };
+            t.oncomplete = () => { q.result.close(); ok() } } })""")
+    assert save(page)[1] == [{"name": "lamp", "rev": "1.0", "next": "1.1"}]
+
+
+def test_permission_lost_in_a_session_says_reconnect(page):
+    folder(page)
+    r = page.evaluate("""async () => { const P = FileSystemDirectoryHandle.prototype, e = P.entries;
+        P.entries = function () { throw new DOMException('no', 'NotAllowedError') };
+        try { return [await __t.lib.entries().then(() => null, x => x.message), __t.lib.storeState().state] } finally { P.entries = e } }""")
+    assert "Reconnect" in r[0] and r[1] == "needs-permission"
+    assert page.evaluate("__t.lib.reconnect()") is True and page.evaluate("__t.lib.storeState().state") == "folder"
+
+
+def test_folder_write_never_deletes_a_file_it_could_not_check(page):
+    r = page.evaluate(f"""async () => {{ const s = await ({FRESH})('folder'), P = FileSystemDirectoryHandle.prototype, g = P.getFileHandle;
+        const W = FileSystemWritableFileStream.prototype, w = W.write; await s.write('x_v1.0.lamina.json', 'old'); let once = true;
+        P.getFileHandle = function (n, o) {{ if (!o && once) {{ once = false; return Promise.reject(new DOMException('busy', 'InvalidStateError')) }} return g.call(this, n, o) }};
+        W.write = () => Promise.reject(new Error('disk full'));
+        try {{ await s.write('x_v1.0.lamina.json', 'new').catch(() => {{}}) }} finally {{ P.getFileHandle = g; W.write = w }}
+        return await s.read('x_v1.0.lamina.json').catch(e => e.name) }}""")
+    assert r == "old"
+
+
+# --- linked folder, review round 2 ---
+def test_reconnect_asks_at_once_while_a_save_waits(page):
+    """The browser's prompt needs the click it came from: reconnect asks before the queue, not after a waiting save."""
+    folder(page); name(page, "lamp"); save(page); page.evaluate("__t.lib.setSaved(null)")   # the next save asks
+    calls = page.evaluate("""async () => { const P = FileSystemDirectoryHandle.prototype, keep = Object.getOwnPropertyDescriptor(P, 'requestPermission'), calls = [];
+        P.requestPermission = async () => { calls.push('request'); return 'granted' };
+        try { let answer; await new Promise(ok => { window.__s = __t.lib.saveCurrent(() => { ok(); return new Promise(r => answer = r) }) });
+            const r = __t.lib.reconnect(); calls.push('before the answer'); answer(null); await window.__s; calls.push(String(await r)); return calls }
+        finally { keep ? Object.defineProperty(P, 'requestPermission', keep) : delete P.requestPermission } }""")
+    assert calls == ["request", "before the answer", "true"]
+
+
+def test_the_preview_is_the_scene_at_the_press(page):
+    """A save that waits in the queue (here behind a link's question) keeps the picture of when it was pressed."""
+    name(page, "lamp"); save(page); drop(page, "lamp_v1.0.lamina.json", project("lamp")); name(page, "pot")
+    page.evaluate(f"""async () => {{ const d = await {LIB}; window.__pre = __t.snapshot();
+        await new Promise(ok => {{ window.__l = __t.lib.linkFolder(d, () => {{ ok(); return new Promise(r => window.__answer = r) }}) }});
+        window.__s = __t.lib.saveCurrent(() => Promise.resolve(null)) }}""")
+    example(page, "vase")
+    pre = page.evaluate("async () => { window.__answer(null); await window.__l; await window.__s; return window.__pre }")
+    assert json.loads(on_disk(page)["pot_v1.0.lamina.json"])["preview"] == pre and page.evaluate("__t.snapshot()") != pre
+
+
+def test_the_revision_in_hand_follows_only_as_it_was_read(page):
+    """Another tab saves lamp while the link is busy with another file: the newer bytes move, and the next save asks."""
+    name(page, "lamp"); save(page)
+    put(page, "a_v1.0.lamina.json", project("a")); drop(page, "a_v1.0.lamina.json", project("a"))
+    newer = read(page, "lamp_v1.0.lamina.json"); newer["state"]["thickness"] = 9
+    page.evaluate(f"""async t => {{ const S = await import('/static/js/store.js'), d = await {LIB};
+        await __t.lib.linkFolder(d, () => S.browserStore().write('lamp_v1.0.lamina.json', t).then(() => 'keep')) }}""", json.dumps(newer))
+    assert json.loads(on_disk(page)["lamp_v1.0.lamina.json"])["state"]["thickness"] == 9
+    assert save(page)[1] == [{"name": "lamp", "rev": "1.0", "next": "1.1"}]
+
+
+def test_a_save_that_cannot_be_copied_rejects(page):
+    name(page, "lamp")
+    r = page.evaluate("""() => { const s = __t.state(); s.unclonable = () => {};
+        try { return __t.lib.saveCurrent(() => Promise.resolve(null)).then(() => 'saved', e => 'rejected ' + e.name) }
+        catch (e) { return 'threw ' + e.name } finally { delete s.unclonable } }""")
+    assert r == "rejected DataCloneError"
+
+
+# --- linked folder, review round 3 ---
+def test_a_revision_saved_by_another_tab_during_the_link_stays(page):
+    """Another tab saves lamp while the link asks about it: the newer record is not deleted with the one that moved."""
+    name(page, "lamp"); save(page); drop(page, "lamp_v1.0.lamina.json", project("lamp"))
+    old = read_text(page, "lamp_v1.0.lamina.json")
+    newer = json.loads(old); newer["state"]["thickness"] = 9
+    r = page.evaluate(f"""async t => {{ const S = await import('/static/js/store.js'), d = await {LIB};
+        return await __t.lib.linkFolder(d, () => S.browserStore().write('lamp_v1.0.lamina.json', t).then(() => 'keep')) }}""",
+        json.dumps(newer))
+    assert r["skipped"] == ["lamp_v1.0.lamina.json"] and r["changed"] == ["lamp_v1.0.lamina.json"]
+    assert json.loads(read_text(page, "lamp_v1.0.lamina.json"))["state"]["thickness"] == 9   # still in the browser
+    disk = on_disk(page)
+    kept = json.loads(old); kept["rev"] = kept["state"]["rev"] = "1.1"                  # the copy read before: kept beside
+    assert disk["lamp_v1.0.lamina.json"] == project("lamp") and json.loads(disk["lamp_v1.1.lamina.json"]) == kept
+
+
+def test_a_call_before_start_up_waits_for_the_kept_folder(page):
+    """A call made before main.js has run restoreStore() (main.js is held back for a moment, so the library module is
+    loaded and called first) waits for it, and lists the folder, not the browser."""
+    name(page, "lamp"); save(page); folder(page); put(page, "b_v1.0.lamina.json", project("b"))   # b only in the browser
+    page.add_init_script("""if (sessionStorage.__early === '1') { sessionStorage.__early = '';
+        window.__early = import('/static/js/library.js').then(L => L.entries()).then(e => e.map(p => p.name)) }""")
+    held = lambda route: (time.sleep(1.5), route.continue_())
+    page.route("**/static/js/main.js", held)
+    try:
+        page.evaluate("sessionStorage.__early = '1'"); page.reload(); settle(page)
+    finally:
+        page.unroute("**/static/js/main.js", held)
+    assert page.evaluate("window.__early") == ["lamp"]

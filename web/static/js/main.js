@@ -18,6 +18,7 @@ import {initLibraryPage} from './librarypage.js';
 
 // ---------------------------------------------------------------- init
 async function init(){
+  lib.restoreStore();   // first: the library's calls wait for it (the kept folder, if any); nothing else does
   ST.MODES=await (await fetch('api/modes')).json(); ST.PROJECT_VERSION=(await (await fetch('api/project')).json()).version; const ex=await (await fetch('api/examples')).json();
   const PRESETS=await fetch('api/presets').then(r=>r.ok?r.json():{}).catch(()=>({}));
   ST.example=ex.includes('blob')?'blob':ex[0];
