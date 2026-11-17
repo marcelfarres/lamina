@@ -30,12 +30,17 @@ const sameStore=()=>ST.saved?.store?.kind===store.kind&&ST.saved.store.label===s
 // a file is a project when it is an object with a technique or settings: `{}` or `42` parses, and is not one
 function parse(text){const p=JSON.parse(text);
   if(!p||typeof p!=='object'||Array.isArray(p)||!('state' in p||'mode' in p))throw new Error('not a Lamina project');return p}
-const nameOf=p=>p.name||p.model?.name||p.example||'model';
+const nameOf=p=>String(p.name||p.model?.name||p.example||'model');
+const isDate=v=>typeof v==='string'&&!isNaN(Date.parse(v));
+// The index entry of a project file, for a listing and an import alike: every field text, whatever the file holds. A
+// number as `saved` made the newest-first sort throw, and with it every listing after: no page, no save, no export
+const entryOf=(at,p)=>({...at,name:nameOf(p),rev:String(p.rev||'1.0'),saved:isDate(p.saved)?p.saved:at.saved,preview:typeof p.preview==='string'?p.preview:''});
+// an index entry is trusted only as entryOf makes them: one stored before this rule is read again
+const sane=e=>['name','rev','saved','preview'].every(k=>typeof e?.[k]==='string');
 // one index entry per revision file: what a card needs, without reading the file again
 async function readEntry(s,f){
   const at={file:f.file,size:f.size,mtime:f.mtime,saved:new Date(f.mtime).toISOString(),preview:''};
-  try{const p=parse(await s.read(f.file));
-    return {...at,name:nameOf(p),rev:p.rev||'1.0',saved:p.saved||at.saved,preview:p.preview||''}}
+  try{return entryOf(at,parse(await s.read(f.file)))}
   catch(e){return {...at,name:f.file,rev:'',bad:true}}   // listed by its file name; Lamina never writes onto it or deletes it
 }
 const group=()=>{const by=new Map();
@@ -50,7 +55,7 @@ export async function entries(){
   await ready;const s=store, idx=new Map((await idxOf(s)).map(e=>[e.file,e])), files=await s.list();
   let changed=files.length!==idx.size;
   // an entry is trusted while its file's size and mtime are unchanged: a library of big models opens without reading them
-  const out=[];for(const f of files){let e=idx.get(f.file);if(e?.size!==f.size||e.mtime!==f.mtime){e=await readEntry(s,f);changed=true}out.push(e)}
+  const out=[];for(const f of files){let e=idx.get(f.file);if(!sane(e)||e.size!==f.size||e.mtime!==f.mtime){e=await readEntry(s,f);changed=true}out.push(e)}
   if(s!==store)return last;   // useStore() overtook this listing: it is not the current store's, and changes nothing
   rows=out;seen=new Map(files.map(f=>[lc(f.file),f]));
   if(changed)await idxPut(s,rows);
@@ -153,7 +158,7 @@ async function write(file,proj,model){
   setSaved({name,rev,snap:snapOf(proj,model),file,store:here(),mtime:w.mtime,size:w.size});   // the snap of what the file holds
   // the file is written: an index that cannot follow is said as such. A new file has no entry and is read at the next
   // listing; an overwritten one keeps its old card until Task 7's size and mtime check sees the change
-  try{await reindex(file,{file,size:w.size,mtime:w.mtime,name,rev,saved:proj.saved,preview:proj.preview||''})}
+  try{await reindex(file,entryOf({file,size:w.size,mtime:w.mtime,saved:proj.saved},proj))}
   catch(e){throw new Error(`${name} v${rev} was saved in ${store.label}, but the library's list could not be updated (${e.message||e.name}).`)}
   return {file};
 }
@@ -197,28 +202,34 @@ export async function exportAll(){await entries();const s=store, files=[], skipp
 // .lamina.json files and the zips export makes. A file or zip entry that is no project is named in `bad` and nothing
 // is written for it. Each revision lands where a save of it would (place); a clash asks as a link does, and
 // {answer, rest:true} answers the rest of them. keep takes a number free in the library and among the files still to
-// come in this call; replace never lands on a file that cannot be read (both are kept instead); a skip changes nothing
+// come in this call; replace never lands on a file that cannot be read, nor on one this import has just written (two
+// files of one revision): both are kept instead. A skip changes nothing and is named in `skipped`
 export const importFiles=(files,ask)=>one(async()=>{
-  const todo=[], bad=[], imported=[];
+  const todo=[], bad=[], imported=[], skipped=[];
   for(const f of files){let got;
     try{got=/\.zip$/i.test(f.name)?await unzip(await f.arrayBuffer()):[{name:f.name,text:await f.text()}]}catch(e){bad.push(f.name);continue}
     bad.push(...got.bad||[]);
-    for(const g of got)try{const p=parse(g.text);p.saved||=new Date(f.lastModified).toISOString();todo.push(p)}catch(e){bad.push(g.name)}
+    // a file with a date in it is written as it is (as a link moves it); one without gets the File's date
+    for(const g of got)try{const p=parse(g.text), dated=isDate(p.saved);if(!dated)p.saved=new Date(f.lastModified).toISOString();
+      todo.push({p,text:dated?g.text:null})}catch(e){bad.push(g.name)}
   }
-  let rest;await entries();
-  try{for(const [i,p] of todo.entries()){const name=nameOf(p);let consented='';p.rev||='1.0';
-    for(;;){const {file,hit,taken}=place(name,p.rev);
-      if(!hit||!hit.bad&&lc(file)===consented){const dest=hit?.file||file, w=await store.write(dest,JSON.stringify(p));
-        await reindex(dest,{file:dest,size:w.size,mtime:w.mtime,name,rev:p.rev,saved:p.saved,preview:p.preview||''});imported.push(dest);break}
-      const next=nextFree([...taken,...todo.slice(i+1).filter(q=>nameOf(q)===name).map(q=>q.rev||'1.0')],p.rev,false);
-      // a question can take minutes: the library is listed again after it, as a save does
-      let a=rest;if(a===undefined){const r=await ask({name,rev:p.rev,next});a=typeof r==='object'&&r?r.answer:r;if(r?.rest)rest=a;await entries()}
-      if(a==='replace'&&!hit.bad)consented=lc(file);
-      else if(a==='replace'||a==='keep'){p.rev=next;if(p.state)p.state.rev=next}
-      else break;
+  let rest;
+  try{for(const [i,{p,text}] of todo.entries()){const name=nameOf(p);let rev=String(p.rev||'1.0'), out=text, consented='';
+    for(;;){
+      // listed before each file and after each question, with no wait but the question before the write: another tab
+      // can save a revision of this name meanwhile
+      await entries();const {file,hit,taken}=place(name,rev);
+      if(!hit||!hit.bad&&lc(file)===consented){const dest=hit?.file||file, w=await store.write(dest,out??JSON.stringify(p));
+        imported.push(dest);await reindex(dest,entryOf({file:dest,size:w.size,mtime:w.mtime,saved:p.saved},p));break}
+      const next=nextFree([...taken,...todo.slice(i+1).filter(q=>nameOf(q.p)===name).map(q=>String(q.p.rev||'1.0'))],rev,false);
+      let a=rest;if(a===undefined){const r=await ask({name,rev,next});a=typeof r==='object'&&r?r.answer:r;if(r?.rest)rest=a}
+      if(a==='replace'&&!hit.bad&&!imported.some(f=>lc(f)===lc(hit.file)))consented=lc(file);
+      else if(a==='replace'||a==='keep'){rev=p.rev=next;if(p.state&&typeof p.state==='object')p.state.rev=next;out=null}
+      else{skipped.push(`${name} v${rev}`);break}
     }
-  }}catch(e){throw new Error(`The import stopped (${e.message||e.name}). ${imported.length} files were imported into ${store.label}; the others were not.`)}
-  return {imported,bad};
+  }}catch(e){throw new Error(`The import stopped (${e.message||e.name}). ${imported.length} of the files were written into ${store.label}; the others were not.`)}
+  if(kept)await countBrowser();
+  return {imported,bad,skipped};
 });
 
 // ---------------------------------------------------------------- the linked folder
@@ -226,10 +237,13 @@ export const importFiles=(files,ask)=>one(async()=>{
 // cannot be reached is not swapped for the browser store (the library would split in two): every call on it rejects
 const LOST='The linked folder cannot be reached. Reconnect it in the library, or export the project.';
 const lost=dir=>{const no=()=>Promise.reject(new Error(LOST));return {kind:'folder',label:dir.name,list:no,read:no,write:no,remove:no}};
-// kept: the linked folder's handle; reach: the folder line's state; left: the folder an unlink left the files in
-let kept=null, reach='browser', left='', linking=null;
+// kept: the linked folder's handle; reach: the folder line's state; left: the folder an unlink or a change of folder
+// left the files in; inBrowser: the revisions still in the browser while a folder is linked (a link that skipped
+// some), which nothing would show otherwise
+let kept=null, reach='browser', left='', linking=null, inBrowser=0;
 export const canLink=()=>'showDirectoryPicker' in window;
-export const storeState=()=>({kind:store.kind,label:store.label,state:reach,files:rows.length,left});
+export const storeState=()=>({kind:store.kind,label:store.label,state:reach,files:rows.length,left,browser:kept?inBrowser:0});
+const countBrowser=()=>browserStore().list().then(l=>{inBrowser=l.length},()=>{});
 // permission taken away during a session (site settings) answers NotAllowedError: from then on the folder is not reachable
 function guarded(s,dir){const g={...s};
   for(const k of ['list','read','write','remove'])g[k]=(...a)=>s[k](...a).catch(e=>{if(e?.name!=='NotAllowedError')throw e;if(store===g)linked(dir,false);throw new Error(LOST)});
@@ -241,7 +255,8 @@ const allowed=ask=>{try{return Promise.resolve(ask()).then(p=>p===undefined||p==
 const reachable=(dir,asked)=>asked.then(ok=>ok&&dir.entries().next().then(()=>true)).catch(()=>false);
 // at start-up, without a click: only asks whether permission is there. Every library call waits for it (`ready`)
 export function restoreStore(){left='';
-  const p=kvGet('folder').catch(()=>null).then(async dir=>linked(dir??null,!!dir&&await reachable(dir,allowed(()=>dir.queryPermission?.({mode:'readwrite'})))));
+  const p=kvGet('folder').catch(()=>null).then(async dir=>{const r=linked(dir??null,!!dir&&await reachable(dir,allowed(()=>dir.queryPermission?.({mode:'readwrite'}))));
+    if(dir)await countBrowser();return r});
   start(p);return ready=p}
 // from a click only. The prompt is asked for here, at once: the click's permission to show it runs out in a few seconds,
 // and a save or a link ahead in the queue can take longer. Only the check and the switch of store wait their turn
@@ -288,6 +303,7 @@ async function link(dir,ask){
   }}catch(e){throw new Error(`Linking ${dir.name} stopped (${e.message||e.name}). ${moved.length} revisions were moved into ${dir.name}; the others are still in this browser.`)}
   try{await kvSet('folder',dir)}
   catch(e){throw new Error(`Linking ${dir.name} stopped (${e.message||e.name}). The revisions were moved into ${dir.name}, but the folder is not linked: link it again.`)}
-  left='';linked(dir,true);
+  // another folder picked: the old one keeps its files, and the folder line says where
+  left=kept&&!await kept.isSameEntry(dir).catch(()=>false)?kept.name:'';linked(dir,true);await countBrowser();
   return {moved,skipped,changed};
 }
