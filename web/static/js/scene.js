@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {OrbitControls} from '../vendor/OrbitControls.js';
 import {STLLoader} from '../vendor/STLLoader.js';
 import {state, ST} from './state.js';
-import {COLORS, LOOKS, PLANE_IDX} from './catalog.js';
+import {COLORS, LOOKS, PLANE_IDX, STRIPED} from './catalog.js';
 import {$, status} from './util.js';
 import {highlight, deselect, drawGizmo} from './edit3d.js';
 
@@ -56,7 +56,10 @@ let lastFrame=performance.now();
 export function mat4(M){return new THREE.Matrix4().set(...M[0],...M[1],...M[2],...M[3])}
 function shape(rings){const s=new THREE.Shape(rings[0].map(([x,y])=>new THREE.Vector2(x,y)));for(const h of rings.slice(1))s.holes.push(new THREE.Path(h.map(([x,y])=>new THREE.Vector2(x,y))));return s}
 export function applyLook(){const k=$('#look').value,op=+$('#opacity').value;for(const m of parts.children){if(m.userData.group==='B')continue;   // a lobe boundary is a guide, not material: it keeps its own look
-  const [c,r,me]=k==='group'?[COLORS[m.userData.group]||0xaaaaaa,.7,.05]:LOOKS[k];m.material.color.set(m.userData.bad?0xff5555:c);m.material.roughness=r;m.material.metalness=me;
+  const [c,r,me]=k==='group'?[COLORS[m.userData.group]||0xaaaaaa,.7,.05]:LOOKS[k],col=m.material.color.set(m.userData.bad?0xff5555:c);m.material.roughness=r;m.material.metalness=me;
+  // a material look gives every part one colour: the striped family moves .3 in lightness away from it (lighter on a
+  // dark look, darker on a light one), so it differs even on a cut edge seen end-on, where no stripe shows
+  if(k!=='group'&&!m.userData.bad&&STRIPED.includes(m.userData.group)){const h={};col.getHSL(h,THREE.SRGBColorSpace);col.setHSL(h.h,h.s,h.l>.5?h.l-.3:h.l+.3,THREE.SRGBColorSpace)}
   const tr=m.userData.group==='F'&&op<1;m.material.transparent=tr;m.material.opacity=tr?op:1;m.material.depthWrite=!tr}ST.dirty=true}
 // rotation rings (OrcaSlicer-style): drag a ring to turn the whole model about that axis
 function renderRings(){
@@ -102,13 +105,14 @@ function renderGuides(){
   (ST.plan.curve_pts||[]).forEach(([u,v,w=0],i)=>{const s=onTop(new THREE.Mesh(new THREE.SphereGeometry(r*1.5,12,8),new THREE.MeshBasicMaterial({color:0x4f8cff})));s.userData.cp=i;   // a handle: drag it in the curve's plane
     s.position.copy(mid).addScaledVector(V3(ST.plan.axes[idx[0]]),u).addScaledVector(V3(ST.plan.axes[idx[1]]),v).addScaledVector(V3(ST.plan.axes[wi]),w);guides.add(s)})
 }
-// Diagonal stripes on the ring slices: a radial job's two families differ by pattern, not only by colour (the owner is
-// colour-blind, and the old red rings between green half-slices were one colour to him). On the faces' own mm
-// coordinates, about 14 stripes across the model whatever its size, so they read at the library's 320 × 240 too
-const STRIPES=(()=>{const c=document.createElement('canvas');c.width=c.height=16;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,16,16);g.fillStyle='#111';g.fillRect(0,0,16,8);
-  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.rotation=Math.PI/4;return t})();
+// Diagonal stripes on the second family of a technique (STRIPED): two families differ by pattern, not only by colour
+// (the owner is colour-blind, and the old red rings between green half-slices were one colour to him). On the faces'
+// own mm coordinates, about 20 stripes across the model whatever its size, so they read at the library's 320 × 240
+// too. sRGB, so the band is the dark it is drawn as (read as linear it came out a light grey)
+const STRIPES=(()=>{const c=document.createElement('canvas');c.width=c.height=16;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,16,16);g.fillStyle='#555';g.fillRect(0,0,16,8);
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.rotation=Math.PI/4;return t})();
 export function render3D(modelUrl){
-  parts.clear(); let i=0; STRIPES.repeat.setScalar(14/Math.max(...ST.plan.bbox));
+  parts.clear(); let i=0; STRIPES.repeat.setScalar(20/Math.max(...ST.plan.bbox));
   for(const s of ST.plan.slices)for(const pc of s.pieces){
     const geos=[],own=[];   // own: the facet each solid was extruded from, for the fold slider
     pc.facets.forEach((fc,fi)=>{for(const r of fc.rings){
@@ -119,11 +123,13 @@ export function render3D(modelUrl){
         if(ext.length<3)continue;
         const g=new THREE.ExtrudeGeometry(shape([ext,...r.slice(1)]),{depth:t/n,bevelEnabled:false});g.translate(0,0,-t/2+j*t/n);g.applyMatrix4(mat4(fc.M));geos.push(g);own.push(fi)}}});
     if(!geos.length)continue;
-    const m=new THREE.Mesh(mergeGeos(geos),new THREE.MeshStandardMaterial({color:COLORS[s.group]||0xaaaaaa,roughness:.7,metalness:.05,map:s.group==='C'?STRIPES:null}));
+    const m=new THREE.Mesh(mergeGeos(geos),new THREE.MeshStandardMaterial({color:COLORS[s.group]||0xaaaaaa,roughness:.7,metalness:.05,map:STRIPED.includes(s.group)?STRIPES:null}));
     m.userData={slice:s.label,piece:pc.label,group:s.group,i:i++,origin:new THREE.Vector3(s.M[0][3],s.M[1][3],s.M[2][3]),normal:new THREE.Vector3(s.M[0][2],s.M[1][2],s.M[2][2]),bad:s.errors.length>0};
     // a part with errors is red and netted with dark lines (the ✗ of the results list): red alone is lost on a colour-blind
-    // eye. The net shares the part's geometry, so it folds with it; it takes no clicks, the part does
-    if(m.userData.bad){const net=new THREE.Mesh(m.geometry,new THREE.MeshBasicMaterial({color:0x111111,wireframe:true}));net.raycast=()=>{};m.add(net)}
+    // eye. The net shares the part's geometry, so it folds with it; it takes no clicks, the part does; the faces sit a
+    // step back in depth so the net never fights them
+    if(m.userData.bad){const net=new THREE.Mesh(m.geometry,new THREE.MeshBasicMaterial({color:0x111111,wireframe:true}));net.raycast=()=>{};m.add(net);
+      Object.assign(m.material,{polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1})}
     if(pc.facets.some(f=>f.hinge)){let o=0;   // a folded panel: where each facet's vertices are, to swing them about their fold lines
       m.userData.fold={base:m.geometry.attributes.position.array.slice(),hinges:pc.facets.map(f=>f.hinge||null),
         ranges:geos.map((g,j)=>{const n=g.index?g.index.count:g.attributes.position.count,r=[o,n,own[j]];o+=n;return r})}}
