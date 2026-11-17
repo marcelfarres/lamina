@@ -92,7 +92,7 @@ sheet before you commit expensive material.
 
 **Found a bug?** There are two ways to say so, and neither is better than the other.
 
-- **report a problem**, in the app's header and on the landing page. Write a sentence and it fills in the rest:
+- **report a problem**, in the app's *help* menu and on the landing page. Write a sentence and it fills in the rest:
   the technique, every setting, what the checks said, and — unless you untick the box — the model itself, saved
   ready to attach, which is what makes a report reproducible. It shows you exactly what it has gathered, then
   opens either a prefilled email to `lamina.3d.app@gmail.com` or the prefilled GitHub issue form, and you press
@@ -232,7 +232,7 @@ and `docker compose pull && docker compose up -d` moves it to the newest build. 
 
 Several people can share one server: each browser tab holds a random id, everything it slices lives under that id,
 and no other tab can name it. A tab nobody has touched for `LAMINA_TTL_HOURS` (24 by default, 0 = never) is deleted,
-models and all, the next time anyone slices; the header's **clear my data** button deletes a tab's own at once.
+models and all, the next time anyone slices; **Clear my data** in the *help* menu deletes a tab's own at once.
 Uploads are not capped by default — your own computer's memory is the only limit, and a cap that refused a 40 MB
 mesh on a laptop with 32 GB was simply wrong. Set `LAMINA_MAX_UPLOAD_MB` when the server faces other people, where a
 stranger's 2 GB scan is not yours to hold. `WEB_CONCURRENCY` is how many slices run at the same
@@ -298,13 +298,21 @@ does not slip through. It carries the most signal for stacked and folded work; d
   nested on sheets of its own. Every sheet title says the stock it is cut from, the sheet header in the UI repeats
   it, and as soon as a job mixes thicknesses the file names carry it (`sheet2 6mm.svg`, `Z-2 6mm x1.svg`) — a sheet cut
   from the wrong stock fits nothing. Every file name also carries the material it is cut from (`sheet1 plywood.svg`).
-- **One sheet** ignores the sheet height: every part goes on one strip as wide as the sheet and as long as it needs,
+- **One long sheet** (`one_sheet`) ignores the sheet height: every part goes on one strip as wide as the sheet and as long as it needs,
   to be cut apart at the machine.
-- **Non-uniform spacing**: stacked, interlocked, radial and curve can spread their slices by a curve you draw in a
-  graph under the 3D view (`spacing_vary`) — the distance between neighbours against the position along the way,
-  the angle between planes round the axis for radial (periodic), one graph per family for interlocked — dense where
-  the shape changes fast, sparse where it does not. Keep the count and the drawn spacings are scaled to span the
-  model, or keep the spacings and the count follows. The `vase`, `ripple`, `berry` and `hook` examples open with one.
+- **Non-uniform spacing**: stacked, interlocked, radial, curve and plaque can spread their slices by a curve you
+  draw. Tick *vary the spacing* (`spacing_vary`) and a graph opens under the tick: the gap between neighbours against
+  the position along the way. For radial it is the angle between planes round the axis (periodic). Interlocked has one
+  graph per family. The upright lines in the graph are the slices, and a strip under it draws the model from them.
+  Start from a shape (even, dense at both ends, dense in the middle, dense at the start) or press *follow the model*:
+  it makes the gaps small where the width of the model changes fast. Buttons add a point, remove one, smooth the
+  curve and reset it, and you can type the two numbers of a point. Keep the count and the drawn gaps are scaled to
+  span the model, or keep the gaps and the count follows. The `vase`, `ripple`, `berry` and `hook` examples open
+  with one.
+
+  [![The spacing graph, step by step: the box ticked, a starting shape picked, a point dragged, the curve drawn from the model](docs/media/spacing_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#spacing)
+
+  [Watch the walk-through](https://marcelfarres.github.io/lamina/?ref=github-readme#spacing).
 - **Labels** go on the part itself wherever the whole label fits on its material — inside the next layer's outline
   where the technique marks one (stacked, `next_outline`), so the layer glued on top hides it, upright or turned along
   the part, clear of its holes and marks — and otherwise beside the part with a leader line, in free space inside the
@@ -353,7 +361,7 @@ does not slip through. It carries the most signal for stacked and folded work; d
   material's density, and gives the sheet area to buy — m², or ft² in inches, on whole sheets with their offcuts —
   with the area that becomes parts and the share of the stock used. Every material on the list has a typical density
   you can correct, and a material of your own (+ beside the material) keeps the density you give it.
-- **Scale check**: every export carries a calibration bar, 10 cm or 4 in following the units, to cut first and
+- **Calibration bar** (`scale_check`): every export carries a calibration bar, 10 cm or 4 in following the units, to cut first and
   measure before committing to the whole set.
 - **Kerf compensation is off by default**: many machines compensate their own kerf, and compensating twice ruins
   the fit. Turn it on under Machine & cut compensation when yours does not.
@@ -376,8 +384,27 @@ does not slip through. It carries the most signal for stacked and folded work; d
 
 ### The web UI
 
-Dark, five tabs (Model · Technique · Sheet & fit · Checks · Export). Every change re-slices; the 3D view and the cut
-sheets are always the same plan. Hover a parameter name for its help.
+Dark, five tabs (Model · Technique · Sheet & fit · Checks · Export). Every change re-slices. The 3D view and the cut
+sheets are always the same plan.
+
+- **Settings**: each tab is in sections (Slices, Joining, Spacing, Position and so on). Click a heading to fold a
+  section. A setting that another one switches on is set in under it. Every setting has a full name: the name in
+  backticks in this README is its key, the one a project file and the command line use.
+- **Find a setting**: type a word in the box over the tabs. Only the settings that match stay, from every tab.
+- **Help**: hover the name of a setting, or click it and the explanation opens under it.
+- **Basic / all**: the switch under the search box. *Basic* shows the settings a first piece needs and names the
+  others at the foot of each group. A setting you changed always shows. The result is the same either way.
+- **Changed settings**: a setting that is not at its default has a bold name and a ↺ sign. Click the sign to put the
+  default back.
+- **Techniques** are six cards, each with a drawing of what it makes.
+- **Messages** say what they are: a warning starts with ⚠ WARNING and an error with ✖ ERROR. Several notes fold into
+  one line. A connector that was asked for and left out is a warning, with a ring in the 3D view at each place.
+- **Tools in the 3D view**: buttons at the left of the view add or remove a dowel, a curve point or an axis, add a
+  branch, and tilt or roll a slice. Pick one, then click or drag the model. The keys (alt-click, shift-drag,
+  ctrl-drag) do the same.
+- **Export tab**: the buttons first. The text about a file opens with a click on the line under its button.
+- **Top bar**: project name, open and save, a *version* menu, undo and redo, and a *help* menu with the guide, the
+  release notes, the links and *clear my data*.
 
 - **3D view**: drag to orbit, wheel to zoom, right-drag to pan. Click a part to select it: a yellow arrow slides it
   along its normal, shift-drag tilts, ctrl-drag rolls, and the panel gets sliders for offset / tilt / roll /
@@ -419,11 +446,14 @@ web/app.py  (FastAPI)  ──▶  core/plan.py  ──▶  plan.json ──▶  
 web/static/index.html         │                            ──▶  core/solid.py    assembled / per-part STL, 3MF prototype set (core/step.py: the same as STEP)
 (three.js, live)              ▼                            ──▶  browser          3D view from the facets in plan.json
                      core/modes/*.py   one file per technique (plug-in): Slice objects with a frame + cuts (+ facets)
+                                       (connectors.py: the dowels, pegs and spacers of the stacked family)
                      core/unfold.py    mesh → flat panels (greedy flattest-edge spanning tree, overlap-checked)
                      core/notch.py     slots where families cross (ray casts, ratio, flare, relief)
                      core/checks.py    physical checks and auto-fix
                      core/split.py     split oversize parts with puzzle tabs      core/nest.py  outline nesting
+                     core/nofit.py     no-fit polygons: where a part may go beside the parts already on a sheet
                      core/geometry.py  frames, mesh sections → shapely polygons, dowel shapes
+                     core/labels.py    the room a label takes, where it fits on a part, where it goes on the sheet
                      core/mesh.py      the model loaded, sized, mended, kept for the next slice    core/remesh.py  modify form
                      core/identical.py which parts are one part in several copies    core/progress.py  stages and their timing
 ```
@@ -466,7 +496,7 @@ The `test` workflow runs the suite on every push and pull request; `docker` and 
 and `pages` deploys nothing until the built site has sliced with every technique in a real browser.
 
 Two of them drive a real browser, because that is where the bugs people report actually live:
-[tests/test_ui.py](tests/test_ui.py) runs the app against a real server and does what a person does — fills every
+[tests/ui](tests/ui) runs the app against a real server and does what a person does — fills every
 box of every technique and checks each value reached the plan, walks the undo history end to end and back, uploads
 a broken model, saves and reopens a project, downloads the cut files — and fails on any uncaught JavaScript error
 or a status line that never settles. [tests/test_e2e_site.py](tests/test_e2e_site.py) does the same for the
@@ -484,7 +514,7 @@ uv run pytest tests -n auto             # pipeline, nesting, checks, export, the
 uv run --with pytest-cov pytest --cov=core --cov=web --cov-report=term-missing   # coverage: 88 % of core + web
 uv run python tests/browser_env.py working-files/jobs   # the whole matrix without the compiled extras Pyodide lacks
 uv run playwright install chromium
-LAMINA_UI=1 uv run pytest tests/test_ui.py   # the app itself, driven like a person: every parameter, undo, no number cut off (20 min)
+LAMINA_UI=1 uv run pytest tests/ui   # the app itself, driven like a person: every parameter, undo, no number cut off (20 min)
 python deploy/build_site.py
 LAMINA_E2E=1 uv run pytest tests/test_e2e_site.py   # the built site, end to end, in Chromium
 uv run python tests/test_unfold.py      # folded-panel correctness: refold, area, seams, joints (a few minutes)
@@ -500,10 +530,10 @@ Actions tab), and committed back to main, so they always show the version people
 
 ```text
 core/        planner, modes, unfold, notch, checks, nest, split, export, solid
-web/         FastAPI app + single-page UI (vendored three.js)
+web/         FastAPI app + single-page UI: static/index.html (markup), static/js/ (one module per concern), static/app.css; vendored three.js
 examples/    24 test models: 18 synthetic + a scanned head, a porcelain horse statue, three animals and the bunny (terms in examples/README.md)
 docs/        index.html + media/ (the GitHub Pages site), roadmap.md, folded-panels.md, original-slicer-reference.md
-tests/       pytest suite, test_ui.py (the app in a browser), test_unfold.py, run_matrix.py
+tests/       pytest suite, ui/ (the app in a browser), test_unfold.py, run_matrix.py
 ```
 
 ### Serving the docs

@@ -72,7 +72,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Connecting strips | ✅ | joint `strip`: rounded strips with mirrored holes, fold angle on the label |
 | Sheet-metal ribs | ✅ | joint `rib`: slots + angle ribs cut at the dihedral angle |
 | Assembly collision simulation | ✅ | every slotted part is slid along its crossing line out through the slot's mouth; material of the slotted part left in that path (a hollow section crossed twice, a concave outline) is an error with fixes |
-| Live update, dark UI, tooltips, tabs | ✅ | |
+| Live update, dark UI, tooltips, tabs | ✅ | settings in folding sections with full names, a search box over the tabs, a mark on every changed setting, help that opens under a setting |
 | Material / machine / stock-sheet presets | ✅ | 21 materials: thickness by gauge (steel's and stainless's own tables), ounce, point or fraction with mm and inch, sheet sizes per material, a density for the weight, and only the machines that can cut it; kerf / slot / relief per machine (CO2 laser, fiber laser, plasma, router, knife, by hand, 3D printer, and machines by name). PLA and PETG print the parts at full size: whole-layer thicknesses, print beds as sheets, 0.2 mm slot clearance |
 | Weight | ✅ | Export tab: the parts as cut (net of holes and slots, each at its own thickness, a line per stock), the sheets, the dowels and the assembled total, in g/kg or oz/lb |
 | 3D-printed parts at full size (extra) | ✅ | PLA / PETG tick **3D printed**: sheets are print beds, the page counts plates, the Export tab gives one 3MF per plate with the print's own slot offset |
@@ -93,7 +93,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 |---|---|
 | Summary stats (sheets, slices, parts) | ✅ plus sheet usage % and material area |
 | Cut sheets view, click to magnify | ✅ |
-| Non-uniform spacing | ✅ a spacing curve drawn under the 3D view for stacked, interlocked (one per family), radial (round the axis, periodic) and curve; the count kept or the spacings kept — not in the original |
+| Non-uniform spacing | ✅ a spacing curve drawn in a graph under its tick for stacked, interlocked (one per family), radial (round the axis, periodic) and curve; the count kept or the spacings kept — not in the original |
 | Part labels `Axis-Slice-Part` | ✅ engraved beside the part with a leader line, after the model's short name (`BUNN Z-3`, `short_name` sets it) so two models' parts are never mixed up; `label_model` turns that off; by default on the part where the whole label fits, under the next layer where there is one, else beside it in free space; `label_place` forces either |
 | Automatic nesting | ✅ no-fit-polygon nesting on the part outlines after [Deepnest](https://github.com/Jack000/Deepnest) (min-rect angle plus quarter turns, lowest-left free point, parts slide into cavities and holes); a bounding-rectangle packer takes over above 150 parts, for speed |
 | Colour coding blue / green / yellow / red | ✅ OUTER / INNER / SCORE layers, plus GUIDE (orange) for the next layer's outline engraved on a stacked slice (`next_outline`); parts with errors are drawn red in the UI (3D and sheet) |
@@ -174,7 +174,7 @@ What makes more models buildable comes first; polish and speed after.
      0.2.2), and the horse's ear fix gave 1.26 for a promised 1.0. The way through is probably a rule for when a
      dowel someone placed may move the automatic ones near it, at every layer it passes, and not a threshold.
      `tests/test_modify.py::test_a_bunched_piece_is_offered_the_dowel_that_holds_it` and
-     `tests/test_ui.py::test_the_dowel_the_spread_check_offers_lands_where_it_says` are the cases to keep passing,
+     `tests/ui/test_edit3d.py::test_the_dowel_the_spread_check_offers_lands_where_it_says` are the cases to keep passing,
      plus a hole count for the hoof.
    - **Tab connectors are not measured.** `connect=tab` uses the same placement, but the spread check only looks at
      dowels; pegs and spacers bunched in the middle of a big layer are not said.

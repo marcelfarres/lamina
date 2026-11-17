@@ -133,8 +133,8 @@ class Curve(Mode):
                 continue
             out.append([i, a, b, d, L, ns, J])
         lobes, b3d = Radial._parted(ctx, [((a + b) / 2, d, L / 2, ns) for _, a, b, d, L, ns, _ in out], [br[0] + 1 for br in out])
-        ctx.axes3d = [[[float(x) for x in q] for q in seg] for seg in ctx.p["branches"] or []]    # as the table has them
-        ctx.bounds3d = [{"label": f"J-{i + 1}", "M": np.round(J, 6).tolist(), "size": round(0.6 * L, 1)} for i, _, _, _, L, _, J in out] + b3d
+        ctx.view["axes3d"] = [[[float(x) for x in q] for q in seg] for seg in ctx.p["branches"] or []]    # as the table has them
+        ctx.view["bounds3d"] = [{"label": f"J-{i + 1}", "M": np.round(J, 6).tolist(), "size": round(0.6 * L, 1)} for i, _, _, _, L, _, J in out] + b3d
         for br, lobe in zip(out, lobes):
             i, a, b, d, L, ns, J = br
             cell = [(J[:3, 3], J[:3, 2])] + lobe; nb = max(1, round(L / pitch)); secs = []
@@ -185,15 +185,15 @@ class Curve(Mode):
               "R2-3 = the 3rd rib of branch 2 · K2 = branch 2's spine · J-2 = where branch 2 leaves the body · "
               "B-1-2 = the plane between branches 1 and 2")
     params = [
-        Param("plane", "choice", "xz", "Plane that contains the curve (first letter = along, second = up)", choices=["xz", "yz", "xy"]),
-        Param("curve", "points", [], "Control points [[u,v],...] in the plane (model centred at 0); fewer than two = a curve through the middle along the plane's first axis", unit="mm"),
+        Param("plane", "choice", "xz", "Plane that contains the curve (first letter = along, second = up)", choices=["xz", "yz", "xy"], label="curve plane", section="Curve — where the ribs follow the model"),
+        Param("curve", "points", [], "Control points [[u,v],...] in the plane (model centred at 0); fewer than two = a curve through the middle along the plane's first axis", unit="mm", label="curve points"),
         Param("branches", "lines3", [], "One line per leg, arm or tail: start where it leaves the body → its tip (mm from the model's centre). "
                                         "Each gets ribs square to it and its own spine, which reaches back into the body and slots into the "
                                         "body ribs. Empty = none", unit="mm"),
-        Param("distribution", "choice", "count", "count = N ribs; distance = one rib every `spacing` of curve length", choices=["count", "distance"]),
+        Param("distribution", "choice", "count", "count = N ribs; distance = one rib every `spacing` of curve length", choices=["count", "distance"], section="Slices — the ribs along the curve"),
         Param("count", "int", 8, "Rib count", 1, 300, 1),
-        Param("spacing", "number", 20, "Rib spacing along the curve (mm)", 1, 500, 0.5, unit="mm"),
-        Param("spines", "int", 1, "Spine slices in the curve plane (0 = ribs only, glue/wire them yourself)", 0, 20, 1),
+        Param("spacing", "number", 20, "Rib spacing along the curve (mm)", 1, 500, 0.5, unit="mm", label="distance between ribs"),
+        Param("spines", "int", 1, "Spine slices in the curve plane (0 = ribs only, glue/wire them yourself)", 0, 20, 1, section="Joining — what holds the ribs together"),
         *spacing_params("ribs", [("spacing_curve", "rib spacing", [[0, 20], [0.5, 20], [1, 20]])], 3, 60),
     ]
 
@@ -205,8 +205,8 @@ class Curve(Mode):
         Q, s = resample(pts)
         W = self.across(ctx, Q[:, 0], u, eu, ew)                 # the curve's third coordinate: through the body, not the box
         C = ctx.mid + np.outer(Q[:, 0], eu) + np.outer(Q[:, 1], ev) + np.outer(W, ew)
-        ctx.curve3d = C.tolist()                                 # for the 3D view
-        ctx.curve_pts = [[float(a), float(b), float(c)] for (a, b), c in zip(pts, self.across(ctx, pts[:, 0], u, eu, ew))]
+        ctx.view["curve3d"] = C.tolist()                                 # for the 3D view
+        ctx.view["curve_pts"] = [[float(a), float(b), float(c)] for (a, b), c in zip(pts, self.across(ctx, pts[:, 0], u, eu, ew))]
         n = p["count"] if p["distribution"] == "count" else max(1, int(s[-1] // p["spacing"]))
         br = self._branches(ctx, ew, C, s[-1] / (n + 1))
 

@@ -10,9 +10,11 @@ from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
 from . import Param, register
-from .stacked import ABC_LOWER, Stacked, hole_mark
+from .connectors import ABC_LOWER, Connectors, Layer, hole_mark
+from .stacked import Stacked
 from ..model import Slice
-from ..geometry import as_lines, as_multi, frame, frame_xy, mark_box, mark_rot, rot_about, to_local, to_world
+from ..geometry import as_lines, as_multi, frame, frame_xy, rot_about, to_local, to_world
+from ..labels import mark_box, mark_rot
 from ..notch import interlock
 from ..plate import SHAPES, plate_shape
 
@@ -162,28 +164,14 @@ class Plaque(Stacked):
               "holds a piece of one of them that does not reach the plate")
     params = [
         Param("back", "choice", "-z", "The side of the model that goes against the plate: the plate is square to this axis and the "
-              "model sticks out of it the other way", choices=["-z", "+z", "-y", "+y", "-x", "+x"], label="back of the model"),
-        Param("layout", "choice", "parallel", "How the slices stand on the plate: parallel = side by side, one after another · "
-              "radial = a fan of half-slices round a centre (move it with `center`), their inner ends meeting round a small hole · "
-              "crossed = two families at right angles, slotted into each other half way like an egg crate, both standing on the plate",
-              choices=["parallel", "radial", "crossed"]),
-        Param("axis", "choice", "x", "Slice direction (normal of the slices): one of the two axes that lie in the plate", choices=["x", "y", "z"],
-              show_if=("layout", "parallel")),
-        Param("planes", "int", 12, "Radial: planes through the centre; each gives two half-slices", 2, 90, 1, show_if=("layout", "radial")),
-        Param("angle", "number", 0.0, "Radial: turn the whole fan about its centre (deg) · crossed: turn the grid on the plate",
-              -90, 90, 1, unit="deg", show_if=("layout", ["radial", "crossed"])),
-        Param("nx", "int", 8, "Crossed: slices of the first family, which goes into the plate first", 1, 200, 1, show_if=("layout", "crossed")),
-        Param("ny", "int", 8, "Crossed: slices of the second family, which drops onto the first from the front", 1, 200, 1, show_if=("layout", "crossed")),
-        Param("radius", "number", 0.0, "Radial: the radius of the hole in the middle of the fan, where the half-slices end (mm). "
-              "0 = the least that lets them all fit round it; under that least their inner ends collide", 0, 500, 0.5, unit="mm",
-              show_if=("layout", "radial")),
+              "model sticks out of it the other way", choices=["-z", "+z", "-y", "+y", "-x", "+x"], label="back of the model", section="Plate — the back plate the slices stand on"),
         Param("sink", "number", 0.0, "How far the model goes into the plate (mm), from its rearmost point: 0 = the model only touches "
-              "the plate, more = more of its back is cut away. What is behind the plate's front face is left out", 0, 5000, 0.5, unit="mm"),
+              "the plate, more = more of its back is cut away. What is behind the plate's front face is left out", 0, 5000, 0.5, unit="mm", label="sink into plate"),
         Param("plate_thickness", "number", 0.0, "Thickness of the back plate's material (mm), which is also how long the teeth are: "
               "they end flush with the back of the plate. 0 = the same material as the slices", 0, 100, 0.05, unit="mm", label="plate thickness"),
         Param("plate", "choice", "rounded", "The plate's outline: a shape fitted round the model, or silhouette = the model's own "
               "shadow on the plate, grown by the margin · file = a shape of your own, drawn in an SVG or DXF file",
-              choices=SHAPES, choice_labels={"rounded": "rounded rectangle", "file": "file (SVG / DXF)"}),
+              choices=SHAPES, choice_labels={"rounded": "rounded rectangle", "file": "file (SVG / DXF)"}, label="plate shape"),
         Param("plate_file", "file", "", "The plate's outline from an SVG or DXF file: its largest closed shape is the plate, closed shapes "
               "inside it are cut out of the plate (a hanging hole, an ornament). The drawing is fitted round the model, keeping its "
               "proportions; place the model in it with plate scale, mirror, rotation and offset", show_if=("plate", "file"), label="plate file"),
@@ -195,12 +183,30 @@ class Plaque(Stacked):
               "round the model, under 100 lets the model reach past it", 10, 500, 1, unit="", label="plate scale (%)"),
         Param("plate_mirror", "bool", False, "Turn the plate's outline over, left to right: for a file drawn the other way round", label="plate mirror"),
         Param("plate_rotation", "number", 0.0, "Turn the plate about its middle (deg)", -180, 180, 1, unit="deg", label="plate rotation"),
+        Param("layout", "choice", "parallel", "How the slices stand on the plate: parallel = side by side, one after another · "
+              "radial = a fan of half-slices round a centre (move it with `center`), their inner ends meeting round a small hole · "
+              "crossed = two families at right angles, slotted into each other half way like an egg crate, both standing on the plate",
+              choices=["parallel", "radial", "crossed"], section="Slices — how the slices stand on the plate"),
+        Param("axis", "choice", "x", "Slice direction (normal of the slices): one of the two axes that lie in the plate", choices=["x", "y", "z"],
+              show_if=("layout", "parallel")),
+        Param("planes", "int", 12, "Radial: planes through the centre; each gives two half-slices", 2, 90, 1, show_if=("layout", "radial"), label="radial planes"),
+        Param("angle", "number", 0.0, "Radial: turn the whole fan about its centre (deg) · crossed: turn the grid on the plate",
+              -90, 90, 1, unit="deg", show_if=("layout", ["radial", "crossed"]), label="rotate layout"),
+        Param("nx", "int", 8, "Crossed: slices of the first family, which goes into the plate first", 1, 200, 1, show_if=("layout", "crossed"), label="slices, 1st family"),
+        Param("ny", "int", 8, "Crossed: slices of the second family, which drops onto the first from the front", 1, 200, 1, show_if=("layout", "crossed"), label="slices, 2nd family"),
+        Param("radius", "number", 0.0, "Radial: the radius of the hole in the middle of the fan, where the half-slices end (mm). "
+              "0 = the least that lets them all fit round it; under that least their inner ends collide", 0, 500, 0.5, unit="mm",
+              show_if=("layout", "radial"), label="center hole radius"),
+        _S["distribution"],
+        _S["count"],
+        replace(_S["space"], default=3.0),
+        _S["shift"],
+        _S["surface"],
         Param("teeth", "int", 2, "The fewest teeth for each stretch of a slice that stands on the plate. A slice that meets the plate "
-              "in two separate stretches gets this many in each", 2, 20, 1),
+              "in two separate stretches gets this many in each", 2, 20, 1, label="teeth per stretch", section="Joining — how the slices hold to the plate"),
         Param("tooth_width", "number", 10.0, "How wide a tooth is along its slice (mm); narrower where the stretch is short", 1, 200, 0.5, unit="mm", label="tooth width"),
         Param("tooth_spacing", "number", 60.0, "The most distance between two teeth (mm): a long stretch gets more teeth than "
               "`teeth`, spread evenly. 0 = `teeth` only", 0, 2000, 1, unit="mm", label="tooth spacing"),
-        _S["distribution"], _S["count"], replace(_S["space"], default=3.0), _S["shift"], _S["surface"],
         Param("floating", "choice", "join", "A piece of a slice that does not reach the plate: join = it hangs from the slice beside "
               "it on three flat spacers, and a piece no neighbour can hold is left out and listed in the notes · keep = nothing is "
               "left out, the piece stays with its error", choices=["join", "keep"], label="floating pieces"),
@@ -218,7 +224,7 @@ class Plaque(Stacked):
         fr = self._frame(ctx)
         if fr is None:
             return []
-        ctx.rods = []
+        ctx.view["rods"] = []
         lay = {"radial": self._fan, "crossed": self._crossed}.get(p["layout"], self._parallel)(ctx, fr)
         if lay is None:
             return []
@@ -256,7 +262,7 @@ class Plaque(Stacked):
         if z0 >= depth.max() - 1e-6:
             ctx.errors.append(f"sink = {p['sink']:g} mm is the whole depth of the model ({np.ptp(depth):.0f} mm): nothing is left in front of the plate")
             return None
-        ctx.clip = [(n_p * z0).tolist(), n_p.tolist()]
+        ctx.view["clip"] = [(n_p * z0).tolist(), n_p.tolist()]
         up = ctx.ax[1] if k == 2 else ctx.ax[2]
         Mp = frame_xy(n_p * (z0 - plate_t / 2), np.cross(up, n_p), up)
         return Frame(Mp, n_p, up, z0, plate_t, depth, ctx.mesh.slice_plane(n_p * z0, n_p))
@@ -267,7 +273,7 @@ class Plaque(Stacked):
         slices = []
         for lab, z, tk in zip(labels, pos, th):
             o = ctx.mid + normal * (z + ctx.override("offset", lab))
-            slices.append(Slice(lab, "S", frame(o + fr.n_p * (fr.z0 - o @ fr.n_p), normal, up_hint=fr.n_p), tk))   # local y = height above the plate
+            slices.append(Layer(lab, "S", frame(o + fr.n_p * (fr.z0 - o @ fr.n_p), normal, up_hint=fr.n_p), tk))   # local y = height above the plate
         ctx.cover_r = self.cover_r(ctx, pos, drawn, ctx.ext[ax], len(slices))
         return Layout(slices, box(-BIG, 0, BIG, BIG), Polygon(), (min(np.diff(pos)) if len(pos) > 1 else BIG) - (p["thickness"] + p["slot_offset"]),
                       chain=True, spacers=Plaque._flat_spacers)
@@ -300,7 +306,7 @@ class Plaque(Stacked):
             a = math.radians(p["angle"] + turns[j % n] + 180.0 * (j // n))
             d = fr.Mp[:3, 0] * math.cos(a) + fr.Mp[:3, 1] * math.sin(a)   # the way this half-slice points: its local x
             lab = f"R-{j + 1}"
-            slices.append(Slice(lab, "R", frame(c, np.cross(d, fr.n_p), up_hint=fr.n_p), ctx.thickness_of(lab)))
+            slices.append(Layer(lab, "R", frame(c, np.cross(d, fr.n_p), up_hint=fr.n_p), ctx.thickness_of(lab)))
         hub = Point(*to_local(fr.Mp, [c])[0]).buffer((slot_w + p["min_feature"]) / 2 / math.sin(half) + 0.5, 64)   # no tooth nearer the centre than this
         return Layout(slices, box(r, 0, BIG, BIG), hub, 0.0, chain=True, cyclic=True, spacers=Plaque._fan_spacers)
 
@@ -319,7 +325,7 @@ class Plaque(Stacked):
             for j, s in enumerate(ctx.positions(L, [p["thickness"]] * n) if drawn is None else [-L / 2 + q for q in drawn]):
                 lab = f"{name}-{j + 1}"
                 o = ctx.mid + e * (c + s + ctx.override("offset", lab))
-                fam.append(Slice(lab, name, frame(o + fr.n_p * (fr.z0 - o @ fr.n_p), e, up_hint=fr.n_p), ctx.thickness_of(lab), clip=as_multi(front)))
+                fam.append(Layer(lab, name, frame(o + fr.n_p * (fr.z0 - o @ fr.n_p), e, up_hint=fr.n_p), ctx.thickness_of(lab), clip=as_multi(front)))
             fams.append(ctx.keep(fam))
         clash = {}                      # slice → the stretches of its foot (from, to) where a slice of the other family stands
         for mine, other in ((fams[0], fams[1]), (fams[1], fams[0])):
@@ -414,8 +420,8 @@ class Plaque(Stacked):
 
     def _flat_spacers(self, ctx, slices, holds, after):
         """The parallel layout's spacers: stacked's connector placer, given the areas to hold."""
-        return self.connect(ctx, slices, settings={**ctx.p, **FIXED}, islands=lambda a, b: holds.get(a.label, []), seeds=edge_seeds,
-                            side_step=0.0, typed=False)                 # side_step 0: two joins that share a piece share its area out, so a spacer goes where it is put
+        return Connectors(ctx, slices, settings={**ctx.p, **FIXED}, islands=lambda a, b: holds.get(a.label, []), seeds=edge_seeds,
+                          side_step=0.0, typed=False).run()             # side_step 0: two joins that share a piece share its area out, so a spacer goes where it is put
 
     def _fan_spacers(self, ctx, slices, holds, after):
         """A fan's spacers, edge-on: slice a and the next slice b stand alpha apart about the axis, so a point (r, h) of a lies
@@ -471,7 +477,7 @@ class Plaque(Stacked):
                             s.marks.remove(m)
                             hole_mark(s, next(c for k2, c in s.cutkeys.items() if s.cutnames[k2].split("-", 1)[1] == m[2]), m[2], p["font"])
                         hole_mark(s, g, name.split("-", 1)[1], p["font"])
-                    sp = Slice(name, "P", frame_xy(mid, a.M[:3, 1], pb - pa), t)    # x along the plate's normal, y along the chord: square to the plate
+                    sp = Layer(name, "P", frame_xy(mid, a.M[:3, 1], pb - pa), t)    # x along the plate's normal, y along the chord: square to the plate
                     L = body + 2 * tabs
                     strip = box(-tw / 2, -L / 2, tw / 2, L / 2)
                     sp.raw = as_multi(unary_union([strip, box(-d / 2, -body / 2, d / 2, body / 2)]) if body > mf else strip)

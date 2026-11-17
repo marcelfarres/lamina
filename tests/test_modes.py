@@ -704,7 +704,7 @@ def test_folded_seam_numbers_sit_on_material_clear_of_cuts_and_folds_and_tabs_fo
     the fold lines and the other numbers; a hinge is scored across each tab's base alone, never along the seam under
     a cut. A seam with no room for its number says so in the panel's warnings instead of engraving it over a fold."""
     from shapely.geometry import LineString, MultiPolygon, Polygon
-    from core.geometry import mark_box
+    from core.labels import mark_box
     plan = build(EXAMPLES / "cube.stl", "folded", {"size": [90, 0, 0], "joint": "ticked", "facet": 0, "inset": 6, "spacing": 30,
                                                    "thickness": 1, "autofix": "off"})
     font = plan["params"]["font"]
@@ -740,7 +740,7 @@ def test_orientation_arrows_are_two_lines_inside_every_part_clear_of_its_marks()
     """`orient_mark` engraves two arrows at the middle of each part, the same two directions on every part, inside the
     material and touching no dowel number; off, a part carries none."""
     from shapely.geometry import LineString, MultiPolygon, Polygon
-    from core.geometry import mark_box
+    from core.labels import mark_box
     params = {"distribution": "count", "count": 3, "autofix": "off", "connect": "dowel"}
     on = build(EXAMPLES / "cube.stl", "stacked", {**params, "orient_mark": True})
     off = build(EXAMPLES / "cube.stl", "stacked", params)
@@ -877,6 +877,16 @@ def test_a_preview_windows_will_not_let_go_of_never_fails_the_slice(tmp_path, mo
     assert not list(tmp_path.glob("model.*.stl"))                        # and no half-written file is left beside it
 
 
+def test_what_a_technique_hands_the_view_is_fresh_for_every_build():
+    """The view's defaults are made anew for each context: the rods one build appends to are that build's own, and a
+    build that hands the view nothing gets the defaults, not the last build's rods."""
+    params = {"distribution": "count", "count": 4, "autofix": "off", "connect": "dowel"}
+    first = build(EXAMPLES / "cube.stl", "stacked", params)
+    second = build(EXAMPLES / "cube.stl", "stacked", params)
+    assert first["rods"] and second["rods"] == first["rods"] and second["rods"] is not first["rods"]
+    assert build(EXAMPLES / "cube.stl", "stacked", {**params, "connect": "none"})["rods"] == []
+
+
 def test_a_plan_file_windows_will_not_let_go_of_is_written_on_the_next_try(tmp_path, monkeypatch):
     """Seen in the page suite on Windows (042): the page was still reading the last plan.json when the next slice wrote
     it in place, the write failed with OSError [Errno 22], and the slice with it. The plan is now written beside and
@@ -936,3 +946,26 @@ def test_a_plan_file_another_program_has_mapped_is_written_when_it_lets_go(tmp_p
     finally:
         let_go.set(); t.join()
     assert json.loads(target.read_text())["counts"]["slices"] == 4
+
+
+def test_the_basic_list_names_settings_that_exist():
+    """ALL_ONLY (the settings the form holds back on basic) names real settings: a renamed one would stay on show
+    without a word, and the flag reaches the form's schema."""
+    from core.modes import ALL_ONLY, COMMON, load_all
+    modes = load_all()
+    assert set(ALL_ONLY) == {"common", *modes}
+    for name, held in ALL_ONLY.items():
+        have = [p.name for p in (COMMON if name == "common" else modes[name].params)]
+        assert not set(held) - set(have), (name, set(held) - set(have))
+    by = {p["name"]: p["advanced"] for p in modes["stacked"].schema()["params"]}
+    assert by["shift"] and not by["count"]
+
+
+def test_a_connector_that_was_asked_for_and_left_out_is_a_warning_of_the_plan():
+    """A pair of layers that gets no dowel used to be a note under a green "0 warnings". It is counted now, and it
+    names the setting as the form does."""
+    plan = build(EXAMPLES / "egg.stl", "stacked", {"connect": "dowel", "placement": "random", "n_points": 20, "dowel_d": 8})
+    assert len(plan["warnings"]) == 1 and "got no connector" in plan["warnings"][0], plan["warnings"]
+    assert plan["counts"]["warnings"] == 1 + sum(len(sl["warnings"]) for sl in plan["slices"])
+    assert not any("connector" in n for n in plan["notes"]) and "dowel_d" not in plan["warnings"][0]
+

@@ -88,7 +88,7 @@ The example `fold_test` (48 × 48 × 32 mm, 2 mm PETG) carries 45°, 76°, 80°,
 
 ## Stiff sheet: seams meet at the inside edges
 Two square-cut panels that both reach the model's edge occupy the same corner on every outward (convex) seam: a
-t × t square at 90°. Paper gives; metal, wood and acrylic do not, and the part cannot close. With `edge fit` =
+t × t square at 90°. Paper gives; metal, wood and acrylic do not, and the part cannot close. With `how seams meet` =
 inner (the default) each outward seam edge is cut back by t · tan(bend / 2), so the inside edges of the two
 panels meet and the gap is on the outside. Holes, slots and seam numbers are measured from the new edge. Inward
 seams need nothing: their material moves apart. Joints with a tab or loop on the edge are not cut back, and

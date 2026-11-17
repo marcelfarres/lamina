@@ -11,7 +11,8 @@ from shapely.ops import unary_union
 from . import progress as bar
 from .progress import DETAIL, progress
 from .modes import load_all, Ctx
-from .geometry import section_polygons, as_multi, poly_coords, line_coords, mark_box, mark_rot, min_dims, orient_arrows, trim_thin
+from .geometry import section_polygons, as_multi, poly_coords, line_coords, min_dims, trim_thin
+from .labels import mark_box, mark_rot, orient_arrows
 from .checks import STRUCTURAL, check_plan, suggest_fixes, crossing_suggestions
 from .split import split_slice, fits_rotated, islands
 from .nest import nest
@@ -167,7 +168,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         notes.append(f"{shaved} sliver(s) thinner than {p['min_feature']:g} mm everywhere left out: shavings a slot cuts off its own part, "
                      f"and specks under {p['min_part']:g} mm where a slice only grazes the surface — too small to cut or handle")
     suggest_fixes(slices, p, ctx, mode)
-    n_err += len(ctx.errors) + len(dropped)
+    n_err += len(ctx.errors) + len(dropped); n_warn += len(ctx.warnings)
 
     # split + pack
     progress("nesting the parts on sheets", 0.85)
@@ -199,7 +200,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         top = max([pc.placed.bounds[3] for pc in pieces] + [pc.label_pos[1] + p["font"] * 0.7 for pc in pieces if pc.label_pos], default=0.0) + p["sheet_margin"]
         sheet_out = [sheet0[0], float(np.ceil(top))]; p["sheet"] = sheet0
     progress("measuring coverage", 0.94)
-    cov = coverage(mesh if ctx.clip is None else mesh.slice_plane(*ctx.clip), slices, ctx.cover_r or max(mesh.extents) / 8, lat=max(3.0, p["thickness"]))
+    cov = coverage(mesh if ctx.view["clip"] is None else mesh.slice_plane(*ctx.view["clip"]), slices, ctx.cover_r or max(mesh.extents) / 8, lat=max(3.0, p["thickness"]))
     progress("done", 1.0)
     if ctx.notes_extra:
         notes.append(ctx.notes_extra)
@@ -211,23 +212,18 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         "legend": mode.legend,                                               # what the labels mean (Export tab, assembly key)
         "bbox": [float(e) for e in mesh.extents],
         "axes": [a.tolist() for a in ctx.ax], "mid": ctx.mid.tolist(),      # slicing frame (for click-placed points in the UI)
-        "curve3d": ctx.curve3d, "curve_pts": ctx.curve_pts,
-        "axes3d": ctx.axes3d,                                                # radial's fan axes, curve's branches: drawn and dragged in 3D
-        "clip": ctx.clip,                                                    # plaque: the plate's front face [point, normal]; the model behind it is not shown
-        "bounds3d": ctx.bounds3d,                                            # the planes between lobes or at a branch's joint, moved and tilted like slices
-        "spacing": ctx.spacing,                                              # what the drawn spacing curves gave: positions along each axis, for the graph
-        "rods": ctx.rods,                                                    # dowel rods for the 3D view and the key: [[x0,y0,z0],[x1,y1,z1],d,section [[x,y]…] in the slice's x/y,slice x axis,name (Z-3a),from slice,to slice]
+        **ctx.view,                                                          # what the technique hands the 3D view: rods, curve, axes, bounds, spacing, clip, …
         "params_used": {k: p[k] for k in ("extra_x", "extra_y", "ring_count") if k in p},   # what autofix=add changed
         "sheets": n_sheets, "sheet": sheet_out, "sheet_thick": sheet_thick, "kerf": kerf,
         "counts": {"slices": len(slices), "parts": len(pieces), "errors": n_err, "warnings": n_warn, "faces": int(len(mesh.faces))},
         "codes": codes,                                                      # puzzle mode: engraved code → real label
         "label_tag": tag,                                                    # engraved before every label (the model's name)
+        "warnings": ctx.warnings,                                            # what the technique left out that was asked for
         "errors": ctx.errors, "fixes": ctx.fixes,                            # mode-level errors and their one-click fixes
         "square": square and {"rotate": square[0], "off": round(square[1], 1)},   # a boxy model a few degrees off its axes
         "material_area_mm2": float(sum(pc.geom.area for pc in pieces)),
         "coverage": cov,
         "timing": bar.timing(),
-        "core_d_min": ctx.core_d_min,
         "sheet_usage": float(sum(pc.geom.area for pc in pieces) / max(1e-9, n_sheets * sheet_out[0] * sheet_out[1])),
         "slices": [_slice_json(sl) for sl in slices],
         "dropped": [{"label": s.label, "errors": s.errors} for s in dropped],
@@ -313,13 +309,6 @@ def _oversize(slices, p, sheet0, mesh, ctx):
     return len(over) + 1
 
 
-def _printed_json(sl):
-    """What a printed folded panel carries beyond its outline, for core.solid to cut: a groove per fold and mitred seam
-    edge, and its glue tabs with the thickness they keep. Nothing for any other part. (A folded net is one piece.)"""
-    return {**({"grooves": [g.json() for g in sl.grooves]} if sl.grooves else {}),
-            **({"thin": [r for g in sl.thin for r in poly_coords(as_multi(g))], "thin_t": sl.thin_t} if sl.thin else {})}
-
-
 def _slice_json(sl):
     """A slice and its pieces as the plan carries them: the page, the 3D view, the checks and the export read this."""
     return {
@@ -327,8 +316,8 @@ def _slice_json(sl):
         "engages": sl.engages, "extents": [round(sl.bbox[2] - sl.bbox[0], 2), round(sl.bbox[3] - sl.bbox[1], 2)],
         "errors": sl.errors, "warnings": sl.warnings, "fixes": sl.fixes,
         "pieces": [{"label": pc.label, "place": list(pc.place), "bbox": [round(b, 3) for b in pc.bbox],
-                    "facets": [{"M": np.round(M, 6).tolist(), "rings": poly_coords(g), **({"hinge": h} if h else {}), **({"bevel": b} if b else {}), **({"t": ft} if ft else {})}   # 3D view; hinge: how a folded panel's face unfolds, bevel: its grooved edges
-                               for (M, g), h, b, ft in zip(pc.facets, sl.hinges or [None] * len(pc.facets), sl.bevels or [None] * len(pc.facets), sl.facet_t or [None] * len(pc.facets))],
+                    "facets": [{"M": np.round(M, 6).tolist(), "rings": poly_coords(g), **sl.facet_extra(i)}   # 3D view; a technique adds what its facets need (folded: hinge, bevel, t)
+                               for i, (M, g) in enumerate(pc.facets)],
                     "kerfed": poly_coords(pc.kerfed),        # local 2D, kerf applied (per-piece export)
                     "placed": poly_coords(pc.placed),        # sheet coordinates, kerf applied
                     "lines": [[s, line_coords(l)[0]] for s, l in pc.placed_lines],   # fold and guide lines on the sheet
@@ -336,7 +325,7 @@ def _slice_json(sl):
                     "marks": [[round(m[0], 3), round(m[1], 3), m[2], round(mark_rot(m), 2)] for m in pc.placed_marks],
                     "kerfed_marks": [[round(m[0], 3), round(m[1], 3), m[2], round(mark_rot(m), 2)] for m in pc.marks],
                     "label_pos": pc.label_pos, "label_size": pc.label_size, "label_short": pc.label_short, "leader": pc.leader, "same": pc.same, "flipped": pc.flipped,
-                    **_printed_json(sl),
+                    **sl.piece_extra(),
                     "area": round(float(pc.geom.area), 3),   # net of holes and slots: × its slice's thickness × density = its weight
                     } for pc in sl.pieces],
     }
@@ -369,6 +358,7 @@ def main(argv=None):
     c = plan["counts"]
     print(f"{plan['mode']}: {c['slices']} slices, {c['parts']} parts, {plan['sheets']} sheet(s) ({plan['sheet_usage']:.0%} used), {c['errors']} errors, {c['warnings']} warnings")
     for n in plan["notes"]: print(f"  note  {n}")
+    for w in plan["warnings"]: print(f"  warn  {w}")
     for e in plan["errors"]: print(f"  ERROR {e}")
     for sl in plan["slices"] + plan["dropped"]:
         for e in sl.get("errors", []): print(f"  ERROR {sl['label']}: {e}")
