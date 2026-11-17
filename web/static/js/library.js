@@ -60,6 +60,8 @@ async function reindex(file,entry){
 
 // ST.saved = {name, rev, snap, file, store, mtime}: what this tab opened or last saved (state.js mirrors it in sessionStorage)
 export function setSaved(v){ST.saved=v;changed()}
+// the revision in hand when it is one of this store's (what the library page marks "open now")
+export const inHand=()=>ST.saved?.file&&sameStore()?ST.saved:null;
 const listeners=[];
 export const onChange=fn=>listeners.push(fn), changed=()=>{remember();listeners.forEach(fn=>fn())};
 

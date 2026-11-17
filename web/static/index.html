@@ -10,6 +10,16 @@
 <div id="tip" hidden></div>
 <dialog id="oops"><h3 id="oops_title">That model did not load</h3><div class="msg" id="oops_msg"></div><div id="oops_help"></div>
   <div class="row"><button id="oops_no" hidden>Cancel</button><button id="oops_go" class="go">OK</button></div></dialog>
+<dialog id="libask"><h3>Save over another revision?</h3><p id="libask_msg"></p>
+  <label id="libask_restl" hidden><input type="checkbox" id="libask_rest"> the same for the rest</label>
+  <div class="row"><button id="libask_cancel">Cancel</button><button id="libask_replace"></button><button id="libask_keep" class="go"></button></div></dialog>
+<div id="library" hidden>
+  <div class="lbbar"><h1>Library</h1><input id="libfind" placeholder="find a project"><span class="sp"></span>
+    <button class="small" id="libimport">import files…</button><button class="small" id="libexportall">export all (.zip)</button><button class="small" id="libclose">✕ close</button></div>
+  <div id="libwhere">💾 kept in this browser only. Clearing the site data deletes them: use <b>export all</b> for a backup.</div>
+  <section id="libyours"></section>
+  <section id="libexamples"></section>
+</div>
 <dialog id="newsdlg"><h3 id="news_title">What's new</h3><div id="news_body"></div>
   <div class="row"><button id="news_go" class="go">OK</button></div></dialog>
 <dialog id="helpdlg"><h3>How Lamina works</h3>
@@ -52,7 +62,7 @@
   <div class="row"><button id="help_go" class="go">Close</button></div></dialog>
 <header><h1><img src="static/logo.svg" alt="">Lamina</h1><span class="k" style="color:var(--muted);font-size:12px;border:0;flex-shrink:0" data-tip="Lamina turns a 3D model into flat parts you can cut from paper, cardboard, plywood or sheet metal — stacked, interlocked, radial, ribbed or folded — checks that the result holds together, nests the parts on your sheets and exports the cut files. Not the 3D-printing kind of slicing — it works out the pieces you cut from a sheet and put back together.">what is it?</span>
 <input id="pname" placeholder="project name" style="width:150px;padding:3px 6px" title="project name (printed on every sheet and used for the file name)"><span class="hint" title="revision: bump minor for small changes, major for a new design">v<span id="prev">1.0</span></span><button class="small" id="pminor" title="new minor revision (1.0 → 1.1)">+0.1</button><button class="small" id="pmajor" title="new major revision (1.x → 2.0)">+1</button>
-<button class="small" id="popen">open project</button><button class="small" id="psave2">save project</button><input type="file" id="pfile" accept=".json" hidden>
+<button class="small" id="popen" title="your saved projects and their revisions">library</button><button class="small" id="psave2" title="save this project into the library, over the revision you are on">save</button><span class="hint" id="punsaved" hidden>● unsaved changes</span>
 <button class="small" id="undo" title="undo the last change (Ctrl+Z)" disabled>↶ undo</button><button class="small" id="redo" title="redo (Ctrl+Y or Ctrl+Shift+Z)" disabled>↷</button>
 <button class="small" id="helpbtn" title="how it works, every shortcut, and what to do when something does not fit (?)">? help</button>
 <button class="small" id="newsbtn" title="what changed in this version, and every version before it">what's new</button>

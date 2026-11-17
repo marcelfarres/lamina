@@ -73,9 +73,10 @@ def test_the_site_slices_in_the_browser(site):
         page.click('nav button[data-t="sheet"]')
         page.fill("#p_slot_offset", "0.2")
         sliced("slot offset")
-        with page.expect_download() as saved:                    # a saved project is the design alone: no steps
-            page.click("#psave2")
-        assert "trail" not in json.loads(pathlib.Path(saved.value.path()).read_text(encoding="utf-8"))
+        page.click("#psave2")                                    # a saved project is the design alone: no steps
+        page.wait_for_function("() => !!__t.lib.inHand()?.file")
+        kept = page.evaluate("async () => (await import(new URL('static/js/store.js', document.baseURI))).browserStore().read(__t.lib.inHand().file)")
+        assert "trail" not in json.loads(kept)
 
         # A bug report carries the data model, and its tick box is the only promise the dialog makes about the
         # model itself: ticked, the project file holds the uploaded mesh; unticked, not a byte of it travels.
@@ -115,7 +116,7 @@ def test_the_site_slices_in_the_browser(site):
         mq, iq = (urllib.parse.parse_qs(u.query) for u in (mail, issue))
         assert mail.path == "lamina.3d.app@gmail.com", mail.path
         assert said in mq["body"][0] and said in iq["what"][0]                 # what the reporter typed, both ways
-        assert "pear.stl_v1.0.lamina.json" in mq["body"][0], mq["body"][0]     # and which file to attach
+        assert "pear_v1.0.lamina.json" in mq["body"][0], mq["body"][0]         # and which file to attach (the save named the project)
         assert mq["body"][0].startswith(said) and "parts" in mq["body"][0]     # with the checks under it
         assert len(routes[0]) < 2000, len(routes[0])                           # mail clients cut long ones
         assert iq["template"] == ["bug_report.yml"]
@@ -178,7 +179,7 @@ def test_the_site_slices_in_the_browser(site):
         # A project file is somebody else's text once a bug report is opened: markup in it must land as text, not run.
         bad = '<img src=x onerror="window.__pwned=1">'
         proj = json.dumps({"version": 3, "mode": "interlocked", "state": {"skip": [bad], "project": '"' + bad, "thick": {bad: 3}}, "example": "egg"})
-        page.set_input_files("#pfile", {"name": "evil.lamina.json", "mimeType": "application/json", "buffer": proj.encode()})
+        page.evaluate("async t => (await import(new URL('static/js/project.js', document.baseURI))).openProjectText(t, 'evil.lamina.json')", proj)
         sliced("crafted project")
         assert page.evaluate("window.__pwned") is None
         assert page.evaluate("document.querySelectorAll('aside img').length") == 0

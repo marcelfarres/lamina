@@ -95,6 +95,24 @@ dialog .row{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
 dialog button{padding:8px 15px;border-radius:6px;border:1px solid var(--line);background:var(--panel2);color:inherit;font:inherit;cursor:pointer}
 dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-weight:600}
 #oops .msg{border-left:3px solid var(--err);background:#0003;padding:10px 13px;margin:12px 0;border-radius:6px;font-size:13px;color:#ffc9c9;word-break:break-word}
+#libask label{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted)}#libask label[hidden]{display:none}#libask input{margin:0}
+/* the library: a page over the app, which stays as it was underneath. Each state is said in words (✓ open now,
+   ⚠ cannot be read, ▾ / ▴), the blue border only repeats them */
+#library{position:fixed;inset:0;z-index:40;background:var(--bg);overflow:auto;padding:18px 28px 40px}#library[hidden],#library [hidden]{display:none}
+#library .lbbar{display:flex;gap:10px;align-items:center}#library h1{font-size:18px;margin:0}#library .sp{flex:1}#libfind{width:220px}
+#libwhere{margin:10px 0 0;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--muted)}#libwhere b{color:var(--ink)}
+#library h2{font-size:13px;letter-spacing:.04em;font-weight:600;margin:22px 0 10px}
+#library .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;align-items:start}
+#library .card{border:1px solid var(--line);border-radius:8px;background:var(--panel2);overflow:hidden;position:relative;cursor:pointer}
+#library .card.on{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}#library .card.wide{grid-column:span 2}#library .card.bad{cursor:default}
+#library .card img,#library .ph{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:var(--bg)}
+#library .ph{display:flex;align-items:center;justify-content:center;padding:10px;color:var(--muted);text-align:center;word-break:break-word}
+#library .now,#library .more{position:absolute;top:6px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:1px 8px;font:inherit;font-size:11px;color:var(--ink)}
+#library .now{left:6px}#library .more{right:6px;cursor:pointer}#library .more:hover{border-color:var(--acc)}
+#library .t{padding:8px 10px 9px}#library .n{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#library .m{color:var(--muted);font-size:11.5px;margin-top:2px}
+#library .revs{border-top:1px solid var(--line);font-size:12px;cursor:default}
+#library .revs>div{display:flex;gap:6px;align-items:center;padding:5px 10px;border-bottom:1px solid var(--line)}#library .revs>div:last-child{border:0}
+#library .revs .sp{color:var(--muted);font-size:11.5px;white-space:nowrap}
 #newsdlg{max-height:82vh;overflow:auto;max-width:720px}
 #newsdlg h4{margin:16px 0 2px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 #newsdlg h5{margin:14px 0 4px;font-size:15px}#newsdlg ul{margin:4px 0;padding-left:20px}#newsdlg li{margin:4px 0}

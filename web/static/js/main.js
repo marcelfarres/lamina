@@ -12,8 +12,9 @@ import {setMode, renderFields, schedule, resetTab, showTab, memo, MODEL_BOUND, a
 import {slice, oops, popup, LOCAL_DOC} from './slice.js';
 import {applyLook, controls, banner, parts, guides, gizmo, axes, rings, camera, renderer, applyFold, scene, ghost, ghostUrl, snapshot} from './scene.js';
 import {renderWeight, renderDownloads, applyFix} from './results.js';
-import {saveProject, openProject, bump, projectObj, projName} from './project.js';
+import {bump, projectObj, projName} from './project.js';
 import * as lib from './library.js';
+import {initLibraryPage} from './librarypage.js';
 
 // ---------------------------------------------------------------- init
 async function init(){
@@ -69,7 +70,6 @@ async function init(){
   $('#oops_go').onclick=()=>oops.close('go'); $('#oops_no').onclick=()=>oops.close('');
   phoneNotice();
   $('#clear').onclick=async()=>{if(!confirm('Delete everything this tab has sliced — uploaded models, cut files and the session? Presets are kept.'))return;await fetch(`api/session?client=${CLIENT}`,{method:'DELETE'});location.reload()};
-  $('#psave2').onclick=saveProject; $('#popen').onclick=()=>$('#pfile').click(); $('#pfile').onchange=e=>{if(e.target.files[0])openProject(e.target.files[0]);e.target.value=''};
   $('#pname').oninput=e=>{state.project=e.target.value;schedule();lib.changed()};
   // a bump straight after a refresh lists the library first, so it too lands on a free number
   $('#pminor').onclick=async()=>{await lib.listed();bump(false,lib.revsOf(state.project))}; $('#pmajor').onclick=async()=>{await lib.listed();bump(true,lib.revsOf(state.project))};
@@ -111,6 +111,7 @@ async function init(){
   const openExample=name=>{$('#example').value=ST.example=name;ST.pendingFile=null;$('#file').value='';newModel();applyPreset();lib.baseline();ST.countUse('model','example');ST.fresh='loaded example '+name;slice()};
   $('#example').onchange=()=>openExample($('#example').value);
   window.__t.openExample=openExample;   // window.__t is built below while init() awaits its first fetch
+  initLibraryPage({openExample,examples:ex});
   // A big mesh in the browser build is slow but not refused — the ceiling is this tab's memory, and it is the
   // reporter's machine that knows better than a fixed number. So: say what it will cost, then do as they say.
   const BIG=50e6;   // ~1 M triangles: the point where a slice in Pyodide goes from a wait to a very long wait

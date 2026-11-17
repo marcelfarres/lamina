@@ -129,7 +129,8 @@ def test_undo_walks_back_every_change_and_redo_walks_forward(page):
 
 @pytest.mark.timeout(900)
 def test_the_whole_job_from_upload_to_cut_files(page):
-    """Upload a model, change technique, save the project, open it again, download the cut files, clear the data."""
+    """Upload a model, change technique, save the project, download the cut files, open it again from the library,
+    clear the data."""
     page.click('nav button[data-t="model"]')
     page.set_input_files("#file", str(ROOT / "examples" / "pear.stl"))
     settle(page)
@@ -138,21 +139,23 @@ def test_the_whole_job_from_upload_to_cut_files(page):
     page.click('#modes button[data-m="interlocked"]')
     settle(page)
     page.fill("#pname", "ui test")
-    with page.expect_download() as saved:
-        page.click("#psave2")
-    proj = saved.value
+    page.click("#psave2")
+    page.wait_for_function("() => document.querySelector('#status').textContent.startsWith('saved ui test')")
     page.click('nav button[data-t="export"]')
     with page.expect_download() as zipped:
         page.click("#dl a")
     assert zipped.value.suggested_filename.endswith(".zip")
-    # the project file reopens the job — model, technique and every setting
-    path = ROOT / "working-files" / "ui_test.lamina.json"
-    proj.save_as(path)
-    page.set_input_files("#pfile", str(path))
+    # the saved project reopens the job — model, technique and every setting
+    page.click('nav button[data-t="technique"]')
+    page.click('#modes button[data-m="stacked"]')
+    settle(page)
+    page.click("#popen")
+    page.once("dialog", lambda d: d.accept())               # the technique changed since: unsaved changes
+    page.locator('#libyours .card[data-name="ui test"] .t').click()
+    page.wait_for_function("() => !__t.lib.unsaved()")      # read and opened: its slice has started
     settle(page)
     assert plan(page)["mode"] == "interlocked"
     assert state(page)["project"] == "ui test"
-    path.unlink(missing_ok=True)
     ok = lambda d: d.accept()
     page.on("dialog", ok)
     with page.expect_navigation():                       # the reload comes after the session's DELETE returns

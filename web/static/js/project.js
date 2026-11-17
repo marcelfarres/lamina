@@ -29,12 +29,7 @@ export async function projectObj(withModel=true){
   return proj;
 }
 const modelName=()=>$('#file').files[0]?.name||ST.pendingFile?.name||'the uploaded model';
-export async function saveProject(){
-  const proj=await projectObj();
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(proj)],{type:'application/json'}));a.download=projName(proj);a.click();
-}
 export const projName=proj=>`${proj.name||proj.model?.name||proj.example||'model'}_v${proj.rev}.lamina.json`;
-export const openProject=async f=>openProjectText(await f.text(),f.name);
 // a project from its text: a file picked, or one the library holds (its `preview` and `saved` are the library's, not read here)
 // Whatever was in hand stops being this tab's revision here: only openRevision() names one again, after this returns.
 // Left in place, a file from disk named like the revision opened before was saved onto it without a question

@@ -3,6 +3,7 @@ the zip module and the two stores under the library."""
 import base64
 import io
 import json
+import re
 import zipfile
 
 import pytest
@@ -23,6 +24,8 @@ def wipe(page):
 @pytest.fixture(autouse=True)
 def empty_library(page):
     wipe(page)
+    yield
+    page.evaluate("import('/static/js/librarypage.js').then(P => P.hideLibrary())")   # one page for the run: the next test starts on the app
 
 
 def lib(page):
@@ -457,3 +460,203 @@ def test_folder_list_skips_a_file_that_vanished(page):
         P.getFile = function () {{ return this.name === 'gone_v1.0.lamina.json' ? Promise.reject(new DOMException('gone', 'NotFoundError')) : g.call(this) }};
         try {{ return (await s.list()).map(e => e.file) }} finally {{ P.getFile = g }} }}""")
     assert r == ["a_v1.0.lamina.json"]
+
+
+# ---------------------------------------------------------------- the library page and the top bar
+def library(page):
+    """The library page opened from the top bar, its cards listed."""
+    page.click("#popen")
+    page.wait_for_function("() => !document.querySelector('#library').hidden && document.querySelector('#libyours').dataset.listed")
+
+
+def cards(page):
+    """The names on the cards that show, in their order."""
+    return page.eval_on_selector_all("#libyours .card:not([hidden])", "cs => cs.map(c => c.dataset.name)")
+
+
+def card(page, n):
+    return page.locator(f'#libyours .card[data-name="{n}"]')
+
+
+def said(page, start):
+    """Wait for the status line to start with `start`; returns the whole line."""
+    page.wait_for_function("s => document.querySelector('#status').textContent.startsWith(s)", arg=start)
+    return page.text_content("#status")
+
+
+def opened(page, file):
+    """Wait until `file` is the revision in hand (read and opened, its slice started), then for its slice."""
+    page.wait_for_function("f => __t.lib.inHand()?.file === f", arg=file)
+    settle(page)
+
+
+def revisions(page, n, revs):
+    """Project `n` saved at each revision in `revs` (bumped between saves, so the last is the one in hand)."""
+    name(page, n)
+    for i, _ in enumerate(revs):
+        if i:
+            bump(page); settle(page)
+        save(page)
+    assert lib(page)[0] == (n, revs[::-1])
+
+
+def test_top_bar_opens_and_closes_the_library(page):
+    assert page.text_content("#popen") == "library" and page.text_content("#psave2") == "save"
+    assert page.locator("#pfile").count() == 0
+    before = page.evaluate("JSON.stringify([__t.state(), __t.job()])")
+    library(page)
+    assert page.text_content("#libyours").strip() == "No projects yet. Save one with save, or import files."
+    assert page.text_content("#libwhere").strip() == "💾 kept in this browser only. Clearing the site data deletes them: use export all for a backup."
+    page.keyboard.press("Escape")
+    assert page.is_hidden("#library")
+    library(page); page.click("#libclose")
+    assert page.is_hidden("#library") and page.evaluate("JSON.stringify([__t.state(), __t.job()])") == before
+
+
+def test_save_button_writes_and_clears_unsaved(page):
+    name(page, "lamp")
+    assert page.is_visible("#punsaved") and page.text_content("#punsaved") == "● unsaved changes"
+    page.click("#psave2")
+    assert said(page, "saved") == "saved lamp v1.0"
+    assert page.is_hidden("#punsaved") and lib(page) == [("lamp", ["1.0"])]
+    set_fields(page, [("p_thickness", 4)]); settle(page)
+    assert page.is_visible("#punsaved")
+    # a write that fails: its own words on the status line, nothing put before them
+    page.evaluate("""async () => { const S = await import('/static/js/store.js');
+        __t.lib.useStore({...S.browserStore(), write: () => Promise.reject(new Error('disk full'))}) }""")
+    try:
+        page.click("#psave2")
+        line = said(page, "lamp v1.0 could not be saved")
+        assert "disk full" in line and page.get_attribute("#dot", "class") == "err"
+    finally:
+        page.evaluate("import('/static/js/store.js').then(S => __t.lib.useStore(S.browserStore()))")
+    assert page.is_visible("#punsaved")
+
+
+def test_card_opens_the_newest_revision(page):
+    revisions(page, "lamp", ["1.0", "1.1"])
+    page.evaluate("__t.lib.openRevision('lamp_v1.0.lamina.json')"); settle(page)
+    library(page)
+    card(page, "lamp").locator(".t").click()
+    assert page.is_hidden("#library")
+    opened(page, "lamp_v1.1.lamina.json")
+    assert page.text_content("#prev") == "1.1"
+
+
+def test_badge_opens_revisions_and_an_old_one_opens(page):
+    revisions(page, "lamp", ["1.0", "1.1"])
+    library(page)
+    assert card(page, "lamp").locator(".more").inner_text() == "2 revisions ▾"
+    card(page, "lamp").locator(".more").click()
+    page.wait_for_selector("#libyours .rev")                                  # listed again, then drawn
+    rows = card(page, "lamp").locator(".rev")
+    assert rows.count() == 2 and page.is_visible("#library")
+    assert rows.evaluate_all("rs => rs.map(r => r.dataset.file)") == ["lamp_v1.1.lamina.json", "lamp_v1.0.lamina.json"]
+    assert "✓ open now" in rows.nth(0).inner_text() and "open now" not in rows.nth(1).inner_text()
+    rows.nth(1).locator(".open").click()
+    assert page.is_hidden("#library")
+    opened(page, "lamp_v1.0.lamina.json")
+    assert page.text_content("#prev") == "1.0"
+
+
+def test_open_now_label(page):
+    name(page, "lamp"); save(page)
+    name(page, "vase"); save(page)
+    library(page)
+    assert "✓ open now" in card(page, "vase").inner_text() and "open now" not in card(page, "lamp").inner_text()
+    meta = card(page, "lamp").locator(".m").inner_text()
+    assert re.fullmatch(r"v1\.0 · \d{4}-\d\d-\d\d \d\d:\d\d", meta), meta
+
+
+def test_yours_is_newest_first_and_find_filters(page):
+    name(page, "aaa"); save(page)
+    name(page, "zzz"); save(page)
+    library(page)
+    assert cards(page) == ["zzz", "aaa"]
+    page.fill("#libfind", "AA")
+    assert cards(page) == ["aaa"]
+    page.fill("#libfind", "")
+    assert cards(page) == ["zzz", "aaa"]
+
+
+def test_opening_with_unsaved_changes_asks(page):
+    name(page, "lamp"); save(page)
+    saved = page.evaluate("__t.state().thickness")
+    set_fields(page, [("p_thickness", saved + 1)]); settle(page)
+    library(page)
+    asked = []
+    page.once("dialog", lambda d: (asked.append(d.message), d.dismiss()))
+    card(page, "lamp").locator(".t").click()
+    assert asked and "unsaved" in asked[0]
+    assert page.is_visible("#library") and page.evaluate("__t.state().thickness") == saved + 1
+    page.once("dialog", lambda d: d.accept())
+    card(page, "lamp").locator(".t").click()
+    assert page.is_hidden("#library")
+    page.wait_for_function("() => !__t.lib.unsaved()"); settle(page)
+    assert page.evaluate("__t.state().thickness") == saved and page.is_hidden("#punsaved")
+
+
+def test_delete_asks_and_removes(page):
+    revisions(page, "lamp", ["1.0", "1.1"])
+    library(page)
+    card(page, "lamp").locator(".more").click()
+    asked = []
+    page.once("dialog", lambda d: (asked.append(d.message), d.dismiss()))
+    card(page, "lamp").locator('.rev[data-file="lamp_v1.1.lamina.json"] .delete').click()
+    assert "lamp v1.1" in asked[0] and lib(page) == [("lamp", ["1.1", "1.0"])]
+    page.once("dialog", lambda d: d.accept())
+    card(page, "lamp").locator('.rev[data-file="lamp_v1.1.lamina.json"] .delete').click()
+    page.wait_for_function("() => document.querySelectorAll('#libyours .rev').length === 1")
+    assert lib(page) == [("lamp", ["1.0"])] and page.is_visible("#punsaved")   # the revision in hand is gone
+    page.once("dialog", lambda d: (asked.append(d.message), d.accept()))
+    card(page, "lamp").locator(".deleteproject").click()
+    page.wait_for_function("() => /No projects yet/.test(document.querySelector('#libyours').textContent)")
+    assert "lamp" in asked[-1] and lib(page) == []
+
+
+def test_a_name_with_html_is_shown_as_text(page):
+    name(page, "<img src=x onerror=window.pwned=1>"); save(page)
+    library(page)
+    assert page.evaluate("window.pwned") is None
+    assert page.locator("#libyours .card").first.inner_text().count("<img src=x") == 1
+
+
+def test_placeholder_and_unreadable_cards(page):
+    """A revision with no picture shows its name; a file that cannot be read is listed, and offers nothing to do."""
+    put(page, "old_v1.0.lamina.json", json.dumps({"name": "old", "rev": "1.0", "mode": "stacked", "state": {}}))
+    put(page, "junk_v1.0.lamina.json", "not json")
+    library(page)
+    assert card(page, "old").locator(".ph").inner_text() == "old"
+    bad = card(page, "junk_v1.0.lamina.json")
+    assert "⚠ cannot be read" in bad.inner_text() and bad.locator("button").count() == 0
+    bad.click()
+    assert page.is_visible("#library")
+
+
+@pytest.mark.parametrize("answer", ["replace", "keep", "cancel"])
+def test_clash_dialog_three_ways(page, answer):
+    name(page, "lamp"); save(page)
+    page.evaluate("__t.lib.setSaved(null)")                                    # a new project, named like the old one
+    set_fields(page, [("p_thickness", 4)]); settle(page)
+    page.click("#psave2")
+    page.wait_for_selector("#libask[open]")
+    assert "lamp v1.0" in page.text_content("#libask") and "v1.1" in page.text_content("#libask_keep")
+    assert page.is_hidden("#libask_rest")                                       # one file: nothing to say for the rest
+    page.click(f"#libask_{answer}")
+    if answer == "cancel":
+        page.wait_for_selector("#libask", state="hidden")
+        assert lib(page) == [("lamp", ["1.0"])] and page.is_visible("#punsaved")
+        return
+    rev = "1.1" if answer == "keep" else "1.0"
+    assert said(page, "saved") == f"saved lamp v{rev}"
+    assert lib(page) == [("lamp", ["1.1", "1.0"] if answer == "keep" else ["1.0"])]
+    if answer == "keep":
+        settle(page)                                                           # the new revision number re-slices
+
+
+def test_clash_dialog_answers_for_the_rest(page):
+    """For many files at once (an import), a ticked box says the answer holds for the rest."""
+    r = page.evaluate("""async () => { const P = await import('/static/js/librarypage.js');
+        const a = P.askClash({name: 'lamp', rev: '1.0', next: '1.1'}, true);
+        document.querySelector('#libask_rest').click(); document.querySelector('#libask_keep').click(); return a }""")
+    assert r == {"answer": "keep", "rest": True}
