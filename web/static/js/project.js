@@ -4,7 +4,6 @@ import {deselect} from './edit3d.js';
 import {applyUnit} from './units.js';
 import {memo, setMode, sizeToModel, schedule} from './form.js';
 import {slice} from './slice.js';
-import {nextFree} from './library.js';
 
 // ---------------------------------------------------------------- project save / open
 // everything needed to come back: technique, every parameter, per-technique memory, units, presets in use, the
@@ -37,8 +36,10 @@ export async function saveProject(){
 export const projName=proj=>`${proj.name||proj.model?.name||proj.example||'model'}_v${proj.rev}.lamina.json`;
 export const openProject=async f=>openProjectText(await f.text(),f.name);
 // a project from its text: a file picked, or one the library holds (its `preview` and `saved` are the library's, not read here)
+// Whatever was in hand stops being this tab's revision here: only openRevision() names one again, after this returns.
+// Left in place, a file from disk named like the revision opened before was saved onto it without a question
 export async function openProjectText(text,label){
-  const s=JSON.parse(text); Object.assign(memo,s.memo||{}); setMode(s.mode||'interlocked',false); Object.assign(state,s.state||{}); ST.unit=s.unit||state.units||'mm';
+  ST.saved=null; const s=JSON.parse(text); Object.assign(memo,s.memo||{}); setMode(s.mode||'interlocked',false); Object.assign(state,s.state||{}); ST.unit=s.unit||state.units||'mm';
   if((s.version||0)<4&&(state.size||[]).some(Boolean))state.size=sizeToModel(state.size);   // before 0.3.2 size was along the view's axes
   state.project=s.name||state.project||''; state.rev=s.rev||state.rev||'1.0'; syncProject();
   ST.job=null; ST.pendingFile=null; ST.srcFile=null; ST.fitted=false; deselect(); $('#file').value='';   // as an example does: the upload box lets go
@@ -50,4 +51,7 @@ export async function openProjectText(text,label){
 export function syncProject(){$('#pname').value=state.project||'';$('#prev').textContent=state.rev||'1.0'}
 // `taken`: the project's revisions in the library, so a bump from an old one lands on a free number, not onto a newer one
 export function bump(major,taken=[]){state.rev=nextFree(taken,state.rev||'1.0',major);syncProject();schedule()}
+// minor: the lowest a.n with n > b that is not taken; major: the lowest m.0 with m > a that is not taken
+export const nextFree=(taken,cur,major)=>{const [a,b]=String(cur).split('.').map(x=>+x||0),has=new Set(taken);let n=major?a+1:b+1;
+  while(has.has(major?`${n}.0`:`${a}.${n}`))n++;return major?`${n}.0`:`${a}.${n}`};
 

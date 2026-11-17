@@ -71,7 +71,8 @@ async function init(){
   $('#clear').onclick=async()=>{if(!confirm('Delete everything this tab has sliced — uploaded models, cut files and the session? Presets are kept.'))return;await fetch(`api/session?client=${CLIENT}`,{method:'DELETE'});location.reload()};
   $('#psave2').onclick=saveProject; $('#popen').onclick=()=>$('#pfile').click(); $('#pfile').onchange=e=>{if(e.target.files[0])openProject(e.target.files[0]);e.target.value=''};
   $('#pname').oninput=e=>{state.project=e.target.value;schedule();lib.changed()};
-  $('#pminor').onclick=()=>bump(false,lib.revsOf(state.project)); $('#pmajor').onclick=()=>bump(true,lib.revsOf(state.project));
+  // a bump straight after a refresh lists the library first, so it too lands on a free number
+  $('#pminor').onclick=async()=>{await lib.listed();bump(false,lib.revsOf(state.project))}; $('#pmajor').onclick=async()=>{await lib.listed();bump(true,lib.revsOf(state.project))};
   $('#unit').onchange=e=>{ST.unit={mm:'mm',cm:'cm',in:'in'}[e.target.value]||'mm';applyUnit()};   // one of the three, never the box's own text
   $('#x_labels').onchange=()=>{if(ST.job)renderDownloads()}; $('#x_grouped').onchange=()=>{if(ST.job)renderDownloads()};
   $$('nav button').forEach(b=>b.onclick=()=>showTab(b.dataset.t));
@@ -105,7 +106,9 @@ async function init(){
     clearTimeout(ST.timer);ST.timer=null;renderFields()};
   // the file box lets go of the upload too: left holding it, choosing that same file again fires no change and loads nothing
   // every way into an example comes here (the dropdown, the library page); the dropdown follows it
-  const openExample=name=>{$('#example').value=ST.example=name;lib.setSaved(null);ST.pendingFile=null;$('#file').value='';newModel();applyPreset();ST.countUse('model','example');ST.fresh='loaded example '+name;slice()};
+  // its preset applied, an example is what unsaved changes count from (taken before the slice: nothing changes the form
+  // while it runs, and an edit made meanwhile then counts as a change)
+  const openExample=name=>{$('#example').value=ST.example=name;ST.pendingFile=null;$('#file').value='';newModel();applyPreset();lib.baseline();ST.countUse('model','example');ST.fresh='loaded example '+name;slice()};
   $('#example').onchange=()=>openExample($('#example').value);
   window.__t.openExample=openExample;   // window.__t is built below while init() awaits its first fetch
   // A big mesh in the browser build is slow but not refused — the ceiling is this tab's memory, and it is the
@@ -127,9 +130,10 @@ async function init(){
     if(!sess.alive&&sess.job)status('the uploaded model of the last session is gone — upload it again or pick an example','err');
     // the library revision the session came from: unreadable, it stays null and the page shows unsaved changes (the safe side)
     try{ST.saved=JSON.parse(sessionStorage.lamina_saved||'null')}catch(e){ST.saved=null}}
-  else{lib.setSaved(null);   // a fresh start: a mirror left from a cleared session names nothing this tab holds
-    setMode(location.hash.slice(1)||'interlocked',false);applyMachine(matOf(state.material).machine);applyPreset()}   // a fresh start gets the machine's compensation and the example's preset (the #technique in the URL is the app's own mirror of its state, not a request)
-  ST.fresh=sess.mode?'page reloaded, last session resumed':'page opened on example '+ST.example; applyUnit(); slice();
+  else{setMode(location.hash.slice(1)||'interlocked',false);applyMachine(matOf(state.material).machine);applyPreset()}   // a fresh start gets the machine's compensation and the example's preset (the #technique in the URL is the app's own mirror of its state, not a request)
+  ST.fresh=sess.mode?'page reloaded, last session resumed':'page opened on example '+ST.example; applyUnit();
+  if(!sess.mode)lib.baseline();   // a fresh start is an example as it opened; it also replaces a mirror left by a cleared session
+  slice(); lib.listed();
 }
 init();
 

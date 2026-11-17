@@ -34,7 +34,7 @@ export async function slice(){
     // where the time went, for anyone tuning it: the build's stages (seconds), the round trip around them, and the page's own drawing
     console.info('lamina timing', ST.mode.name, {...ST.plan.timing, 'round trip beyond the build': +((t1-t0)/1000-j.took).toFixed(2), 'page drawing': (Date.now()-t1)/1000});
   }catch(e){if(my===ST.seq){act('slice failed: '+e.message); status('error: '+inUnit(e.message),'err'); if(loading)modelFailed(loading,e.message)}}
-  if(my===ST.seq){$('#busy').hidden=true;ST.busy=false}
+  if(my===ST.seq){$('#busy').hidden=true;ST.busy=false;changed()}   // and once it is back: an upload now has its job
 }
 // The model never arrived, so the 3D view still shows the one before it and the file box still names this one —
 // which is exactly how a failed upload reads as "it loaded the wrong model". Clear the box and say so in a dialog:

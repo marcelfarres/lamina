@@ -7,7 +7,11 @@ export const ST={
   mode:null,
   job:null,
   example:'',   // the bundled example last opened: the dropdown shows it, and is not what the page reads
-  saved:null,   // {name, rev, snap}: the library revision this tab opened or last saved (library.js); null for an example or an upload
+  // {name, rev, snap, file, store, mtime}: what this tab opened or last saved (library.js); null for an upload. Mirrored in
+  // sessionStorage on every change, whoever makes it, so a refresh restores it and a stale copy never outlives it
+  _saved:null,
+  get saved(){return this._saved},
+  set saved(v){this._saved=v;try{sessionStorage.lamina_saved=JSON.stringify(v)}catch(e){}},
   plan:null,
   seq:0,
   timer:null,

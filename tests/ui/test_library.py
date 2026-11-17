@@ -2,18 +2,21 @@
 the zip module and the two stores under the library."""
 import base64
 import io
+import json
 import zipfile
 
 import pytest
 
-from .helpers import example, set_fields, settle, still
+from .helpers import ROOT, example, set_fields, settle, still
 
 
 def wipe(page):
-    """An empty library behind the browser store, and nothing saved in this tab. The store tests below delete the
-    database instead; both leave it empty, and the library opens it again on its next call."""
-    page.evaluate("""async () => { const S = await import('/static/js/store.js'); __t.lib.useStore(S.browserStore());
-        for (const p of await __t.lib.entries()) await __t.lib.removeProject(p.name); __t.lib.setSaved(null);
+    """An empty library behind the browser store, and nothing saved in this tab. The files are removed through the
+    store itself: the library refuses to delete one it cannot read, and some tests leave one. The store tests below
+    delete the database instead; both leave it empty, and the library opens it again on its next call."""
+    page.evaluate("""async () => { const S = await import('/static/js/store.js'), b = S.browserStore();
+        for (const f of await b.list()) await b.remove(f.file); await S.idxSet('browser', []);
+        __t.lib.useStore(b); __t.lib.setSaved(null);
         const s = __t.state(); s.project = ''; s.rev = '1.0'; (await import('/static/js/project.js')).syncProject() }""")
 
 
@@ -35,6 +38,24 @@ def save(page, answer=None):
 
 def name(page, n):
     set_fields(page, [("pname", n)]); settle(page)
+
+
+def bump(page, major=False):
+    """+0.1 or +1 as a click, waited for: the button lists the library first when nothing has listed it yet."""
+    before = page.text_content("#prev")
+    page.click("#pmajor" if major else "#pminor")
+    page.wait_for_function("b => document.querySelector('#prev').textContent !== b", arg=before)
+
+
+def put(page, file, text):
+    """A file written into the browser store behind the library's back: another tab, or a file copied in."""
+    page.evaluate("([f, t]) => import('/static/js/store.js').then(S => S.browserStore().write(f, t))", [file, text])
+
+
+def read(page, file):
+    """A file as the store holds it, parsed when it is a project."""
+    t = page.evaluate("f => import('/static/js/store.js').then(S => S.browserStore().read(f))", file)
+    return json.loads(t) if t.startswith("{") else t
 
 
 def test_open_example_is_page_state(page):
@@ -77,7 +98,7 @@ def test_unzip_reads_back_and_names_bad_entries(page):
 # first run, when it does not exist yet), the folder one works in a fresh sub-folder of the origin's private folder
 FRESH = """async kind => { const S = await import('/static/js/store.js');
     if (kind === 'browser') { await new Promise((ok, no) => { const r = indexedDB.deleteDatabase('lamina_library');
-        r.onsuccess = ok; r.onerror = () => no(r.error); r.onblocked = () => no(new Error('blocked')) }); return S.browserStore() }
+        r.onsuccess = ok; r.onerror = () => no(r.error) }); return S.browserStore() }
     const root = await navigator.storage.getDirectory(); await root.removeEntry('lib-test', {recursive: true}).catch(() => {});
     return S.folderStore(await root.getDirectoryHandle('lib-test', {create: true})) }"""
 
@@ -178,16 +199,38 @@ def test_file_name_is_legal_and_two_names_do_not_collide(page):
     name(page, "a_b"); second, asked = save(page)
     assert (first["file"], second["file"], asked) == ("a_b_v1.0.lamina.json", "a_b~2_v1.0.lamina.json", [])
     assert sorted(lib(page)) == [("a/b", ["1.0"]), ("a_b", ["1.0"])]          # the names come from inside the files
-    page.click("#pminor"); settle(page)                                        # its next revision keeps its own stem
+    bump(page); settle(page)                                                   # its next revision keeps its own stem
     assert save(page)[0] == {"file": "a_b~2_v1.1.lamina.json"}
+    name(page, "a:b"); assert save(page) == [{"file": "a_b~3_v1.1.lamina.json"}, []]   # a rename keeps the revision
 
 
-def test_save_never_writes_onto_a_file_that_cannot_be_read(page):
-    page.evaluate("import('/static/js/store.js').then(S => S.browserStore().write('lamp_v1.0.lamina.json', 'not json'))")
+def test_names_that_differ_only_in_case_get_two_files(page):
+    """A folder on Windows or macOS holds Lamp_v1.0 and lamp_v1.0 as one file: the second name takes ~2."""
+    name(page, "Lamp"); save(page)
+    name(page, "lamp"); assert save(page) == [{"file": "lamp~2_v1.0.lamina.json"}, []]
+    assert sorted(lib(page)) == [("Lamp", ["1.0"]), ("lamp", ["1.0"])]
+
+
+def test_unreadable_files_are_never_written_or_deleted(page):
+    put(page, "lamp_v1.0.lamina.json", "not json"); put(page, "empty_v1.0.lamina.json", "{}")   # {} parses, and is no project
     name(page, "lamp")
     assert save(page) == [{"file": "lamp~2_v1.0.lamina.json"}, []]
-    assert sorted(lib(page)) == [("lamp", ["1.0"]), ("lamp_v1.0.lamina.json", [""])]
-    assert page.evaluate("import('/static/js/store.js').then(S => S.browserStore().read('lamp_v1.0.lamina.json'))") == "not json"
+    assert sorted(lib(page)) == [("empty_v1.0.lamina.json", [""]), ("lamp", ["1.0"]), ("lamp_v1.0.lamina.json", [""])]
+    assert all(r["bad"] for p in page.evaluate("__t.lib.entries()") if p["name"] != "lamp" for r in p["revs"])
+    for call in ("removeRevision('lamp_v1.0.lamina.json')", "removeProject('empty_v1.0.lamina.json')"):
+        err = page.evaluate(f"__t.lib.{call}.then(() => null, e => e.message)")
+        assert err and "cannot be read" in err
+    assert read(page, "lamp_v1.0.lamina.json") == "not json" and read(page, "empty_v1.0.lamina.json") == {}
+
+
+def test_keep_skips_a_revision_that_cannot_be_read(page):
+    name(page, "lamp"); save(page)
+    put(page, "lamp_v1.1.lamina.json", "not json")
+    page.evaluate("__t.lib.setSaved(null)")                                    # a new project named like the old one
+    r, asked = save(page, "keep")
+    assert asked == [{"name": "lamp", "rev": "1.0", "next": "1.2"}] and r == {"file": "lamp_v1.2.lamina.json"}
+    assert read(page, "lamp_v1.1.lamina.json") == "not json"
+    settle(page)
 
 
 def test_save_then_reload_then_open(page):
@@ -215,19 +258,19 @@ def test_save_overwrites_only_the_revision_in_hand(page):
 
 def test_bump_then_save_keeps_both(page):
     name(page, "lamp"); save(page)
-    page.click("#pminor"); settle(page); save(page)
+    bump(page); settle(page); save(page)
     assert lib(page) == [("lamp", ["1.1", "1.0"])]
 
 
 def test_bump_from_an_old_revision_goes_to_the_next_free(page):
     name(page, "lamp")
     for _ in range(4):
-        save(page); page.click("#pminor"); settle(page)
+        save(page); bump(page); settle(page)
     assert lib(page) == [("lamp", ["1.3", "1.2", "1.1", "1.0"])]
     page.evaluate("__t.lib.openRevision('lamp_v1.0.lamina.json')"); settle(page)
-    page.click("#pminor")
+    bump(page)
     assert page.evaluate("__t.state().rev") == "1.4" and page.text_content("#prev") == "1.4"
-    page.click("#pmajor")
+    bump(page, major=True)
     assert page.evaluate("__t.state().rev") == "2.0"
     settle(page)
 
@@ -238,7 +281,8 @@ def test_changed_name_is_a_new_project(page):
     name(page, "lamp-big"); assert save(page) == [{"file": "lamp-big_v1.0.lamina.json"}, []]
     after = page.evaluate("__t.lib.entries()")
     assert sorted(p["name"] for p in after) == ["lamp", "lamp-big"]
-    assert next(p for p in after if p["name"] == "lamp") == before              # untouched
+    assert next(p for p in after if p["name"] == "lamp") == before              # untouched, in the list
+    assert read(page, "lamp_v1.0.lamina.json")["saved"] == before["revs"][0]["saved"]   # and in the file
 
 
 @pytest.mark.parametrize("answer", ["keep", "replace", None])
@@ -259,7 +303,45 @@ def test_save_onto_another_revision_asks(page, answer):
         assert page.evaluate("__t.lib.entries()")[0]["revs"][0]["saved"] > old["saved"]
     else:
         assert r is None and page.evaluate("__t.lib.entries()")[0]["revs"] == [old]
+        assert read(page, "lamp_v1.0.lamina.json")["saved"] == old["saved"]
         assert page.evaluate("__t.lib.unsaved()") is True
+
+
+def test_a_file_opened_from_disk_over_a_revision_asks(page):
+    """Opened from the library, then the same name and revision opened from a file: that file is not this tab's revision."""
+    name(page, "lamp"); save(page)
+    page.evaluate("__t.lib.openRevision('lamp_v1.0.lamina.json')"); settle(page)
+    page.evaluate("""async () => { const S = await import('/static/js/store.js'), P = await import('/static/js/project.js');
+        await P.openProjectText(await S.browserStore().read('lamp_v1.0.lamina.json'), 'lamp_v1.0.lamina.json') }"""); settle(page)
+    assert save(page)[1] == [{"name": "lamp", "rev": "1.0", "next": "1.1"}]
+
+
+def test_only_the_file_in_hand_is_written_without_asking(page):
+    """Two files with one name inside (a copy made by hand): the one opened is the one saved. Another store, or the
+    same file saved by another tab since, asks."""
+    name(page, "lamp"); save(page)
+    put(page, "lamp-copy_v1.0.lamina.json", json.dumps(read(page, "lamp_v1.0.lamina.json")))
+    first = read(page, "lamp_v1.0.lamina.json")["saved"]
+    page.evaluate("__t.lib.openRevision('lamp-copy_v1.0.lamina.json')"); settle(page)
+    set_fields(page, [("p_thickness", 4)]); settle(page)
+    assert save(page) == [{"file": "lamp-copy_v1.0.lamina.json"}, []]
+    assert read(page, "lamp_v1.0.lamina.json")["saved"] == first
+    assert read(page, "lamp-copy_v1.0.lamina.json")["state"]["thickness"] == 4
+    put(page, "lamp-copy_v1.0.lamina.json", json.dumps(read(page, "lamp-copy_v1.0.lamina.json")))   # another tab saved it
+    assert save(page)[1] == [{"name": "lamp", "rev": "1.0", "next": "1.1"}]
+    save(page, "replace")
+    asked = page.evaluate("""async () => { const S = await import('/static/js/store.js'), asked = [];
+        __t.lib.useStore({...S.browserStore(), label: 'another folder'});
+        try { await __t.lib.saveCurrent(c => { asked.push(c); return Promise.resolve(null) }) } finally { __t.lib.useStore(S.browserStore()) }
+        return asked }""")
+    assert asked == [{"name": "lamp", "rev": "1.0", "next": "1.1"}]
+
+
+def test_a_second_save_while_one_runs_gets_its_answer(page):
+    name(page, "lamp")
+    r = page.evaluate("""async () => { const asked = [], ask = c => { asked.push(c); return Promise.resolve(null) };
+        const rs = await Promise.all([__t.lib.saveCurrent(ask), __t.lib.saveCurrent(ask)]); return [rs, asked] }""")
+    assert r == [[{"file": "lamp_v1.0.lamina.json"}] * 2, []] and lib(page) == [("lamp", ["1.0"])]
 
 
 def test_empty_name_takes_the_models_name(page):
@@ -286,6 +368,51 @@ def test_unsaved_follows_changes_and_survives_reload(page):
     assert unsaved() is True
 
 
+def test_an_example_as_it_opened_has_no_unsaved_changes(page):
+    example(page, "vase")
+    assert page.evaluate("__t.lib.unsaved()") is False
+    set_fields(page, [("p_thickness", 4)]); settle(page)
+    assert page.evaluate("__t.lib.unsaved()") is True
+    assert save(page)[0] == {"file": "vase_v1.0.lamina.json"}                  # still a new project of its own
+
+
+def test_unsaved_counts_another_techniques_settings(page):
+    """A parameter both techniques have, changed on the other one and left there: the form is as saved, the memory
+    a save would write is not."""
+    shared = page.evaluate("""async () => { const {ST} = await import('/static/js/state.js'), m = n => ST.MODES.find(x => x.name === n).params;
+        return m('interlocked').find(p => (p.type === 'int' || p.type === 'number') && m('stacked').some(q => q.name === p.name))?.name }""")
+    assert shared, "no number parameter that both stacked and interlocked have"
+    tech = lambda m: (page.click('nav button[data-t="technique"]'), page.click(f'#modes button[data-m="{m}"]'), settle(page))
+    tech("interlocked"); tech("stacked"); name(page, "lamp"); save(page)
+    form = page.evaluate("JSON.stringify(__t.state())")
+    tech("interlocked")
+    v = page.evaluate(f"__t.state().{shared}")
+    set_fields(page, [(f"p_{shared}", v + 1)]); settle(page)
+    tech("stacked")
+    assert page.evaluate("JSON.stringify(__t.state())") == form and page.evaluate("__t.lib.unsaved()") is True
+
+
+def test_an_uploaded_model_saved_is_not_unsaved_after_a_refresh(page):
+    page.set_input_files("#file", str(ROOT / "examples" / "bracket.stl")); settle(page)
+    assert page.evaluate("__t.lib.unsaved()") is True                          # a fresh upload is nobody's revision yet
+    name(page, ""); assert save(page)[0] == {"file": "bracket_v1.0.lamina.json"}
+    settle(page)                                    # the name it took reaches the session with the slice it starts
+    page.reload(); settle(page)
+    assert page.evaluate("__t.lib.unsaved()") is False
+    set_fields(page, [("p_thickness", 4)]); settle(page)
+    assert page.evaluate("__t.lib.unsaved()") is True
+
+
+def test_a_bump_after_a_refresh_goes_to_the_next_free(page):
+    name(page, "lamp"); save(page); bump(page); settle(page); save(page)
+    page.evaluate("__t.lib.openRevision('lamp_v1.0.lamina.json')"); settle(page)
+    page.reload(); settle(page)
+    assert page.evaluate("__t.state().rev") == "1.0"
+    bump(page)
+    assert page.text_content("#prev") == "1.2"
+    settle(page)
+
+
 def test_a_refused_write_changes_nothing(page):
     name(page, "lamp"); save(page)
     set_fields(page, [("p_thickness", 4)]); settle(page)
@@ -301,7 +428,7 @@ def test_a_refused_write_changes_nothing(page):
 
 
 def test_delete_revision_and_project(page):
-    name(page, "lamp"); save(page); page.click("#pminor"); settle(page); save(page)
+    name(page, "lamp"); save(page); bump(page); settle(page); save(page)
     name(page, "vase"); save(page)
     page.evaluate("__t.lib.removeRevision('lamp_v1.1.lamina.json')")
     assert sorted(lib(page)) == [("lamp", ["1.0"]), ("vase", ["1.1"])]
@@ -319,7 +446,7 @@ def test_store_rejects_with_the_error_and_lets_go_of_the_database(page):
     r = page.evaluate("""async () => { const S = await import('/static/js/store.js');
         const e = await S.kvSet('k', () => {}).then(() => null, e => e?.name ?? String(e));
         const del = await new Promise(ok => { const q = indexedDB.deleteDatabase('lamina_library');
-            q.onsuccess = () => ok('deleted'); q.onerror = () => ok('error'); q.onblocked = () => ok('blocked') });
+            q.onsuccess = () => ok('deleted'); q.onerror = () => ok('error'); setTimeout(() => ok('still open'), 5000) });
         return [e, del] }""")
     assert r == ["DataCloneError", "deleted"]
 
