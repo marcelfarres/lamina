@@ -6,6 +6,7 @@ import {browserStore, folderStore, idxGet, idxSet, kvGet, kvSet, kvDel} from './
 import {projectObj, openProjectText, syncProject, nextFree} from './project.js';
 import {snapshot} from './scene.js';
 import {memo, schedule} from './form.js';
+import {zip, unzip} from './zip.js';
 export {nextFree};
 
 const EXT='.lamina.json';
@@ -29,11 +30,12 @@ const sameStore=()=>ST.saved?.store?.kind===store.kind&&ST.saved.store.label===s
 // a file is a project when it is an object with a technique or settings: `{}` or `42` parses, and is not one
 function parse(text){const p=JSON.parse(text);
   if(!p||typeof p!=='object'||Array.isArray(p)||!('state' in p||'mode' in p))throw new Error('not a Lamina project');return p}
+const nameOf=p=>p.name||p.model?.name||p.example||'model';
 // one index entry per revision file: what a card needs, without reading the file again
 async function readEntry(s,f){
   const at={file:f.file,size:f.size,mtime:f.mtime,saved:new Date(f.mtime).toISOString(),preview:''};
   try{const p=parse(await s.read(f.file));
-    return {...at,name:p.name||p.model?.name||p.example||'model',rev:p.rev||'1.0',saved:p.saved||at.saved,preview:p.preview||''}}
+    return {...at,name:nameOf(p),rev:p.rev||'1.0',saved:p.saved||at.saved,preview:p.preview||''}}
   catch(e){return {...at,name:f.file,rev:'',bad:true}}   // listed by its file name; Lamina never writes onto it or deletes it
 }
 const group=()=>{const by=new Map();
@@ -90,7 +92,18 @@ export const unsaved=()=>snap()!==ST.saved?.snap;   // a fresh upload, or a sess
 // an example as it opened: unsaved changes count from here, but it is nobody's revision, so a save of it is a new project
 export const baseline=()=>setSaved({name:'',rev:'',snap:snap(),file:null,store:null});
 
-// Save, link, open, delete, unlink and reconnect run one at a time, after start-up has picked the store: a save that
+// Where a revision of `name` lands in the library as last listed, for a save and an import alike. A project keeps the
+// file-name stem it has (`own`, else its first readable file: two files can hold one name); a new one whose stem
+// belongs to another file (a/b and a_b, Lamp and lamp) takes ~2, ~3… `hit`: the file already there; `taken`: the
+// stem's revisions, unreadable ones too
+function place(name,rev,own){
+  own=own||rows.find(r=>r.name===name&&!r.bad)?.file;let stem=own&&stemOf(own);
+  if(!stem){const other=new Set(rows.map(r=>lc(stemOf(r.file)))),base=legal(name);stem=base;for(let k=2;other.has(lc(stem));k++)stem=`${base}~${k}`}
+  const file=fileName(stem,rev);
+  return {file,hit:rows.find(r=>lc(r.file)===lc(file)),taken:rows.filter(r=>lc(stemOf(r.file))===lc(stem)).map(r=>revOf(r.file))};
+}
+
+// Save, link, import, open, delete, unlink and reconnect run one at a time, after start-up has picked the store: a save that
 // lands while a link moves the files is removed with the browser copy, or stays behind in the browser unseen
 // `ready` stays pending until restoreStore() has picked the store (main.js starts it first thing), so no call reaches
 // the browser store while a folder is kept
@@ -118,18 +131,12 @@ async function save(ask,obj,st,me,model,preview){
   const name=proj.name;let consented='';
   for(;;){
     await entries();
-    // a project keeps the file-name stem it has (the one of the file in hand first: two files can hold one name);
-    // a new one whose stem belongs to another file (a/b and a_b, Lamp and lamp) takes ~2, ~3…
-    const own=ST.saved?.file&&ST.saved.name===name&&sameStore()?ST.saved.file:rows.find(r=>r.name===name&&!r.bad)?.file;
-    let stem=own&&stemOf(own);
-    if(!stem){const other=new Set(rows.map(r=>lc(stemOf(r.file)))),base=legal(name);stem=base;for(let k=2;other.has(lc(stem));k++)stem=`${base}~${k}`}
-    const file=fileName(stem,proj.rev), hit=rows.find(r=>lc(r.file)===lc(file));
+    const {file,hit,taken}=place(name,proj.rev,ST.saved?.file&&ST.saved.name===name&&sameStore()&&ST.saved.file);   // the file in hand first
     if(hit?.bad)throw new Error(`${hit.file} in ${store.label} cannot be read, and Lamina does not write onto it: bump the revision, or use export to keep a copy of this project.`);
     // without asking only onto the file this tab opened or last saved, in this store, as it was then: another tab, or a
     // hand in the linked folder, can have changed it since (the index is no help here: listing just rebuilt it)
     const s=ST.saved, now=seen.get(lc(file)), mine=!!s?.file&&lc(s.file)===lc(file)&&sameStore()&&now?.mtime===s.mtime&&now.size===s.size;
     if(!hit||mine||lc(file)===consented)return write(hit?.file||file,proj,model);
-    const taken=rows.filter(r=>lc(stemOf(r.file))===lc(stem)).map(r=>revOf(r.file));   // unreadable ones too
     const next=nextFree(taken,proj.rev,false), c=await ask({name,rev:proj.rev,next});
     if(c==='replace')consented=lc(file);
     else if(c==='keep'){proj.rev=proj.state.rev=state.rev=next;syncProject();schedule()}
@@ -171,6 +178,47 @@ export const removeProject=name=>one(async()=>{
   const p=(await entries()).find(p=>p.name===name);if(!p)return;
   const bad=p.revs.find(r=>r.bad);if(bad)throw unreadable(bad.file);
   for(const r of p.revs)await drop(r.file);   // listed once, above
+});
+
+// ---------------------------------------------------------------- export and import
+// Export gives the files as the library holds them. A file whose text is no project goes too, as it is: a backup
+// loses nothing, and it is somebody's file. Export all leaves out, and names, only a file the store cannot read at all.
+// ponytail: a store gives text, so a folder file that is not UTF-8 is exported with its odd bytes replaced; a read as
+// bytes in both stores if that ever matters
+export async function exportRevision(file){await ready;return {name:file,blob:new Blob([await store.read(file)],{type:'application/json'})}}
+export async function exportProject(name){const p=(await entries()).find(p=>p.name===name), s=store, files=[];
+  if(!p)throw new Error(`${name} is not in ${s.label}`);
+  for(const r of p.revs)files.push({name:r.file,text:await s.read(r.file)});
+  return {name:`${legal(name)}.lamina.zip`,blob:zip(files)}}
+export async function exportAll(){await entries();const s=store, files=[], skipped=[];
+  for(const {file} of rows)try{files.push({name:file,text:await s.read(file)})}catch(e){skipped.push(file)}
+  return {name:'lamina-library.zip',blob:zip(files),skipped}}
+
+// .lamina.json files and the zips export makes. A file or zip entry that is no project is named in `bad` and nothing
+// is written for it. Each revision lands where a save of it would (place); a clash asks as a link does, and
+// {answer, rest:true} answers the rest of them. keep takes a number free in the library and among the files still to
+// come in this call; replace never lands on a file that cannot be read (both are kept instead); a skip changes nothing
+export const importFiles=(files,ask)=>one(async()=>{
+  const todo=[], bad=[], imported=[];
+  for(const f of files){let got;
+    try{got=/\.zip$/i.test(f.name)?await unzip(await f.arrayBuffer()):[{name:f.name,text:await f.text()}]}catch(e){bad.push(f.name);continue}
+    bad.push(...got.bad||[]);
+    for(const g of got)try{const p=parse(g.text);p.saved||=new Date(f.lastModified).toISOString();todo.push(p)}catch(e){bad.push(g.name)}
+  }
+  let rest;await entries();
+  try{for(const [i,p] of todo.entries()){const name=nameOf(p);let consented='';p.rev||='1.0';
+    for(;;){const {file,hit,taken}=place(name,p.rev);
+      if(!hit||!hit.bad&&lc(file)===consented){const dest=hit?.file||file, w=await store.write(dest,JSON.stringify(p));
+        await reindex(dest,{file:dest,size:w.size,mtime:w.mtime,name,rev:p.rev,saved:p.saved,preview:p.preview||''});imported.push(dest);break}
+      const next=nextFree([...taken,...todo.slice(i+1).filter(q=>nameOf(q)===name).map(q=>q.rev||'1.0')],p.rev,false);
+      // a question can take minutes: the library is listed again after it, as a save does
+      let a=rest;if(a===undefined){const r=await ask({name,rev:p.rev,next});a=typeof r==='object'&&r?r.answer:r;if(r?.rest)rest=a;await entries()}
+      if(a==='replace'&&!hit.bad)consented=lc(file);
+      else if(a==='replace'||a==='keep'){p.rev=next;if(p.state)p.state.rev=next}
+      else break;
+    }
+  }}catch(e){throw new Error(`The import stopped (${e.message||e.name}). ${imported.length} files were imported into ${store.label}; the others were not.`)}
+  return {imported,bad};
 });
 
 // ---------------------------------------------------------------- the linked folder

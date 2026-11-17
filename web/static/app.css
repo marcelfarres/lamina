@@ -100,7 +100,8 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
    ⚠ cannot be read, ▾ / ▴), the blue border only repeats them */
 #library{position:fixed;inset:0;z-index:40;background:var(--bg);overflow:auto;padding:18px 28px 40px}#library[hidden],#library [hidden]{display:none}
 #library .lbbar{display:flex;gap:10px;align-items:center}#library h1{font-size:18px;margin:0}#library .sp{flex:1}#libfind{width:220px}
-#libwhere{margin:10px 0 0;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--muted)}#libwhere b{color:var(--ink)}
+#libwhere{margin:10px 0 0;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--muted);display:flex;flex-wrap:wrap;gap:6px;align-items:center}#libwhere b{color:var(--ink)}
+#libwhere .note{flex-basis:100%;color:var(--ink)}
 #library h2{font-size:13px;letter-spacing:.04em;font-weight:600;margin:22px 0 10px}
 #library .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;align-items:start}
 #library .card{border:1px solid var(--line);border-radius:8px;background:var(--panel2);overflow:hidden;position:relative;cursor:pointer}

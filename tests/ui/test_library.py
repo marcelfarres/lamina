@@ -114,6 +114,28 @@ def test_unzip_reads_back_and_names_bad_entries(page):
     assert err == "not a zip"
 
 
+UNZIP = """async b64 => { const {unzip} = await import('/static/js/zip.js');
+    try { const r = await unzip(Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer); return {files: [...r], bad: r.bad} }
+    catch (e) { return e.name + ': ' + e.message } }"""
+
+
+def test_unzip_of_a_broken_zip(page):
+    """A truncated zip, or one whose directory points past its end, is "not a zip", never a RangeError; an entry
+    whose bytes do not match its CRC is named bad."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("a.json", '{"a":1}'); z.writestr("b.json", '{"b":2}')
+    good = buf.getvalue()
+    b64 = lambda b: base64.b64encode(b).decode()
+    assert page.evaluate(UNZIP, b64(good[:-30])) == "Error: not a zip"         # the end record cut off
+    far = bytearray(good); far[-6:-2] = (len(good) * 4).to_bytes(4, "little")   # the directory's offset, past the end
+    assert page.evaluate(UNZIP, b64(bytes(far))) == "Error: not a zip"
+    many = bytearray(good); many[-12:-10] = (9).to_bytes(2, "little")           # more entries than the directory holds
+    assert page.evaluate(UNZIP, b64(bytes(many))) == "Error: not a zip"
+    bent = bytearray(good); bent[good.index(b'{"a":1}') + 2] ^= 1              # one bit of a's text flipped
+    assert page.evaluate(UNZIP, b64(bytes(bent))) == {"files": [{"name": "b.json", "text": '{"b":2}'}], "bad": ["a.json"]}
+
+
 # each store test starts from an empty store: the browser one deletes the database (so opening it also covers the
 # first run, when it does not exist yet), the folder one works in a fresh sub-folder of the origin's private folder
 FRESH = """async kind => { const S = await import('/static/js/store.js');
@@ -524,7 +546,7 @@ def test_top_bar_opens_and_closes_the_library(page):
     before = page.evaluate("JSON.stringify([__t.state(), __t.job()])")
     library(page)
     assert page.text_content("#libyours").strip() == "No projects yet. Save one with save, or import files."
-    assert page.text_content("#libwhere").strip() == "💾 kept in this browser only. Clearing the site data deletes them: use export all for a backup."
+    assert page.text_content("#libwhere > span").strip() == "💾 kept in this browser only. Clearing the site data deletes them: use export all for a backup."
     page.keyboard.press("Escape")
     assert page.is_hidden("#library")
     library(page); page.click("#libclose")
@@ -934,6 +956,8 @@ def test_other_things_in_the_folder(page):
     err = page.evaluate("__t.lib.removeProject('x_v1.0.lamina.json').then(() => null, e => e.message)")
     assert err and "cannot be read" in err
     assert on_disk(page) == {"notes.json": "{}", "x_v1.0.lamina.json": '{"name":"x","mo', "sub.lamina.json": None}
+    library(page)                                                              # the page opens, with one card
+    assert cards(page) == ["x_v1.0.lamina.json"] and "cannot be read" in card(page, "x_v1.0.lamina.json").inner_text()
 
 
 def test_a_file_changed_on_disk_asks_before_save(page):
@@ -960,6 +984,9 @@ def test_no_fallback_when_the_folder_cannot_be_reached(page):
     assert r["err"] and "Reconnect" in r["err"] and "export" in r["err"]
     assert (r["state"]["kind"], r["state"]["label"], r["state"]["state"]) == ("folder", "lib", "needs-permission")
     assert browser_files(page) == [] and on_disk(page) == {}
+    page.evaluate("import('/static/js/librarypage.js').then(P => P.showLibrary())")   # not #popen: that reconnects
+    text, buttons = where(page)
+    assert "cannot be reached" in text and "libreconnect" in buttons
     assert page.evaluate("__t.lib.reconnect()") is True and page.evaluate("__t.lib.storeState().state") == "folder"
     assert save(page)[0] == {"file": "lamp_v1.0.lamina.json"}
 
@@ -971,6 +998,8 @@ def test_unlink_leaves_the_files(page):
     assert page.evaluate("__t.lib.storeState()") == {"kind": "browser", "label": "this browser", "state": "browser",
                                                      "files": 0, "left": "lib"}
     assert page.evaluate("import('/static/js/store.js').then(S => S.kvGet('folder'))") is None
+    library(page)
+    assert "Your files stayed in lib." in where(page)[0]
 
 
 def test_link_state_survives_reload(page):
@@ -1215,3 +1244,195 @@ def test_a_call_before_start_up_waits_for_the_kept_folder(page):
     finally:
         page.unroute("**/static/js/main.js", held)
     assert page.evaluate("window.__early") == ["lamp"]
+
+
+# --- export and import (Task 6) ---
+def import_files(page, files, answers=()):
+    """importFiles() of Files made of `files` [(name, text or bytes, lastModified or None)], `ask` giving `answers` in
+    turn (then None): [its result, the clashes it was asked about]."""
+    fs = [[n, base64.b64encode(b if isinstance(b, bytes) else b.encode()).decode(), t] for n, b, t in files]
+    return page.evaluate("""async ([fs, a]) => { const asked = [];
+        const files = fs.map(([n, b, t]) => new File([Uint8Array.from(atob(b), c => c.charCodeAt(0))], n, t ? {lastModified: t} : {}));
+        const r = await __t.lib.importFiles(files, c => { asked.push(c); return Promise.resolve(a[asked.length - 1] ?? null) });
+        return [r, asked] }""", [fs, list(answers)])
+
+
+def zipped(*entries):
+    """A zip made by Python: (name, text) entries are stored, (name, text, method) ones as `method` says."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        for n, t, *m in entries:
+            z.writestr(n, t, m[0] if m else zipfile.ZIP_STORED)
+    return buf.getvalue()
+
+
+def test_export_all_then_import_into_an_empty_library(page):
+    name(page, "lamp"); save(page); name(page, "vase"); save(page)
+    lamp = read(page, "lamp_v1.0.lamina.json"); lamp["rev"] = "1.1"
+    put(page, "lamp_v1.1.lamina.json", json.dumps(lamp))
+    before = page.evaluate("__t.lib.entries()")
+    b64, skipped = page.evaluate("""async () => { const r = await __t.lib.exportAll(); window.__zip = r.blob;
+        const u = new Uint8Array(await r.blob.arrayBuffer()); let s = ''; for (const x of u) s += String.fromCharCode(x);
+        return [btoa(s), r.skipped] }""")
+    z = zipfile.ZipFile(io.BytesIO(base64.b64decode(b64)))
+    assert sorted(z.namelist()) == ["lamp_v1.0.lamina.json", "lamp_v1.1.lamina.json", "vase_v1.0.lamina.json"] and skipped == []
+    assert z.read("vase_v1.0.lamina.json").decode() == read_text(page, "vase_v1.0.lamina.json")
+    wipe(page)
+    assert lib(page) == []
+    r = page.evaluate("__t.lib.importFiles([new File([window.__zip], 'lamina-library.zip')], () => Promise.resolve(null))")
+    assert sorted(r["imported"]) == sorted(z.namelist()) and r["bad"] == []
+    strip = lambda ps: [{**p, "revs": [{k: v for k, v in rv.items() if k not in ("size", "mtime")} for rv in p["revs"]]} for p in ps]
+    assert strip(page.evaluate("__t.lib.entries()")) == strip(before)          # names, revisions, dates and pictures
+
+
+def test_import_clash_replace_keep_and_rest(page):
+    put(page, "lamp_v1.0.lamina.json", project("lamp")); put(page, "lamp_v1.1.lamina.json", project("lamp", "1.1"))
+    other = lambda rev: json.dumps({"name": "lamp", "rev": rev, "mode": "stacked", "state": {"rev": rev, "thickness": 9}})
+    # keep, for the rest: 1.0 takes 1.3 (1.1 is the library's, 1.2 still to come), 1.1 takes 1.4, 1.2 lands as it is
+    r, asked = import_files(page, [(f"lamp_v{v}.lamina.json", other(v), None) for v in ("1.0", "1.1", "1.2")],
+                            [{"answer": "keep", "rest": True}])
+    assert asked == [{"name": "lamp", "rev": "1.0", "next": "1.3"}]
+    assert r == {"imported": ["lamp_v1.3.lamina.json", "lamp_v1.4.lamina.json", "lamp_v1.2.lamina.json"], "bad": []}
+    assert lib(page) == [("lamp", ["1.4", "1.3", "1.2", "1.1", "1.0"])]
+    assert read(page, "lamp_v1.0.lamina.json") == json.loads(project("lamp"))   # nothing written over
+    assert read(page, "lamp_v1.3.lamina.json")["rev"] == read(page, "lamp_v1.3.lamina.json")["state"]["rev"] == "1.3"
+    # replace writes over; a skip leaves the library as it was
+    r, asked = import_files(page, [("a.lamina.json", other("1.0"), None), ("b.lamina.json", other("1.1"), None)], ["replace", None])
+    assert len(asked) == 2 and r["imported"] == ["lamp_v1.0.lamina.json"]
+    assert read(page, "lamp_v1.0.lamina.json")["state"]["thickness"] == 9
+    assert read(page, "lamp_v1.1.lamina.json") == json.loads(project("lamp", "1.1"))
+    # replace onto a file that cannot be read keeps both
+    put(page, "lamp_v1.5.lamina.json", "not json")
+    r, asked = import_files(page, [("c.lamina.json", other("1.5"), None)], ["replace"])
+    assert asked == [{"name": "lamp", "rev": "1.5", "next": "1.6"}] and r["imported"] == ["lamp_v1.6.lamina.json"]
+    assert read(page, "lamp_v1.5.lamina.json") == "not json"
+
+
+def test_import_reports_bad_files(page):
+    put(page, "lamp_v1.0.lamina.json", project("lamp"))
+    before = page.evaluate("__t.lib.entries()")
+    z = zipped(("egg_v1.0.lamina.json", project("egg")), ("pear_v1.0.lamina.json", project("pear") * 20, zipfile.ZIP_DEFLATED))
+    t = 1_700_000_000_000                                                      # the File's own date
+    r, asked = import_files(page, [("x.lamina.json", "{", None), ("more.zip", z, t), ("junk.zip", b"PK nothing", None)])
+    assert asked == [] and r == {"imported": ["egg_v1.0.lamina.json"], "bad": ["x.lamina.json", "pear_v1.0.lamina.json", "junk.zip"]}
+    after = page.evaluate("__t.lib.entries()")
+    egg = next(p for p in after if p["name"] == "egg")["revs"][0]
+    assert egg["saved"] == "2023-11-14T22:13:20.000Z" and egg["preview"] == ""  # no date inside: the File's; no picture: none
+    assert [p for p in after if p["name"] != "egg"] == before
+
+
+def test_export_buttons_download(page):
+    name(page, "lamp"); save(page)
+    library(page)
+    card(page, "lamp").locator(".more").click()
+    page.wait_for_selector("#libyours .rev")
+    with page.expect_download() as d:
+        card(page, "lamp").locator(".export").click()
+    assert d.value.suggested_filename == "lamp_v1.0.lamina.json"
+    with open(d.value.path(), encoding="utf-8") as f:
+        assert f.read() == read_text(page, "lamp_v1.0.lamina.json")
+    with page.expect_download() as d:
+        card(page, "lamp").locator(".exportproject").click()
+    assert d.value.suggested_filename == "lamp.lamina.zip"
+    assert zipfile.ZipFile(d.value.path()).namelist() == ["lamp_v1.0.lamina.json"]
+    with page.expect_download() as d:
+        page.click("#libexportall")
+    assert d.value.suggested_filename == "lamina-library.zip"
+
+
+def test_drop_files_on_the_library(page):
+    library(page)
+    prevented = page.evaluate("""t => { const dt = new DataTransfer(); dt.items.add(new File([t], 'egg_v1.0.lamina.json'));
+        const e = new DragEvent('drop', {dataTransfer: dt, bubbles: true, cancelable: true});
+        document.querySelector('#libyours').dispatchEvent(e); return e.defaultPrevented }""", project("egg"))
+    assert prevented                                                            # the browser does not open the file
+    page.wait_for_selector('#libyours .card[data-name="egg"]')
+    assert said(page, "imported") == "imported 1 file"
+    with page.expect_file_chooser() as fc:
+        page.click("#libimport")
+    assert fc.value.is_multiple()
+    fc.value.set_files([{"name": "pear_v1.0.lamina.json", "mimeType": "application/json", "buffer": project("pear").encode()},
+                        {"name": "x.lamina.json", "mimeType": "application/json", "buffer": b"{"}])
+    page.wait_for_selector('#libyours .card[data-name="pear"]')
+    assert said(page, "imported") == "imported 1 file. Not imported, as they cannot be read: x.lamina.json"
+
+
+# --- the folder line (Task 7, the page) ---
+def where(page):
+    """The folder line's text, and the ids of its buttons that can be pressed."""
+    return page.evaluate("""() => [document.querySelector('#libwhere').innerText,
+        [...document.querySelectorAll('#libwhere button:not(:disabled)')].map(b => b.id)]""")
+
+
+def picker(page):
+    """showDirectoryPicker answers the private folder 'lib' (a test cannot reach the real one); put back by reload."""
+    page.evaluate(f"""async () => {{ const d = await {LIB}; window.__picked = [];
+        window.showDirectoryPicker = async o => {{ window.__picked.push(o); return d }} }}""")
+
+
+def test_link_button_follows_the_browser(page):
+    name(page, "lamp"); save(page)
+    picker(page); library(page)
+    text, buttons = where(page)
+    assert text.startswith("💾 kept in this browser only.") and buttons == ["liblink"]
+    page.click("#liblink")
+    page.wait_for_function("() => /kept in the folder/.test(document.querySelector('#libwhere').innerText)")
+    assert page.evaluate("window.__picked") == [{"mode": "readwrite"}]
+    text, buttons = where(page)
+    assert text.startswith("📁 kept in the folder lib · 1 file") and buttons == ["libchange", "libunlink"]
+    assert said(page, "Linked lib") == "Linked lib: 1 revision moved into it."
+    page.click("#libunlink")
+    page.wait_for_function("() => /Your files stayed in lib\\./.test(document.querySelector('#libwhere').innerText)")
+    assert where(page)[1] == ["liblink"]
+    page.evaluate("delete window.showDirectoryPicker; delete Window.prototype.showDirectoryPicker")
+    page.click("#libclose"); library(page)
+    assert page.get_attribute("#liblink", "disabled") is not None and page.get_attribute("#liblink", "title") == "needs Chrome or Edge"
+    page.reload(); settle(page)                                                # the browser's own picker back for the next tests
+
+
+def test_link_from_the_page_names_what_stayed_in_the_browser(page):
+    name(page, "lamp"); save(page); name(page, "a<b"); save(page); drop(page, "a_b_v1.0.lamina.json", project("a<b"))
+    picker(page); library(page)
+    page.click("#liblink")
+    page.wait_for_selector("#libask[open]")
+    page.click("#libask_cancel")                                               # a<b stays in the browser
+    line = said(page, "Linked lib")
+    assert line.startswith("Linked lib: 1 revision moved into it.") and "a_b_v1.0.lamina.json" in line
+    note = page.inner_text("#libwhere .note")
+    assert "a_b_v1.0.lamina.json" in note and "cancelled" in note and "change folder" in note and "unlink" in note
+
+
+def test_the_folder_line_when_it_cannot_be_reached(page):
+    folder(page); library(page)
+    page.evaluate("""() => { const P = FileSystemDirectoryHandle.prototype; window.__perm = {};
+        for (const k of ['queryPermission', 'requestPermission']) window.__perm[k] = Object.getOwnPropertyDescriptor(P, k);
+        window.__answer = 'denied'; P.queryPermission = async () => 'prompt'; P.requestPermission = async () => window.__answer }""")
+    try:
+        page.evaluate("__t.lib.restoreStore()")
+        page.click("#libclose"); page.click("#popen")                         # the library button asks, and is refused
+        page.wait_for_function("() => /cannot be reached/.test(document.querySelector('#libwhere').innerText)")
+        text, buttons = where(page)
+        assert text.startswith("⚠ The linked folder lib cannot be reached.") and buttons == ["libreconnect", "libchange", "libunlink"]
+        page.evaluate("document.querySelector('#status').textContent = ''")
+        page.click("#libreconnect")
+        said(page, "The linked folder lib cannot be reached")                  # not "reconnected"
+        page.evaluate("window.__answer = 'granted'")
+        page.click("#libreconnect")
+        page.wait_for_function("() => /kept in the folder lib/.test(document.querySelector('#libwhere').innerText)")
+        assert page.evaluate("__t.lib.storeState().state") == "folder"
+    finally:
+        page.evaluate("""() => { const P = FileSystemDirectoryHandle.prototype;
+            for (const k in window.__perm) window.__perm[k] ? Object.defineProperty(P, k, window.__perm[k]) : delete P[k] }""")
+
+
+def test_the_folder_buttons_wait_for_a_save(page):
+    name(page, "lamp"); save(page); page.evaluate("__t.lib.setSaved(null)")    # the next save asks
+    library(page)
+    page.evaluate("document.querySelector('#psave2').click()")
+    page.wait_for_selector("#libask[open]")
+    assert where(page)[1] == [] and page.get_attribute("#liblink", "disabled") is not None
+    page.evaluate("document.querySelector('#psave2').click()")                 # a second press while the first one asks
+    assert "not saved" in page.text_content("#status")
+    page.click("#libask_cancel")
+    page.wait_for_function("() => !document.querySelector('#liblink').disabled")
+    assert not page.text_content("#status").startswith("saved") and page.is_visible("#punsaved")

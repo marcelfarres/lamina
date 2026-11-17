@@ -25,19 +25,24 @@ export function zip(files){
 }
 
 export async function unzip(buf){
-  const v=new DataView(buf), u=new Uint8Array(buf), dec=new TextDecoder('utf-8',{fatal:true}), out=[];
-  let e=buf.byteLength-22;
-  while(e>=0&&v.getUint32(e,true)!==0x06054b50)e--;   // the end record sits behind an optional comment of up to 64 KB
-  if(e<0||e<buf.byteLength-22-0xffff)throw new Error('not a zip');
+  const v=new DataView(buf), u=new Uint8Array(buf), len=buf.byteLength, dec=new TextDecoder('utf-8',{fatal:true}), out=[];
+  // the end record sits behind an optional comment of up to 64 KB: looked for there only
+  const stop=Math.max(0,len-22-0xffff);let e=len-22;
+  while(e>=stop&&v.getUint32(e,true)!==0x06054b50)e--;
+  if(e<stop)throw new Error('not a zip');
   out.bad=[];
+  // a truncated or damaged zip points past its own end: every read is checked against the length first, so it is
+  // "not a zip" (or one bad entry), never a RangeError
   for(let n=v.getUint16(e+10,true),p=v.getUint32(e+16,true);n--;){
-    if(v.getUint32(p,true)!==0x02014b50)throw new Error('not a zip');
+    if(p+46>len||v.getUint32(p,true)!==0x02014b50||p+46+v.getUint16(p+28,true)>len)throw new Error('not a zip');
+    // the name is read as UTF-8 whatever flag bit 11 says: an archiver's code-page name comes out garbled, and it is
+    // only shown in the list of bad entries
     const nl=v.getUint16(p+28,true), name=new TextDecoder().decode(u.subarray(p+46,p+46+nl)),
       method=v.getUint16(p+10,true), crc=v.getUint32(p+16,true), size=v.getUint32(p+20,true), lo=v.getUint32(p+42,true);
     p+=46+nl+v.getUint16(p+30,true)+v.getUint16(p+32,true);
     if(name.endsWith('/'))continue;                      // a folder entry: nothing to read
     try{
-      if(method!==0||v.getUint32(lo,true)!==0x04034b50)throw 0;
+      if(method!==0||lo+30>len||v.getUint32(lo,true)!==0x04034b50)throw 0;
       const at=lo+30+v.getUint16(lo+26,true)+v.getUint16(lo+28,true), data=u.subarray(at,at+size);
       if(data.length!==size||crc32(data)!==crc)throw 0;
       out.push({name,text:dec.decode(data)});
