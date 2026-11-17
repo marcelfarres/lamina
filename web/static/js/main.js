@@ -8,18 +8,35 @@ import {fmtLen, DU, applyUnit} from './units.js';
 import {step, undos, redos} from './history.js';
 import {showNews, whatsNew, phoneNotice, news} from './news.js';
 import {matOf, matThicks, machineOf, kind, applyMachine, shs, sameSheet, userMachines, syncPresetSelects, userMaterials, dens, fam, renderPresets, PKEYS} from './presets.js';
-import {setMode, renderFields, schedule, resetTab, showTab, memo, MODEL_BOUND, allParams, sizeAxes} from './form.js';
+import {setMode, renderFields, schedule, resetTab, showTab, memo, MODEL_BOUND, allParams, sizeAxes, findRows} from './form.js';
+import {spcXY} from './spacing.js';
 import {slice, oops, popup, LOCAL_DOC} from './slice.js';
 import {applyLook, controls, banner, parts, guides, gizmo, axes, rings, camera, renderer, applyFold, scene, ghost, ghostUrl} from './scene.js';
 import {renderWeight, renderDownloads, applyFix} from './results.js';
 import {saveProject, openProject, bump, projectObj, projName} from './project.js';
+// what each technique makes, as a small drawing on its card
+const MODE_ICON={stacked:"<path d='M8 8h28M5 13h34M5 18h34M8 23h28' stroke-width='3'/>",interlocked:"<path d='M12 4v22M22 4v22M32 4v22M5 9h34M5 15h34M5 21h34' stroke-width='2'/>",
+  radial:"<path d='M22 2v26M9 6l26 18M35 6L9 24' stroke-width='2'/><ellipse cx='22' cy='15' rx='15' ry='5' stroke-width='1.5'/>",
+  curve:"<path d='M4 24C12 4 30 26 40 6' stroke-width='2'/><path d='M9 12l5 5M17 9l1 7M26 12l-2 7M33 9l4 6' stroke-width='3'/>",
+  folded:"<path d='M22 3l15 8-4 14H11L7 11zM22 3v22M7 11l15 14 15-14' stroke-width='1.6'/>",plaque:"<path d='M4 25h36' stroke-width='4'/><path d='M10 23V12M16 23V7M22 23V4M28 23V7M34 23V12' stroke-width='2.5'/>"};
+// a header menu shuts on a click outside it and on a choice inside it
+document.addEventListener('click',e=>{for(const d of $$('details.menu[open]'))if(!d.contains(e.target)||e.target.closest('.pop button,.pop a'))d.open=false});
+// a group's fields, with a heading where the section changes: "Title — the line under it", the line always on show, so
+// what a switch governs is read, not hovered for (only the kerf follows "compensate kerf"; the slot fit always applies)
+const fields=ps=>{let html='',open='';for(const p of ps){const s=p.section||open;   // a row with no section of its own stays in the one above
+    if(s!==open){if(open)html+='</div>';open=s;if(s){const [t,line]=s.split(' — ');
+      html+=`<div class="sec${folded.has(t)?' folded':''}" data-sec="${esc(t)}"><h3 class="sub" title="click to fold or unfold">${esc(t)}<small></small></h3>${line?`<p class="hint sub">${esc(line)}</p>`:''}`}}
+    html+=field(p)}
+  return html+(open?'</div>':'')};
 
 // ---------------------------------------------------------------- init
 async function init(){
   ST.MODES=await (await fetch('api/modes')).json(); ST.PROJECT_VERSION=(await (await fetch('api/project')).json()).version; const ex=await (await fetch('api/examples')).json();
   const PRESETS=await fetch('api/presets').then(r=>r.ok?r.json():{}).catch(()=>({}));
   $('#example').innerHTML=ex.map(e=>`<option>${e}</option>`).join(''); $('#example').value=ex.includes('blob')?'blob':ex[0];
-  $('#modes').innerHTML=ST.MODES.map(m=>`<button data-m="${m.name}">${m.title}</button>`).join('');
+  $('#modes').innerHTML=ST.MODES.map(m=>`<button data-m="${m.name}"><svg viewBox="0 0 44 30" fill="none" stroke="currentColor" stroke-linecap="round" aria-hidden="true">${MODE_ICON[m.name]||''}</svg><span>${m.title}</span></button>`).join('');
+  for(const s of $$('section[data-tab]'))s.dataset.name=$(`nav button[data-t="${s.dataset.tab}"]`)?.textContent||s.dataset.tab;   // the tab's name over its rows when a search shows several tabs
+  $('#find').oninput=findRows; $('#find').onkeydown=e=>{if(e.key==='Escape'){e.target.value='';findRows()}};
   $('#modes').onclick=e=>{if(e.target.dataset.m){deselect();setMode(e.target.dataset.m);ST.countUse('technique',e.target.dataset.m);slice()}};
   $('#material').onchange=e=>{const n=e.target.value,m=matOf(n);state.material=n;
     if(m){const ts=matThicks(n);if(!ts.some(t=>Math.abs(t[0]-state.thickness)<1e-6))state.thickness=ts[Math.floor(ts.length/2)][0];   // a stock thickness of the new material
@@ -184,7 +201,7 @@ window.laminaFeedback?.({bug:async withModel=>{
   sheets:ls('slicer_sheets',[]).filter(s=>!s[2]||s[2]===fam()).map(([n,s])=>[n,s]),units:state.units},null,1)})});
 
 // test and capture hook (tests/ui, scripts/media/capture.mjs)
-window.__t={project:()=>projectObj(false),sizeAxes:()=>sizeAxes(),target:()=>controls.target,banner:()=>banner.visible?banner.userData.text:'',parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>ST.plan,job:()=>ST.job,
+window.__t={spcXY,project:()=>projectObj(false),sizeAxes:()=>sizeAxes(),target:()=>controls.target,banner:()=>banner.visible?banner.userData.text:'',parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>ST.plan,job:()=>ST.job,
   fold:s=>{$('#fold').value=s;applyFold();renderer.render(scene,camera)},
   idle:()=>!ST.timer&&!ST.busy,   // no change waiting out its debounce, no slice running: what a test or a capture waits for
   ghost:()=>ghost.children,ghostUrl:()=>ghostUrl,pivot:()=>pivot3&&rnd(pivot3),

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {state, ST} from './state.js';
 import {PLANE_IDX} from './catalog.js';
-import {$, status} from './util.js';
+import {$, $$, status} from './util.js';
 import {bounds, show, UNIT, toMM, inU, fmtLen, niceStep} from './units.js';
 import {renderFields} from './form.js';
 import {slice} from './slice.js';
@@ -225,12 +225,24 @@ function togglePoint(h,shift){ // alt-click: dowel (stacked) in the clicked slic
 // The cube answers a click, on release: it used to snap on press while the orbit's own drag ran on under it, so a
 // drag that began on the cube "moved a bit, then jumped to a face" (reported from a Mac). A drag on it now turns the
 // view like a drag anywhere, and the cube turns with it
-renderer.domElement.addEventListener('pointerdown',ev=>{if(ev.button!==0)return;down={x:ev.clientX,y:ev.clientY,cube:!!cubeHit(ev)};if(down.cube)return;const h=hit(ev);
+// The tool picked at the left of the view stands in for the key: a tablet has no alt, and nobody guesses shift-drag.
+// The keys work as before, with any tool
+const TOOL={alt:{altKey:true},branch:{altKey:true,shiftKey:true},tilt:{shiftKey:true},roll:{ctrlKey:true}};
+const keys=ev=>({altKey:ev.altKey,shiftKey:ev.shiftKey,ctrlKey:ev.ctrlKey,...TOOL[ST.tool]});
+function setTool(t){ST.tool=t;for(const b of $$('#tools button'))b.setAttribute('aria-pressed',b.dataset.tool===t)}
+// the tools the technique in use has: a dowel, a curve point or an axis to add; a branch on a curve; slices to tilt
+export function syncTools(){const has=n=>ST.mode.params.some(p=>p.name===n),what=has('dowels')?'a dowel':has('curve')?'a curve point':has('axes')?'an axis':'';
+  const show={'':true,alt:!!what,branch:has('curve'),tilt:ST.mode.name!=='folded',roll:ST.mode.name!=='folded'};
+  for(const b of $$('#tools button')){b.hidden=!show[b.dataset.tool];if(b.dataset.tool==='alt')b.querySelector('span').textContent=what}
+  setTool('')}
+$('#tools').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setTool(b.dataset.tool)});
+addEventListener('keydown',e=>{if(e.key==='Escape'&&ST.tool)setTool('')});
+renderer.domElement.addEventListener('pointerdown',ev=>{if(ev.button!==0)return;const k=keys(ev);down={x:ev.clientX,y:ev.clientY,cube:!!cubeHit(ev)};if(down.cube)return;const h=hit(ev);
   if(h&&h.object.userData.ring!==undefined){ // start turning the model about the ring's axis
     const i=h.object.userData.ring,centre=new THREE.Vector3(0,0,0),r=renderer.domElement.getBoundingClientRect(),c=centre.clone().project(camera),cx=r.left+(c.x+1)/2*r.width,cy=r.top+(1-c.y)/2*r.height;
     const axisDir=new THREE.Vector3(i===0?1:0,i===1?1:0,i===2?1:0),sign=axisDir.dot(camera.position.clone().sub(centre))>=0?1:-1;
     drag={mode:'ring',axis:i,cx,cy,sign,a0:Math.atan2(ev.clientY-cy,ev.clientX-cx),delta:0};controls.enabled=false;renderer.domElement.setPointerCapture(ev.pointerId);return}
-  if(h&&(h.object.userData.ax!==undefined||h.object.userData.axline!==undefined)&&!ev.altKey){ // drag a radial axis — whole, or one end — on a plane facing the camera, so it follows the pointer in 3D; orbit to reach the third direction
+  if(h&&(h.object.userData.ax!==undefined||h.object.userData.axline!==undefined)&&!k.altKey){ // drag a radial axis — whole, or one end — on a plane facing the camera, so it follows the pointer in 3D; orbit to reach the third direction
     const o=h.object, hs=guides.children.filter(g=>g.userData.ax!==undefined), i=o.userData.axline!==undefined?o.userData.axline:o.userData.ax.i;
     // the rod takes both ends with it; an end moves alone — every axis is its own two dots, even where two touch
     const ends=o.userData.axline!==undefined?hs.filter(g=>g.userData.ax.i===i):[o];
@@ -244,7 +256,7 @@ renderer.domElement.addEventListener('pointerdown',ev=>{if(ev.button!==0)return;
     const p0=new THREE.Vector3(); ray.setFromCamera(ndc(ev),camera); if(!ray.ray.intersectPlane(plane,p0))p0.copy(C);
     drag={mode:'axis',ends:ends.map(g=>({i:g.userData.ax.i,e:g.userData.ax.e,sphere:g,start:g.position.clone()})),plane,snap:!!shared,p0,delta:null};
     controls.enabled=false;renderer.domElement.setPointerCapture(ev.pointerId);return}
-  if(h&&h.object.userData.cp!==undefined&&!ev.altKey){ // drag a curve point: the pointer's movement on screen, read into the curve's own two directions
+  if(h&&h.object.userData.cp!==undefined&&!k.altKey){ // drag a curve point: the pointer's movement on screen, read into the curve's own two directions
     const idx=PLANE_IDX[state.plane||'xz'], i=h.object.userData.cp;
     const list=curveList();
     drag={mode:'curve',i,sphere:h.object,idx,list,pt:null,P0:h.object.position.clone(),p0:list[i]||[0,0],
@@ -258,11 +270,11 @@ renderer.domElement.addEventListener('pointerdown',ev=>{if(ev.button!==0)return;
     controls.enabled=false;renderer.domElement.setPointerCapture(ev.pointerId);return}
   // Only a handle moves a part — or shift / ctrl on the part itself, which say so. A plain drag on a selected part
   // used to slide it too, so turning the view after a click moved a layer by accident (reported)
-  const m=h&&(h.object.userData.gizmo?parts.children.find(c=>c.userData.slice===ST.selected):(ev.shiftKey||ev.ctrlKey)&&!ev.altKey&&h.object);   // shift+alt is a click: a branch
+  const m=h&&(h.object.userData.gizmo?parts.children.find(c=>c.userData.slice===ST.selected):(k.shiftKey||k.ctrlKey)&&!k.altKey&&h.object);   // shift+alt is a click: a branch
   if(m&&ST.selected&&m.userData.slice===ST.selected){const o=m.userData.origin.clone().project(camera),n=m.userData.origin.clone().add(m.userData.normal).project(camera);
     const r=renderer.domElement.getBoundingClientRect(),dir=new THREE.Vector2((n.x-o.x)*r.width/2,-(n.y-o.y)*r.height/2);if(dir.length()<1e-6)dir.set(1,0);dir.normalize();
     const dist=camera.position.distanceTo(m.userData.origin),mmPerPx=2*dist*Math.tan(camera.fov*Math.PI/360)/r.height;
-    drag={mode:ev.shiftKey?'tilt':ev.ctrlKey?'roll':'offset',dir,mmPerPx,delta:0,meshes:parts.children.filter(c=>c.userData.slice===ST.selected)};controls.enabled=false;renderer.domElement.setPointerCapture(ev.pointerId)}});
+    drag={mode:k.shiftKey?'tilt':k.ctrlKey?'roll':'offset',dir,mmPerPx,delta:0,meshes:parts.children.filter(c=>c.userData.slice===ST.selected)};controls.enabled=false;renderer.domElement.setPointerCapture(ev.pointerId)}});
 renderer.domElement.addEventListener('pointermove',ev=>{if(!drag)return;const dx=ev.clientX-down.x,dy=ev.clientY-down.y,f=UNIT[ST.unit];
   if(drag.mode==='axis'){ray.setFromCamera(ndc(ev),camera);const P=new THREE.Vector3();if(!ray.ray.intersectPlane(drag.plane,P))return;
     drag.delta=P.sub(drag.p0);
@@ -283,7 +295,7 @@ renderer.domElement.addEventListener('pointermove',ev=>{if(!drag)return;const dx
   if(drag.mode==='offset'){drag.delta=(dx*drag.dir.x+dy*drag.dir.y)*drag.mmPerPx;preview('offset',((state.offset?.[ST.selected]||0)+drag.delta)*f);gizmo.position.copy(drag.meshes[0].userData.normal).multiplyScalar(drag.delta);ST.dirty=true}
   else{drag.delta=dx*0.4;preview(drag.mode,(state[drag.mode]?.[ST.selected]||0)+drag.delta)}
   status(`${drag.mode} ${ST.selected}: ${drag.mode==='offset'?fmtLen(drag.delta):drag.delta.toFixed(1)+'°'}`,'busy')});
-renderer.domElement.addEventListener('pointerup',ev=>{
+renderer.domElement.addEventListener('pointerup',ev=>{const k=keys(ev);
   if(drag&&drag.mode==='spin'){controls.enabled=true;const d=drag;drag=null;
     if(d.v!==null&&d.v!==d.base)commit(d.k,d.v); else applyExplode();return}
   if(drag&&drag.mode==='axis'){controls.enabled=true;const d=drag;drag=null;
@@ -298,9 +310,9 @@ renderer.domElement.addEventListener('pointerup',ev=>{
   if(!down||Math.hypot(ev.clientX-down.x,ev.clientY-down.y)>10)return;
   if(down.cube){const cv=cubeHit(ev);if(cv)viewFrom(cv);return}
   const h=hit(ev);if(h&&(h.object.userData.gizmo||h.object.userData.ring!==undefined))return;
-  if(h&&(h.object.userData.ax!==undefined||h.object.userData.axline!==undefined)){if(ev.altKey){const list=axisList(),i=h.object.userData.ax?h.object.userData.ax.i:h.object.userData.axline;   // alt-click an axis or its end: drop that fan (the last one stays — a radial job has to turn about something) or that branch
+  if(h&&(h.object.userData.ax!==undefined||h.object.userData.axline!==undefined)){if(k.altKey){const list=axisList(),i=h.object.userData.ax?h.object.userData.ax.i:h.object.userData.axline;   // alt-click an axis or its end: drop that fan (the last one stays — a radial job has to turn about something) or that branch
       if(list.length>1||lineParam()==='branches'){state[lineParam()]=dropLine(i);renderFields();slice()}
       else status('the last axis stays — alt-click the model to add another first');}return}
-  if(h&&h.object.userData.cp!==undefined){if(ev.altKey){const list=curveList();if(list.length>2){list.splice(h.object.userData.cp,1);state.curve=list;renderFields();slice()}}return}   // alt-click a dot: remove it (a curve keeps two)
-  if(h&&ev.altKey)togglePoint(h,ev.shiftKey);else if(h)highlight(h.object);else deselect()});
+  if(h&&h.object.userData.cp!==undefined){if(k.altKey){const list=curveList();if(list.length>2){list.splice(h.object.userData.cp,1);state.curve=list;renderFields();slice()}}return}   // alt-click a dot: remove it (a curve keeps two)
+  if(h&&k.altKey)togglePoint(h,k.shiftKey);else if(h)highlight(h.object);else deselect()});
 

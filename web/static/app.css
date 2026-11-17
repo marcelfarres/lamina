@@ -1,11 +1,17 @@
 :root{--bg:#141517;--panel:#1c1d21;--panel2:#232429;--line:#2f3138;--ink:#e6e6e3;--muted:#9a9ba3;--acc:#4f8cff;--err:#ff6b6b;--warn:#f5b642;--ok:#5fcf80;--sel:#ffd84a}
 *{box-sizing:border-box}html,body{height:100%}body{margin:0;display:flex;flex-direction:column;font:13px/1.45 Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink);color-scheme:dark;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
 header{flex:none;min-height:44px;padding:0 14px;background:#0f1012;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center}
-/* One row only fits a window about 1700px wide; narrower than that the links past the status ran off the right edge
-   on every laptop, so the header wraps onto a second row there. */
-@media (max-width:1700px){header{flex-wrap:wrap;padding:4px 14px;row-gap:4px}}
+/* One row: the links and the rarely used buttons are in the help menu, and the status line gives way first. Under
+   about 1150px even that does not fit, so the header wraps onto a second row there. */
+@media (max-width:1150px){header{flex-wrap:wrap;padding:4px 14px;row-gap:4px}}
+/* a menu in the header: a <details> whose summary is the button and whose .pop drops under it */
+details.menu{position:relative;flex:none}details.menu>summary{list-style:none;cursor:pointer;display:block;padding:3px 8px;border:1px solid var(--line);background:var(--panel2);border-radius:4px;font-size:12px;white-space:nowrap}
+details.menu>summary::-webkit-details-marker{display:none}details.menu>summary:hover,details.menu[open]>summary{border-color:var(--acc)}
+.pop{position:absolute;z-index:60;top:calc(100% + 4px);left:0;min-width:200px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:4px 0;box-shadow:0 8px 24px #0008;display:flex;flex-direction:column}
+.pop button,.pop a{all:unset;box-sizing:border-box;padding:6px 12px;font-size:12px;color:var(--ink);cursor:pointer;white-space:nowrap}.pop :is(button,a):is(:hover,:focus-visible){background:#ffffff14}
+.pop hr{border:0;border-top:1px solid var(--line);margin:4px 0;width:100%}
 header h1{font-size:15px;font-weight:600;letter-spacing:.01em;margin:0 6px 0 0;display:flex;align-items:center;gap:7px}header h1 img{width:20px;height:20px;display:block}
-header a.kofi{color:var(--muted);font-size:12px;text-decoration:none;border:1px solid var(--line);border-radius:12px;padding:2px 9px;white-space:nowrap}header a.kofi:hover{color:#ff5e5b;border-color:#ff5e5b}header .sp{flex:1}header select{width:auto}#status{color:var(--muted);font-size:12px;max-width:34vw;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+header a.kofi{color:var(--muted);font-size:12px;text-decoration:none;border:1px solid var(--line);border-radius:12px;padding:2px 9px;white-space:nowrap;display:inline-flex;gap:6px;align-items:center;flex:none}header a.kofi:hover{color:#ff5e5b;border-color:#ff5e5b}header .sp{flex:1}header select{width:auto}header>label,header>button,header>input{flex:none}#status{color:var(--muted);font-size:12px;max-width:34vw;min-width:40px;flex:0 1 auto;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 #dot{width:11px;height:11px;border-radius:50%;background:var(--ok);flex:none;box-shadow:0 0 6px var(--ok)}#dot.busy{background:var(--warn);box-shadow:0 0 8px var(--warn);animation:pulse .8s infinite alternate}#dot.err{background:var(--err);box-shadow:0 0 6px var(--err)}
 @keyframes pulse{from{opacity:.4}to{opacity:1}}
 main{display:grid;grid-template-columns:400px 1fr;flex:1;min-height:0}
@@ -19,7 +25,33 @@ label.f,div.f{display:grid;grid-template-columns:128px 1fr;gap:8px;align-items:s
 /* the spinner arrows take a third of a narrow box and say nothing about which way is which: the table's values are
    typed or dragged in the 3D view */
 .f.wide input[type=number]{-moz-appearance:textfield;appearance:textfield}.f.wide input[type=number]::-webkit-inner-spin-button,.f.wide input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
-.k{cursor:help;border-bottom:1px dotted #55575f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.k{cursor:help;border-bottom:1px dotted #55575f;overflow-wrap:anywhere}   /* a full name wraps onto a second line: it is read, not cut off */
+/* a section of settings folds on its heading; a setting another one switches on is set in under it; one that is not
+   at its default says so with a sign and bold, and the sign puts the default back; a click on a name opens its help */
+.sec{border-top:1px solid var(--line);margin:10px -14px 0;padding:7px 14px 0}.sec>h3.sub{cursor:pointer;margin:0 0 1px;display:flex;gap:6px;align-items:baseline}
+.sec>h3.sub::before{content:'▾';color:var(--muted);font-size:10px}.sec.folded>h3.sub::before{content:'▸'}.sec>h3.sub small{font-weight:400;color:var(--muted);font-size:11px}
+.sec.folded>:not(h3){display:none}
+.f.dep{margin-left:8px;padding-left:8px;border-left:2px solid var(--line)}.f.dep:not(.wide){grid-template-columns:112px 1fr}
+.f .chg{all:unset;display:none;cursor:pointer;color:var(--acc);margin-left:5px;font-weight:400}.f.changed>.k{font-weight:600}.f.changed .chg{display:inline}
+.f>.help{grid-column:1/-1;margin:0 0 4px;padding:6px 8px;background:var(--panel2);border-radius:4px;line-height:1.45}
+#find{margin:8px 14px 0;width:calc(100% - 28px);flex:none}
+/* basic / all: the pressed side is filled, bold and ticked, so it is not told by colour alone */
+#level{margin:6px 14px 0;flex:none;display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}#level span{display:inline-flex;border:1px solid var(--line);border-radius:5px;overflow:hidden}
+#level button{border:0;border-radius:0;background:none;color:var(--muted);padding:2px 11px;font-size:12px;cursor:pointer}#level button[aria-pressed=true]{background:var(--acc);color:#fff;font-weight:700}#level button[aria-pressed=true]::before{content:"✓ "}
+#tabs.basic:not(.finding) .sec:not(.all)>.f.adv:not(.changed){display:none}
+.sec>.more{display:none;width:100%;text-align:left;margin:4px 0 2px;padding:4px 8px;font-size:11.5px;line-height:1.4;color:var(--acc);background:none;border:1px dashed var(--line);border-radius:5px;cursor:pointer}
+#tabs.basic:not(.finding) .sec:not(.all):not(.folded)>.more:not([hidden]){display:block}.sec>.more:hover{border-color:var(--acc)}
+/* text behind a click (Export tab), and the groups of that tab that open on demand */
+details.info{font-size:11.5px;margin:2px 0 8px}details.info>summary{cursor:pointer;color:var(--acc);list-style:none}details.info>summary::before{content:"ⓘ "}details.info>summary::after{content:" ▸"}details.info[open]>summary::after{content:" ▾"}details.info>.hint{margin:4px 0 0;display:block}
+.dl .r details.info{margin:0}
+details.fold>summary{cursor:pointer;list-style:none}details.fold>summary h2{display:inline-block}details.fold>summary::before{content:"▸ ";color:var(--muted);font-size:10px}details.fold[open]>summary::before{content:"▾ "}
+details.info>summary::-webkit-details-marker,details.fold>summary::-webkit-details-marker{display:none}
+/* the tools of the 3D view: the one in use is outlined, bold and ticked */
+#tools{position:absolute;left:10px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+#tools button{padding:4px 9px;border:1px solid var(--line);background:#0f1012dd;color:var(--ink);border-radius:5px;cursor:pointer;font-size:11.5px;white-space:nowrap}#tools button[hidden]{display:none}
+#tools button[aria-pressed=true]{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset;font-weight:700}#tools button[aria-pressed=true]::after{content:" ✓"}
+#tabs.finding section[data-tab]{display:block}#tabs.finding .miss{display:none!important}#tabs.finding .sec.folded>.f{display:grid}
+#tabs.finding section[data-tab]::before{content:attr(data-name);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--acc);margin:12px 0 4px}
 #tip{position:fixed;z-index:50;max-width:320px;background:#2b2d34;color:#f0f0ee;padding:7px 9px;border-radius:5px;font-size:11.5px;line-height:1.4;box-shadow:0 6px 18px #000c;border:1px solid #3a3c45;pointer-events:none}#tip[hidden]{display:none}
 input,select,button{font:inherit}input,select{width:100%;padding:4px 6px;border:1px solid var(--line);border-radius:4px;background:var(--panel2);color:var(--ink)}input[type=checkbox]{width:auto;justify-self:start;margin-top:6px;accent-color:var(--acc)}input[type=file]{padding:2px;font-size:12px}input[type=range]{padding:0;accent-color:var(--acc)}
 .vec{display:flex;gap:4px}.vec input{min-width:0}.vec small{align-self:center;color:var(--muted)}
@@ -28,7 +60,10 @@ button.small{padding:3px 8px;border:1px solid var(--line);background:var(--panel
 .chips{display:flex;flex-wrap:wrap;gap:4px;align-items:center}.chip{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:1px 8px;font-size:12px}.chip b{cursor:pointer;color:var(--muted);margin-left:4px}.chips input{width:78px;padding:2px 6px}
 .hint{color:var(--muted);font-size:11px}h3.sub{font-size:12px;font-weight:600;margin:12px 0 1px;color:var(--ink)}p.hint.sub{margin:0 0 4px}
 .bar select{padding:1px 4px;width:auto}
-.modes{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}.modes button{padding:6px 9px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:4px;cursor:pointer;font-size:12px}.modes button.on{background:var(--acc);border-color:var(--acc);color:#fff}
+/* the techniques: six cards of one size, a small drawing of what each makes, a tick on the chosen one */
+.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}.modes button{padding:6px 2px 5px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:6px;cursor:pointer;font-size:11px}
+.modes button svg{display:block;margin:0 auto 3px;width:44px;height:30px;pointer-events:none}.modes button span{pointer-events:none}
+.modes button.on{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset;background:#22304d}.modes button.on span::before{content:'✓ '}
 .desc{color:var(--muted);font-size:12px;margin:0 0 10px}
 .view{display:flex;flex-direction:column;min-height:0;min-width:0}
 #v3d{position:relative;flex:0 0 56%;border-bottom:1px solid var(--line);min-height:240px}#v3d canvas{display:block;width:100%;height:100%}
@@ -51,12 +86,13 @@ button.small{padding:3px 8px;border:1px solid var(--line);background:var(--panel
 #hint summary{cursor:pointer}#hint summary span{color:var(--acc)}
 #hint dl{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin:6px 0 2px}#hint dt{color:var(--ink)}#hint dd{margin:0}
 #lower{flex:1;overflow:auto;padding:12px 14px;min-height:0}
-#spacing{margin:0 0 12px;border:1px solid var(--line);border-radius:4px;padding:8px 10px;background:#1d1f24}
-#spacing .hd{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:12px;color:var(--muted);margin-bottom:6px}#spacing .hd b{color:var(--ink)}
-#spacing .hd input{width:5.5em}#spacing .hd label{display:flex;gap:5px;align-items:center}
-#spacing .graphs{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:10px}
-#spacing canvas{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:4px;background:#17181c;touch-action:none;cursor:crosshair}
-#spacing .cap{font-size:11px;color:var(--muted);margin:3px 0 0;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+details.msg>summary{cursor:pointer}details.msg>summary span{opacity:.75}details.msg>div{margin-top:5px}
+/* the spacing graph, in the form under its tick */
+.spc{border:1px solid var(--line);border-radius:6px;padding:8px;background:#1d1f24;display:flex;flex-direction:column;gap:6px}
+.spc canvas{display:block;width:100%;height:auto;border-radius:4px;background:#17181c;touch-action:none;cursor:crosshair}
+.spc .chips button{border-radius:10px;padding:1px 8px;font-size:11px}
+.spc .cap{font-size:11px;color:var(--muted)}.spc .row{font-size:11px;color:var(--muted);display:flex;gap:6px;align-items:center;flex-wrap:wrap}.spc b{color:var(--ink)}
+.spc .row input{width:4.6em;padding:2px 4px;font-size:11px}.spc .row button{font-size:11px;padding:2px 7px}
 .stats{display:flex;gap:18px;flex-wrap:wrap;margin:0 0 10px}.stats b{font-size:17px;display:block}.stats div{font-size:11px;color:var(--muted)}
 .msg{padding:5px 8px;border-radius:4px;margin:3px 0;font-size:12px}.msg[data-s]{cursor:pointer}.msg[data-s]:hover{outline:1px solid var(--sel)}.err{background:#3a1e1e;color:var(--err)}.warn{background:#3a2f18;color:var(--warn)}.ok{background:#1c3325;color:var(--ok)}.note{background:#22262e;color:var(--muted)}
 .fix{display:inline-block;margin:3px 4px 0 0;padding:2px 8px;border:1px solid #6a4040;border-radius:10px;background:#2a1a1a;color:#ffc9c9;cursor:pointer;font-size:11px}.fix:hover{border-color:var(--err)}
