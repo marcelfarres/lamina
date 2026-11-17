@@ -39,11 +39,11 @@ def test_the_seams_of_the_box_click_with_no_part_of_their_own_and_nothing_on_the
     plan = box(joint="click")
     walls = [r for s in plan["slices"] for pc in s["pieces"] for r in pc.get("rails", [])]
     said = [w for s in plan["slices"] for w in s["warnings"]]
-    assert plan["counts"]["errors"] == 0 and all("without a click joint (no room beside the joints" in w for w in said)     # a small box: some seams find no room
+    assert plan["counts"]["errors"] == 0 and all("without a click joint" in w for w in said)     # a small box: some seams are too short for a bar
     assert {s["group"] for s in plan["slices"]} == {"F"}              # panels only: no clip, nothing loose
     bars = [r for r in walls if min(z for _, z in r["profile"]) > 2.5]            # the bars: off the panel, between their posts
-    assert len(bars) >= 6 and len(walls) == 9 * len(bars)             # a click: a wall and three lengths of tooth; a bar, two posts, two blocks
-    assert all(F.CLICK_SPAN[0] + 1 <= math.dist(r["a"], r["b"]) <= F.CLICK_SPAN[1] + 1 + 1e-6 for r in bars)
+    assert len(bars) >= 6 and len(walls) == 8 * len(bars)             # a click: a wall, the tooth and its ridge; a bar, two posts, two blocks
+    assert all(F.CLICK_SPAN[0] + 1 - 1e-3 <= math.dist(r["a"], r["b"]) <= F.CLICK_SPAN[1] + 1 + 1e-3 for r in bars)
     assert outline(box(joint="seam")).symmetric_difference(outline(plan)).area < 1e-6
     feet = [(F.Rail(r["a"], r["b"], r["into"], r["profile"]).foot(), tuple(round(x, 3) for x in r["into"])) for r in walls]
     assert not [1 for i, (a, na) in enumerate(feet) for b, nb in feet[i + 1:] if na != nb and a.intersection(b).area > 1e-3]   # no two seams' walls grow into one
@@ -69,10 +69,10 @@ def test_the_tooth_goes_under_the_bar_and_stands_up_behind_it_and_everything_pri
         assert past.area > 2 and past.distance(sheet) > 0.25                    # … and stays clear of its inside face
         ridges.append(max(y for x, y in tooth.exterior.coords if x > bar.bounds[2]) - bar.bounds[1])   # how far it stands up behind the bar
     assert ridges[0] == pytest.approx(F.CLICK_BITE, abs=1e-6)                   # in the middle: it cannot pull out
-    assert 0.05 < ridges[1] < ridges[0] and ridges[2] < 0                       # crowned: lower beside the middle, no ridge further out
+    assert ridges[1] < 0 and c.teeth[0][1] == F.CLICK_RIDGE / 2 < c.teeth[1][1]  # the ridge is in the middle only: beside it the tooth is under the bar's level
     assert c.thick in F.CLICK_THICK and c.strain <= F.CLICK_STRAIN              # the bar is stretched no more than that letting the tooth past
-    assert c.strain == pytest.approx(12 * F.CLICK_BITE * c.thick / (F.CLICK_SPAN[0] - 1) ** 2)
-    assert c.reach < 10.5 and f.click_parts(b, outward, room=4.0).reach <= max(3.2, f.click_parts(b, outward, room=0).reach) + 1e-6      # the ramp stays 0.8 mm inside a narrow frame
+    assert c.strain == pytest.approx(12 * F.CLICK_BITE * c.thick / (F.CLICK_SPAN[0] - F.CLICK_RIDGE) ** 2)
+    assert all(len(p) <= 5 for p in (c.wall, c.post, c.guide)) and c.reach < 12 and f.click_parts(b, outward, room=4.0).reach <= max(3.2, f.click_parts(b, outward, room=0).reach) + 1e-6      # the ramp stays 0.8 mm inside a narrow frame
     for profile in (*(p for _, _, p in c.teeth), c.wall, c.post, c.guide):      # as printed: no underside over 50° from upright
         ring = list(orient(Polygon(profile).buffer(0)).exterior.coords)
         for (x0, z0), (x1, z1) in zip(ring, ring[1:]):
@@ -88,8 +88,8 @@ def test_a_longer_seam_gets_a_longer_and_thicker_bar_at_no_more_strain():
 def test_every_upright_stands_on_a_ramp_several_times_as_deep_as_the_wall():
     f = joint(); c = f.click_parts(math.radians(40), True); bare = f.click_parts(math.radians(40), True, room=3.0)
     foot = lambda profile: max(x for x, z in profile if z < f.t + 0.1) - min(x for x, z in profile if z < f.t + 0.1)   # noqa: E731
-    assert foot(c.post) > 2.5 * foot(bare.post) and foot(c.wall) > 2 * foot(bare.wall)
-    assert Polygon(c.post).area > 1.5 * Polygon(bare.post).area
+    assert foot(c.post) > 2 * foot(bare.post) and foot(c.wall) > 2 * foot(bare.wall)
+    assert Polygon(c.post).area > 1.4 * Polygon(bare.post).area
 
 
 def test_a_seam_whose_tooth_needs_higher_walls_than_allowed_is_left_plain_and_said():

@@ -116,19 +116,19 @@ between two posts is printed as a bridge and bends along its lines. It is the on
 rigid.
 
 How the bar is sized: lifted `CLICK_BITE` in its middle, a beam held at both ends is stretched by
-12 · lift · thickness / span². The bar gets the greatest thickness of `CLICK_THICK` that keeps this under
-`CLICK_STRAIN` (3 %; PETG yields at about 5 %). Its span is as long as the seam allows, 14 to 20 mm: a 14 mm bar is
-1.0 mm thick, a 20 mm bar 1.6 mm. Across the seam it is always 2 mm deep, which is what holds when the seam is
-pulled. The ridge of the tooth is crowned along the seam: full height in the middle 2 mm, lower beside it, none
-further out. A ridge as wide as the tooth would force the bar flat over that width and bend the short rest of it
-far too much.
+12 · lift · thickness / length², where the length is the span less the ridge that lifts it. The bar gets the
+greatest thickness of `CLICK_THICK` that keeps this under `CLICK_STRAIN` (3 %; PETG yields at about 5 %). Its span
+is as long as the seam allows, 16 to 24 mm: a 16 mm bar is 1.2 mm thick, a 24 mm bar 2 mm. Across the seam it is
+always 2 mm deep, which is what holds when the seam is pulled. The ridge of the tooth is `CLICK_RIDGE` long, in the
+middle: a ridge as wide as the tooth would hold the bar flat over that width and bend the rest of it far too much.
 
-Everything else is a block on a wide foot. The tooth is 8 mm wide on a 2.4 mm wall. Every upright (the tooth's
-wall, the posts, the blocks under the bar) stands on a solid ramp (`Folded.braced`, `CLICK_FOOT`) that runs from
-the top of its back down into the panel, so a pull on the seam does not bend a thin wall at its foot. A window
-frame too narrow for the ramp gets a shorter one, down to the bare wall. A click slides along its seam to stand
-clear of the walls of the seams round the corner (`Rail.foot`), takes the shortest bar when that is not enough, and
-is left out, with a warning, when it still finds no room: two walls grown into one would not fold.
+Everything else is a plain block. The tooth is one block 8 mm wide on a 2.4 mm wall, with the one ridge. Every
+upright (the tooth's wall, the posts, the blocks under the bar) is a wedge (`Folded.braced`, `CLICK_FOOT`): its
+front, a flat top, and one slope down into the panel, so a pull on the seam does not bend a thin wall at its foot
+across its layers. A window frame too narrow for the slope gets a shorter one, down to the bare wall. A click
+slides along its seam to stand clear of the walls of the seams round the corner (`Rail.foot`), takes the shortest
+bar when that is not enough, and is left out, with a warning, when it still finds no room: two walls grown into one
+would not fold.
 
 The underside of the tooth rises as steeply as prints without support (`SNAP_LEAN`) and stays 0.3 mm over the other
 panel's inside face. So the sharper the seam, the higher the bar sits. A seam whose tooth needs walls higher than
