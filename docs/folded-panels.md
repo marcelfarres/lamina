@@ -106,21 +106,32 @@ needs a printed material, a hinge and `score side` inside, because the walls sta
 
 ### The click joint: a tooth under a bridged bar, no part of its own
 The `click` joint closes a printed seam with nothing loose. It uses the same plane as the snap joint: one panel
-gets a wall with a tooth (`CLICK_NOSE` wide) that goes through the plane, the other gets a bar (`CLICK_BAR`) whose
+gets a wall with a tooth (`CLICK_NOSE` wide) that goes through the plane, the other gets a bar whose
 front is on the plane, bridged between two posts `CLICK_SPAN` apart. Pressed shut, the tooth goes under the bar and
-stands `CLICK_BITE` up behind it. `Folded.click_parts` makes the five cross-sections; all of them are walls in the
+stands `tooth height` up behind it. `Folded.click_parts` makes the five cross-sections; all of them are walls in the
 plan (`rails`), so `core.solid` needs nothing new.
 
 Why a bridge: a part that grows up from a flat panel is weak where it is bent or pulled across its layers. A bar
 between two posts is printed as a bridge and bends along its lines. It is the only part that bends; the tooth is
 rigid.
 
-How the bar is sized: lifted `CLICK_BITE` in its middle, a beam held at both ends is stretched by
-12 · lift · thickness / length², where the length is the span less the ridge that lifts it. The bar gets the
-greatest thickness of `CLICK_THICK` that keeps this under `CLICK_STRAIN` (3 %; PETG yields at about 5 %). Its span
-is as long as the seam allows, 16 to 24 mm: a 16 mm bar is 1.2 mm thick, a 24 mm bar 2 mm. Across the seam it is
-always 2 mm deep, which is what holds when the seam is pulled. The ridge of the tooth is `CLICK_RIDGE` long, in the
-middle: a ridge as wide as the tooth would hold the bar flat over that width and bend the rest of it far too much.
+How the bar is sized: lifted by the tooth's height in its middle, a beam held at both ends is stretched by
+12 · lift · thickness / length², where the length is the span less the ridge that lifts it. The bar is as thick as
+`bar thickness` asks (1.6 mm). Where that would stretch it past `CLICK_STRAIN` (5 % for PETG, 2.5 % for PLA: about
+where each yields), it is thinner, in steps of 0.2 mm down to 0.6 mm. Its span is as long as the seam allows, 16 to
+24 mm. With a tooth 1 mm high in PETG, a 16 mm bar is 0.8 mm thick and a 24 mm bar 1.6 mm. Across the seam the bar
+is `bar depth` deep (2.4 mm). The depth, not the thickness, keeps the bar straight when the seam is pulled. The
+ridge of the tooth is `CLICK_RIDGE` long, in the middle: a ridge as wide as the tooth would hold the bar flat over
+that width and bend the rest of it far too much.
+
+What a 0.4 mm nozzle and 0.2 mm layers can print set the tooth. The first print had a ridge 0.4 mm high, measured
+up a wall that leans by half the bend: on a 94° seam that is 0.27 mm above the bed, one layer, on a top 0.5 mm
+wide. It lined the seam up and held nothing. The ridge is now 1 mm high (`tooth height`, in steps of one layer) and
+its flat top is `CLICK_LAND` wide, two lines. Its back face is square to the pull, so a pull does not lift the bar.
+
+Which seams get a click when not all can: `Folded.far` puts the seams in order, farthest from a fold of their flat
+face first. A lid hangs on one fold. The seam opposite that fold holds it shut, so it finds its place before the
+seams beside the fold, which the fold holds already.
 
 Everything else is a plain block. The tooth is one block 8 mm wide on a 2.4 mm wall, with the one ridge. Every
 upright (the tooth's wall, the posts, the blocks under the bar) is a wedge (`Folded.braced`, `CLICK_FOOT`): its

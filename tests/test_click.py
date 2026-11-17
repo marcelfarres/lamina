@@ -30,8 +30,8 @@ def outline(plan):
     return unary_union([Polygon(r[0], r[1:]) for s in plan["slices"] if s["group"] == "F" for pc in s["pieces"] for r in pc["kerfed"]])
 
 
-def joint(snap_h=7.5):
-    f = F.Folded(); f.p = {"snap_h": snap_h, "snap_fit": 0.1}; f.t, f.skin, f.land, f.stop, f.hinged = 2.0, 0.4, 0.4, 0.0, True
+def joint(snap_h=9.5, **more):
+    f = F.Folded(); f.p = {"snap_h": snap_h, "snap_fit": 0.1, "click_bite": 1.0, "click_bar": 1.6, "click_deep": 2.4, "material_kind": "PETG", **more}; f.t, f.skin, f.land, f.stop, f.hinged = 2.0, 0.4, 0.4, 0.0, True
     return f
 
 
@@ -42,7 +42,7 @@ def test_the_seams_of_the_box_click_with_no_part_of_their_own_and_nothing_on_the
     assert plan["counts"]["errors"] == 0 and all("without a click joint" in w for w in said)     # a small box: some seams are too short for a bar
     assert {s["group"] for s in plan["slices"]} == {"F"}              # panels only: no clip, nothing loose
     bars = [r for r in walls if min(z for _, z in r["profile"]) > 2.5]            # the bars: off the panel, between their posts
-    assert len(bars) >= 6 and len(walls) == 8 * len(bars)             # a click: a wall, the tooth and its ridge; a bar, two posts, two blocks
+    assert len(bars) >= 8 and len(walls) == 8 * len(bars)             # a click: a wall, the tooth and its ridge; a bar, two posts, two blocks
     assert all(F.CLICK_SPAN[0] + 1 - 1e-3 <= math.dist(r["a"], r["b"]) <= F.CLICK_SPAN[1] + 1 + 1e-3 for r in bars)
     assert outline(box(joint="seam")).symmetric_difference(outline(plan)).area < 1e-6
     feet = [(F.Rail(r["a"], r["b"], r["into"], r["profile"]).foot(), tuple(round(x, 3) for x in r["into"])) for r in walls]
@@ -68,10 +68,10 @@ def test_the_tooth_goes_under_the_bar_and_stands_up_behind_it_and_everything_pri
         past = tooth.intersection(Polygon([(0.05, -20), (20, -20), (20, 20), (0.05, 20)]))      # what of it is through the plane
         assert past.area > 2 and past.distance(sheet) > 0.25                    # … and stays clear of its inside face
         ridges.append(max(y for x, y in tooth.exterior.coords if x > bar.bounds[2]) - bar.bounds[1])   # how far it stands up behind the bar
-    assert ridges[0] == pytest.approx(F.CLICK_BITE, abs=1e-6)                   # in the middle: it cannot pull out
+    assert ridges[0] == pytest.approx(f.p["click_bite"], abs=1e-6)              # in the middle: it cannot pull out
     assert ridges[1] < 0 and c.teeth[0][1] == F.CLICK_RIDGE / 2 < c.teeth[1][1]  # the ridge is in the middle only: beside it the tooth is under the bar's level
-    assert c.thick in F.CLICK_THICK and c.strain <= F.CLICK_STRAIN              # the bar is stretched no more than that letting the tooth past
-    assert c.strain == pytest.approx(12 * F.CLICK_BITE * c.thick / (F.CLICK_SPAN[0] - F.CLICK_RIDGE) ** 2)
+    assert 0.6 <= c.thick <= f.p["click_bar"] and c.strain <= F.CLICK_STRAIN["PETG"]   # the bar is stretched no more than PETG takes letting the tooth past
+    assert c.strain == pytest.approx(12 * f.p["click_bite"] * c.thick / (F.CLICK_SPAN[0] - F.CLICK_RIDGE) ** 2)
     assert all(len(p) <= 5 for p in (c.wall, c.post, c.guide)) and c.reach < 12 and f.click_parts(b, outward, room=4.0).reach <= max(3.2, f.click_parts(b, outward, room=0).reach) + 1e-6      # the ramp stays 0.8 mm inside a narrow frame
     for profile in (*(p for _, _, p in c.teeth), c.wall, c.post, c.guide):      # as printed: no underside over 50° from upright
         ring = list(orient(Polygon(profile).buffer(0)).exterior.coords)
@@ -82,7 +82,28 @@ def test_the_tooth_goes_under_the_bar_and_stands_up_behind_it_and_everything_pri
 
 def test_a_longer_seam_gets_a_longer_and_thicker_bar_at_no_more_strain():
     short, long = joint().click_parts(math.radians(40), True, span=F.CLICK_SPAN[0]), joint().click_parts(math.radians(40), True, span=F.CLICK_SPAN[1])
-    assert long.thick > short.thick and max(short.strain, long.strain) <= F.CLICK_STRAIN
+    assert long.thick > short.thick and max(short.strain, long.strain) <= F.CLICK_STRAIN["PETG"]
+
+
+def test_a_stiffer_material_or_a_higher_tooth_gets_a_thinner_bar_and_one_that_cannot_bend_that_far_is_said():
+    b = math.radians(40); thick = lambda **more: joint(**more).click_parts(b, True, span=F.CLICK_SPAN[1]).thick   # noqa: E731
+    assert thick(material_kind="PLA") < thick() and thick(click_bite=1.6) < thick() and thick(click_bar=1.0) == 1.0
+    assert "lower `tooth height`" in joint(click_bite=2.0).click_parts(b, True)
+
+
+def test_a_lid_on_one_fold_gets_its_click_on_the_seam_opposite_the_fold(monkeypatch):
+    seen = []; click = F.Folded.click       # the box's lid: a hexagon of 25 mm edges on one fold. Its five seams are too close to all take a click
+
+    def watched(self, j, k, sides, convex):
+        had = len(sides[0].sl.rails); out = click(self, j, k, sides, convex); m = self.mesh
+        if max(m.face_normals[s.f][2] for s in sides) > 0.99:                   # a seam of the lid
+            seen.append((self.far(k, sides), len(sides[0].sl.rails) > had, m.vertices[m.face_adjacency_edges[k]].mean(axis=0)))
+        return out
+    monkeypatch.setattr(F.Folded, "click", watched)
+    assert box(joint="click")["counts"]["errors"] == 0 and len(seen) == 5
+    far, placed, mid = seen[0]
+    assert placed and far == max(f for f, _, _ in seen) > 40                    # the first to find its place: the seam across the lid from its fold
+    assert all(np.linalg.norm(mid - m) > 20 for _, _, m in seen[1:])
 
 
 def test_every_upright_stands_on_a_ramp_several_times_as_deep_as_the_wall():
@@ -111,4 +132,4 @@ def test_the_print_file_is_one_closed_solid_with_the_bars_bridged_on(tmp_path):
     assert [f.name for f in files if f.suffix == ".stl"] == ["P-1.stl"]        # the panels and nothing else to print
     panel = trimesh.load(tmp_path / "P-1.stl")
     assert panel.is_watertight and len(panel.split(only_watertight=False)) == 1
-    assert 4 < panel.bounds[1][2] < 10
+    assert 4 < panel.bounds[1][2] < 12

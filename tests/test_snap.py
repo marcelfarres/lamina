@@ -87,6 +87,6 @@ def test_the_print_files_are_closed_solids_with_the_walls_fused_on(tmp_path):
     plan = box(joint="snap"); files = proto_set(plan, tmp_path)
     panel = trimesh.load(next(f for f in files if f.name == "P-1.stl")); clip = trimesh.load(next(f for f in files if f.name.startswith("K-") and f.suffix == ".stl"))
     assert panel.is_watertight and len(panel.split(only_watertight=False)) == 1
-    assert 8 < panel.bounds[1][2] < 10.5                              # 2 mm of panel and the walls on it, leaning
+    assert 8 < panel.bounds[1][2] < 12.5                              # 2 mm of panel and the walls on it, leaning
     assert panel.volume > trimesh.load(next(f for f in proto_set(box(joint="seam"), tmp_path / "plain") if f.name == "P-1.stl")).volume + 200   # 24 walls
     assert clip.is_watertight and clip.bounds[1][2] == pytest.approx(F.SNAP_CLIP)
