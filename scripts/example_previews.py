@@ -3,7 +3,9 @@ wait for its slice, and write __t.snapshot() to web/static/examples/<name>.webp.
 
     uv run python scripts/example_previews.py
 
-Run it again after an example or its preset changes (tests/test_presets.py checks that every example has one). Needs
+The picture is 320 × 240 because snapshot() (web/static/js/scene.js) draws it at that size; the library's page test
+of the Examples section checks it (every card's picture is 320 pixels wide). Run it again after an example or its
+preset changes (tests/test_presets.py checks that every example has one). Needs
 `playwright install chromium` once. Exits non-zero when a picture came out empty or not WebP, and writes no file then.
 """
 import base64
@@ -33,8 +35,8 @@ def main():
         settle(page)
         for name in sorted(f.stem for f in (ROOT / "examples").glob("*.stl")):
             page.evaluate("n => __t.openExample(n)", name)
-            settle(page)
-            data = page.evaluate("() => __t.snapshot()")
+            settle(page, timeout=600_000)   # the bunny alone takes minutes on a busy machine; a batch job can wait
+            data = page.evaluate("() => __t.snapshot()") or ""
             if not data.startswith(PREFIX):
                 bad.append(f"{name}: {data[:30] or 'empty'}")
                 continue

@@ -457,3 +457,19 @@ def test_folder_list_skips_a_file_that_vanished(page):
         P.getFile = function () {{ return this.name === 'gone_v1.0.lamina.json' ? Promise.reject(new DOMException('gone', 'NotFoundError')) : g.call(this) }};
         try {{ return (await s.list()).map(e => e.file) }} finally {{ P.getFile = g }} }}""")
     assert r == ["a_v1.0.lamina.json"]
+
+
+# --- preview side (Task 8) ---
+def test_snapshot_of_a_plaque_looks_from_the_front(page):
+    """The bonsai stands on its plate at -y. The preview's own camera (caught at the renderer) looks from +y, so the
+    card shows the slices; the fit button still looks from the standard side, -y, as before the snapshot."""
+    example(page, "bonsai")
+    assert page.evaluate("() => [__t.plan().mode, __t.plan().params.back]") == ["plaque", "-y"]
+    fit = "() => { document.getElementById('fit').click(); return [__t.target().toArray(), __t.camera.position.toArray()] }"
+    target, before = page.evaluate(fit)
+    shot = page.evaluate("""async () => { const {renderer} = await import('/static/js/scene.js'), r = renderer.render, cams = [];
+        renderer.render = function (s, c) { cams.push(c.position.toArray()); return r.call(this, s, c) };
+        try { return [__t.snapshot().length, cams[0]] } finally { renderer.render = r } }""")
+    assert shot[0] > 1000
+    assert shot[1][1] > target[1] and before[1] < target[1]
+    assert page.evaluate(fit) == [target, before]

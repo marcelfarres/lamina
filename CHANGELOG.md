@@ -24,7 +24,7 @@ What changed in each release. The GitHub release for a version is this section, 
   the library. The files stay yours when you unlink the folder. In other browsers the projects are kept in the
   browser.
 - **Export all, and import.** **export all** makes one zip of every project, as a backup or to move them to another
-  computer. Import takes project files and such zips back, several at once. When a project with the same name and
+  computer. **import** takes project files and such zips back, several at once. When a project with the same name and
   revision is already there, Lamina asks whether to replace it or keep both.
 
 ### Changed
@@ -36,7 +36,6 @@ What changed in each release. The GitHub release for a version is this section, 
   never lands on a revision that exists.
 - **clear my data keeps the library.** It still deletes your uploaded models, cut files and session, but not your
   saved projects.
-
 - **The steps slider folds a folded job up.** After the last part is in, the steps slider has twenty more steps
   that fold the panels from flat to the model, with the share shown at the top of the 3D view. The *fold* slider
   still does the same on its own.

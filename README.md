@@ -239,9 +239,10 @@ stranger's 2 GB scan is not yours to hold. `WEB_CONCURRENCY` is how many slices 
 time (one uvicorn worker each, about 300 MB). Lamina still has no login of its own, so put it behind your reverse
 proxy's authentication if the server is reachable from the internet.
 
-The page opens on a bundled example, and the library shows them all; [examples/](examples/README.md) holds 24 of them, and each opens on the
-technique and parameters that suit it ([examples/presets.json](examples/presets.json) — the shape standing the right
-way up, sliced without an error; a test keeps that true). The same pipeline runs headless, so it can be scripted:
+The page resumes the tab's session, or opens the `blob` example on a first visit. The library shows every bundled
+example: [examples/](examples/README.md) holds 35 of them, and each opens on the technique and parameters that suit
+it ([examples/presets.json](examples/presets.json) — the shape standing the right way up, sliced without an error; a
+test keeps that true). The same pipeline runs headless, so it can be scripted:
 
 ```bash
 uv run python -m core.plan examples/egg.stl --mode interlocked --set nx=5 ny=4 thickness=3 --out out/egg
@@ -371,7 +372,7 @@ does not slip through. It carries the most signal for stacked and folded work; d
   fit test** (Downloads) is at 1:1 for the real machine and predicts the model's fit; the **print fit test**
   (Prototyping) dials in the print's own **print slot offset**, in printed millimetres whatever the scale, which the
   prototype set uses in place of the job's.
-- **Every zip carries the project file** (`….lamina.json`) that the library's *import* reads back: technique, every
+- **Every zip carries the project file** (`….lamina.json`) that the library's **import** reads back: technique, every
   parameter and the uploaded model itself, so a printed part or a cut file found later leads back to what made it.
 
 ### The web UI
@@ -538,7 +539,7 @@ Actions tab), and committed back to main, so they always show the version people
 ```text
 core/        planner, modes, unfold, notch, checks, nest, split, export, solid
 web/         FastAPI app + single-page UI: static/index.html (markup), static/js/ (one module per concern), static/app.css; vendored three.js
-examples/    24 test models: 18 synthetic + a scanned head, a porcelain horse statue, three animals and the bunny (terms in examples/README.md)
+examples/    35 test models: 29 synthetic + a scanned head, a porcelain horse statue, three animals and the bunny (terms in examples/README.md)
 docs/        index.html + media/ (the GitHub Pages site), roadmap.md, folded-panels.md, original-slicer-reference.md
 tests/       pytest suite, ui/ (the app in a browser), test_unfold.py, run_matrix.py
 ```
