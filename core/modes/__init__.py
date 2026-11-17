@@ -293,6 +293,7 @@ def view_defaults():
         "core_d_min": None,       # radial: the smallest core the half-slices allow
         "spacing": [],            # the drawn spacing curves' outcome, for the graph: [{param, positions, length, unit, scale}]
         "edges3d": None,          # folded: [k, fold | seam | chosen, end, end, way out] per edge, drawn and picked to choose the seams
+        "faces3d": None,          # folded: {v: corners, f: [a, b, c] per face, adj: [face, face] per edge (numbered as edges3d), removed: how many faces are off}, selected and removed in the 3D view
         "frame": None,            # folded: the 4 × 4 from the model file's coordinates to the plan's mm; the removed faces are kept in the file's
         "clip": None,             # plaque: [point, normal] of the plate's front face — the 3D view shows the model in front of it only, and coverage is measured on that
     }

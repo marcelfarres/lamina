@@ -194,6 +194,16 @@ Measured on `head_igea` in 0.5 mm card (2026-11-17): the back of the head picked
 451 cm² of 944 cm². At facet 12 mm with the same list, 703 faces are removed and 456 cm² is left.
 Not done: a smooth rim along a drawn line. The rim follows the edges of the triangles.
 
+On the page (`web/static/js/faces.js`) the `select faces` tool of the 3D view makes the list. The plan gives the
+faces that are left (`faces3d`: the corners, the faces, and the two faces across each edge, numbered as `edges3d`).
+A click or a drag selects faces. `grow` adds the faces across an edge of the selection, `connected` goes on until
+nothing is added; both stop at a seam the user chose, and so at a removed face and at the rim, where there is no
+face across the edge. `remove` adds the selected triangles to `removed`, carried to the file's coordinates with the
+inverse of `frame`. A removed face is drawn as a dashed outline while the tool is on; a click on one takes its
+triangle out of the list. Selected faces are hatched: the three looks (hatched, dashed outline, thick seam line)
+do not depend on colour. In the seam tool and in this one, a drag with the left button paints, so the right button
+turns the view and the middle one moves it.
+
 ## The fold slider
 Each panel face remembers the face it was unfolded from (`Panel.parent`). The plan gives every facet a `hinge`:
 its parent facet, the fold line on the model (a point and a direction) and the turn that lays it flat beside the

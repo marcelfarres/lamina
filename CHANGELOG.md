@@ -9,11 +9,20 @@ What changed in each release. The GitHub release for a version is this section, 
 - **See it as a lamp.** Tick *lamp* over the 3D view and a bulb lights the model from inside. A floor and a wall
   catch the shadows that the parts throw, so you see the pattern before you cut. *Bulb height* moves the bulb from
   the bottom to the top. Untick it and the view is as before.
-- **Choose where a folded model is cut apart.** The Technique tab of Folded Panels has a new *choose seams*
-  button. With it on, every edge of the model shows what it is: a thin line is a fold, a dashed line is a seam the
+- **Keep only a part of a model: a mask from a head.** Folded Panels has a new tool at the left of the 3D view,
+  *select faces*. Click or drag on the model to select faces. *Grow* adds the faces next to them, and *connected*
+  adds every face joined to them, up to a seam you chose. *Remove* takes the selected faces off: they are not cut,
+  and the edge round them is a plain cut edge. So you can put a seam round a face, select the back of the head with
+  one click and *connected*, and remove it. Removed faces show as dashed outlines while the tool is on; click one
+  to put it back, or use *put all back*. Lamina remembers the places, not the faces: when you change the face size,
+  the size of the model or its rotation, the same places stay removed and you do not select them again. They are
+  saved with the project.
+- **Choose where a folded model is cut apart.** Folded Panels has a new tool at the left of the 3D view, *put a
+  seam*. With it on, every edge of the model shows what it is: a thin line is a fold, a dashed line is a seam the
   program chose, a thick line is a seam you chose. Click an edge on the model or on a sheet and the sheet is cut
-  apart there; the panels are laid out again round your seams. Click a seam of yours again and the program
-  decides that edge again. The edge under the pointer lights up on the model and on the sheet at the same time, so
+  apart there; drag along edges of the model to put many seams in one stroke. The panels are laid out again round
+  your seams. Click a seam of yours again and the program decides that edge again. While this tool or *select
+  faces* is on, the right mouse button turns the view and the middle button moves it. The edge under the pointer lights up on the model and on the sheet at the same time, so
   you can pick it where it is easier to see. Your seams are saved with the project. If you change the facet size or
   the model size afterwards, the edges change, and Lamina tells you which of your seams it could not find.
 - **Two more folded examples.** *fold_box* is a six-sided box with a turned lid, printed flat in PETG and folded up:

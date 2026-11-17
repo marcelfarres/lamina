@@ -64,6 +64,15 @@ def test_removed_faces_are_not_cut_and_follow_the_model_when_it_is_resized_or_tu
     plan = build(EXAMPLES / "egg.stl", "folded", {**PAPER, "removed": removed})
     assert abs(panel_area(plan) - kept) < 0.01 * kept
     assert np.allclose(plan["frame"], frame)
+    # the page gets the faces that are left, each edge with the two faces across it, numbered as the edges it draws
+    f3 = plan["faces3d"]
+    assert f3["removed"] == top.sum() and len(f3["f"]) == (~top).sum() and len(whole["faces3d"]["f"]) == len(top)
+    tri = np.array(f3["v"])[np.array(f3["f"])]
+    assert abs(np.linalg.norm(np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0]), axis=1).sum() / 2 - kept) < 0.01 * kept
+    ends = {e[0]: {tuple(e[2]), tuple(e[3])} for e in plan["edges3d"]}
+    for k, (a, b) in enumerate(f3["adj"]):
+        shared = {tuple(f3["v"][i]) for i in f3["f"][a]} & {tuple(f3["v"][i]) for i in f3["f"][b]}
+        assert len(shared) == 2 and (k not in ends or ends[k] == shared)
     # coverage is measured on what is left of the model: taking 4 faces in 10 off does not lower it, or raise it to 1
     assert not plan["errors"] and abs(plan["coverage"] - whole["coverage"]) < 0.05
     assert bool([n for n in plan["notes"] if "coverage" in n]) == bool([n for n in whole["notes"] if "coverage" in n])
@@ -91,6 +100,7 @@ def test_every_face_removed_is_an_error_and_no_part():
     mesh, frame = egg()
     plan = build(EXAMPLES / "egg.stl", "folded", {**PAPER, "removed": in_file(mesh.triangles, frame)})
     assert not plan["slices"] and any("every face" in e for e in plan["errors"])
+    assert plan["faces3d"] == {"v": [], "f": [], "adj": [], "removed": len(mesh.faces)} and plan["frame"]   # what the page needs to put them back
 
 
 def test_a_seam_on_the_rim_or_among_the_removed_faces_goes_without_a_word():
