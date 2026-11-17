@@ -10,6 +10,7 @@ import {slice} from './slice.js';
 import {V3, applyLook, rings} from './scene.js';
 import {applyFix} from './results.js';
 import {syncProject} from './project.js';
+import {syncSeams} from './seams.js';
 
 // ---------------------------------------------------------------- form
 // The length boxes outside the parameter form (Export tab): the mm value lives on the element — that is what the
@@ -40,11 +41,12 @@ function field(p){
   else if(p.type==='curve')inp=`<div class="spc" data-param="${p.name}"></div>`;   // the graph: renderSpacing draws it
   else if(p.type==='points')inp=`<div class="rows" id="${id}">${(v||[]).map((q,i)=>`<div class="r"><small>${i+1}</small><input type="number" step="any" value="${show(p,q[0])}" data-pt="${p.name}" data-i="${i}" data-j="0"><input type="number" step="any" value="${show(p,q[1])}" data-pt="${p.name}" data-i="${i}" data-j="1"><button class="small x" data-del="${p.name}" data-i="${i}">×</button></div>`).join('')}<div class="r"><button class="small" data-add="${p.name}">+ point</button><span class="hint">or alt-click in the 3D view</span></div></div>`;
   else if(p.type==='lines3')inp=`<div class="rows" id="${id}">${(v||[]).length?`<div class="r hint"><small></small>${['x','y','z'].map(a=>`<span style="flex:1;text-align:center">${a} (${ST.unit})</span>`).join('')}<span style="flex:0 0 24px"></span></div>`:''}${(v||[]).map((l,i)=>[0,1].map(e=>`<div class="r"><small>${e?'end':`${i+1} start`}</small>${[0,1,2].map(j=>`<input type="number" step="any" value="${show(p,l[e][j])}" data-ln="${p.name}" data-i="${i}" data-e="${e}" data-j="${j}" title="${e?'end':'start'} ${'xyz'[j]}">`).join('')}<span style="flex:0 0 24px">${e?'':`<button class="small x" data-del="${p.name}" data-i="${i}">×</button>`}</span></div>`).join('')).join('')}<div class="r"><button class="small" data-add="${p.name}">${{axes:'+ split an axis',branches:'+ branch'}[p.name]||'+ line'}</button><span class="hint">${{axes:'or alt-click the model for a parallel axis · drag them in the 3D view',branches:'or shift+alt-click a hoof, hand or tail tip · drag the ends in the 3D view · alt-click one to remove it'}[p.name]||'one straight dowel per line · or alt-click the model: a line up through that point'}</span></div></div>`;
+  else if(p.type==='edges')inp=`<span class="seamcard"><span id="seam_n" class="hint"></span><span><button class="small" data-seams="mode"></button><button class="small" data-seams="clear">clear my seams</button></span></span>`;   // chosen in the 3D view and on the sheets; syncSeams writes the counts
   else if(p.type==='map'){const rows=Object.entries(v||{});if(ST.selected&&!(ST.selected in (v||{})))rows.push([ST.selected,p.name==='thick'?state.thickness:0]);
     inp=`<div class="rows" id="${id}">${rows.map(([k,x])=>`<div class="r"><small>${esc(k)}</small><input type="number" step="any" value="${show(p,x)}" data-map="${p.name}" data-k="${esc(k)}">${k in (v||{})?`<button class="small x" data-del="${p.name}" data-i="${esc(k)}">×</button>`:'<span class="hint">default</span>'}</div>`).join('')||'<span class="hint">no overrides — select a part in the 3D view and use the sliders</span>'}</div>`}
   else if(p.type==='labels'||p.type==='chips')inp=`<div class="chips" id="${id}">${(v||[]).map((x,i)=>`<span class="chip">${p.type==='chips'?show(p,x):esc(x)}<b data-del="${p.name}" data-i="${i}">×</b></span>`).join('')}<input placeholder="${p.type==='chips'?'value ⏎':'label ⏎'}" data-chip="${p.name}"></div>`;
   else inp=(p.min!=null&&p.max!=null)?slider(id,v,p):num(id,v,p);
-  return `<div class="f${p.type==='lines3'||p.type==='curve'?' wide':''}${p.show_if?' dep':''}${p.advanced?' adv':''}" data-p="${p.name}" ${p.show_if?`data-show="${p.show_if[0]}:${[].concat(p.show_if[1]).join('|')}"`:''}><span class="k" data-tip="${p.help.replace(/"/g,'&quot;')}">${p.label||nice(p.name)}${u}<button class="chg" data-undo="${p.name}" title="changed: click to put the default back" aria-label="changed: put the default back">↺</button></span>${inp}</div>`;
+  return `<div class="f${p.type==='lines3'||p.type==='curve'||p.type==='edges'?' wide':''}${p.show_if?' dep':''}${p.advanced?' adv':''}" data-p="${p.name}" ${p.show_if?`data-show="${p.show_if[0]}:${[].concat(p.show_if[1]).join('|')}"`:''}><span class="k" data-tip="${p.help.replace(/"/g,'&quot;')}">${p.label||nice(p.name)}${u}<button class="chg" data-undo="${p.name}" title="changed: click to put the default back" aria-label="changed: put the default back">↺</button></span>${inp}</div>`;
 }
 // a setting that is not at its default (a file and the units are not settings to put back)
 const isChanged=p=>p.type!=='file'&&p.name!=='units'&&state[p.name]!=null&&JSON.stringify(state[p.name])!==JSON.stringify(p.default);
@@ -76,7 +78,7 @@ export function renderFields(){
   const com=ST.mode.common, byG=g=>fields(com.filter(p=>p.group===g)); syncProject();
   $('#g-model').innerHTML=byG('model'); $('#g-technique').innerHTML=fields(ST.mode.params)+byG('technique'); $('#g-slices').innerHTML=byG('slices');
   $('#g-sheet').innerHTML=byG('sheet'); $('#g-fit').innerHTML=byG('fit'); $('#g-checks').innerHTML=byG('checks');
-  applyShowIf(); syncPresetSelects(); renderSpacing(); findRows();
+  applyShowIf(); syncPresetSelects(); renderSpacing(); syncSeams(); findRows();
 }
 function applyShowIf(){for(const el of $$('.f[data-show]')){const [k,vals]=el.dataset.show.split(':');el.hidden=!vals.split('|').includes(String(state[k]))} markChanged()}
 export const allParams=()=>[...ST.mode.common,...ST.mode.params];

@@ -3,6 +3,7 @@ import {$} from './util.js';
 import {deselect} from './edit3d.js';
 import {applyUnit} from './units.js';
 import {setMode, schedule} from './form.js';
+import {leaveSeams} from './seams.js';
 
 // ---------------------------------------------------------------- undo / redo
 // The design is `state` + the technique + the units, so history is a stack of snapshots of exactly that, one taken per
@@ -40,6 +41,7 @@ addEventListener('unhandledrejection',e=>act('page error: '+(e.reason?.message||
 addEventListener('keydown',e=>{
   const typing=e.target.type==='text'||e.target.tagName==='TEXTAREA';   // a text box keeps its own undo, and its own ?
   if(e.key==='?'&&!typing&&!e.ctrlKey&&!e.metaKey){$('#helpdlg').showModal();return e.preventDefault()}
+  if(e.key==='Escape'&&!typing&&!document.querySelector('dialog[open]')&&leaveSeams())return;
   if(!(e.ctrlKey||e.metaKey)||typing)return;
   const k=e.key.toLowerCase();
   if(k==='z'&&!e.shiftKey)step(undos,redos); else if(k==='y'||(k==='z'&&e.shiftKey))step(redos,undos); else return;

@@ -172,6 +172,16 @@
       <button data-tool="roll" title="click a slice, then drag it sideways: it rolls (the same as ctrl-drag)">↻ roll a slice</button>
     </div>
     <div id="sel" hidden></div>
+    <div id="seampanel" hidden>
+      <div class="t"><b>✂ choosing seams</b><button class="small" data-seams="mode">✓ done choosing</button></div>
+      <p><b>Click an edge</b>, on the model or on a sheet: the sheet is cut apart there.<br><b>Click a seam of yours again</b>: the program decides that edge again.</p>
+      <div class="lg"><svg width="34" height="10"><line x1="1" y1="5" x2="33" y2="5" stroke="#c9cad0" stroke-width="1"/></svg>thin · fold <small id="sl_fold"></small></div>
+      <div class="lg"><svg width="34" height="10"><line x1="1" y1="5" x2="33" y2="5" stroke="#E69F00" stroke-width="2.5" stroke-dasharray="6 4"/></svg>dashed · seam the program chose <small id="sl_seam"></small></div>
+      <div class="lg"><svg width="34" height="10"><line x1="2" y1="5" x2="32" y2="5" stroke="#56B4E9" stroke-width="5" stroke-linecap="round"/></svg>thick · seam you chose <small id="sl_chosen"></small></div>
+      <div class="r"><button class="small" data-seams="clear">clear my seams</button><span class="hint">undo (top bar) takes back a click</span></div>
+      <div class="r" id="seam_off" hidden><span class="hint">the edges show on the folded model</span><button class="small" data-seams="fold">show it folded</button></div>
+    </div>
+    <div id="seamtip" hidden></div>
     <div id="busy" hidden><span id="busy_txt">slicing…</span><div class="bar"><i></i></div><ol id="busy_steps"></ol><span id="busy_note"></span></div>
     <details id="hint"><summary>drag = orbit · wheel = zoom · right-drag = pan · <span>all controls</span></summary><dl>
       <dt>view</dt><dd>click the corner cube = flat view · fit view = frame the model again</dd>
@@ -181,6 +191,7 @@
       <dt>curve</dt><dd>drag a blue dot = move that point · shift+alt-click a hoof, hand or tail tip = a branch out to it;
         drag its ends to move it, alt-click it to remove it · click a J or B plane = move or tilt it like a slice</dd>
       <dt>radial</dt><dd>drag the axis or its end = move it · click the plane between two lobes = move or tilt it like a slice</dd>
+      <dt>folded</dt><dd>choose seams (Technique tab), then click an edge on the model or on a sheet = cut the sheet apart there · click a seam of yours = give it back</dd>
     </dl></details>
   </div>
   <div id="lower"><div id="stats"></div><div id="msgs"></div><div class="sheets" id="sheets"></div></div>

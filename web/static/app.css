@@ -82,6 +82,13 @@ button.small{padding:3px 8px;border:1px solid var(--line);background:var(--panel
    stretch of track, and with a live counter beside it to read off which step you have landed on */
 .bar input#steps{width:250px}.bar .stepsval{min-width:52px;text-align:center;font-variant-numeric:tabular-nums;color:var(--ink)}
 #sel{position:absolute;right:10px;top:8px;background:#0f1012ee;padding:8px 10px;border-radius:6px;border:1px solid var(--line);font-size:12px;width:250px}#sel[hidden]{display:none}#sel b{color:var(--sel)}#sel .row{display:grid;grid-template-columns:44px 1fr 66px;gap:6px;align-items:center;margin:4px 0}#sel .row input[type=number]{padding:2px 5px}#sel small{color:var(--muted);display:block;margin-top:4px}
+/* choosing the seams of a folded model: three line styles, never colour alone (thin = fold, dashed = the program's seam, thick = yours) */
+#seampanel{position:absolute;left:10px;bottom:36px;width:300px;max-width:calc(100% - 130px);background:#0f1012ee;border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.5}#seampanel[hidden]{display:none}
+#seampanel .t{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}#seampanel p{margin:0 0 6px;color:var(--muted)}#seampanel p b{color:var(--ink);font-weight:600}#seampanel .lg{display:flex;align-items:center;gap:8px}#seampanel .lg svg{flex:none}#seampanel .lg small{color:var(--muted)}#seampanel .r{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap}#seampanel .r[hidden]{display:none}
+#seamtip{position:fixed;z-index:60;pointer-events:none;background:#000d;border:1px solid #fff6;border-radius:4px;padding:5px 8px;font-size:12px;line-height:1.5;color:#fff;white-space:nowrap}#seamtip[hidden]{display:none}
+.seamcard{display:flex;flex-direction:column;gap:5px}.seamcard>span:last-child{display:flex;gap:6px;flex-wrap:wrap}
+#sheets g.seams{display:none}#sheets.choosing g.seams{display:inline}#sheets g.seams line{vector-effect:non-scaling-stroke;fill:none;stroke-linecap:round;pointer-events:none}
+#sheets g.seams line.hit{stroke:transparent;stroke-width:12px;pointer-events:stroke;cursor:pointer}#sheets g.seams line.mine{stroke:#56B4E9;stroke-width:4px}#sheets g.seams line.hov{stroke:#F0E442;stroke-width:7px}
 #hint{position:absolute;left:10px;bottom:8px;max-width:calc(100% - 130px);font-size:11px;color:var(--muted);background:#0f1012dd;padding:3px 7px;border-radius:4px}
 #hint summary{cursor:pointer}#hint summary span{color:var(--acc)}
 #hint dl{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin:6px 0 2px}#hint dt{color:var(--ink)}#hint dd{margin:0}

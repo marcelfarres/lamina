@@ -18,7 +18,7 @@ from ..model import Issue, Slice
 from ..geometry import as_multi, circle, min_dims, rect_along, frame_xy, poly_coords
 from ..labels import mark_box, mark_rot
 from ..mesh import simplify, merge_small
-from ..unfold import unfold, closing_shortfall
+from ..unfold import unfold, closing_shortfall, edges_at
 
 JOINTS = ["seam", "tab", "multitab", "diamond", "ticked", "gear", "tongue", "puzzle", "rivet", "laced", "loops", "strip", "rib"]
 # The thickest sheet of each material that folds along a score line (mm); 0 = it does not fold at all, it cracks or
@@ -101,6 +101,7 @@ class Groove(NamedTuple):
 class FoldedSlice(Slice):
     """A folded panel: the shared Slice plus what unfolding and joining it keeps while it is built."""
     pn: object = None                   # the Panel this slice is cut from
+    edges: list = field(default_factory=list)       # [(adjacency index, LineString)] the panel's fold and seam edges in its net, for the page to mark and pick
     additions: list = field(default_factory=list)   # tabs added to the panel's outline
     skipped: dict = field(default_factory=dict)     # what → seams whose joint found no room
     room: MultiPolygon | None = None    # the panel with its tabs so far, a hair in, where a seam number may go (cached)
@@ -120,11 +121,23 @@ class FoldedSlice(Slice):
     tab_of: list = field(default_factory=list)      # the face each of `tab_facets` lies on
     tab_facets: list = field(default_factory=list)  # the tabs as the 3D view shows them, folded onto their panel
 
-    def piece_extra(self):
-        """What a printed folded panel carries beyond its outline, for core.solid to cut: a groove per fold and mitred seam
-        edge, and its glue tabs with the thickness they keep. (A folded net is one piece.)"""
+    def piece_extra(self, pc):
+        """What a folded panel carries beyond its outline. Printed, for core.solid to cut: a groove per fold and mitred
+        seam edge, and its glue tabs with the thickness they keep. And where its fold and seam edges lie on the sheet,
+        for the page to mark and pick. (A folded net is one piece.)"""
         return {**({"grooves": [g.json() for g in self.grooves]} if self.grooves else {}),
-                **({"thin": [r for g in self.thin for r in poly_coords(as_multi(g))], "thin_t": self.thin_t} if self.thin else {})}
+                **({"thin": [r for g in self.thin for r in poly_coords(as_multi(g))], "thin_t": self.thin_t} if self.thin else {}),
+                **({"edges": self.placed_edges(pc)} if self.edges else {})}
+
+    def placed_edges(self, pc):
+        """The panel's fold and seam edges where its piece lies on the sheet: [k, x0, y0, x1, y1] each, k the edge's
+        number in the plan's `edges3d`. The piece was turned about the origin and then moved (nest._put): the move is
+        what takes the turned outline's corner to the placed one's."""
+        a = math.radians(pc.place[3]); c, s = math.cos(a), math.sin(a)
+        turn = np.array([[c, s], [-s, c]])                               # for row vectors: p @ turn
+        move = np.array(pc.placed.bounds[:2]) - (np.array(pc.kerfed.convex_hull.exterior.coords) @ turn).min(0)
+        ends = np.array([ln.coords for _, ln in self.edges]) @ turn + move
+        return [[k, *np.round(e.ravel(), 3).tolist()] for (k, _), e in zip(self.edges, ends)]
 
     def facet_extra(self, i):
         """hinge: how a folded panel's face unfolds, bevel: its grooved edges, t: its thickness when it is not the sheet's."""
@@ -138,6 +151,7 @@ class FoldedSlice(Slice):
         flip = lambda g: affinity.scale(g, -1, 1, origin=(0, 0))   # noqa: E731
         self.raw = flip(self.raw); self.cuts = [flip(c) for c in self.cuts]; self.thin = [flip(g) for g in self.thin]
         self.lines = [(style, flip(ln)) for style, ln in self.lines]
+        self.edges = [(k, flip(ln)) for k, ln in self.edges]
         self.marks = [(-m[0], m[1], m[2], -(m[3] if len(m) > 3 else 0.0)) for m in self.marks]
         self.grooves = [g._replace(a=(-g.a[0], g.a[1]), b=(-g.b[0], g.b[1])) for g in self.grooves]
         self.mark_boxes = []; self.room = None; self.taken = None
@@ -182,6 +196,10 @@ class Folded(Mode):
               "face. For a model where a few small faces carry warnings and a bigger facet size would lose detail everywhere", 0, 100, 0.5, unit="mm", label="smallest face"),
         Param("separate", "bool", False, "Every face is its own panel (no folds): each triangle is cut alone and joined to its neighbours along every edge", label="every face separate"),
         Param("strategy", "choice", "auto", "How panels grow: flat = flattest fold first; strip = long strips along the model's axis; area = big faces first; auto = try all and keep the fewest, most compact panels (≤ 800 faces)", choices=["auto", "flat", "strip", "area"], show_if=("separate", False), label="panel strategy"),
+        Param("seams", "edges", [], "The seams you chose: the sheet is cut apart at each of these edges and never folded there, and the "
+              "panels are laid out round them. Turn on `choose seams`, then click an edge on the model or on a sheet to put a seam "
+              "there; click a seam of yours again to give the edge back to the program. A closed model needs as many seams whoever "
+              "chooses them: a seam of yours takes the place of one the program would have put somewhere else", show_if=("separate", False)),
         Param("max_faces", "int", 0, "Max triangles per panel (0 = as many as fit the sheet without overlapping)", 0, 5000, 1, show_if=("separate", False), label="most faces per panel"),
         Param("window", "number", 0.0, "Open every face with a window of its own shape, for light (lamp shades, lanterns): how "
               "much of the face it takes, 0 = none, 1 = as much as the frame allows. The frame left round it is never "
@@ -253,7 +271,8 @@ class Folded(Mode):
             mesh = merge_small(mesh, p["min_face"])
         self.mesh = mesh
         ctx.cover_r = t                                       # coverage: surface points within the sheet thickness of a panel
-        frames, local, panels, seams = unfold(mesh, p["separate"], p["max_faces"], self.usable_sheet(p), p["strategy"])
+        chosen, lost = (set(), 0) if p["separate"] else edges_at(mesh, p["seams"])     # every face its own panel: every edge is a seam already
+        frames, local, panels, seams = unfold(mesh, p["separate"], p["max_faces"], self.usable_sheet(p), p["strategy"], chosen)
         self.frames, self.local = frames, local
         convex = mesh.face_adjacency_convex
         slices, owner = [], {}
@@ -268,6 +287,7 @@ class Folded(Mode):
                 va, vb = mesh.face_adjacency_edges[k]
                 f = mesh.face_adjacency[k][0]
                 sl.lines.append((self.fold_line(convex[k]), LineString([pn.tri[f][fa.index(va)], pn.tri[f][fa.index(vb)]])))
+                sl.edges.append((k, sl.lines[-1][1]))
                 self.groove(sl, pn.tri[f][fa.index(va)], pn.tri[f][fa.index(vb)], k)
             slices.append(sl)
             for f in pn.faces:
@@ -283,6 +303,8 @@ class Folded(Mode):
             fa, fb = (int(x) for x in mesh.face_adjacency[k])
             va, vb = mesh.face_adjacency_edges[k]
             all_sides[k] = [self.side(owner[f], f, va, vb) for f in (fa, fb)]
+            for s in all_sides[k]:                            # a seam lies on two panel edges: the page marks both
+                s.sl.edges.append((k, LineString([s.A, s.B])))
             bend = float(mesh.face_adjacency_angles[k])
             outward = convex[k] and bend > math.radians(1)
             need = t * math.tan(min(bend, math.radians(150)) / 2) if outward else 0
@@ -406,7 +428,26 @@ class Folded(Mode):
         if len(ctx.errors) == said:                           # a sheet that does not fold at all has said so: how far it folds is moot
             self.check_closing(slices)
         ctx.notes_extra = f"unfolded {len(mesh.faces)} triangles into {n_panels} panel(s), {len(seams)} seams"
+        if not p["separate"]:
+            ctx.view["edges3d"] = self.edges3d(seams, chosen)
+        if lost and slices:
+            slices[0].warnings.append(f"{lost} of the {len(p['seams'])} seams you chose are on no edge of the model as it is now, and are left "
+                                      f"out: the facet size, the model or its size changed after you chose them. Choose them again "
+                                      f"(`choose seams`), or go back to the settings you chose them with")
         return slices + extra
+
+    def edges3d(self, seams, chosen):
+        """Every edge the surface is folded or cut apart at, for the page to draw on the model and pick: [k, kind, end,
+        end, way out] — its adjacency index, "fold", "seam" (the unfolder's) or "chosen" (the user's seam), its two
+        ends, and the direction out of the model there, so the line can be drawn a hair outside the surface. The joins
+        inside one flat face are left out: nothing folds there, and a seam across a flat face is no one's choice."""
+        m = self.mesh; cut = set(seams); out = []
+        for k, ((fa, fb), ends) in enumerate(zip(m.face_adjacency, m.face_adjacency_edges)):
+            if k in cut or m.face_adjacency_angles[k] >= FLAT:
+                n = m.face_normals[fa] + m.face_normals[fb]
+                out.append([k, "chosen" if k in chosen else "seam" if k in cut else "fold",
+                            *np.round(m.vertices[ends], 3).tolist(), np.round(n / (np.linalg.norm(n) or 1), 3).tolist()])
+        return out
 
     def check_walls(self, slices):
         """The sheet lies inside the surface, one thickness deep. Where the model itself is thinner than two sheets (the

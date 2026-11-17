@@ -89,10 +89,13 @@ def contact(tri, fat, corners):
     return near.length
 
 
-def unfold_once(mesh, split, max_faces, max_dims, weights, local):
+def unfold_once(mesh, split, max_faces, max_dims, weights, local, chosen=frozenset()):
+    """`chosen`: the adjacency indices of the seams the user chose. No panel grows across one."""
     adj, aedges = mesh.face_adjacency, mesh.face_adjacency_edges
     nb = defaultdict(list)
     for k, (a, b) in enumerate(adj):
+        if k in chosen:
+            continue
         nb[a].append((weights[k], b, k)); nb[b].append((weights[k], a, k))
     visited, panels, tree = set(), [], set()
     faces = [list(f) for f in mesh.faces]
@@ -166,15 +169,16 @@ def unfold_once(mesh, split, max_faces, max_dims, weights, local):
     own = {f: pn for pn in panels for f in pn.faces}
     for k, (a, b) in enumerate(adj):
         pn = own[a]
-        if k not in tree and own[b] is pn and all(
+        if k not in tree and k not in chosen and own[b] is pn and all(
                 np.abs(pn.tri[a][faces[a].index(v)] - pn.tri[b][faces[b].index(v)]).max() < 1e-6 for v in aedges[k]):
             pn.folds.append(k); tree.add(k)
     seams = [k for k in range(len(adj)) if k not in tree]
     return panels, seams
 
 
-def unfold(mesh, split=False, max_faces=0, max_dims=None, strategy="flat"):
+def unfold(mesh, split=False, max_faces=0, max_dims=None, strategy="flat", chosen=frozenset()):
     """→ (frames, local, panels, seams). seams = adjacency indices that are NOT folds (need a joint).
+    chosen: adjacency indices that must be seams (the user's choice): the panels are laid out round them.
     strategy: flat | strip | area | auto (best of all, plus two randomised runs; only for ≤ 800 faces)."""
     frames, local = face_frames(mesh)
     if split:
@@ -184,7 +188,7 @@ def unfold(mesh, split=False, max_faces=0, max_dims=None, strategy="flat"):
     best = None
     for strat, seed in runs:
         w = edge_weights(mesh, strat, np.random.default_rng(seed) if seed else None)
-        panels, seams = unfold_once(mesh, False, max_faces, max_dims, w, local)
+        panels, seams = unfold_once(mesh, False, max_faces, max_dims, w, local, chosen)
         # fewest panels, then most compact (union area / bounding-rectangle area, summed)
         compact = sum(pn.union.area / max(np.prod(min_dims(pn.union)), 1e-9) for pn in panels) / len(panels)
         score = (len(panels), -compact)
@@ -192,6 +196,27 @@ def unfold(mesh, split=False, max_faces=0, max_dims=None, strategy="flat"):
             best = (score, panels, seams)
     _, panels, seams = best
     return frames, local, panels, seams
+
+
+def edges_at(mesh, lines, tol=0.05):
+    """The adjacency indices of the edges that `lines` ([[x, y, z], [x, y, z]], …) name by their two ends, within `tol`
+    mm, and how many of the lines are no edge of this mesh: a seam chosen on the model keeps its place, not a number,
+    and a mesh simplified again (another facet size, another model size) has other edges."""
+    try:
+        ends = np.asarray(lines, float).reshape(-1, 2, 3)
+    except (TypeError, ValueError):
+        return set(), len(lines)
+    index = {frozenset(map(int, e)): k for k, e in enumerate(mesh.face_adjacency_edges)}
+    found, lost = set(), 0
+    for line in ends:
+        d = np.abs(mesh.vertices[None] - line[:, None]).max(2)          # 2 ends × vertices
+        at = d.argmin(1)
+        k = index.get(frozenset(map(int, at))) if (d[[0, 1], at] <= tol).all() else None
+        if k is None:
+            lost += 1
+        else:
+            found.add(k)
+    return found, lost
 
 
 def closing_shortfall(mesh, give, folds):

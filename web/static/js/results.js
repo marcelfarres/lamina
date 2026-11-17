@@ -8,6 +8,7 @@ import {dens} from './presets.js';
 import {renderFields, lenMM} from './form.js';
 import {slice} from './slice.js';
 import {parts} from './scene.js';
+import {sheetSeams, toggleSeam} from './seams.js';
 
 // ---------------------------------------------------------------- sheets + report
 const pieceToSlice=()=>{const m={};for(const s of ST.plan?.slices||[])for(const pc of s.pieces)m[pc.label]=s.label;return m};
@@ -19,9 +20,11 @@ export function renderSheets(svgs){
   // status line: what is selected (so a click is never silent)
   if(ST.selected)status(`${$('#status').textContent.replace(/ · selected.*$/,'')} · selected ${ST.selected}`);
   for(const p of $$('#sheets path[data-label]'))if(bad.has(p.dataset.label))p.setAttribute('stroke','#ff5555');
-  $('#sheets').onclick=e=>{const a=e.target.closest('a[data-open]');if(a){const s=$$('#sheets svg')[+a.dataset.open];window.open(URL.createObjectURL(new Blob([s.outerHTML],{type:'image/svg+xml'})));return}
+  $('#sheets').onclick=e=>{const a=e.target.closest('a[data-open]');if(a){const s=$$('#sheets svg')[+a.dataset.open].cloneNode(true);s.querySelector('g.seams')?.remove();window.open(URL.createObjectURL(new Blob([s.outerHTML],{type:'image/svg+xml'})));return}
+    const edge=e.target.closest('line.hit');if(edge)return toggleSeam(+edge.dataset.k);   // choosing seams: an edge of the net
     const p=e.target.closest('path[data-label]');if(!p)return;const lab=pieceToSlice()[p.dataset.label],m=parts.children.find(c=>c.userData.slice===lab);if(m)highlight(m)};
   if(ST.selected)hlSheet(ST.selected);
+  sheetSeams();
 }
 export function applyFix(set){act('clicked a fix');for(const [k,v] of Object.entries(set)){if(v&&typeof v==='object'&&!Array.isArray(v))state[k]={...(state[k]||{}),...v};else if(Array.isArray(v)&&['skip','extra_x','extra_y'].includes(k))state[k]=[...new Set([...(state[k]||[]),...v])];else state[k]=v}renderFields();slice()}
 // what the printed prototype parts come out at — and the re-plan the server does when that is under the printer's minimum

@@ -7,6 +7,7 @@ import {renderFields} from './form.js';
 import {slice} from './slice.js';
 import {renderer, ray, camera, gizmo, guides, parts, rings, mat4, V3, cubeHit, controls, placeRod, ghost, applyExplode, viewFrom} from './scene.js';
 import {hlSheet} from './results.js';
+import {seamClick} from './seams.js';
 
 // selection, gizmo, drag editing
 let down=null, drag=null;
@@ -309,6 +310,7 @@ renderer.domElement.addEventListener('pointerup',ev=>{const k=keys(ev);
     if(Math.abs(d.delta)>0.05){const k=d.mode,cur=state[k]?.[ST.selected]||0,st=niceStep(0.1*UNIT[ST.unit]);setEdit(k,cur+(k==='offset'?toMM(Math.round(d.delta*UNIT[ST.unit]/st)*st):Math.round(d.delta)))}else applyExplode();return}
   if(!down||Math.hypot(ev.clientX-down.x,ev.clientY-down.y)>10)return;
   if(down.cube){const cv=cubeHit(ev);if(cv)viewFrom(cv);return}
+  if(seamClick(ev))return;   // choosing seams: a click is for an edge, never for a part
   const h=hit(ev);if(h&&(h.object.userData.gizmo||h.object.userData.ring!==undefined))return;
   if(h&&(h.object.userData.ax!==undefined||h.object.userData.axline!==undefined)){if(k.altKey){const list=axisList(),i=h.object.userData.ax?h.object.userData.ax.i:h.object.userData.axline;   // alt-click an axis or its end: drop that fan (the last one stays — a radial job has to turn about something) or that branch
       if(list.length>1||lineParam()==='branches'){state[lineParam()]=dropLine(i);renderFields();slice()}
