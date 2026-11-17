@@ -316,6 +316,7 @@ def test_every_control_does_what_it_says_and_every_download_holds_the_plan(page,
     page.check("#x_key"); page.check("#x_labels")
 
     # -- prototyping: the fields reach the request, and the zips hold a plate
+    page.eval_on_selector("#pr_fold", "d => { d.open = true }")            # the group opens on its heading (a printed job opened it already)
     page.fill("#pr_size", "120"); page.select_option("#pr_labels", "hole"); page.fill("#pr_font", "4")
     page.fill("#pr_min", "1"); page.fill("#pr_offset", "0.3"); page.fill("#pr_step", "0.05")
     for btn, want in (("#pr_go", "plate.3mf"), ("#fit_go", "plate.3mf")):

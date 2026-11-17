@@ -35,6 +35,21 @@ label.f,div.f{display:grid;grid-template-columns:128px 1fr;gap:8px;align-items:s
 .f .chg{all:unset;display:none;cursor:pointer;color:var(--acc);margin-left:5px;font-weight:400}.f.changed>.k{font-weight:600}.f.changed .chg{display:inline}
 .f>.help{grid-column:1/-1;margin:0 0 4px;padding:6px 8px;background:var(--panel2);border-radius:4px;line-height:1.45}
 #find{margin:8px 14px 0;width:calc(100% - 28px);flex:none}
+/* basic / all: the pressed side is filled, bold and ticked, so it is not told by colour alone */
+#level{margin:6px 14px 0;flex:none;display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}#level span{display:inline-flex;border:1px solid var(--line);border-radius:5px;overflow:hidden}
+#level button{border:0;border-radius:0;background:none;color:var(--muted);padding:2px 11px;font-size:12px;cursor:pointer}#level button[aria-pressed=true]{background:var(--acc);color:#fff;font-weight:700}#level button[aria-pressed=true]::before{content:"✓ "}
+#tabs.basic:not(.finding) .sec:not(.all)>.f.adv:not(.changed){display:none}
+.sec>.more{display:none;width:100%;text-align:left;margin:4px 0 2px;padding:4px 8px;font-size:11.5px;line-height:1.4;color:var(--acc);background:none;border:1px dashed var(--line);border-radius:5px;cursor:pointer}
+#tabs.basic:not(.finding) .sec:not(.all):not(.folded)>.more:not([hidden]){display:block}.sec>.more:hover{border-color:var(--acc)}
+/* text behind a click (Export tab), and the groups of that tab that open on demand */
+details.info{font-size:11.5px;margin:2px 0 8px}details.info>summary{cursor:pointer;color:var(--acc);list-style:none}details.info>summary::before{content:"ⓘ "}details.info>summary::after{content:" ▸"}details.info[open]>summary::after{content:" ▾"}details.info>.hint{margin:4px 0 0;display:block}
+.dl .r details.info{margin:0}
+details.fold>summary{cursor:pointer;list-style:none}details.fold>summary h2{display:inline-block}details.fold>summary::before{content:"▸ ";color:var(--muted);font-size:10px}details.fold[open]>summary::before{content:"▾ "}
+details.info>summary::-webkit-details-marker,details.fold>summary::-webkit-details-marker{display:none}
+/* the tools of the 3D view: the one in use is outlined, bold and ticked */
+#tools{position:absolute;left:10px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+#tools button{padding:4px 9px;border:1px solid var(--line);background:#0f1012dd;color:var(--ink);border-radius:5px;cursor:pointer;font-size:11.5px;white-space:nowrap}#tools button[hidden]{display:none}
+#tools button[aria-pressed=true]{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset;font-weight:700}#tools button[aria-pressed=true]::after{content:" ✓"}
 #tabs.finding section[data-tab]{display:block}#tabs.finding .miss{display:none!important}#tabs.finding .sec.folded>.f{display:grid}
 #tabs.finding section[data-tab]::before{content:attr(data-name);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--acc);margin:12px 0 4px}
 #tip{position:fixed;z-index:50;max-width:320px;background:#2b2d34;color:#f0f0ee;padding:7px 9px;border-radius:5px;font-size:11.5px;line-height:1.4;box-shadow:0 6px 18px #000c;border:1px solid #3a3c45;pointer-events:none}#tip[hidden]{display:none}

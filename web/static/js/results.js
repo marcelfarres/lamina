@@ -68,15 +68,15 @@ export function renderDownloads(){ // the labels checkbox applies to every cut f
   protoHint(); renderWeight();
   const b=`api/job/${CLIENT}/${ST.job}`,L=$('#x_labels').checked?1:0,K=$('#x_key').checked?1:0,G=$('#x_grouped').checked?1:0,step=lenMM('#pr_step',0.1),U=`&units=${ST.unit}`;   // the cut files come out in the unit on show, without a re-slice
   // what the labels on the parts mean, before the cut rather than after it
-  $('#legend').innerHTML=`<b>how the parts are labelled</b><br>${(ST.mode.legend||'every part carries its own label').replace(/ · /g,'<br>')}`
+  $('#legend').innerHTML=`${(ST.mode.legend||'every part carries its own label').replace(/ · /g,'<br>')}`
     +(state.label_style==='code'?'<br><b>puzzle mode:</b> the parts are engraved with codes instead — assembly-key.txt maps them back':'');
   // a printed job has nothing to cut: the plates are under Print, and the cut files and their fit test step aside
   for(const el of $$('.cutonly,.protoonly'))el.hidden=state.printed;
-  $('#pr_title').textContent=state.printed?'Print plates':'Prototyping (3D print)';
+  $('#pr_title').textContent=state.printed?'Print plates':'Prototyping (3D print)'; if(state.printed)$('#pr_fold').open=true;   // a printed job: the plates are the files
   $('#pr_go').textContent=state.printed?`download print plates (plate-1.3mf … plate-${ST.plan.sheets}.3mf, one per bed, + one STL per part)`
     :'download prototype set (plate.3mf for OrcaSlicer + one STL per part)';
   // every file says what it is for: eight buttons in a row left the reader to know which program wants which format
-  const rows=r=>r.map(([t,u,use])=>`<div class="r"><a href="${u}">${t}</a>${use?`<span class="hint">${use}</span>`:''}</div>`).join('');
+  const rows=r=>r.map(([t,u,use])=>`<div class="r"><a href="${u}">${t}</a>${use?`<details class="info"><summary>what is it for?</summary><span class="hint">${use}</span></details>`:''}</div>`).join('');
   const more=[['assembled STL',`${b}/stl`,'the whole model built from its parts, as one 3D file: to look at it or render it in another program'],
     ['assembled STEP',`${b}/step`,'the same model as true solids, for CAD (Fusion, FreeCAD, Onshape): every part a body with flat faces, not a triangle mesh'],
     ['plan.json',`jobs/${CLIENT}/${ST.job}/plan.json`,'everything Lamina worked out, for scripts and other tools']];
@@ -109,6 +109,7 @@ export function renderReport(){
   const notes=p.notes.length>1?[`<details class="msg note"><summary>ⓘ <b>${p.notes.length} notes</b> on how this was sliced · <span>${p.notes.map(short).join(' · ')}</span></summary>${p.notes.map(n=>`<div>${inUnit(n)}</div>`).join('')}</details>`]
     :p.notes.map(n=>`<div class="msg note">ⓘ ${inUnit(n)}</div>`);
   const msgs=[...notes,...p.errors.map(e=>`<div class="msg err">${ERR}${inUnit(e)}${fixBtns({fixes:p.fixes||[]},e)}</div>`),
+    ...(p.warnings||[]).map(w=>`<div class="msg warn">${WARN}${inUnit(w)}</div>`),   // of the whole plan: what was asked for and left out
     ...p.dropped.flatMap(s=>s.errors.map(e=>`<div class="msg err">${ERR}${s.label}: ${inUnit(e)}</div>`)),
     ...p.slices.flatMap(s=>[...s.errors.map(e=>`<div class="msg err" data-s="${s.label}" title="click to select this part">${ERR}${s.label}: ${inUnit(e)}${fixBtns(s,e)}</div>`),
                             ...s.warnings.map(w=>`<div class="msg warn" data-s="${s.label}" title="click to select this part">${WARN}${s.label}: ${inUnit(w)}${fixBtns(s,w)}</div>`)])];

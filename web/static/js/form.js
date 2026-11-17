@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {state, ST} from './state.js';
 import {PLANE_IDX} from './catalog.js';
 import {$, $$, esc, nice} from './util.js';
-import {splitAxis, axisList, branchTo, curveList, newLine, dropLine} from './edit3d.js';
+import {splitAxis, axisList, branchTo, curveList, newLine, dropLine, syncTools} from './edit3d.js';
 import {bounds, inU, show, isLen, fromU, applyUnit} from './units.js';
 import {syncPresetSelects, applyMachine} from './presets.js';
 import {renderSpacing} from './spacing.js';
@@ -44,14 +44,17 @@ function field(p){
     inp=`<div class="rows" id="${id}">${rows.map(([k,x])=>`<div class="r"><small>${esc(k)}</small><input type="number" step="any" value="${show(p,x)}" data-map="${p.name}" data-k="${esc(k)}">${k in (v||{})?`<button class="small x" data-del="${p.name}" data-i="${esc(k)}">×</button>`:'<span class="hint">default</span>'}</div>`).join('')||'<span class="hint">no overrides — select a part in the 3D view and use the sliders</span>'}</div>`}
   else if(p.type==='labels'||p.type==='chips')inp=`<div class="chips" id="${id}">${(v||[]).map((x,i)=>`<span class="chip">${p.type==='chips'?show(p,x):esc(x)}<b data-del="${p.name}" data-i="${i}">×</b></span>`).join('')}<input placeholder="${p.type==='chips'?'value ⏎':'label ⏎'}" data-chip="${p.name}"></div>`;
   else inp=(p.min!=null&&p.max!=null)?slider(id,v,p):num(id,v,p);
-  return `<div class="f${p.type==='lines3'||p.type==='curve'?' wide':''}${p.show_if?' dep':''}" data-p="${p.name}" ${p.show_if?`data-show="${p.show_if[0]}:${[].concat(p.show_if[1]).join('|')}"`:''}><span class="k" data-tip="${p.help.replace(/"/g,'&quot;')}">${p.label||nice(p.name)}${u}<button class="chg" data-undo="${p.name}" title="changed: click to put the default back" aria-label="changed: put the default back">↺</button></span>${inp}</div>`;
+  return `<div class="f${p.type==='lines3'||p.type==='curve'?' wide':''}${p.show_if?' dep':''}${p.advanced?' adv':''}" data-p="${p.name}" ${p.show_if?`data-show="${p.show_if[0]}:${[].concat(p.show_if[1]).join('|')}"`:''}><span class="k" data-tip="${p.help.replace(/"/g,'&quot;')}">${p.label||nice(p.name)}${u}<button class="chg" data-undo="${p.name}" title="changed: click to put the default back" aria-label="changed: put the default back">↺</button></span>${inp}</div>`;
 }
 // a setting that is not at its default (a file and the units are not settings to put back)
 const isChanged=p=>p.type!=='file'&&p.name!=='units'&&state[p.name]!=null&&JSON.stringify(state[p.name])!==JSON.stringify(p.default);
 function markChanged(){
   for(const el of $$('.f[data-p]')){const p=allParams().find(q=>q.name===el.dataset.p);el.classList.toggle('changed',!!p&&isChanged(p))}
   for(const s of $$('.sec')){const rows=[...s.querySelectorAll(':scope>.f')].filter(f=>!f.hidden),n=rows.filter(f=>f.classList.contains('changed')).length;
-    s.querySelector('h3 small').textContent=`· ${rows.length} setting${rows.length===1?'':'s'}${n?`, ${n} changed`:''}`}}
+    s.querySelector('h3 small').textContent=`· ${rows.length} setting${rows.length===1?'':'s'}${n?`, ${n} changed`:''}`;
+    // on basic, the foot of the group names what it holds back: a click shows them (a changed one is never held back)
+    const back=rows.filter(f=>f.classList.contains('adv')&&!f.classList.contains('changed')),m=s.querySelector(':scope>.more');
+    m.hidden=!back.length; m.textContent=`+ ${back.length} more: ${back.map(f=>f.querySelector('.k').firstChild.textContent.trim()).join(', ')}`}}
 // find a setting: only the rows whose name, key or help holds every word stay, from all the tabs at once
 export function findRows(){
   const box=$('#tabs'), words=$('#find').value.trim().toLowerCase().split(/\s+/).filter(Boolean); box.classList.toggle('finding',!!words.length);
@@ -60,14 +63,15 @@ export function findRows(){
   for(const f of box.querySelectorAll('.f[data-p]')){const k=f.querySelector('.k'),text=(f.dataset.p+' '+k.textContent+' '+(k.dataset.tip||'')).toLowerCase();
     if(!f.hidden&&words.every(w=>text.includes(w)))for(let e=f;e&&e!==box;e=e.parentElement)hit.add(e)}
   for(const el of box.querySelectorAll('section[data-tab],section[data-tab] *')){const row=el.closest('.f[data-p]');el.classList.toggle('miss',!(hit.has(el)||row&&hit.has(row)))}}
-const folded=new Set();   // the titles of the sections folded shut
+const folded=new Set(), opened=new Set();   // the titles of the sections folded shut, and of those showing all their settings on basic
 // a group's fields, with a heading where the section changes: "Title — the line under it", the line always on show, so
 // what a switch governs is read, not hovered for (only the kerf follows "compensate kerf"; the slot fit always applies)
+const MORE='<button class="more" hidden></button></div>';
 const fields=ps=>{let html='',open='';for(const p of ps){const s=p.section||open;   // a row with no section of its own stays in the one above
-    if(s!==open){if(open)html+='</div>';open=s;if(s){const [t,line]=s.split(' — ');
-      html+=`<div class="sec${folded.has(t)?' folded':''}" data-sec="${esc(t)}"><h3 class="sub" title="click to fold or unfold">${esc(t)}<small></small></h3>${line?`<p class="hint sub">${esc(line)}</p>`:''}`}}
+    if(s!==open){if(open)html+=MORE;open=s;if(s){const [t,line]=s.split(' — ');
+      html+=`<div class="sec${folded.has(t)?' folded':''}${opened.has(t)?' all':''}" data-sec="${esc(t)}"><h3 class="sub" title="click to fold or unfold">${esc(t)}<small></small></h3>${line?`<p class="hint sub">${esc(line)}</p>`:''}`}}
     html+=field(p)}
-  return html+(open?'</div>':'')};
+  return html+(open?MORE:'')};
 export function renderFields(){
   const com=ST.mode.common, byG=g=>fields(com.filter(p=>p.group===g)); syncProject();
   $('#g-model').innerHTML=byG('model'); $('#g-technique').innerHTML=fields(ST.mode.params)+byG('technique'); $('#g-slices').innerHTML=byG('slices');
@@ -115,6 +119,7 @@ export function resetTab(tab){for(const p of ST.mode.common)if(TABGROUPS[tab].in
 $('#tabs').addEventListener('click',e=>{
   const t=e.target, P=name=>allParams().find(p=>p.name===name);
   if(t.dataset.undo){const p=P(t.dataset.undo);state[p.name]=structuredClone(p.default);if(p.group==='model')ST.fitted=false;renderFields();schedule();return}   // ↺: the default back
+  if(t.classList.contains('more')){const s=t.parentElement;s.classList.add('all');opened.add(s.dataset.sec);return}
   const head=t.closest('.sec>h3'); if(head){const s=head.parentElement;s.classList.toggle('folded')?folded.add(s.dataset.sec):folded.delete(s.dataset.sec);return}
   const k=t.closest('div.f[data-p]>.k'); if(k&&k.dataset.tip){const h=k.parentElement.querySelector(':scope>.help');   // a name: its help opens under the row, and shuts
     if(h)h.remove();else k.parentElement.insertAdjacentHTML('beforeend',`<p class="hint help">${esc(k.dataset.tip)}</p>`);return}
@@ -134,6 +139,13 @@ $('#tabs').addEventListener('click',e=>{
 });
 $('#tabs').addEventListener('keydown',e=>{const t=e.target;if(!t.dataset.chip||e.key!=='Enter')return;const p=allParams().find(p=>p.name===t.dataset.chip);const raw=t.value.trim();if(!raw)return;
   const v=p.type==='chips'?fromU(p,+raw):raw; if(p.type==='chips'&&isNaN(v))return; setVal(p.name,[...(state[p.name]||[]),v]);renderFields()});
+// basic / all: basic holds back the settings marked `advanced` (core/modes ALL_ONLY) until they are asked for; the
+// choice is kept in the browser. It only hides rows: the values, and so the result, are the same either way
+function setLevel(v){try{localStorage.setItem('lamina.level',v)}catch{}   // no storage (a private window): the choice lasts for the visit
+  opened.clear();for(const s of $$('.sec.all'))s.classList.remove('all');
+  $('#tabs').classList.toggle('basic',v!=='all');for(const b of $$('#level button'))b.setAttribute('aria-pressed',b.dataset.level===(v==='all'?'all':'basic'))}
+$('#level').addEventListener('click',e=>{if(e.target.dataset.level)setLevel(e.target.dataset.level)});
+{let v='basic';try{v=localStorage.getItem('lamina.level')||v}catch{} setLevel(v)}
 export const memo={};   // per-technique parameter memory: switching away and back restores what you had
 // …but only what still means anything. These are placed on a particular model — in its millimetres, or under its
 // part labels — or shape it (size, turn, modify form), so a new model clears them from the memory as well as from the
@@ -146,7 +158,7 @@ export function setMode(name,keep=true){
   if(prev&&prev!==ST.mode)memo[prev.name]=Object.fromEntries(prev.params.map(p=>[p.name,structuredClone(state[p.name])]));
   for(const p of ST.mode.common) if(!(keep&&p.name in state)) state[p.name]=structuredClone(p.default);
   for(const p of ST.mode.params) state[p.name]=keep&&memo[ST.mode.name]&&p.name in memo[ST.mode.name]?structuredClone(memo[ST.mode.name][p.name]):(keep&&prev===ST.mode&&p.name in state?state[p.name]:structuredClone(p.default));
-  $$('#modes button').forEach(b=>b.classList.toggle('on',b.dataset.m===ST.mode.name)); $('#mdesc').textContent=ST.mode.description;
+  $$('#modes button').forEach(b=>b.classList.toggle('on',b.dataset.m===ST.mode.name)); $('#mdesc').textContent=ST.mode.description; syncTools();
   renderFields();
 }
 export function showTab(t){$$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));$$('section[data-tab]').forEach(s=>s.classList.toggle('on',s.dataset.tab===t));

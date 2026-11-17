@@ -37,7 +37,7 @@ class Param:
     max: float | None = None
     step: float | None = None
     choices: list = field(default_factory=list)
-    advanced: bool = False
+    advanced: bool = False    # shown only when the form is on "all" (ALL_ONLY below), or when it is not at its default
     group: str = "technique"  # UI tab: model | technique | sheet | fit | checks | slices
     unit: str = ""            # "mm" → converted to the UI unit (cm / in); "deg"
     show_if: tuple | None = None   # (other param name, value or list of values) → field only shown when it matches
@@ -116,7 +116,7 @@ COMMON: list[Param] = [
     P("one_sheet", "bool", False, "Ignore the sheet height: every part goes on one sheet as wide as the sheet and as long as it needs to be, to be cut apart at the machine", group="sheet", label="one long sheet"),
     P("mirror_ok", "bool", False, "Count a part and its mirror image as the same part: it is cut once and the copies are turned over, which merges left/right pairs into one file. Only for stock that is the same both sides and either way up — no print, laminate, brushed grain or one-sided film — and the engraved label reads backwards on a turned-over part. The cut list and the Parts table name the ones to turn over", group="sheet", label="merge mirrored parts"),
     P("split", "bool", True, "Split parts that do not fit the sheet, joining them with puzzle tabs", group="sheet", label="split big parts"),
-    P("tab", "number", 8, "Puzzle-tab width for splits (mm)", 2, 50, 0.5, group="sheet", unit="mm", advanced=True, label="split tab width"),
+    P("tab", "number", 8, "Puzzle-tab width for splits (mm)", 2, 50, 0.5, group="sheet", unit="mm", label="split tab width"),
     P("labels", "bool", True, "Engrave part labels (LABEL layer): beside each part with a leader line, or on the part itself — see `labels on the parts`", group="sheet", label="engrave labels", section="Labels — what is engraved on each part"),
     P("label_model", "bool", True, "Engrave the model's short name before each label (BUNN Z-3): two models have the same part names, "
       "and parts cut together would otherwise get mixed up. The project name when it has one. Off for a longer label's room "
@@ -163,7 +163,7 @@ COMMON: list[Param] = [
       "the extra width at the opening, as a fraction of the slot's width. 0 = straight slots, the cleanest look; 0.2–0.5 "
       "helps with stiff material and many crossings", 0, 2, 0.05, group="fit", label="slot mouth flare"),
     P("notch_angle", "number", 45, "How steep that funnel is (deg), when the mouth is flared", 10, 80, 5, group="fit", unit="deg",
-      advanced=True, label="flare angle"),
+      label="flare angle"),
     P("relief", "choice", "square", "A round bit cannot cut a sharp inside corner: it leaves a curve the size of the bit, and "
       "the part that slots in stops short of the bottom. A relief cuts a little more at each inside corner so it seats. "
       "None suits lasers, knives and printers, whose corners are sharp. Dogbone notches into the corner diagonally, the "
@@ -174,7 +174,7 @@ COMMON: list[Param] = [
       section="Inside corners — for a CNC router or plasma. Always applied"),
     P("tool_d", "number", 0.0, "The bit's diameter (mm), for the relief above: each notch is this wide. 0 = no relief, "
       "whatever is picked above", 0, 20, 0.1, group="fit", unit="mm", label="bit diameter"),
-    P("margin", "number", 0, "Stacked / by-distance: keep the stack this far inside the model's end faces (mm), 0 = the stack is as tall as the model · Curve: keep the rib's ends this far in, 0 = one thickness", 0, 50, 0.1, group="technique", unit="mm", advanced=True, label="end margin", section="Position — where the slicing sits on the model"),
+    P("margin", "number", 0, "Stacked / by-distance: keep the stack this far inside the model's end faces (mm), 0 = the stack is as tall as the model · Curve: keep the rib's ends this far in, 0 = one thickness", 0, 50, 0.1, group="technique", unit="mm", label="end margin", section="Position — where the slicing sits on the model"),
     # -- slicing frame + per-slice edits (also driven by the 3D view)
     P("center", "vec3", [0, 0, 0], "Move the slicing centre / axis (mm) away from the model's bounding-box centre", -5000, 5000, 1, group="technique", unit="mm", section="Position — where the slicing sits on the model"),
     P("skip", "labels", [], "Deleted slices (3D view: select → delete). Crossing slices get no slot for them", group="slices"),
@@ -199,6 +199,25 @@ COMMON: list[Param] = [
     P("min_part", "number", 6.0, "Check: parts smaller than this (mm) in both directions are flagged", 0.5, 100, 0.5, group="checks", unit="mm", label="minimum part size"),
     P("trim_thin", "bool", False, "Cut off what is too thin for too long to survive the cutter or the hand — thinner than min_feature for twice that length, or a spike under 1.5 × min_feature for four times it: the sharp point of a slice that meets the surface at a grazing angle, the wall left between a slot and the edge. The part ends blunt there, a little short of the model; off, each such spot is a warning on its part", group="checks", label="trim thin spots"),
 ]
+
+
+# The settings the form shows only on "all": fine adjustment, shape changes before slicing, label and layout details,
+# router corners. Everything else is basic: how many slices, what joins them, the sheet, the thickness, the kerf and
+# the slot fit. One table, so a setting moves between the two by moving its name. "common" is every tab but Technique.
+ALL_ONLY = {k: v.split() for k, v in {
+    "common": "shrinkwrap hollow thicken round smooth scale_check sheet_margin gap grain one_sheet mirror_ok split tab "
+              "label_model short_name label_style label_place orient_mark font notch_factor notch_angle relief tool_d "
+              "margin center min_part trim_thin",
+    "stacked": "shift surface next_outline next_outline_offset dowel_shape spacer_dir spacing_fix",
+    "radial": "axes angle spine spacing_fix",
+    "curve": "branches spacing_fix",
+    "interlocked": "rotate_grid extra_x extra_y spacing_fix",
+    "folded": "min_face separate strategy max_faces inset spacing tab_h tab_angle rib_w rib_thick edge_fit score_side",   # the hinge settings show only on a printed job, and there they are needed
+    "plaque": "sink plate_size plate_offset plate_scale plate_mirror plate_rotation angle radius shift surface teeth "
+              "tooth_width tooth_spacing dowel_d spacing_fix",
+}.items()}
+for _p in COMMON:
+    _p.advanced = _p.name in ALL_ONLY["common"]
 
 
 class Mode:
@@ -247,6 +266,8 @@ class Mode:
 
 def register(cls):
     REGISTRY[cls.name] = cls           # the class: every build makes its own instance (plan.build)
+    for p in cls.params:
+        p.advanced = p.name in ALL_ONLY.get(cls.name, ())
     return cls
 
 
@@ -261,6 +282,7 @@ def view_defaults():
     reach the next). The keys are the plan's own: build() merges the dict into the plan, so a technique that hands the view one
     more thing sets one more key here in its own file and plan.py stays as it is."""
     return {
+        "left_out": [],           # where a connector that was asked for found no room: [x,y,z] each, marked in the 3D view
         "rods": [],               # dowel rods for the 3D view and the key: [[x0,y0,z0],[x1,y1,z1],d,section [[x,y]…] in the slice's x/y,slice x axis,name (Z-3a),from slice,to slice]
         "curve3d": None,          # curve: the spine, for the 3D view
         "curve_pts": None,        # curve: its control points with the third coordinate, drawn and dragged in 3D
@@ -285,6 +307,7 @@ class Ctx:
         self.p = params
         self.errors = []          # mode-level errors (bad parameter combinations)
         self.fixes = []           # … and their one-click fixes
+        self.warnings = []        # what the technique left out that was asked for (a note is for what needs no action)
         self.notes_extra = ""     # what the technique wants said in the plan's notes
         self.cover_r = None       # how far across its plane a part counts as covering the surface (plan.coverage); None = a default
         self.view = view_defaults()   # what the technique hands the 3D view, merged into the plan as is: set ctx.view[key]

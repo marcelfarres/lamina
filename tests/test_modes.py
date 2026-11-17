@@ -946,3 +946,26 @@ def test_a_plan_file_another_program_has_mapped_is_written_when_it_lets_go(tmp_p
     finally:
         let_go.set(); t.join()
     assert json.loads(target.read_text())["counts"]["slices"] == 4
+
+
+def test_the_basic_list_names_settings_that_exist():
+    """ALL_ONLY (the settings the form holds back on basic) names real settings: a renamed one would stay on show
+    without a word, and the flag reaches the form's schema."""
+    from core.modes import ALL_ONLY, COMMON, load_all
+    modes = load_all()
+    assert set(ALL_ONLY) == {"common", *modes}
+    for name, held in ALL_ONLY.items():
+        have = [p.name for p in (COMMON if name == "common" else modes[name].params)]
+        assert not set(held) - set(have), (name, set(held) - set(have))
+    by = {p["name"]: p["advanced"] for p in modes["stacked"].schema()["params"]}
+    assert by["shift"] and not by["count"]
+
+
+def test_a_connector_that_was_asked_for_and_left_out_is_a_warning_of_the_plan():
+    """A pair of layers that gets no dowel used to be a note under a green "0 warnings". It is counted now, and it
+    names the setting as the form does."""
+    plan = build(EXAMPLES / "egg.stl", "stacked", {"connect": "dowel", "placement": "random", "n_points": 20, "dowel_d": 8})
+    assert len(plan["warnings"]) == 1 and "got no connector" in plan["warnings"][0], plan["warnings"]
+    assert plan["counts"]["warnings"] == 1 + sum(len(sl["warnings"]) for sl in plan["slices"])
+    assert not any("connector" in n for n in plan["notes"]) and "dowel_d" not in plan["warnings"][0]
+

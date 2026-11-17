@@ -392,11 +392,17 @@ sheets are always the same plan.
   backticks in this README is its key, the one a project file and the command line use.
 - **Find a setting**: type a word in the box over the tabs. Only the settings that match stay, from every tab.
 - **Help**: hover the name of a setting, or click it and the explanation opens under it.
+- **Basic / all**: the switch under the search box. *Basic* shows the settings a first piece needs and names the
+  others at the foot of each group. A setting you changed always shows. The result is the same either way.
 - **Changed settings**: a setting that is not at its default has a bold name and a ↺ sign. Click the sign to put the
   default back.
 - **Techniques** are six cards, each with a drawing of what it makes.
 - **Messages** say what they are: a warning starts with ⚠ WARNING and an error with ✖ ERROR. Several notes fold into
-  one line.
+  one line. A connector that was asked for and left out is a warning, with a ring in the 3D view at each place.
+- **Tools in the 3D view**: buttons at the left of the view add or remove a dowel, a curve point or an axis, add a
+  branch, and tilt or roll a slice. Pick one, then click or drag the model. The keys (alt-click, shift-drag,
+  ctrl-drag) do the same.
+- **Export tab**: the buttons first. The text about a file opens with a click on the line under its button.
 - **Top bar**: project name, open and save, a *version* menu, undo and redo, and a *help* menu with the guide, the
   release notes, the links and *clear my data*.
 

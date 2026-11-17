@@ -31,6 +31,18 @@ What changed in each release. The GitHub release for a version is this section, 
 - **A changed setting is marked.** Its name is bold with a ↺ sign. Click the sign to put the default back.
 - **Find a setting.** Type a word in the box over the tabs. Only the settings that match stay, from every tab.
 - **Help opens in place.** Click the name of a setting and its explanation opens under it.
+- **Basic and all settings.** A switch under the search box. On *basic*, each group shows the settings a first piece
+  needs, and a line at its foot names the others: click it to show them. A setting you changed always shows, and the
+  search box finds every setting. The switch only hides rows; the result is the same. The page starts on *basic* and
+  remembers your choice.
+- **The Export tab is short.** The download buttons come first. The text about each file, the fit test and the
+  labels opens with a click on its line. *Prototyping (3D print)* and *Parts* open with a click on their heading.
+- **Tools in the 3D view.** Buttons at the left of the view do what needed a key: add or remove a dowel, a curve
+  point or an axis, add a branch, tilt a slice, roll a slice. Pick a tool, then click or drag the model. Esc goes back
+  to turning the view. The keys work as before. With the buttons, these actions also work on a tablet.
+- **A connector that is left out is a warning.** When a dowel, a peg or a spacer you asked for finds no room, the
+  page counted zero warnings and said so in a note. It is a warning now, it is counted, and a ring in the 3D view
+  marks each place. The message names the setting as the page does (*dowel diameter*).
 - **One top bar.** The links, *what's new* and *clear my data* are in the *help* menu. The version and its two
   buttons are in a *version* menu. The Ko-fi link stays in the bar.
 - **The technique buttons are cards with a drawing** of what each technique makes.

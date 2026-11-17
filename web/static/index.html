@@ -27,10 +27,12 @@
     <li>a tab is in <b>sections</b>: click a heading to fold it. A setting that another one switches on is set in under it.</li>
     <li><b>↺</b> beside a bold name: that setting is not at its default. Click the sign to put the default back.</li>
     <li>click a setting's name and its explanation opens under it. Hover shows the same text.</li>
+    <li><b>basic / all</b> under the search box: basic shows the settings a first piece needs and names the others at the foot of each group. A setting you changed always shows. The result is the same either way.</li>
     <li><b>vary the spacing</b> opens a graph under the tick: the gap between slices against the position along the model.
       Start from a shape or press <b>follow the model</b>, drag the points, or select one and type its numbers.</li></ul>
   <h4>In the 3D view</h4>
   <ul><li>drag = orbit · wheel = zoom · right-drag = pan · click the corner cube = flat view</li>
+    <li>the <b>tools</b> at the left of the view do what a key does: pick one, then click or drag the model. Esc goes back to turning the view.</li>
     <li>drag a coloured ring on the model = turn the whole model · click a part = select it</li>
     <li>a selected part gets its own handles, on the part itself: the <b>yellow arrow</b> slides it along its normal,
       the <b>green ring</b> tilts it and the <b>blue ring</b> rolls it, both about the part's own middle, so it turns
@@ -75,6 +77,7 @@
 <aside>
   <nav><button data-t="model" class="on">Model</button><button data-t="technique">Technique</button><button data-t="sheet">Sheet &amp; fit</button><button data-t="checks">Checks</button><button data-t="export">Export</button></nav>
   <input id="find" type="search" placeholder="find a setting…  dowel, kerf, label" aria-label="find a setting" title="type a word: the settings that match stay, from every tab (Esc clears)">
+  <div id="level" role="group" aria-label="how many settings show" title="basic: the settings a first piece needs. all: every setting. A setting you changed always shows, and the search box finds every one. The result is the same either way">show <span><button data-level="basic">basic</button><button data-level="all">all</button></span> settings</div>
   <div id="tabs">
     <section data-tab="model" class="on">
       <h2>Model <button class="small reset" data-reset="model">reset tab</button></h2>
@@ -124,17 +127,17 @@
     <section data-tab="export"><h2>Weight</h2><div id="weight"></div>
       <!-- Three steps, in the order they happen: the fit test decides the slot offset the parts are then cut with. -->
       <h2 class="cutonly">1 · Fit test — cut this first</h2>
-      <p class="hint cutonly" style="margin:0 0 6px">Five small joints from this job, each cut with a different slot offset and marked with it: yours, and one and two steps either side. Cut them from the same sheet on the same machine as the parts and push each one together. The loosest that slides in without forcing and still holds is your slot offset: set it on Sheet &amp; fit, under Slot fit, and the parts below come out with it. A few minutes and a scrap, against a sheet of parts that will not go together.</p>
+      <details class="info cutonly"><summary>what is the fit test?</summary><p class="hint">Five small joints from this job, each cut with a different slot offset and marked with it: yours, and one and two steps either side. Cut them from the same sheet on the same machine as the parts and push each one together. The loosest that slides in without forcing and still holds is your slot offset: set it on Sheet &amp; fit, under Slot fit, and the parts below come out with it. A few minutes and a scrap, against a sheet of parts that will not go together.</p></details>
       <div class="f cutonly"><span class="k" data-tip="How far apart the five offsets are: 0.1 mm gives yours −0.2, −0.1, 0, +0.1 and +0.2. Use 0.05 to fine-tune once you are close. This test is at 1:1 on your real material and machine, so it is the one that predicts the model's fit; the print fit test under Prototyping tunes a 3D print only (a clearance is a length, not a ratio)">joint step (mm)</span><input type="number" id="pr_step" data-len data-mm="0.1" data-min="0.01" data-step="0.05"></div>
       <div class="dl rows cutonly" id="dlfit"></div>
       <h2 id="dl_title">2 · The parts</h2>
       <div class="f cutonly"><span class="k" data-tip="Include the red LABEL layer (part names, leader lines, seam numbers, sheet border) in the cut files. Off = cuts and score lines only">labels in files</span><input type="checkbox" id="x_labels" checked></div>
       <div class="f cutonly"><span class="k" data-tip="One group per part in the SVG, with its cuts, lines and labels inside it, so a part can be moved or re-nested as a whole in LightBurn or Inkscape; the colours still choose the layer. Off = one group per colour for the whole sheet (the older layout), for software that wants the colours kept apart">group parts</span><input type="checkbox" id="x_grouped" checked></div>
       <div class="f"><span class="k" data-tip="assembly-key.txt in the zip: what the labels mean, every part with where its centre sits and what it slots onto, in the order the 3D view builds them. In puzzle mode it is also the only way from an engraved code back to a part — untick it and the puzzle stays a puzzle (the file can always be downloaded later)">assembly key</span><input type="checkbox" id="x_key" checked></div>
-      <div class="hint" id="legend" style="margin:2px 0 8px"></div>
+      <details class="info"><summary>how the parts are labelled</summary><div class="hint" id="legend"></div></details>
       <div class="dl rows" id="dl"></div>
       <h2>3 · Build it</h2>
-      <p class="hint" style="margin:0 0 6px">assembly-key.txt in the zip says where every part goes, and the steps slider over the 3D view shows the order. Record it to keep beside you as you build:</p>
+      <details class="info"><summary>how to build it</summary><p class="hint">assembly-key.txt in the zip says where every part goes, and the steps slider over the 3D view shows the order. Record it to keep beside you as you build.</p></details>
       <div class="dl"><a href="#" id="vid_go">record the assembly video (webm) — the steps slider played and saved</a></div>
       <!-- Here, not on the Model tab: the people who just downloaded the cut files are the ones about to make it. -->
       <p class="hint" style="margin:10px 0 4px">Once it is cut and built, please
@@ -143,7 +146,7 @@
         credited as you like — or post it with <b>#lamina3dapp</b> on Instagram or X, in
         <a href="https://www.reddit.com/r/Lamina3D" target="_blank" rel="noopener">r/Lamina3D</a> on Reddit, or on the
         <a href="https://discord.gg/N66bCQxmt3" target="_blank" rel="noopener">Lamina Discord</a>.</p>
-      <h2 id="pr_title">Prototyping (3D print)</h2>
+      <details class="fold" id="pr_fold"><summary><h2 id="pr_title">Prototyping (3D print)</h2></summary>
       <div class="f protoonly"><span class="k" data-tip="Scale factor for the printed prototype (parts and thickness scale together; thickness never goes below min thickness). With PLA or PETG as the material the print is the job itself, so picking one sets this to 1">scale</span><input type="number" id="pr_scale" value="0.5" min="0.05" max="5" step="0.05"></div>
       <div class="f protoonly"><span class="k" data-tip="Or give the prototype's longest side (mm); overrides the scale when set">final size (mm)</span><input type="number" id="pr_size" data-len data-mm="" data-ph="100" data-min="5" data-step="1"></div>
       <div class="f"><span class="k" data-tip="Part labels embedded in the printed part: groove = engraved 0.6 mm deep, hole = cut through">labels</span><select id="pr_labels"><option>groove</option><option>hole</option><option>none</option></select></div>
@@ -153,18 +156,27 @@
       <div class="hint" id="pr_hint" style="margin:2px 0 8px"></div>
       <div class="dl"><a href="#" id="pr_go">download prototype set (plate.3mf for OrcaSlicer + one STL per part)</a></div>
       <div class="dl"><a href="#" id="fit_go">download print fit test (5 print slot offsets around yours, at the scale above)</a></div>
-      <h2>Parts</h2><div id="parts"></div></section>
+      </details>
+      <details class="fold" id="parts_fold"><summary><h2>Parts</h2></summary><div id="parts"></div></details></section>
   </div>
 </aside>
 <section class="view" id="view">
   <div id="v3d">
     <div class="bar"><label><input type="checkbox" id="ghost" checked> model</label><label>explode <input type="range" id="explode" min="1" max="3" step="0.05" value="1"></label><label>steps <input type="range" id="steps" min="0" max="1" step="1" value="1"><span id="steps_val" class="stepsval" title="step shown of the build order">1 / 1</span></label><label id="foldl" hidden title="folded panels from flat (0 %) to folded (100 %): every face turns about its own fold line. The last steps of the steps slider do the same">fold <input type="range" id="fold" min="0" max="1" step="0.01" value="1"><span id="fold_val" class="stepsval">100 %</span></label><label>look <select id="look"><option value="group">by family</option><option>cardboard</option><option>paper</option><option>plywood</option><option>steel</option><option>brass</option><option>copper</option><option>plastic</option><option>foam</option></select></label><label title="transparency of folded panels, to see the connectors inside">panels <input type="range" id="opacity" min="0.1" max="1" step="0.05" value="1"></label><button id="fit">fit view</button></div>
+    <div id="tools" role="toolbar" aria-label="what a click or a drag on the model does">
+      <button data-tool="" title="drag turns the view · a click selects a part (Esc comes back here)">✥ turn the view</button>
+      <button data-tool="alt" title="click the model where you want one · click one to remove it (the same as alt-click)">＋／－ <span></span></button>
+      <button data-tool="branch" title="click a hoof, a hand or a tail tip: a branch goes out to it (the same as shift+alt-click)">⑂ add a branch</button>
+      <button data-tool="tilt" title="click a slice, then drag it sideways: it tilts (the same as shift-drag)">⟲ tilt a slice</button>
+      <button data-tool="roll" title="click a slice, then drag it sideways: it rolls (the same as ctrl-drag)">↻ roll a slice</button>
+    </div>
     <div id="sel" hidden></div>
     <div id="busy" hidden><span id="busy_txt">slicing…</span><div class="bar"><i></i></div><ol id="busy_steps"></ol><span id="busy_note"></span></div>
     <details id="hint"><summary>drag = orbit · wheel = zoom · right-drag = pan · <span>all controls</span></summary><dl>
       <dt>view</dt><dd>click the corner cube = flat view · fit view = frame the model again</dd>
       <dt>model</dt><dd>drag a coloured ring = turn it · click a part = select it, its handles are explained in the panel that opens</dd>
-      <dt>alt-click</dt><dd>add or remove a dowel, a curve point or a radial axis</dd>
+      <dt>tools</dt><dd>the buttons at the left do what a key does: pick one, then click or drag the model</dd>
+      <dt>alt-click</dt><dd>add or remove a dowel, a curve point or a radial axis · shift-drag a selected slice = tilt it · ctrl-drag = roll it</dd>
       <dt>curve</dt><dd>drag a blue dot = move that point · shift+alt-click a hoof, hand or tail tip = a branch out to it;
         drag its ends to move it, alt-click it to remove it · click a J or B plane = move or tilt it like a slice</dd>
       <dt>radial</dt><dd>drag the axis or its end = move it · click the plane between two lobes = move or tilt it like a slice</dd>

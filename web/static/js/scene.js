@@ -65,7 +65,7 @@ function renderRings(){
   for(const [i,col] of [[0,0xff5c5c],[1,0x5cff7a],[2,0x5c9cff]]){const r=new THREE.Mesh(new THREE.TorusGeometry(L,L*0.012,8,96),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.55,depthTest:false}));
     if(i===0)r.rotation.y=Math.PI/2;else if(i===1)r.rotation.x=Math.PI/2; r.userData.ring=i;r.renderOrder=9;rings.add(r)}
 }
-function label3d(text,color){const c=document.createElement('canvas');c.width=64;c.height=32;const g=c.getContext('2d');g.font='bold 26px sans-serif';g.fillStyle=color;g.fillText(text,6,26);const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false}));return s}
+function label3d(text,color,mid){const c=document.createElement('canvas');c.width=64;c.height=32;const g=c.getContext('2d');g.font='bold 26px sans-serif';g.fillStyle=color;g.textAlign=mid?'center':'left';g.fillText(text,mid?32:6,26);const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false}));return s}
 function renderAxes(){ // world axes at the model's corner with X/Y/Z labels + dowel rods (stacked)
   axes.clear(); const L=Math.max(...ST.plan.bbox)*0.6, o=new THREE.Vector3(-ST.plan.bbox[0]/2,-ST.plan.bbox[1]/2,-ST.plan.bbox[2]/2).multiplyScalar(1.15);
   for(const [i,col,name] of [[0,0xff5c5c,'X'],[1,0x5cff7a,'Y'],[2,0x5c9cff,'Z']]){const dir=new THREE.Vector3(i===0?1:0,i===1?1:0,i===2?1:0);
@@ -74,6 +74,8 @@ function renderAxes(){ // world axes at the model's corner with X/Y/Z labels + d
   for(const [a,b,,sec,xa] of ST.plan.rods||[]){const A=V3(a),z=V3(b).sub(A),len=z.length(),x=V3(xa);z.normalize();
     const m=new THREE.Mesh(new THREE.ExtrudeGeometry(new THREE.Shape(sec.map(([u,v])=>new THREE.Vector2(u,v))),{depth:len,bevelEnabled:false}),new THREE.MeshStandardMaterial({color:0xc8b48a,roughness:.6}));
     m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x,z.clone().cross(x),z));m.position.copy(A);axes.add(m)}
+  // where a connector that was asked for found no room (the warning says how many): a crossed ring, seen through the parts
+  for(const q of ST.plan.left_out||[]){const s=label3d('⊗','#f5b642',true);s.position.copy(V3(q));s.scale.set(L*.2,L*.1,1);s.renderOrder=10;axes.add(s)}
   renderRings();
 }
 export function placeRod(rod,A,B){rod.position.copy(A).lerp(B,.5);rod.scale.set(1,Math.max(A.distanceTo(B),1e-3),1);rod.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),B.clone().sub(A).normalize())}

@@ -298,3 +298,46 @@ def test_a_folded_job_folds_up_at_the_end_of_its_steps(page):
     assert fold == 0.5 and "folding 50 %" in text
     step(n); fold, text = state()
     assert fold == 1 and text == ""
+
+
+def test_basic_holds_back_the_fine_settings_until_they_are_asked_for(page):
+    """The form starts on basic: a group shows what a first piece needs and names the others at its foot. A click
+    there, the search box or "all" shows them, and a setting that is not at its default is never held back."""
+    use(page, "vase", "stacked"); page.click('nav button[data-t="technique"]')
+    row = lambda n: page.locator(f'.f[data-p="{n}"]')                                  # noqa: E731
+    assert page.locator("#tabs.basic").count() and row("count").is_visible() and not row("shift").is_visible()
+    more = page.locator('.sec[data-sec="Slices"] > .more'); assert "shift stack" in more.inner_text()
+    more.click(); assert row("shift").is_visible()
+    page.click('#level button[data-level="all"]'); assert row("surface").is_visible() and not more.is_visible()
+    page.select_option("#p_surface", "outer"); settle(page)
+    page.click('#level button[data-level="basic"]')
+    assert row("surface").is_visible() and not row("shift").is_visible()               # the changed one stays; the group is shut again
+    page.fill("#find", "shift"); assert row("shift").is_visible(); page.fill("#find", "")
+    page.click('.f[data-p="surface"] .chg'); settle(page); assert not row("surface").is_visible()
+
+
+def test_a_tool_in_the_3d_view_does_what_the_key_does(page):
+    """Tilting a slice needed shift held down, which no button said and a tablet cannot do. The tool is picked, a click
+    selects the slice and a drag tilts it; Esc goes back to turning the view; a technique shows only its own tools."""
+    use(page, "vase", "stacked")
+    tools = lambda: page.evaluate("() => [...document.querySelectorAll('#tools button')].filter(b => !b.hidden).map(b => b.dataset.tool)")   # noqa: E731
+    assert tools() == ["", "alt", "tilt", "roll"]
+    box = page.locator("#v3d canvas").bounding_box(); x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] * 0.3
+    page.click('#tools button[data-tool="tilt"]'); page.mouse.click(x, y)
+    page.mouse.move(x, y); page.mouse.down(); page.mouse.move(x + 40, y, steps=6); page.mouse.up(); settle(page)
+    tilt = state(page)["tilt"]; assert len(tilt) == 1 and list(tilt.values())[0], tilt
+    page.keyboard.press("Escape"); assert page.get_attribute('#tools button[data-tool=""]', "aria-pressed") == "true"
+    use(page, mode="curve"); assert tools() == ["", "alt", "branch", "tilt", "roll"]
+
+
+def test_a_connector_left_out_is_counted_and_the_export_text_opens_on_a_click(page):
+    """The vase leaves dowels out: that is a warning the count shows, with a ring in the 3D view for each place. On
+    the Export tab the text about a file is behind its own line, and the parts table opens on its heading."""
+    use(page, "vase", "stacked"); pl = plan(page)
+    assert pl["warnings"] and "left out" in pl["warnings"][0], (pl["warnings"], pl["notes"])
+    assert pl["counts"]["warnings"] >= 1 and len(pl["left_out"]) == int(pl["warnings"][0].split("connector")[0])
+    assert page.locator("#msgs .msg.warn").first.inner_text().startswith("⚠ WARNING")
+    page.click('nav button[data-t="export"]'); info = page.locator("#dl details.info").first
+    assert not info.locator(".hint").is_visible(); info.locator("summary").click(); assert info.locator(".hint").is_visible()
+    assert not page.locator("#parts table").is_visible(); page.click("#parts_fold > summary"); assert page.locator("#parts table").is_visible()
+
