@@ -328,6 +328,7 @@ def test_a_tool_in_the_3d_view_does_what_the_key_does(page):
     tilt = state(page)["tilt"]; assert len(tilt) == 1 and list(tilt.values())[0], tilt
     page.keyboard.press("Escape"); assert page.get_attribute('#tools button[data-tool=""]', "aria-pressed") == "true"
     use(page, mode="curve"); assert tools() == ["", "alt", "branch", "tilt", "roll"]
+    use(page, mode="folded"); assert not page.is_visible("#tools")     # nothing but turning the view: no column
 
 
 def test_a_connector_left_out_is_counted_and_the_export_text_opens_on_a_click(page):

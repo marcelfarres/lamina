@@ -235,6 +235,7 @@ function setTool(t){ST.tool=t;for(const b of $$('#tools button'))b.setAttribute(
 export function syncTools(){const has=n=>ST.mode.params.some(p=>p.name===n),what=has('dowels')?'a dowel':has('curve')?'a curve point':has('axes')?'an axis':'';
   const show={'':true,alt:!!what,branch:has('curve'),tilt:ST.mode.name!=='folded',roll:ST.mode.name!=='folded'};
   for(const b of $$('#tools button')){b.hidden=!show[b.dataset.tool];if(b.dataset.tool==='alt')b.querySelector('span').textContent=what}
+  $('#tools').hidden=!Object.entries(show).some(([t,on])=>t&&on);   // turning the view alone is no choice: the column goes
   setTool('')}
 $('#tools').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setTool(b.dataset.tool)});
 addEventListener('keydown',e=>{if(e.key==='Escape'&&ST.tool)setTool('')});
