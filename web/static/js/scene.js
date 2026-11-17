@@ -102,8 +102,13 @@ function renderGuides(){
   (ST.plan.curve_pts||[]).forEach(([u,v,w=0],i)=>{const s=onTop(new THREE.Mesh(new THREE.SphereGeometry(r*1.5,12,8),new THREE.MeshBasicMaterial({color:0x4f8cff})));s.userData.cp=i;   // a handle: drag it in the curve's plane
     s.position.copy(mid).addScaledVector(V3(ST.plan.axes[idx[0]]),u).addScaledVector(V3(ST.plan.axes[idx[1]]),v).addScaledVector(V3(ST.plan.axes[wi]),w);guides.add(s)})
 }
+// Diagonal stripes on the ring slices: a radial job's two families differ by pattern, not only by colour (the owner is
+// colour-blind, and the old red rings between green half-slices were one colour to him). On the faces' own mm
+// coordinates, about 14 stripes across the model whatever its size, so they read at the library's 320 × 240 too
+const STRIPES=(()=>{const c=document.createElement('canvas');c.width=c.height=16;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,16,16);g.fillStyle='#111';g.fillRect(0,0,16,8);
+  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.rotation=Math.PI/4;return t})();
 export function render3D(modelUrl){
-  parts.clear(); let i=0;
+  parts.clear(); let i=0; STRIPES.repeat.setScalar(14/Math.max(...ST.plan.bbox));
   for(const s of ST.plan.slices)for(const pc of s.pieces){
     const geos=[],own=[];   // own: the facet each solid was extruded from, for the fold slider
     pc.facets.forEach((fc,fi)=>{for(const r of fc.rings){
@@ -114,8 +119,11 @@ export function render3D(modelUrl){
         if(ext.length<3)continue;
         const g=new THREE.ExtrudeGeometry(shape([ext,...r.slice(1)]),{depth:t/n,bevelEnabled:false});g.translate(0,0,-t/2+j*t/n);g.applyMatrix4(mat4(fc.M));geos.push(g);own.push(fi)}}});
     if(!geos.length)continue;
-    const m=new THREE.Mesh(mergeGeos(geos),new THREE.MeshStandardMaterial({color:COLORS[s.group]||0xaaaaaa,roughness:.7,metalness:.05}));
+    const m=new THREE.Mesh(mergeGeos(geos),new THREE.MeshStandardMaterial({color:COLORS[s.group]||0xaaaaaa,roughness:.7,metalness:.05,map:s.group==='C'?STRIPES:null}));
     m.userData={slice:s.label,piece:pc.label,group:s.group,i:i++,origin:new THREE.Vector3(s.M[0][3],s.M[1][3],s.M[2][3]),normal:new THREE.Vector3(s.M[0][2],s.M[1][2],s.M[2][2]),bad:s.errors.length>0};
+    // a part with errors is red and netted with dark lines (the ✗ of the results list): red alone is lost on a colour-blind
+    // eye. The net shares the part's geometry, so it folds with it; it takes no clicks, the part does
+    if(m.userData.bad){const net=new THREE.Mesh(m.geometry,new THREE.MeshBasicMaterial({color:0x111111,wireframe:true}));net.raycast=()=>{};m.add(net)}
     if(pc.facets.some(f=>f.hinge)){let o=0;   // a folded panel: where each facet's vertices are, to swing them about their fold lines
       m.userData.fold={base:m.geometry.attributes.position.array.slice(),hinges:pc.facets.map(f=>f.hinge||null),
         ranges:geos.map((g,j)=>{const n=g.index?g.index.count:g.attributes.position.count,r=[o,n,own[j]];o+=n;return r})}}
@@ -181,10 +189,11 @@ function clipEdge(ring,x0,y0,x1,y1,d){const L=Math.hypot(x1-x0,y1-y0);let nx=-(y
   const dist=([x,y])=>(x-x0)*nx+(y-y0)*ny-d,out=[];
   ring.forEach((p,i)=>{const q=ring[(i+1)%ring.length],a=dist(p),b=dist(q);if(a>=0)out.push(p);if((a>=0)!==(b>=0)){const k=a/(a-b);out.push([p[0]+(q[0]-p[0])*k,p[1]+(q[1]-p[1])*k])}});
   return out}
-function mergeGeos(geos){
-  const ngs=geos.map(g=>g.index?g.toNonIndexed():g),n=ngs.reduce((a,g)=>a+g.attributes.position.array.length,0),pos=new Float32Array(n),nor=new Float32Array(n);let o=0;
-  for(const g of ngs){pos.set(g.attributes.position.array,o);nor.set(g.attributes.normal.array,o);o+=g.attributes.position.array.length}
-  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('normal',new THREE.BufferAttribute(nor,3));return g}
+function mergeGeos(geos){   // uv too: the extrusion's own, in mm, for the ring slices' stripes
+  const ngs=geos.map(g=>g.index?g.toNonIndexed():g),g=new THREE.BufferGeometry();
+  for(const [k,n] of [['position',3],['normal',3],['uv',2]]){const a=new Float32Array(ngs.reduce((s,x)=>s+x.attributes[k].array.length,0));let o=0;
+    for(const x of ngs){a.set(x.attributes[k].array,o);o+=x.attributes[k].array.length}g.setAttribute(k,new THREE.BufferAttribute(a,n))}
+  return g}
 // the standard view of what is shown (the parts, or the model until there are any): its centre, its diagonal, the eye.
 // A plaque is seen from the side away from its plate (the plan's `back`, an axis of the scene), so the fit button and
 // the library's picture show the slices, not the plate's back. Only the parts are the plan's (render3D builds them from
