@@ -42,7 +42,7 @@ def test_every_seam_of_the_box_clicks_with_no_part_of_its_own_and_nothing_on_the
     assert plan["counts"]["errors"] == 0 and all("without a click joint (no room beside the joints" in w for w in said)     # a small box: three seams find no room
     assert {s["group"] for s in plan["slices"]} == {"F"}              # panels only: no clip, nothing loose
     bars = [r for r in walls if min(z for _, z in r["profile"]) > 2.5]            # the bars: off the panel, between their posts
-    assert len(bars) >= 8 and len(walls) == 7 * len(bars)             # a click: a wall and a tooth; two posts, a bar, two guides
+    assert len(bars) >= 8 and len(walls) == 11 * len(bars)            # a click: a wall, a tooth, two buttresses; two posts, a bar, two guides, two buttresses
     assert all(math.dist(r["a"], r["b"]) == pytest.approx(F.CLICK_SPAN + 1, abs=1e-3) for r in bars)
     assert outline(box(joint="seam")).symmetric_difference(outline(plan)).area < 1e-6
     feet = [(F.Rail(r["a"], r["b"], r["into"], r["profile"]).foot(), tuple(round(x, 3) for x in r["into"])) for r in walls]
@@ -51,7 +51,7 @@ def test_every_seam_of_the_box_clicks_with_no_part_of_its_own_and_nothing_on_the
 
 @pytest.mark.parametrize("bend,outward", [(5, True), (30, True), (60, True), (94, True), (100, True), (15, False), (27, False)])
 def test_the_tooth_goes_under_the_bar_and_stands_up_behind_it_and_everything_prints_without_support(bend, outward):
-    f = joint(); b = math.radians(bend); wall, nose, post, bar, guide, reach = f.click_parts(b, outward)
+    f = joint(); b = math.radians(bend); wall, nose, post, bar, guide, reach, rib_a, rib_b = f.click_parts(b, outward)
     # the seam shut: the tooth's panel to the left of the plane the panels meet on (x = 0), the model's inside up
     phi = math.pi - b if outward else math.pi + b; c, s = math.cos(phi / 2), math.sin(phi / 2)
     u = np.array([-s, c]); z = np.array([c, s]); pivot = f.skin if outward else 0.0
@@ -69,7 +69,8 @@ def test_the_tooth_goes_under_the_bar_and_stands_up_behind_it_and_everything_pri
     assert min(x for x, y in tooth.exterior.coords if y > Bbar.bounds[1] + 0.05 and x > 0.5) > Bbar.bounds[2]   # … with room behind the bar
     assert max(q[1] for q in post) - min(q[1] for q in post) <= f.p["snap_h"] + 1.0 and reach < 3.6
     assert 6 * F.CLICK_BITE * F.CLICK_BAR[1] / F.CLICK_SPAN ** 2 < 0.025        # the bar bends under 2.5 % letting the tooth past
-    for profile in (nose, post, guide):                                         # as printed: no underside over 50° from upright
+    assert Polygon(rib_a).area > 3 and Polygon(rib_b).area > 3 and f.click_parts(b, outward, room=reach + 1.0)[6:] == (None, None)   # no buttress on a narrow frame
+    for profile in (nose, post, guide, rib_a, rib_b):                                         # as printed: no underside over 50° from upright
         ring = list(orient(Polygon(profile).buffer(0)).exterior.coords)
         for (x0, z0), (x1, z1) in zip(ring, ring[1:]):
             if x1 - x0 > 1e-9 and max(z0, z1) > f.t + 0.7:                     # faces down, above the sheet and the wall's 0.6 mm lead

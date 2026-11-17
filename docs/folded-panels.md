@@ -114,7 +114,9 @@ plan (`rails`), so `core.solid` needs nothing new.
 Why a bridge: a part that grows up from a flat panel bends across its layers, the weak way. A bar between two posts
 is printed as a bridge and bends along its layers, like the clip's legs (1.8 % at the default sizes). The tooth is
 rigid. The parts are sized to be handled: the bar is 2 by 1.2 mm, its posts 3 mm long, the tooth 6 mm wide on a
-1.8 mm wall. A click slides along its seam to stand clear of the walls of the seams round the corner (`Rail.foot`)
+1.8 mm wall. Behind each post and at each end of the tooth's wall stands a buttress (`Folded.buttress`, `CLICK_RIB`): a
+rib from the top of the wall down into the panel, against the pull of a shut seam. A window frame too narrow for
+one gets the wall without it. A click slides along its seam to stand clear of the walls of the seams round the corner (`Rail.foot`)
 and is left out, with a warning, when it finds no room: two walls grown into one would not fold.
 
 The underside of the tooth rises as steeply as prints without support (`SNAP_LEAN`) and stays 0.3 mm over the other
