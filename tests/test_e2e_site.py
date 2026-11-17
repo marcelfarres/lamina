@@ -79,7 +79,7 @@ def test_the_site_slices_in_the_browser(site):
 
         # A bug report carries the data model, and its tick box is the only promise the dialog makes about the
         # model itself: ticked, the project file holds the uploaded mesh; unticked, not a byte of it travels.
-        page.click("header [data-feedback]")
+        page.click("details.menu:has([data-feedback]) > summary"); page.click("header [data-feedback]")   # in the help menu
         said = "part X-3 has a slot cut through the outline"
         page.fill("#fb_what", said)
         carried = lambda: page.evaluate("""async () => {

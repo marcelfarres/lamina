@@ -6,6 +6,9 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ### Added
 
+- **See it as a lamp.** Tick *lamp* over the 3D view and a bulb lights the model from inside. A floor and a wall
+  catch the shadows that the parts throw, so you see the pattern before you cut. *Bulb height* moves the bulb from
+  the bottom to the top. Untick it and the view is as before.
 - **Choose where a folded model is cut apart.** The Technique tab of Folded Panels has a new *choose seams*
   button. With it on, every edge of the model shows what it is: a thin line is a fold, a dashed line is a seam the
   program chose, a thick line is a seam you chose. Click an edge on the model or on a sheet and the sheet is cut
@@ -22,6 +25,41 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ### Changed
 
+- **The spacing graph is under its tick.** *Vary the spacing* opens the graph right below the box, not under the 3D
+  view. Both axes have a title. Every slice is an upright line across the graph, and a strip under it draws the
+  model from its slices, so you see where the slices are dense. The graph's settings are on the page once.
+- **A curve can start from a shape.** Even, dense at both ends, dense in the middle, dense at the start. *Follow the
+  model* draws the curve from the model: small gaps where its width changes fast.
+- **Every graph gesture has a button.** Add a point, remove it, smooth the curve, reset it. Select a point and type
+  its position and its gap.
+- **Settings have full names.** *n points* is *dowels per layer*, *space* is *gap between layers*, *tab* is *split
+  tab width*, and about sixty more. A long name wraps onto a second line. The names in saved projects, presets and
+  the command line did not change.
+- **Settings are in sections that fold.** Each technique and the long tabs are grouped under headings: Slices,
+  Joining, Spacing, Position and so on. Click a heading to fold it. A setting that another one switches on is set in
+  under it.
+- **A changed setting is marked.** Its name is bold with a ↺ sign. Click the sign to put the default back.
+- **Find a setting.** Type a word in the box over the tabs. Only the settings that match stay, from every tab.
+- **Help opens in place.** Click the name of a setting and its explanation opens under it.
+- **Basic and all settings.** A switch under the search box. On *basic*, each group shows the settings a first piece
+  needs, and a line at its foot names the others: click it to show them. A setting you changed always shows, and the
+  search box finds every setting. The switch only hides rows; the result is the same. The page starts on *basic* and
+  remembers your choice.
+- **The Export tab is short.** The download buttons come first. The text about each file, the fit test and the
+  labels opens with a click on its line. *Prototyping (3D print)* and *Parts* open with a click on their heading.
+- **Tools in the 3D view.** Buttons at the left of the view do what needed a key: add or remove a dowel, a curve
+  point or an axis, add a branch, tilt a slice, roll a slice. Pick a tool, then click or drag the model. Esc goes back
+  to turning the view. The keys work as before. With the buttons, these actions also work on a tablet.
+- **A connector that is left out is a warning.** When a dowel, a peg or a spacer you asked for finds no room, the
+  page counted zero warnings and said so in a note. It is a warning now, it is counted, and a ring in the 3D view
+  marks each place. The message names the setting as the page does (*dowel diameter*).
+- **One top bar.** The links, *what's new* and *clear my data* are in the *help* menu. The version and its two
+  buttons are in a *version* menu. The Ko-fi link stays in the bar.
+- **The technique buttons are cards with a drawing** of what each technique makes.
+- **Messages say what they are.** A warning starts with ⚠ WARNING and an error with ✖ ERROR, so the colour is not
+  the only sign. Several notes fold into one line that names them. The model size is shown rounded.
+- **The lamp example is easier to put together.** *fold_lamp* now has 30 bigger triangles, not 72 small ones, and
+  12 seams to close, not 32. It still prints on one plate. The wooden *fold_lantern* keeps its 72 pieces.
 - **The steps slider folds a folded job up.** After the last part is in, the steps slider has twenty more steps
   that fold the panels from flat to the model, with the share shown at the top of the 3D view. The *fold* slider
   still does the same on its own.

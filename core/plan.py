@@ -173,7 +173,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         notes.append(f"{shaved} sliver(s) thinner than {p['min_feature']:g} mm everywhere left out: shavings a slot cuts off its own part, "
                      f"and specks under {p['min_part']:g} mm where a slice only grazes the surface — too small to cut or handle")
     suggest_fixes(slices, p, ctx, mode)
-    n_err += len(ctx.errors) + len(dropped)
+    n_err += len(ctx.errors) + len(dropped); n_warn += len(ctx.warnings)
 
     # split + pack
     progress("nesting the parts on sheets", 0.85)
@@ -223,6 +223,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         "counts": {"slices": len(slices), "parts": len(pieces), "errors": n_err, "warnings": n_warn, "faces": int(len(mesh.faces))},
         "codes": codes,                                                      # puzzle mode: engraved code → real label
         "label_tag": tag,                                                    # engraved before every label (the model's name)
+        "warnings": ctx.warnings,                                            # what the technique left out that was asked for
         "errors": ctx.errors, "fixes": ctx.fixes,                            # mode-level errors and their one-click fixes
         "square": square and {"rotate": square[0], "off": round(square[1], 1)},   # a boxy model a few degrees off its axes
         "material_area_mm2": float(sum(pc.geom.area for pc in pieces)),
@@ -362,6 +363,7 @@ def main(argv=None):
     c = plan["counts"]
     print(f"{plan['mode']}: {c['slices']} slices, {c['parts']} parts, {plan['sheets']} sheet(s) ({plan['sheet_usage']:.0%} used), {c['errors']} errors, {c['warnings']} warnings")
     for n in plan["notes"]: print(f"  note  {n}")
+    for w in plan["warnings"]: print(f"  warn  {w}")
     for e in plan["errors"]: print(f"  ERROR {e}")
     for sl in plan["slices"] + plan["dropped"]:
         for e in sl.get("errors", []): print(f"  ERROR {sl['label']}: {e}")

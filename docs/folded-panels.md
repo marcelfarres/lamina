@@ -108,7 +108,7 @@ The example `fold_test` (48 × 48 × 32 mm, 2 mm PETG) carries 45°, 76°, 80°,
 
 ## Stiff sheet: seams meet at the inside edges
 Two square-cut panels that both reach the model's edge occupy the same corner on every outward (convex) seam: a
-t × t square at 90°. Paper gives; metal, wood and acrylic do not, and the part cannot close. With `edge fit` =
+t × t square at 90°. Paper gives; metal, wood and acrylic do not, and the part cannot close. With `how seams meet` =
 inner (the default) each outward seam edge is cut back by t · tan(bend / 2), so the inside edges of the two
 panels meet and the gap is on the outside. Holes, slots and seam numbers are measured from the new edge. Inward
 seams need nothing: their material moves apart. Joints with a tab or loop on the edge are not cut back, and
@@ -164,7 +164,9 @@ It needs the ray engine's rtree, which the browser build has not.
 `window` opens every face with a hole of its own shape, for a lamp shade or a lantern. The frame left around it is
 what the share asks for and never less than 1.35 × the minimum feature width, plus what the face's grooves or
 cut-back edges take, plus the reach of the joint's holes or slots. A face too small for that stays whole.
-The example `fold_lamp` uses it: a twisted, swelling tube of 72 triangles, printed in 2 mm PETG on one plate.
+The example `fold_lamp` uses it: a twisted, swelling tube of 30 triangles (about 58 × 29 mm each, 12 seams to close), printed in 2 mm PETG on one
+plate. It had 72 triangles of 38 × 19 mm and 32 seams at first: too many and too small to put together by hand.
+The lantern keeps the 72: at 420 mm they are big enough.
 
 ## Removed faces
 `removed` holds the faces the user took off the surface, to keep only a part of the model (a mask from a head). They
