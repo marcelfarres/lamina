@@ -27,16 +27,20 @@ def main():
     bad = []
     with serve_app() as url, sync_playwright() as p:
         browser = p.chromium.launch()
-        page = browser.new_page(viewport={"width": 1500, "height": 950})
-        page.errors = []
-        page.on("pageerror", lambda e: page.errors.append(str(e)))
-        page.goto(url + "/")
-        page.wait_for_function("() => window.__t?.openExample", timeout=180_000)   # set only once init() passed its awaits
-        settle(page)
         for name in sorted(f.stem for f in (ROOT / "examples").glob("*.stl")):
+            # a fresh page for each: in one page an example that names no material kept the one before it's, and with
+            # it the look (head_igea came out in fold_test's plastic). A new context also starts with empty storage
+            ctx = browser.new_context(viewport={"width": 1500, "height": 950})
+            page = ctx.new_page()
+            page.errors = []
+            page.on("pageerror", lambda e, page=page: page.errors.append(str(e)))
+            page.goto(url + "/")
+            page.wait_for_function("() => window.__t?.openExample", timeout=180_000)   # set only once init() passed its awaits
+            settle(page)
             page.evaluate("n => __t.openExample(n)", name)
             settle(page, timeout=600_000)   # the bunny alone takes minutes on a busy machine; a batch job can wait
             data = page.evaluate("() => __t.snapshot()") or ""
+            ctx.close()
             if not data.startswith(PREFIX):
                 bad.append(f"{name}: {data[:30] or 'empty'}")
                 continue
