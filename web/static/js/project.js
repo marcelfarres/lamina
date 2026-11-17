@@ -39,7 +39,7 @@ export async function openProjectText(text,label){
   state.project=s.name||state.project||''; state.rev=s.rev||state.rev||'1.0'; syncProject();
   ST.job=null; ST.pendingFile=null; ST.srcFile=null; ST.fitted=false; deselect(); $('#file').value='';   // as an example does: the upload box lets go
   if(s.model?.b64){const bin=atob(s.model.b64),u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);ST.pendingFile=new File([u8],s.model.name)}
-  else if(s.example)$('#example').value=ST.example=s.example;
+  else if(s.example)ST.example=s.example;
   else if(s.missing_model)status(`this project was saved without its model — the settings are here, upload ${s.missing_model} again`,'err');
   ST.fresh='opened project '+label; applyUnit(); slice();
 }

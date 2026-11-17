@@ -2,6 +2,7 @@
 // The library drawn as cards, the top bar's library and save, and the question a save onto another revision asks.
 // What save, open and delete do is library.js's: this draws its listing and asks before anything is lost.
 import {$, $$, esc, status} from './util.js';
+import {state, ST} from './state.js';
 import * as lib from './library.js';
 
 let ex={}, shown=[], opened=new Set(), listing=0, drawn='';   // ex: the examples and how to open one, for the Examples section
@@ -21,6 +22,8 @@ function card(p,now){const r=p.revs[0], n=p.revs.length;
     ${open?`<div class="revs">${p.revs.map(v=>`<div class="rev" data-file="${esc(v.file)}"><b>v${esc(v.rev)}</b><span class="sp">${when(v.saved)}${v.file===now?.file?' · ✓ open now':''}</span>
       <button class="small open">open</button><button class="small export">export</button><button class="small delete">✕ delete</button></div>`).join('')}
       <div><span class="sp">the whole project</span><button class="small exportproject">export all ${n}</button><button class="small deleteproject">✕ delete project</button></div></div>`:''}</div>`}
+// an example is the server's file: opened, it is the model in hand, and a save of it is a new project of yours
+const exCard=n=>`<div class="card" data-example="${esc(n)}"><img src="static/examples/${esc(n)}.webp" alt=""><div class="t"><div class="n">${esc(n)}</div><div class="m">example · read-only</div></div></div>`;
 
 // listed again on every show and change; a listing that finishes after a newer one started is dropped, and one that
 // draws what is there is not drawn again: a slice tells onChange twice, and a re-draw takes the button under the pointer
@@ -31,7 +34,7 @@ async function render(){const k=++listing, ps=await lib.entries().catch(e=>{stat
     :'<p class="hint">No projects yet. Save one with <b>save</b>, or import files.</p>';
   if(html!==drawn){y.innerHTML=drawn=html;find()}
   y.dataset.listed=1}
-function find(){const q=$('#libfind').value.trim().toLowerCase();for(const c of $$('#library .card[data-name]'))c.hidden=!c.dataset.name.toLowerCase().includes(q)}
+function find(){const q=$('#libfind').value.trim().toLowerCase();for(const c of $$('#library .card'))c.hidden=!(c.dataset.name??c.dataset.example).toLowerCase().includes(q)}
 
 const leave=()=>!lib.unsaved()||confirm('This tab has unsaved changes. Open anyway and lose them?');
 async function open(file){if(!leave())return;hideLibrary();try{await lib.openRevision(file)}catch(e){status(e.message,'err')}}
@@ -45,10 +48,13 @@ async function onCard(e){const c=e.target.closest('.card');if(!c||c.classList.co
   if(b?.matches('.deleteproject')){if(confirm(`Delete the project ${name} and its ${plural(p.revs.length,'revision')}? It cannot be undone.`))act(()=>lib.removeProject(name));return}
   if(b||e.target.closest('.revs'))return;   // export, and the space between the rows
   open(p.revs[0].file)}
+function onExample(e){const c=e.target.closest('.card');if(c&&leave()){hideLibrary();ex.openExample(c.dataset.example)}}
 
-export function showLibrary(){$('#library').hidden=false;delete $('#libyours').dataset.listed;render()}
-export function hideLibrary(){$('#library').hidden=true}
-export function refreshUnsaved(){$('#punsaved').hidden=!lib.unsaved()}
+export function showLibrary(){$('#library').hidden=false;delete $('#libyours').dataset.listed;return render()}
+// closed, it keeps no cards and drops a listing on its way: a reopen draws from a new listing, never under the pointer
+export function hideLibrary(){$('#library').hidden=true;listing++;$('#libyours').innerHTML=drawn=''}
+// before the first technique there is nothing to compare, and the change listeners call this from the start
+export function refreshUnsaved(){if(ST.mode)$('#punsaved').hidden=!lib.unsaved()}
 
 // a save onto a revision that is not the one in hand: 'replace' | 'keep' | null. `many` (an import) shows the box that
 // says the answer holds for the rest; ticked, the answer comes as {answer, rest:true}
@@ -60,9 +66,12 @@ export function askClash({name,rev,next},many=false){const d=$('#libask');
 
 export function initLibraryPage(o){ex=o;
   $('#popen').onclick=showLibrary;$('#libclose').onclick=hideLibrary;$('#libyours').onclick=onCard;$('#libfind').oninput=find;
-  // a save that fails after its file was written says so in its own words
-  $('#psave2').onclick=async()=>{try{if(await lib.saveCurrent(askClash)){const s=lib.inHand();status(`saved ${s.name} v${s.rev}`)}}catch(e){status(e.message,'err')}};
+  $('#libexamples').innerHTML=`<h2>Examples · open one, save it, and it becomes a project of yours</h2><div class="grid">${o.examples.map(exCard).join('')}</div>`;
+  $('#libexamples').onclick=onExample;
+  $('#exopen').onclick=()=>showLibrary().then(()=>$('#libexamples').scrollIntoView());   // once Yours is drawn: it moves the section
+  // a save that fails after its file was written says so in its own words. What was saved is named from the page's
+  // own fields: the library has no revision in hand when its store changed meanwhile
+  $('#psave2').onclick=async()=>{try{const r=await lib.saveCurrent(askClash);if(r)status(`saved ${r.name??state.project} v${r.rev??state.rev}`)}catch(e){status(e.message,'err')}};
   for(const a of ['replace','keep','cancel'])$('#libask_'+a).onclick=()=>$('#libask').close(a==='cancel'?'':a);
   addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#library').hidden&&!document.querySelector('dialog[open]'))hideLibrary()});
-  // no technique yet when this runs: the marker first shows with the first slice, which tells onChange
   lib.onChange(()=>{refreshUnsaved();if(!$('#library').hidden)render()})}

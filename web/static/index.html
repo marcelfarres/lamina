@@ -80,7 +80,7 @@
     <section data-tab="model" class="on">
       <h2>Model <button class="small reset" data-reset="model">reset tab</button></h2>
       <label class="f"><span class="k" data-tip="STL, OBJ, 3MF, PLY, OFF, GLB, or STEP / BREP (CAD; needs `uv sync --extra cad`)">upload</span><input type="file" id="file" accept=".stl,.obj,.3mf,.ply,.off,.glb,.gltf,.step,.stp,.brep"></label>
-      <label class="f"><span class="k" data-tip="Bundled test shapes: geometric, organic, heads and animals">example</span><select id="example"></select></label>
+      <label class="f"><span class="k" data-tip="Bundled test shapes: geometric, organic, heads and animals. They are in the library, under Examples">example</span><button class="small" id="exopen">pick an example…</button></label>
       <div id="g-model"></div>
       <div class="f"><span class="k" data-tip="Quarter turns of the whole model (the ghost and the axes in the 3D view follow)">turn</span><span class="vec"><button class="small" data-rot="0">x ±90°</button><button class="small" data-rot="1">y ±90°</button><button class="small" data-rot="2">z ±90°</button></span></div>
       <div class="f" id="square" hidden><span></span><span><span class="hint" data-tip="Its flat faces are a few degrees off the axes, so every slice steps and straight edges come out as a staircase. The button turns it square; leave it if the tilt is on purpose"></span> <button class="small"></button></span></div>

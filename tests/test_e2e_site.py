@@ -49,7 +49,11 @@ def test_the_site_slices_in_the_browser(site):
             return status
 
         sliced("first load")                                 # the runtime download happens here
-        assert page.locator("#example option").count() > 10
+        # the examples live in the library, each with its picture, served from the site like the rest of the page
+        assert page.request.get(site + "/app/static/examples/blob.webp").status == 200
+        page.click("#exopen")
+        page.wait_for_function("() => [...document.querySelectorAll('#libexamples img')].filter(i => i.naturalWidth === 320).length > 10")
+        page.click("#libclose")
         # every example opens on its preset — the browser build must ship and load examples/presets.json too
         active = lambda: page.eval_on_selector("#modes button.on", "b => b.dataset.m")
         presets = json.loads((ROOT / "examples" / "presets.json").read_text(encoding="utf-8"))

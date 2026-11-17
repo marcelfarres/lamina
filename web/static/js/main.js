@@ -20,7 +20,7 @@ import {initLibraryPage} from './librarypage.js';
 async function init(){
   ST.MODES=await (await fetch('api/modes')).json(); ST.PROJECT_VERSION=(await (await fetch('api/project')).json()).version; const ex=await (await fetch('api/examples')).json();
   const PRESETS=await fetch('api/presets').then(r=>r.ok?r.json():{}).catch(()=>({}));
-  $('#example').innerHTML=ex.map(e=>`<option>${e}</option>`).join(''); $('#example').value=ST.example=ex.includes('blob')?'blob':ex[0];
+  ST.example=ex.includes('blob')?'blob':ex[0];
   $('#modes').innerHTML=ST.MODES.map(m=>`<button data-m="${m.name}">${m.title}</button>`).join('');
   $('#modes').onclick=e=>{if(e.target.dataset.m){deselect();setMode(e.target.dataset.m);ST.countUse('technique',e.target.dataset.m);slice()}};
   $('#material').onchange=e=>{const n=e.target.value,m=matOf(n);state.material=n;
@@ -105,11 +105,10 @@ async function init(){
     if(next===was)Object.assign(state,fit); else applyMachine(next);
     clearTimeout(ST.timer);ST.timer=null;renderFields()};
   // the file box lets go of the upload too: left holding it, choosing that same file again fires no change and loads nothing
-  // every way into an example comes here (the dropdown, the library page); the dropdown follows it
+  // every way into an example comes here (the library page's Examples, which "pick an example…" opens)
   // its preset applied, an example is what unsaved changes count from (taken before the slice: nothing changes the form
   // while it runs, and an edit made meanwhile then counts as a change)
-  const openExample=name=>{$('#example').value=ST.example=name;ST.pendingFile=null;$('#file').value='';newModel();applyPreset();lib.baseline();ST.countUse('model','example');ST.fresh='loaded example '+name;slice()};
-  $('#example').onchange=()=>openExample($('#example').value);
+  const openExample=name=>{ST.example=name;ST.pendingFile=null;$('#file').value='';newModel();applyPreset();lib.baseline();ST.countUse('model','example');ST.fresh='loaded example '+name;slice()};
   window.__t.openExample=openExample;   // window.__t is built below while init() awaits its first fetch
   initLibraryPage({openExample,examples:ex});
   // A big mesh in the browser build is slow but not refused — the ceiling is this tab's memory, and it is the
@@ -127,7 +126,7 @@ async function init(){
   // resumes it instead of starting over; another tab is another session and sees nothing of this one
   const sess=await fetch(`api/session?client=${CLIENT}`).then(r=>r.ok?r.json():{}).catch(()=>({}));
   if(sess.mode){Object.assign(memo,sess.memo||{});setMode(sess.mode,false);Object.assign(state,sess.params||{});ST.unit=state.units||ST.unit;
-    if(sess.example)$('#example').value=ST.example=sess.example; ST.job=sess.alive?sess.job:null;
+    if(sess.example)ST.example=sess.example; ST.job=sess.alive?sess.job:null;
     if(!sess.alive&&sess.job)status('the uploaded model of the last session is gone — upload it again or pick an example','err');
     // the library revision the session came from: unreadable, it stays null and the page shows unsaved changes (the safe side)
     try{ST.saved=JSON.parse(sessionStorage.lamina_saved||'null')}catch(e){ST.saved=null}}

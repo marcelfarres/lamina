@@ -1,6 +1,7 @@
 """The project library: the loaded example is the page's own state, so a page without the dropdown can open one;
 the zip module and the two stores under the library."""
 import base64
+import contextlib
 import io
 import json
 import re
@@ -21,10 +22,23 @@ def wipe(page):
         const s = __t.state(); s.project = ''; s.rev = '1.0'; (await import('/static/js/project.js')).syncProject() }""")
 
 
+ANSWERS = []
+
+
+def answer(page, fn):
+    """`fn` answers the page's next dialog (confirm). One a test left unused is taken off when it ends: a failed test's
+    answer must not answer the next test's question."""
+    ANSWERS.append(fn); page.once("dialog", fn)
+
+
 @pytest.fixture(autouse=True)
 def empty_library(page):
     wipe(page)
     yield
+    for fn in ANSWERS:
+        with contextlib.suppress(KeyError):                                   # an answer that was used is gone already
+            page.remove_listener("dialog", fn)
+    ANSWERS.clear()
     page.evaluate("import('/static/js/librarypage.js').then(P => P.hideLibrary())")   # one page for the run: the next test starts on the app
 
 
@@ -65,8 +79,6 @@ def test_open_example_is_page_state(page):
     example(page, "horse_statue")
     assert page.evaluate("__t.project().then(p => p.example)") == "horse_statue"
     assert page.evaluate("__t.job()").startswith("ex_")
-    page.evaluate("document.querySelector('#example').value = 'egg'")       # the box is no longer the truth
-    assert page.evaluate("__t.project().then(p => p.example)") == "horse_statue"
 
 
 def test_zip_made_in_the_page_opens_in_python(page):
@@ -585,11 +597,11 @@ def test_opening_with_unsaved_changes_asks(page):
     set_fields(page, [("p_thickness", saved + 1)]); settle(page)
     library(page)
     asked = []
-    page.once("dialog", lambda d: (asked.append(d.message), d.dismiss()))
+    answer(page, lambda d: (asked.append(d.message), d.dismiss()))
     card(page, "lamp").locator(".t").click()
     assert asked and "unsaved" in asked[0]
     assert page.is_visible("#library") and page.evaluate("__t.state().thickness") == saved + 1
-    page.once("dialog", lambda d: d.accept())
+    answer(page, lambda d: d.accept())
     card(page, "lamp").locator(".t").click()
     assert page.is_hidden("#library")
     page.wait_for_function("() => !__t.lib.unsaved()"); settle(page)
@@ -601,14 +613,14 @@ def test_delete_asks_and_removes(page):
     library(page)
     card(page, "lamp").locator(".more").click()
     asked = []
-    page.once("dialog", lambda d: (asked.append(d.message), d.dismiss()))
+    answer(page, lambda d: (asked.append(d.message), d.dismiss()))
     card(page, "lamp").locator('.rev[data-file="lamp_v1.1.lamina.json"] .delete').click()
     assert "lamp v1.1" in asked[0] and lib(page) == [("lamp", ["1.1", "1.0"])]
-    page.once("dialog", lambda d: d.accept())
+    answer(page, lambda d: d.accept())
     card(page, "lamp").locator('.rev[data-file="lamp_v1.1.lamina.json"] .delete').click()
     page.wait_for_function("() => document.querySelectorAll('#libyours .rev').length === 1")
     assert lib(page) == [("lamp", ["1.0"])] and page.is_visible("#punsaved")   # the revision in hand is gone
-    page.once("dialog", lambda d: (asked.append(d.message), d.accept()))
+    answer(page, lambda d: (asked.append(d.message), d.accept()))
     card(page, "lamp").locator(".deleteproject").click()
     page.wait_for_function("() => /No projects yet/.test(document.querySelector('#libyours').textContent)")
     assert "lamp" in asked[-1] and lib(page) == []
@@ -662,16 +674,143 @@ def test_clash_dialog_answers_for_the_rest(page):
     assert r == {"answer": "keep", "rest": True}
 
 # --- preview side (Task 8) ---
+FIT = "() => { document.getElementById('fit').click(); return [__t.target().toArray(), __t.camera.position.toArray()] }"
+
+
 def test_snapshot_of_a_plaque_looks_from_the_front(page):
-    """The bonsai stands on its plate at -y. The preview's own camera (caught at the renderer) looks from +y, so the
-    card shows the slices; the fit button still looks from the standard side, -y, as before the snapshot."""
+    """The bonsai stands on its plate at -y. The preview's own camera (caught at the renderer) and the fit button both
+    look from +y, so the card and the view show the slices, not the plate's back (the owner, 2026-11-17)."""
     example(page, "bonsai")
     assert page.evaluate("() => [__t.plan().mode, __t.plan().params.back]") == ["plaque", "-y"]
-    fit = "() => { document.getElementById('fit').click(); return [__t.target().toArray(), __t.camera.position.toArray()] }"
-    target, before = page.evaluate(fit)
+    target, before = page.evaluate(FIT)
     shot = page.evaluate("""async () => { const {renderer} = await import('/static/js/scene.js'), r = renderer.render, cams = [];
         renderer.render = function (s, c) { cams.push(c.position.toArray()); return r.call(this, s, c) };
         try { return [__t.snapshot().length, cams[0]] } finally { renderer.render = r } }""")
     assert shot[0] > 1000
-    assert shot[1][1] > target[1] and before[1] < target[1]
-    assert page.evaluate(fit) == [target, before]
+    assert shot[1][1] > target[1] and before[1] > target[1]
+    assert shot[1] == pytest.approx(before)                                    # the picture and the fit button agree
+    assert page.evaluate(FIT) == [target, before]
+
+
+def test_fit_of_a_model_that_is_no_plaque_is_as_before(page):
+    """The pose the fit button gave the vase before the plaque rule, measured on that code (2026-11-17)."""
+    example(page, "vase")
+    target, eye = page.evaluate(FIT)
+    assert target == pytest.approx([0, 0, -0.2815055847167969], abs=1e-3)
+    assert eye == pytest.approx([185.2492963010318, -264.64185185861686, 158.5036055304533], abs=1e-3)
+
+
+# ---------------------------------------------------------------- follow-ups of the library page's review
+def ask(page, many, *clicks):
+    """askClash shown; `clicks` are ids clicked or keys pressed in it, in order. Returns what it resolved to."""
+    page.evaluate("m => { window.__asked = import('/static/js/librarypage.js').then(P => P.askClash({name: 'lamp', rev: '1.0', next: '1.1'}, m)) }", many)
+    page.wait_for_selector("#libask[open]")
+    for c in clicks:
+        page.click(c) if c.startswith("#") else page.keyboard.press(c)
+    return page.evaluate("window.__asked")
+
+
+def test_clash_dialog_escape_and_the_box(page):
+    assert ask(page, False, "Escape") is None                                  # as cancel
+    assert ask(page, True, "#libask_keep") == "keep"                           # many files, the box left unticked
+    assert ask(page, True, "#libask_rest", "#libask_cancel") == {"answer": None, "rest": True}
+
+
+def test_a_closed_library_keeps_no_cards(page):
+    name(page, "lamp"); save(page)
+    library(page)
+    assert cards(page) == ["lamp"]
+    page.click("#libclose")
+    assert page.inner_html("#libyours") == ""                                  # a reopen draws them again, from a new listing
+    library(page)
+    assert cards(page) == ["lamp"]
+
+
+def test_save_says_saved_when_the_store_switched_meanwhile(page):
+    """The status line names what was saved without asking the library what is in hand: here the store's label
+    changes while the save runs, so nothing is in hand of the store the library holds when the save is done."""
+    name(page, "lamp")
+    page.evaluate("""async () => { const S = await import('/static/js/store.js'), b = S.browserStore(), s = {...b};
+        s.write = async (f, t) => { const w = await b.write(f, t); setTimeout(() => { s.label = 'another folder' }); return w };
+        __t.lib.useStore(s) }""")
+    try:
+        page.click("#psave2")
+        assert said(page, "saved") == "saved lamp v1.0"
+        assert page.evaluate("__t.lib.inHand()") is None
+    finally:
+        page.evaluate("import('/static/js/store.js').then(S => __t.lib.useStore(S.browserStore()))")
+
+
+def test_unsaved_marker_waits_for_a_technique(page):
+    r = page.evaluate("""async () => { const {ST} = await import('/static/js/state.js'), P = await import('/static/js/librarypage.js'), m = ST.mode;
+        ST.mode = null; try { P.refreshUnsaved(); return 'quiet' } catch (e) { return e.message } finally { ST.mode = m } }""")
+    assert r == "quiet"
+
+
+def test_shortcuts_are_off_while_the_library_is_open(page):
+    t = page.evaluate("__t.state().thickness")
+    set_fields(page, [("p_thickness", t + 1)]); settle(page)
+    library(page)
+    page.fill("#libfind", "x"); page.fill("#libfind", "")                     # the browser's own undo has an edit to take back
+    page.evaluate("document.activeElement.blur()")                            # not in a text box: that keeps its own keys
+    page.keyboard.press("Control+z"); page.keyboard.press("?")
+    assert page.input_value("#libfind") == ""
+    page.wait_for_timeout(300)
+    assert page.evaluate("__t.state().thickness") == t + 1 and page.evaluate("__t.idle()")
+    assert page.evaluate("document.querySelector('#helpdlg').open") is False
+
+
+# --- examples section (Task 8) ---
+def examples(page):
+    """The names on the example cards that show, in their order."""
+    return page.eval_on_selector_all("#libexamples .card:not([hidden])", "cs => cs.map(c => c.dataset.example)")
+
+
+def test_examples_section_opens_an_example(page):
+    names = page.evaluate("fetch('api/examples').then(r => r.json())")
+    library(page)
+    assert examples(page) == names
+    page.wait_for_function("() => [...document.querySelectorAll('#libexamples img')].every(i => i.complete)")
+    assert page.eval_on_selector_all("#libexamples img", "is => is.map(i => i.naturalWidth)") == [320] * len(names)
+    c = page.locator('#libexamples .card[data-example="cow"]')
+    assert c.locator(".n").inner_text() == "cow" and c.locator(".m").inner_text() == "example · read-only"
+    answer(page, lambda d: d.accept())                                         # the tab resets before a test can count as changes
+    c.click()
+    assert page.is_hidden("#library")
+    settle(page)
+    assert page.evaluate("__t.project().then(p => p.example)") == "cow"
+
+
+def test_an_example_asks_before_unsaved_changes_go(page):
+    set_fields(page, [("p_thickness", 4)]); settle(page)
+    library(page)
+    asked = []
+    answer(page, lambda d: (asked.append(d.message), d.dismiss()))
+    page.click('#libexamples .card[data-example="cow"]')
+    assert asked and "unsaved" in asked[0] and page.is_visible("#library") and page.evaluate("__t.job()") == "ex_egg"
+
+
+def test_saving_an_example_makes_a_project_of_yours(page):
+    example(page, "egg"); name(page, "")
+    page.click("#psave2"); said(page, "saved egg")
+    library(page)
+    assert cards(page) == ["egg"] and "egg" in examples(page)
+
+
+def test_the_dropdown_is_gone(page):
+    assert page.locator("#example").count() == 0
+    page.click('nav button[data-t="model"]')
+    assert page.text_content("#exopen") == "pick an example…"
+    page.click("#exopen")
+    page.wait_for_function("() => !document.querySelector('#library').hidden && document.querySelector('#libyours').dataset.listed")
+    page.wait_for_function("() => Math.abs(document.querySelector('#libexamples').getBoundingClientRect().top) < 2")
+
+
+def test_find_filters_examples_too(page):
+    name(page, "horse lamp"); save(page)
+    library(page)
+    page.fill("#libfind", "HORSE")
+    assert cards(page) == ["horse lamp"]
+    assert examples(page) == [n for n in page.evaluate("fetch('api/examples').then(r => r.json())") if "horse" in n]
+    page.fill("#libfind", "")
+    assert len(examples(page)) > 10
