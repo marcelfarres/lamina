@@ -66,7 +66,9 @@ SNAP_LEAN = math.radians(50)          # a wall leans by half the seam's bend: pa
 CLICK_SPAN, CLICK_POST = (16.0, 24.0), 3.0   # the bar's free length between its posts, least and most; a post's length along the seam
 CLICK_STRAIN = {"PETG": 0.08, "PLA": 0.03}    # the most the bar is stretched letting the tooth past, once. PETG yields at about 0.05 and stretches
 CLICK_STIFF = {"PETG": 2000, "PLA": 3300}     # how stiff each is (MPa): what the force to press a click shut is reckoned from
-CLICK_PRESS = 80                      # a click that takes more than this to press shut (N, about 8 kg) is said
+CLICK_PRESS = 80                      # a free bar is no thicker than one that takes this to press shut (N, about 8 kg)
+CLICK_HARD = 150                      # a click reckoned to take more than this is said. Reckoned with the bar as the only part that
+                                      # gives: the panels and posts give too, so a click somewhat over CLICK_PRESS still goes in
                                       # far beyond before it breaks: a bar that yields a little once is stronger than a thin one that does not
 CLICK_THIN = 1.2                      # the thinnest bar: six layers. In his prints a bar of 0.8 mm broke in the hand
 CLICK_NOSE, CLICK_LAND = 10.0, 1.2    # the tooth's width along the seam, and the flat top of its ridge across it: three lines of a 0.4 mm nozzle
@@ -282,13 +284,13 @@ class Folded(Mode):
         Param("click_bite", "number", 1.0, "Click joint: how far the tooth stands up behind the bar (mm): what holds the seam shut. "
               "Comes apart: higher. The bar turns white or breaks when the seam is pressed shut: lower. A higher tooth lifts the bar "
               "further, so a short bar is then made thinner", 0.4, 2, 0.2, unit="mm", show_if=("joint", ["click"]), label="tooth height"),
-        Param("click_bar", "number", 2.0, "Click joint: the bar's thickness, the way it bends when the tooth goes under it (mm). A stiff "
-              "filament (PLA): thinner. A soft one: thicker. A bar too short to bend that far at this thickness is made thinner, "
-              "down to 1.2 mm", 1.2, 3, 0.2, unit="mm", show_if=("joint", ["click"]), label="bar thickness"),
+        Param("click_bar", "number", 1.2, "Click joint: the bar's thickness, the way it bends when the tooth goes under it (mm). A stiff "
+              "filament (PLA): thinner. A soft one, or bars that break: thicker. With `bar support` at 0, a bar too short to bend that "
+              "far at this thickness is made thinner, down to 1.2 mm", 1.2, 3, 0.2, unit="mm", show_if=("joint", ["click"]), label="bar thickness"),
         Param("click_deep", "number", 2.4, "Click joint: the bar's depth across the seam (mm): what keeps it straight when the seam is "
               "pulled. The bar bows out and lets the tooth go: deeper. A deeper bar needs a wider frame beside a window", 1.2, 5, 0.2,
               unit="mm", show_if=("joint", ["click"]), label="bar depth"),
-        Param("click_solid", "number", 0.0, "Click joint: how much of the bar is solid down to the panel. 0 = the bar is a free bridge from "
+        Param("click_solid", "number", 0.5, "Click joint: how much of the bar is solid down to the panel. 0 = the bar is a free bridge from "
               "post to post and springs up to let the tooth past. 1 = the posts grow in under the bar as far as the tooth, and only "
               "the piece of bar over the tooth is free: much stronger, but that short piece cannot spring, so the seam has to give "
               "somewhere else to shut. Bars break or bow: more. Does not go in: less, or a lower tooth. Above 0 the bar is as thick "
@@ -1180,7 +1182,7 @@ class Folded(Mode):
                         for q in pieces(c):
                             self.stand(q[0], va, e, *q[1:])
                         placed += 1
-                        if parts.strain > self.click_cap + 1e-9 or parts.press > CLICK_PRESS * size * size + 1e-6:
+                        if parts.press > CLICK_HARD * size * size:
                             self.tight.setdefault(id(a.sl), (a.sl, [], []))[1].append(j); self.tight[id(a.sl)][2].append((parts.press, parts.strain))
                         break
             if placed:

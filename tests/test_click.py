@@ -95,7 +95,7 @@ def test_a_stiffer_material_or_a_higher_tooth_gets_a_thinner_bar_and_one_that_ca
 def test_a_supported_bar_keeps_its_thickness_and_a_short_free_length_and_the_plan_says_when_that_is_too_stiff():
     b = math.radians(40); free, held = joint().click_parts(b, True), joint(click_solid=1.0).click_parts(b, True)
     assert free.thick == 1.2 and held.thick == 1.6 and held.strain > 3 * free.strain       # only the bar over the tooth is left to bend
-    plain, solid = box(joint="click"), box(joint="click", click_solid=1.0)
+    plain, solid = box(joint="click", click_solid=0.0), box(joint="click", click_solid=1.0, click_bar=2.0)
     posts = lambda plan: sum(math.dist(r["a"], r["b"]) * Polygon(r["profile"]).area for s in plan["slices"] for pc in s["pieces"] for r in pc["rails"])   # noqa: E731
     assert posts(solid) > 1.15 * posts(plain) and solid["counts"]["errors"] == 0            # the posts have grown in under the bar
     said = lambda plan: [w for s in plan["slices"] for w in s["warnings"] if "kg to press one shut" in w]   # noqa: E731

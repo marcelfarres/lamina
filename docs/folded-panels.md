@@ -137,7 +137,7 @@ rigid.
 
 How the bar is sized: lifted by the tooth's height in its middle, a beam held at both ends is stretched by
 12 · lift · thickness / length², where the length is the span less the ridge that lifts it. The bar is as thick as
-`bar thickness` asks (2 mm). Where that would stretch it past `CLICK_STRAIN` (8 % for PETG, 3 % for PLA), it
+`bar thickness` asks (1.2 mm). With `bar support` at 0 the two limits below make it thinner where needed. Where that would stretch it past `CLICK_STRAIN` (8 % for PETG, 3 % for PLA), it
 is thinner, in steps of 0.2 mm down to `CLICK_THIN` (1.2 mm). PETG yields at about 5 % and breaks far later. In
 the prints a bar of 0.8 mm that stayed under 5 % broke in the hand: a bar that yields a little, once, is the stronger. Its span is as long as the seam allows, 16 to
 24 mm. It is also no thicker than a hand can press shut: the force to lift a beam held at both ends by the tooth's height
@@ -147,7 +147,7 @@ is `bar depth` deep (2.4 mm). The depth, not the thickness, keeps the bar straig
 ridge of the tooth is `CLICK_RIDGE` long, in the middle: a ridge as wide as the tooth would hold the bar flat over
 that width and bend the rest of it far too much.
 
-`bar support` grows the two posts in under the bar, as far as the tooth at 1. Only the bar between them is then
+`bar support` (0.5) grows the two posts in under the bar, as far as the tooth at 1. Only the bar between them is then
 free to bend, so the bar is much stronger and much stiffer. It is as thick as `bar thickness` asks, and the plan
 warns when the tooth would stretch it past `CLICK_STRAIN` or it takes more than `CLICK_PRESS` to press shut, with
 both numbers: the seam must then give somewhere else to shut, or needs a lower tooth or a thinner bar.
