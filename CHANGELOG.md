@@ -16,12 +16,15 @@ What changed in each release. The GitHub release for a version is this section, 
 - **Or one with no loose parts at all: the *click* joint.** The same idea without the clips. At each seam one
   panel gets a small tooth on its inside face and the other gets a small bar, printed as a bridge between two posts.
   You press the seam shut: the tooth goes under the bar, the bar springs up to let it past and drops behind it.
-  Nothing extra to print, nothing to lose, nothing on the outside. Three settings fit it to your filament: *tooth
-  height* (what holds the seam shut), *bar thickness* (how hard the bar springs) and *bar depth* (how straight it
-  stays when the seam is pulled). *snap fit* sets the room between the tooth and the bar. A seam shorter than 25 mm
-  is left plain, because the bar needs its length to spring, and so is a seam with no room beside the joints of its
-  neighbours. Lamina says which ones. Where the seams of a lid are too close for a click each, the seam across from
-  the lid's fold gets one first: that is where a lid is held shut.
+  Nothing extra to print, nothing to lose, nothing on the outside. *click size* makes the whole joint smaller for a
+  small model or bigger for a big one. *tooth height* sets what holds the seam shut, *bar thickness* how hard the
+  bar springs, *bar depth* how straight it stays when the seam is pulled, *bar support* how much of the bar is solid
+  down to the panel, and *post size* how big its two posts are. Lamina says when a joint is too stiff to press shut
+  by hand, and with how many kilos. *snap fit* sets the room between the tooth and the bar. A seam shorter than
+  22 mm is left plain at size 1, because the bar needs its length to spring. So is a seam with no room beside the
+  joints and folds next to it: a click stands clear of the panel that folds over it, so every fold closes fully.
+  Lamina says which ones. Where the seams of a lid are too close for a click each, the seam across from the lid's
+  fold gets one first: that is where a lid is held shut.
 - **Two more folded examples.** *fold_box* is a six-sided box with a turned lid, printed flat in PETG and folded up:
   every fold has its own angle. *fold_lantern* is the lamp shade at 420 mm for 3 mm plywood: 72 separate pieces,
   each with a window and lacing holes, numbered on the inside.

@@ -117,23 +117,41 @@ rigid.
 
 How the bar is sized: lifted by the tooth's height in its middle, a beam held at both ends is stretched by
 12 · lift · thickness / length², where the length is the span less the ridge that lifts it. The bar is as thick as
-`bar thickness` asks (1.6 mm). Where that would stretch it past `CLICK_STRAIN` (5 % for PETG, 2.5 % for PLA: about
-where each yields), it is thinner, in steps of 0.2 mm down to 0.6 mm. Its span is as long as the seam allows, 16 to
-24 mm. With a tooth 1 mm high in PETG, a 16 mm bar is 0.8 mm thick and a 24 mm bar 1.6 mm. Across the seam the bar
+`bar thickness` asks (2 mm). Where that would stretch it past `CLICK_STRAIN` (8 % for PETG, 3 % for PLA), it
+is thinner, in steps of 0.2 mm down to `CLICK_THIN` (1.2 mm). PETG yields at about 5 % and breaks far later. In
+the prints a bar of 0.8 mm that stayed under 5 % broke in the hand: a bar that yields a little, once, is the stronger. Its span is as long as the seam allows, 16 to
+24 mm. It is also no thicker than a hand can press shut: the force to lift a beam held at both ends by the tooth's height
+is 192 · E · I · lift / length³, and the bar stays under `CLICK_PRESS` (80 N, about 8 kg). With a tooth 1 mm high
+in PETG, a 16 mm bar is 1.2 mm thick and a 24 mm bar 2 mm. Across the seam the bar
 is `bar depth` deep (2.4 mm). The depth, not the thickness, keeps the bar straight when the seam is pulled. The
 ridge of the tooth is `CLICK_RIDGE` long, in the middle: a ridge as wide as the tooth would hold the bar flat over
 that width and bend the rest of it far too much.
 
+`bar support` grows the two posts in under the bar, as far as the tooth at 1. Only the bar between them is then
+free to bend, so the bar is much stronger and much stiffer. It is as thick as `bar thickness` asks, and the plan
+warns when the tooth would stretch it past `CLICK_STRAIN` or it takes more than `CLICK_PRESS` to press shut, with
+both numbers: the seam must then give somewhere else to shut, or needs a lower tooth or a thinner bar.
+
+`click size` scales the whole joint: every size in this section is for size 1. A small model takes 0.7, so that
+its short seams have room for a click. A big model takes 1.5 or 2: its seams carry more and have the room.
+`post size` scales the two posts alone: their length along the seam beyond the bar, and their ramp.
+
 What a 0.4 mm nozzle and 0.2 mm layers can print set the tooth. The first print had a ridge 0.4 mm high, measured
 up a wall that leans by half the bend: on a 94° seam that is 0.27 mm above the bed, one layer, on a top 0.5 mm
 wide. It lined the seam up and held nothing. The ridge is now 1 mm high (`tooth height`, in steps of one layer) and
-its flat top is `CLICK_LAND` wide, two lines. Its back face is square to the pull, so a pull does not lift the bar.
+its flat top is `CLICK_LAND` wide, three lines. Its back face is square to the pull, so a pull does not lift the bar.
+
+A click also stands clear of the faces that fold or close over its panel. Shut, such a face is the panel's mirror
+image in the plane that halves the edge's angle. A corner of a post, bar or wall whose mirror image lies in the
+sheet under that face is in its way: the fold would stop short. The click then slides along its seam or takes the
+shortest bar, and is left out with a warning when neither helps. The check looks at the faces next to the panel,
+not at the walls that stand on them.
 
 Which seams get a click when not all can: `Folded.far` puts the seams in order, farthest from a fold of their flat
 face first. A lid hangs on one fold. The seam opposite that fold holds it shut, so it finds its place before the
 seams beside the fold, which the fold holds already.
 
-Everything else is a plain block. The tooth is one block 8 mm wide on a 2.4 mm wall, with the one ridge. Every
+Everything else is a plain block. The tooth is one block 10 mm wide on a 2.4 mm wall, with the one ridge. Every
 upright (the tooth's wall, the posts, the blocks under the bar) is a wedge (`Folded.braced`, `CLICK_FOOT`): its
 front, a flat top, and one slope down into the panel, so a pull on the seam does not bend a thin wall at its foot
 across its layers. A window frame too narrow for the slope gets a shorter one, down to the bare wall. A click
