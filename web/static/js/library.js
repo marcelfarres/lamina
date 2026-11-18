@@ -36,7 +36,7 @@ const isDate=v=>typeof v==='string'&&!isNaN(Date.parse(v));
 // A date is kept as ISO text, so newest-first compares dates, not "Nov 5 2023" as text
 const entryOf=(at,p)=>({...at,name:nameOf(p),rev:revText(p),saved:isDate(p.saved)?new Date(p.saved).toISOString():at.saved,preview:typeof p.preview==='string'?p.preview:''});
 // an index entry is trusted only as entryOf makes them: one stored before this rule is read again
-const sane=e=>['name','rev','saved','preview'].every(k=>typeof e?.[k]==='string');
+const sane=e=>['name','rev','saved','preview'].every(k=>typeof e?.[k]==='string')&&isDate(e.saved)&&new Date(e.saved).toISOString()===e.saved;
 // one index entry per revision file: what a card needs, without reading the file again
 async function readEntry(s,f){
   const at={file:f.file,size:f.size,mtime:f.mtime,saved:new Date(f.mtime).toISOString(),preview:''};
@@ -216,10 +216,13 @@ export const importFiles=(files,ask)=>one(async()=>{
       todo.push({p,text:dated?g.text:null,name:nameOf(p),rev:revText(p)})}catch(e){bad.push(g.name)}
   }
   let rest;
-  try{for(const [i,{p,text,name,rev:r0}] of todo.entries()){let rev=r0, out=text, consented='';
+  // k: this file's line in `kept`, one per file, naming where it landed in the end
+  try{for(const [i,{p,text,name,rev:r0}] of todo.entries()){let rev=r0, out=text, consented='', k=null;
     for(;;){
       // listed before each file and after each question, with no wait but the question before the write: another tab
-      // can save a revision of this name meanwhile
+      // can save a revision of this name meanwhile.
+      // ponytail: a listing reads no text now, but each file still reads and writes the whole cached index (its
+      // pictures too); one listing per import, with a check on write, if imports of hundreds of files get slow
       await entries();const {file,hit,taken}=place(name,rev);
       if(!hit||!hit.bad&&lc(file)===consented){const dest=hit?.file||file, w=await store.write(dest,out??JSON.stringify(p));
         imported.push(dest);await reindex(dest,entryOf({file:dest,size:w.size,mtime:w.mtime,saved:p.saved},p));break}
@@ -227,7 +230,7 @@ export const importFiles=(files,ask)=>one(async()=>{
       let a=rest;if(a===undefined){const r=await ask({name,rev,next});a=typeof r==='object'&&r?r.answer:r;if(r?.rest)rest=a}
       const twice=imported.some(f=>lc(f)===lc(hit.file));
       if(a==='replace'&&!hit.bad&&!twice)consented=lc(file);
-      else if(a==='replace'||a==='keep'){if(a==='replace')both.push({rev:`${name} v${rev}`,as:next,why:twice?'twice':'unreadable'});
+      else if(a==='replace'||a==='keep'){if(k)k.as=next;else if(a==='replace')both.push(k={rev:`${name} v${r0}`,as:next,why:twice?'twice':'unreadable'});
         rev=p.rev=next;if(p.state&&typeof p.state==='object')p.state.rev=next;out=null}
       else{skipped.push(`${name} v${rev}`);break}
     }
@@ -257,10 +260,14 @@ function linked(dir,ok){kept=dir;reach=!dir?'browser':ok?'folder':'needs-permiss
 // away lists nothing: not reachable either
 const allowed=ask=>{try{return Promise.resolve(ask()).then(p=>p===undefined||p==='granted')}catch(e){return Promise.resolve(false)}};
 const reachable=(dir,asked)=>asked.then(ok=>ok&&dir.entries().next().then(()=>true)).catch(()=>false);
-// at start-up, without a click: only asks whether permission is there. Every library call waits for it (`ready`)
+// at start-up, without a click: only asks whether permission is there. Every library call waits for it (`ready`).
+// Whether a folder is linked cannot be read (the database blocked): not taken for "none", or a save would land in
+// the browser while the projects are in a folder. Every call rejects until a reload reads it
+const SHUT='The library could not be opened. Reload the page.';
+const shut=()=>{const no=()=>Promise.reject(new Error(SHUT));kept=null;reach='unknown';useStore({kind:'unknown',label:'the library',list:no,read:no,write:no,remove:no});return reach};
 export function restoreStore(){left='';
-  const p=kvGet('folder').catch(()=>null).then(async dir=>{const r=linked(dir??null,!!dir&&await reachable(dir,allowed(()=>dir.queryPermission?.({mode:'readwrite'}))));
-    if(dir)await countBrowser();return r});
+  const p=kvGet('folder').then(async dir=>{const r=linked(dir??null,!!dir&&await reachable(dir,allowed(()=>dir.queryPermission?.({mode:'readwrite'}))));
+    if(dir)await countBrowser();return r},shut);
   start(p);return ready=p}
 // from a click only. The prompt is asked for here, at once: the click's permission to show it runs out in a few seconds,
 // and a save or a link ahead in the queue can take longer. Only the check and the switch of store wait their turn
@@ -276,7 +283,8 @@ export const unlink=()=>one(async()=>{left=kept?.name||'';await kvDel('folder');
 export function linkFolder(dir,ask){return linking??=one(()=>link(dir,ask)).finally(()=>{linking=null})}
 async function link(dir,ask){
   // skipped: left in the browser; changed: those of them another tab saved again while they were being moved
-  const from=browserStore(), to=folderStore(dir), moved=[], skipped=[], changed=[];
+  // both: those a replace moved in as a new revision, as the folder's file cannot be read (said, as an import does)
+  const from=browserStore(), to=folderStore(dir), moved=[], skipped=[], changed=[], both=[];
   const there=new Map((await to.list()).map(f=>[lc(f.file),f.file])), files=await from.list();
   let rest;
   try{for(const f of files){
@@ -289,7 +297,7 @@ async function link(dir,ask){
       const next=nextFree([...there.values(),...files.map(g=>g.file)].filter(g=>lc(stemOf(g))===lc(stem)).map(revOf),rev||'1.0',false);
       let a=rest;if(a===undefined){const r=await ask({name:p?.name||file,rev,next});a=typeof r==='object'&&r?r.answer:r;if(r?.rest)rest=a}
       // a file in the folder that cannot be read is never written onto: replace keeps both instead
-      if(a==='replace'&&await to.read(there.get(lc(file))).then(parse).then(()=>false,()=>true))a='keep';
+      if(a==='replace'&&await to.read(there.get(lc(file))).then(parse).then(()=>false,()=>true)){a='keep';both.push({rev:`${p?nameOf(p):stem} v${rev}`,as:next,why:'unreadable'})}
       if(a==='replace')dest=there.get(lc(file));   // the folder's own spelling of the name
       else if(a==='keep'){dest=`${stem}_v${next}${EXT}`;if(p){p.rev=next;if(p.state)p.state.rev=next;text=JSON.stringify(p)}}
       else{skipped.push(file);continue}   // left in the browser, where unlink finds it again
@@ -309,5 +317,5 @@ async function link(dir,ask){
   catch(e){throw new Error(`Linking ${dir.name} stopped (${e.message||e.name}). The revisions were moved into ${dir.name}, but the folder is not linked: link it again.`)}
   // another folder picked: the old one keeps its files, and the folder line says where
   left=kept&&!await kept.isSameEntry(dir).catch(()=>false)?kept.name:'';linked(dir,true);await countBrowser();
-  return {moved,skipped,changed};
+  return {moved,skipped,changed,kept:both};
 }

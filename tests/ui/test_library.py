@@ -10,7 +10,7 @@ import zipfile
 
 import pytest
 
-from .helpers import ROOT, example, set_fields, settle, still
+from .helpers import ROOT, example, menu, set_fields, settle, still
 
 
 def wipe(page):
@@ -65,7 +65,7 @@ def name(page, n):
 def bump(page, major=False):
     """+0.1 or +1 as a click, waited for: the button lists the library first when nothing has listed it yet."""
     before = page.text_content("#prev")
-    page.click("#pmajor" if major else "#pminor")
+    menu(page, "#pmajor" if major else "#pminor")
     page.wait_for_function("b => document.querySelector('#prev').textContent !== b", arg=before)
 
 
@@ -1582,15 +1582,93 @@ def test_a_save_that_waits_for_reconnect_is_fixed_at_the_press(page):
 
 # --- texts (Task 9) ---
 def test_clear_my_data_keeps_the_library(page):
-    name(page, "lamp"); save(page)
+    """The session goes (the page starts again on another example, with no project name); the library and the
+    linked folder stay."""
+    name(page, "lamp"); save(page); folder(page)
     assert "library" in page.get_attribute("#clear", "title")
     asked = []
     on_dialog(page, lambda d: (asked.append(d.message), d.accept()))
     with page.expect_navigation():
-        page.click("#clear")
+        menu(page, "#clear")
     settle(page)
     assert "The library is kept." in asked[0]
-    assert lib(page) == [("lamp", ["1.0"])]
+    assert page.evaluate("__t.job()") != "ex_egg" and page.evaluate("__t.state().project") != "lamp"
+    assert page.evaluate("__t.lib.storeState()")["state"] == "folder" and lib(page) == [("lamp", ["1.0"])]
+
+
+V1 = """async recs => { await new Promise((ok, no) => { const q = indexedDB.deleteDatabase('lamina_library');
+        q.onsuccess = ok; q.onerror = () => no(q.error); q.onblocked = () => no(new Error('blocked')) });
+    await new Promise((ok, no) => { const q = indexedDB.open('lamina_library', 1); q.onerror = () => no(q.error);
+        q.onupgradeneeded = () => { const d = q.result; d.createObjectStore('revisions', {keyPath: 'file'});
+            d.createObjectStore('kv'); d.createObjectStore('index') };
+        q.onsuccess = () => { const t = q.result.transaction('revisions', 'readwrite');
+            for (const r of recs) t.objectStore('revisions').put(r); t.oncomplete = () => { q.result.close(); ok() } } });
+    __t.lib.useStore((await import('/static/js/store.js')).browserStore()) }"""
+
+
+def test_a_version_1_library_is_listed_after_the_upgrade(page):
+    """The database as version 1 left it: every record is listed after the upgrade, one without an mtime too."""
+    lamp = project("lamp")
+    vase = json.dumps({"name": "vase", "mode": "stacked", "state": {}, "saved": "2024-01-01T00:00:00.000Z"})
+    page.evaluate(V1, [{"file": "lamp_v1.0.lamina.json", "text": lamp, "size": len(lamp), "mtime": 1_700_000_000_000},
+                       {"file": "vase_v1.0.lamina.json", "text": vase, "size": len(vase)}])
+    files = {f["file"]: f for f in browser_files(page)}
+    assert files["lamp_v1.0.lamina.json"] == {"file": "lamp_v1.0.lamina.json", "size": len(lamp), "mtime": 1_700_000_000_000}
+    assert files["vase_v1.0.lamina.json"]["mtime"] == 1_704_067_200_000         # repaired from its own date
+    assert sorted(lib(page)) == [("lamp", ["1.0"]), ("vase", ["1.0"])]
+    page.evaluate("__t.lib.openRevision('lamp_v1.0.lamina.json')"); settle(page)
+    assert save(page) == [{"file": "lamp_v1.0.lamina.json"}, []]
+    b64 = page.evaluate("""async () => { const u = new Uint8Array(await (await __t.lib.exportAll()).blob.arrayBuffer());
+        let s = ''; for (const x of u) s += String.fromCharCode(x); return btoa(s) }""")
+    assert sorted(zipfile.ZipFile(io.BytesIO(base64.b64decode(b64))).namelist()) == ["lamp_v1.0.lamina.json", "vase_v1.0.lamina.json"]
+
+
+def test_a_failed_read_of_the_kept_folder_is_not_no_folder(page):
+    """Start-up cannot read whether a folder is linked: the library says so, and a save goes nowhere."""
+    name(page, "lamp")
+    page.evaluate("""() => { const P = IDBObjectStore.prototype, get = P.get; window.__get = get;
+        P.get = function (...a) { if (this.name === 'kv') { P.get = get; throw new Error('blocked') } return get.apply(this, a) } }""")
+    try:
+        page.evaluate("__t.lib.restoreStore()")
+        err = page.evaluate("__t.lib.saveCurrent(() => Promise.resolve(null)).then(() => 'saved', e => e.message)")
+        assert err == "The library could not be opened. Reload the page."
+        assert page.evaluate("__t.lib.entries().then(() => 'listed', e => e.message)") == err
+        page.click("#popen")
+        page.wait_for_function("() => /could not be opened/.test(document.querySelector('#libwhere').innerText)")
+        assert browser_files(page) == []
+    finally:
+        page.evaluate("() => { IDBObjectStore.prototype.get = window.__get; return __t.lib.restoreStore() }")
+    assert page.evaluate("__t.lib.storeState().state") == "browser"
+
+
+def test_an_index_entry_with_another_date_form_is_read_again(page):
+    put(page, "a_v1.0.lamina.json", project("a")); lib(page)
+    page.evaluate("""async () => { const S = await import('/static/js/store.js');
+        await S.idxSet('browser', (await S.idxGet('browser')).map(e => ({...e, saved: 'Nov 5 2023'}))); __t.lib.useStore(S.browserStore()) }""")
+    saved = page.evaluate("__t.lib.entries()")[0]["revs"][0]["saved"]
+    assert saved != "Nov 5 2023" and saved.endswith("Z")
+
+
+def test_kept_names_each_file_once(page):
+    """b keeps both as v1.1 (this import had v1.0 twice); another tab puts an unreadable v1.1 there meanwhile, and b
+    keeps both again, as v1.2: one line for b, with where it landed."""
+    put(page, "lamp_v1.0.lamina.json", project("lamp"))
+    page.evaluate("""async () => { const S = await import('/static/js/store.js'), b = S.browserStore(); let n = 0;
+        __t.lib.useStore({...b, list: async () => { if (++n === 4) await b.write('lamp_v1.1.lamina.json', 'not json'); return b.list() }}) }""")
+    try:
+        two = [(f"{n}.lamina.json", json.dumps({"name": "lamp", "rev": "1.0", "mode": "stacked", "state": {"n": n}}), None) for n in "ab"]
+        r, _ = import_files(page, two, [{"answer": "replace", "rest": True}])
+    finally:
+        page.evaluate("import('/static/js/store.js').then(S => __t.lib.useStore(S.browserStore()))")
+    assert r["imported"] == ["lamp_v1.0.lamina.json", "lamp_v1.2.lamina.json"]
+    assert r["kept"] == [{"rev": "lamp v1.0", "as": "1.2", "why": "twice"}]
+
+
+def test_a_link_that_kept_both_says_why(page):
+    name(page, "lamp"); save(page); drop(page, "lamp_v1.0.lamina.json", "not json")
+    r, _ = link(page, ["replace"])
+    assert r["kept"] == [{"rev": "lamp v1.0", "as": "1.1", "why": "unreadable"}]
+    assert sorted(on_disk(page)) == ["lamp_v1.0.lamina.json", "lamp_v1.1.lamina.json"]
 
 
 # --- export, import and the folder line, review leftovers (Task 9) ---
@@ -1643,6 +1721,14 @@ def test_a_saved_date_in_another_form_is_sorted_as_a_date(page):
     ps = page.evaluate("__t.lib.entries()")
     assert [p["name"] for p in ps] == ["new", "old"]
     assert ps[1]["revs"][0]["saved"] == page.evaluate("new Date('Nov 5 2023').toISOString()")
+
+
+def test_a_file_with_its_name_only_in_the_settings_keeps_it(page):
+    """A project file from before 0.3.x carries its name in state.project only: listed and opened under it."""
+    put(page, "lamp_v1.0.lamina.json", json.dumps({"version": 3, "mode": "stacked", "state": {"project": "lamp"}, "example": "egg"}))
+    assert lib(page) == [("lamp", ["1.0"])]
+    page.evaluate("__t.lib.openRevision('lamp_v1.0.lamina.json')"); settle(page)
+    assert page.evaluate("__t.state().project") == "lamp" and page.input_value("#pname") == "lamp"
 
 
 def test_a_number_as_name_opens_under_the_cards_name(page):

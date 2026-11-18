@@ -6,11 +6,18 @@ const EXT='.lamina.json';
 // that opens a newer version of the database. All three object stores are made the first time it is opened.
 // Blocked (another tab holds the database while it must be made or deleted): said at once rather than waited for, so
 // a caller such as the library's start-up never hangs on it; a connection that opens after that is closed again.
-// Version 2 adds the revisions' size and mtime as an index, so a listing reads no text
+// Version 2 adds the revisions' size and mtime as an index, so a listing reads no text. A record without a number as
+// either would be left out of the index, and so out of every listing, export and link: the upgrade gives it the size
+// of its text and the date saved in it (now, if none)
+const key=v=>typeof v==='number'&&!isNaN(v);
+const savedIn=text=>{try{const t=Date.parse(JSON.parse(text).saved);if(key(t))return t}catch(e){}return Date.now()};
 const open=()=>new Promise((ok,no)=>{const r=indexedDB.open('lamina_library',2);let late=false;
   r.onupgradeneeded=e=>{const d=r.result;
-    if(!e.oldVersion){d.createObjectStore('revisions',{keyPath:'file'});d.createObjectStore('kv');d.createObjectStore('index')}
-    r.transaction.objectStore('revisions').createIndex('meta',['size','mtime'])};
+    if(e.oldVersion<1){d.createObjectStore('revisions',{keyPath:'file'});d.createObjectStore('kv');d.createObjectStore('index')}
+    if(e.oldVersion<2){const s=r.transaction.objectStore('revisions');s.createIndex('meta',['size','mtime']);
+      s.openCursor().onsuccess=ev=>{const c=ev.target.result;if(!c)return;const v=c.value, text=String(v.text??'');
+        if(!key(v.size)||!key(v.mtime))c.update({...v,size:key(v.size)?v.size:new Blob([text]).size,mtime:key(v.mtime)?v.mtime:savedIn(text)});
+        c.continue()}}};
   r.onblocked=()=>{late=true;no(new Error("the browser's database is in use by another Lamina tab: close it, then try again"))};
   r.onsuccess=()=>{if(late)r.result.close();else ok(r.result)};r.onerror=()=>no(r.error)});
 async function tx(name,mode,fn){

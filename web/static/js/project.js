@@ -30,8 +30,9 @@ export async function projectObj(withModel=true){
 }
 const modelName=()=>$('#file').files[0]?.name||ST.pendingFile?.name||'the uploaded model';
 // a project's name and revision as text, the one way the library lists them and a project opens under them: a number
-// or an object as name opens under the name its card shows, not as a second project on the next save
-export const nameOf=p=>String(p.name||p.model?.name||p.example||'model'), revOf=p=>String(p.rev||'1.0');
+// or an object as name opens under the name its card shows, not as a second project on the next save. A file from
+// before `name` existed has it in its settings only
+export const nameOf=p=>String(p.name||p.state?.project||p.model?.name||p.example||'model'), revOf=p=>String(p.rev||'1.0');
 export const projName=proj=>`${nameOf(proj)}_v${proj.rev}.lamina.json`;
 // a project from its text: a file picked, or one the library holds (its `preview` and `saved` are the library's, not read here)
 // Whatever was in hand stops being this tab's revision here: only openRevision() names one again, after this returns.

@@ -454,11 +454,11 @@ with **open**, **export** and **✕ delete**, and under them **export all N** an
 project. A find box filters the cards by name. Opening a project or an example while there are unsaved changes asks
 first.
 
-Save writes the revision you are on. The `+0.1` and `+1` buttons start a new revision at the next free number:
+Save writes the revision you are on. The **version ▾** menu (+0.1 or +1) starts a new revision at the next free number:
 with 1.0 to 1.3 saved, `+0.1` from 1.0 gives 1.4. Every revision stays until you delete it. Change the name and
 save, and it is a new project; the old one stays. A save that would land on a revision that is already there, and
 is not the one this tab opened or last saved, asks: **replace** it, **keep both** (the save takes the next free
-number), or **cancel**.
+number), or **Cancel**.
 
 The bundled examples are on the same page, under your projects, marked "example · read-only". **pick an example…**
 on the Model tab opens the library at them; once one is loaded, the button reads "<name> · pick another…". Save an
@@ -467,7 +467,7 @@ opened example and it becomes a project of yours.
 Where the projects are kept, said on the folder line at the top of the library page:
 
 - **In this browser** (every browser): "💾 kept in this browser only". Clearing the site data deletes them, so use
-  **export all (.zip)** for a backup. **clear my data** does not touch the library.
+  **export all (.zip)** for a backup. **Clear my data…** in the *help* menu does not touch the library.
 - **In a folder on your disk** (Chrome and Edge). **link a folder** moves the browser's projects into the folder you
   pick; the folder line then reads "📁 kept in the folder <its name> · N files", with **change folder** and
   **unlink**. The folder is the library: each revision is one `<name>_v<rev>.lamina.json` file, a project file you
@@ -481,7 +481,7 @@ Where the projects are kept, said on the folder line at the top of the library p
 **export all (.zip)** makes one zip of every project, the backup that lives somewhere else; **export** on a revision
 downloads that one file, and **export all N** the project as a zip. **import files…** (or a drop on the library page)
 takes project files and such zips, several at once. When a revision with the same name and number is already there,
-it asks: **replace**, **keep both** (the import takes the next free number), or **cancel** (that file is skipped);
+it asks: **replace**, **keep both** (the import takes the next free number), or **Cancel** (that file is skipped);
 "the same for the rest" answers once for every clash of that import. Linking a folder asks the same way when the
 folder already has that revision. Nothing of this goes to a server: the page reads and writes the projects itself,
 the same in the local version and in the browser version.
