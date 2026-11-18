@@ -6,6 +6,18 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ### Added
 
+- **Ring slices.** Tick *ring slices* on Stacked: each slice keeps only a wall, so the stack uses about a quarter
+  of the material. Each dowel sits in a collar. Thanks to @DaveLauber: adapted from his fork.
+
+  [![The scanned head as a stack of rings on dowels ▶](web/static/news/0.4.0-rings.jpg)](https://marcelfarres.github.io/lamina/media/rings.mp4)
+- **Band lattice.** A new technique: rings across x, y and z that slot together, best on round or boxy shapes.
+  Lamina names any piece that cannot slide in. Thanks to @DaveLauber: adapted from his fork.
+
+  [![The sphere's lattice built piece by piece, step 35 of 44 ▶](web/static/news/0.4.0-bands.jpg)](https://marcelfarres.github.io/lamina/media/bands_build.mp4)
+- **Shorter pieces for small sheets.** *Max piece length* cuts a long ring into pieces no longer than the length
+  you give, joined by tabs, so they fit a small sheet. Thanks to @DaveLauber: adapted from his fork.
+
+  ![The head's rings cut into pieces of 150 mm at most, nested on one sheet](web/static/news/0.4.0-max-length.jpg)
 - **See it as a lamp.** Tick *lamp* over the 3D view and a bulb lights the model from inside. A floor and a wall
   catch the shadows that the parts throw, so you see the pattern before you cut. *Bulb height* moves the bulb from
   the bottom to the top. Untick it and the view is as before.

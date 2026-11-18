@@ -32,7 +32,7 @@ No install, no account, nothing uploaded — the Python runs in your own browser
 **[Landing page with screenshots and clips](https://marcelfarres.github.io/lamina/?ref=github-readme)** ·
 [parity with the original, option by option](docs/roadmap.md) · [how the unfolding works](docs/folded-panels.md)
 
-## The six ways to build a model
+## The seven ways to build a model
 
 Each one is a clip on the [landing page](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques);
 the stills below are the same scenes.
@@ -42,7 +42,8 @@ the stills below are the same scenes.
 | [![Stacked: parallel slices with dowels](docs/media/stacked_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Stacked** — parallel sections, touching or spaced, held by dowels, pegs or spacers | [![Interlocked: two slotted families forming an egg-crate](docs/media/interlocked_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Interlocked** — two slotted families, egg-crate |
 | [![Radial: half-slices fanned around an axis with locking rings](docs/media/radial_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Radial** — half-slices around an axis, locked by rings | [![Curve: ribs following a curve through the model](docs/media/curve_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Curve** — ribs that follow a bend, not the grid |
 | [![Folded: a surface unfolded into flat panels with score lines](docs/media/folded_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#folded)<br>**Folded** — the surface unfolded flat, papercraft nets as Pepakura makes them, with 13 joint types | [![A cube net cut with the tongue joint](docs/media/joint_tongue.png)](https://marcelfarres.github.io/lamina/?ref=github-readme#folded)<br>**Thirteen joints** — seam, tab, gear, tongue, puzzle, laced… |
-| [![Plaque: a bonsai in slices standing on a flat back plate](docs/media/plaque_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Plaque** — for the wall: the model cut off at a back plate, its slices standing on the plate, held by teeth through plate slots | |
+| [![Plaque: a bonsai in slices standing on a flat back plate](docs/media/plaque_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Plaque** — for the wall: the model cut off at a back plate, its slices standing on the plate, held by teeth through plate slots | [![Band lattice: a sphere as rings across x, y and z, half-lapped where they cross](docs/media/bands_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Band lattice** — rings across x, y and z, slotted together; Lamina gives the order the pieces slide in |
+| [![Stacked ring slices: a scanned head as a stack of rings on dowels](docs/media/rings_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Ring slices** — a stacked slice keeps only a wall: a shell on dowels, about a quarter of the material | [![The sphere's band lattice built up piece by piece](docs/media/bands_build_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Band lattice, piece by piece** — the first family whole, then every piece slid in along its slots |
 | [![Radial with an axis through each ball of a dumbbell, at right angles to each other, and the plane between them at the neck](docs/media/axes_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Radial, an axis per lobe** — a fan per ball, one spine through all of them | [![The plane between two lobes of the snowman selected and tilted](docs/media/lobes_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#editing)<br>**Where lobes meet** — a plane you select, move and tilt like any slice |
 
 ## What it checks, and what you get
@@ -255,14 +256,15 @@ uv run python -m core.plan examples/egg.stl --mode folded --list-params         
 
 ## What it does
 
-### Six construction techniques
+### Seven construction techniques
 
-The original's six techniques as five modes (its *3D Slices* is stacked with `surface=outer`), and one of Lamina's own, `plaque`.
+The original's six techniques as five modes (its *3D Slices* is stacked with `surface=outer`), and two of Lamina's own, `plaque` and `bands`.
 
 | mode | what you get | parts |
 |---|---|---|
-| `stacked` | parallel sections, touching or with an empty `space`, the whole stack movable along the axis with `shift` to land a slice on a feature; outline `mid` / `outer` (Slicer's 3D Slices: sand down to shape) / `inner`; connected by **dowels** (6 hole shapes), flat **pegs**, or tabbed **spacers** that keep the space; points aligned, random per pair, or along your 3D lines; `next_outline` engraves the outline of the layer above on each slice (GUIDE layer), a guide to glue the stack by, with an offset to tuck it under the layer above | `Z-n`, connectors `P-n` |
+| `stacked` | parallel sections, touching or with an empty `space`, the whole stack movable along the axis with `shift` to land a slice on a feature; outline `mid` / `outer` (Slicer's 3D Slices: sand down to shape) / `inner`; connected by **dowels** (6 hole shapes), flat **pegs**, or tabbed **spacers** that keep the space; points aligned, random per pair, or along your 3D lines; `next_outline` engraves the outline of the layer above on each slice (GUIDE layer), a guide to glue the stack by, with an offset to tuck it under the layer above; **ring slices** (`ring_slices`): only a wall `ring_wall` wide is left inside each slice's outline, measured in its own plane, with a wall round every hole, narrow stretches left solid, the ends solid or not (`ring_caps`), a wall of its own per slice (`wall`), a collar round each dowel or spacer the wall is too thin for, a lug in to the dowel of a neighbouring ring that lies inside its hole, and a longest piece (`max_length`, along the ring) past which a ring is cut across its wall with puzzle tabs — as is a ring too big for the sheet | `Z-n`, connectors `P-n` |
 | `interlocked` | two slotted families, egg-crate; notch ratio / flare / relief; grid rotation; extra slices at chosen positions | `X-n`, `Y-n` |
+| `bands` | **band lattice**: rings — a wall `ring_wall` wide left inside each section — across any of x, y and z, each family by count or spacing, half-lapped where two bands cross. Assembled family by family (`order`, or the order that needs the fewest cuts): the first family stays whole, and a later band whose joints slide in different ways is cut between them into pieces, each cut a straight tongue the later piece slides onto (`band_cuts`), placed only where both pieces get past the bands of the joints either side. Where two joints are too close for such a cut, the band is cut along one joint up to its slot, or the corner between the two slots, which no piece can slide in with, is cut off and glued in last. A band longer than `max_length` (measured along it), or too big for the sheet, is cut again between its joints, the cuts spread evenly and clear of the slots. Per band: its own `wall`, and a `cut_shift` that slides its cuts along it. Flags shallow crossings, slots too close together, bands held at one place, and each piece that cannot slide in past the pieces already there, with what is in its way | `X-n`, `Y-n`, `Z-n`, pieces `X-n-k` |
 | `radial` | half-slices around an axis (move it with `center`, turn the fan with `angle`) locked by horizontal ring slices with radial slots; ring count or spacing. **Several axes**: a fan per lobe — an axis through each of a dumbbell's balls, one per ball of a snowman, tilted to follow it. Neighbouring lobes are parted by a flat plane between their axes — a translucent part in the 3D view that you click and move or tilt like any slice — so the fans never run into each other, and a **spine** — one full plane through every axis, cut whole and slotted into every ring — ties the lobes together: automatic, found from how the axes lie (on one line, any number; on one plane, exactly one; on no plane, an error naming the fix). Every axis is drawn in the 3D view where it passes through the model: drag it whole or by either end (it stays on the plane the other axes share, so the spine survives the drag), alt-click the model for a parallel axis through that point, `+` to split one in two, alt-click an axis to remove it | `R-na/b` (`R2-na/b` per axis), rings `Z-n`, spines `SP-n` |
 | `curve` | ribs perpendicular to a curve through the model (its centre line by default, following the body across the plane too; drag the blue dots, alt-click to add or remove one, or type them in the `curve` table), so they follow a bend instead of staying parallel; locked together by spine slices. The turn between neighbouring ribs is limited so they do not meet inside the model. **Branches**: a straight line per leg, arm or tail, each with ribs square to it and a spine of its own that reaches back into the body and slots into the body's ribs, so a horse's legs are held instead of cut across by body ribs. Shift+alt-click a hoof to add one, drag its ends, alt-click it to remove it; a branch that starts past the body's ribs is an error, not a loose leg | `R-n`, spines `K-n`; branch 2: ribs `R2-n`, spine `K2`, joint `J-2` |
 | `plaque` | the model cut off at a flat back plate (`back`, `sink`), its slices standing on edge on the plate, side by side, as a radial fan round a centre hole, or as two crossed families half-lapped into each other (`layout`, `planes`, `radius`, `nx`, `ny`), with teeth through plate slots (`teeth`, `tooth_width`, `tooth_spacing`); the plate has its own `plate_thickness` and outline (circle, ellipse, rectangle, rounded, hexagon, shield, the model's silhouette, or an SVG / DXF file placed with `plate_scale`, `plate_mirror`, `plate_rotation`, `plate_offset`); a piece that does not reach the plate hangs from the slice beside it on flat spacers | `W-1` (plate), `X-n`, `X-na`, `R-n`, `Y-n` |
@@ -443,23 +445,43 @@ sheets are always the same plan.
 
 ## How it is built
 
-```text
-web/app.py  (FastAPI)  ──▶  core/plan.py  ──▶  plan.json ──▶  core/export.py   SVG/DXF/PDF/EPS (OUTER, INNER, SCORE, LABEL)
-web/static/index.html         │                            ──▶  core/solid.py    assembled / per-part STL, 3MF prototype set (core/step.py: the same as STEP)
-(three.js, live)              ▼                            ──▶  browser          3D view from the facets in plan.json
-                     core/modes/*.py   one file per technique (plug-in): Slice objects with a frame + cuts (+ facets)
-                                       (connectors.py: the dowels, pegs and spacers of the stacked family)
-                     core/unfold.py    mesh → flat panels (greedy flattest-edge spanning tree, overlap-checked)
-                     core/notch.py     slots where families cross (ray casts, ratio, flare, relief)
-                     core/checks.py    physical checks and auto-fix
-                     core/split.py     split oversize parts with puzzle tabs      core/nest.py  outline nesting
-                     core/nofit.py     no-fit polygons: where a part may go beside the parts already on a sheet
-                     core/geometry.py  frames, mesh sections → shapely polygons, dowel shapes
-                     core/labels.py    the room a label takes, where it fits on a part, where it goes on the sheet
-                     core/mesh.py      the model loaded, sized, mended, kept for the next slice    core/remesh.py  modify form
-                     core/identical.py which parts are one part in several copies    core/progress.py  stages and their timing
+```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 320}}}%%
+flowchart LR
+    subgraph IN["1 – 4 · slice and check"]
+        direction TB
+        APP["web/static/index.html: the form and the live three.js view<br/>→ web/app.py (FastAPI), or the CLI: python -m core.plan<br/>→ core/plan.py · build()"]
+        S1["1 · Load the model<br/>core/mesh.py: load, size, mend, keep for the next slice<br/>core/remesh.py: modify form"]
+        S2["2 · Place slices and slots<br/>core/modes/*.py: one file per technique<br/>→ Slice objects: a frame + cuts (+ facets)"]
+        S3["3 · Section<br/>core/geometry.py: mesh section → shapely polygons<br/>cuts taken out, slivers left out"]
+        S4["4 · Check<br/>core/checks.py: physical checks, one-click fixes"]
+        HELP[["used by the techniques in step 2<br/>core/notch.py: slots where families cross<br/>core/unfold.py: mesh → flat panels<br/>core/ring.py, core/ringcut.py: rings, bands<br/>core/slidein.py: the order band pieces go in<br/>core/modes/connectors.py: dowels, pegs, spacers"]]
+        APP -- "model + parameters" --> S1 --> S2 --> S3 --> S4
+        S1 -. "preview mesh" .-> APP
+        S4 -- "a part floats, autofix = add:<br/>add a crossing slice, build again<br/>(3 passes at most)" --> S2
+        S4 ~~~ HELP
+    end
+
+    subgraph OUT["5 – 7 · cut and nest"]
+        direction TB
+        S5["5 · Cut into pieces<br/>core/split.py: oversize parts get puzzle tabs<br/>a locked band: its technique cuts it (core/ringcut.py)"]
+        S6["6 · Nest on sheets<br/>core/nest.py: outline nesting<br/>core/nofit.py: where a part may go<br/>core/labels.py: where each label goes"]
+        S7["7 · Finish<br/>core/identical.py: one part in several copies<br/>coverage of the model measured"]
+        PLAN[("plan.json")]
+        EXP(["core/export.py<br/>SVG, DXF, PDF, EPS"])
+        SOL(["core/solid.py, core/step.py<br/>STL, 3MF, STEP"])
+        VIEW(["browser<br/>3D view"])
+        S5 --> S6 --> S7 --> PLAN
+        PLAN --> EXP
+        PLAN --> SOL
+        PLAN --> VIEW
+    end
+
+    IN --> OUT
 ```
 
+- **`core/progress.py` times every stage.** The page shows each stage on its progress bar, and `plan.json` keeps the
+  times in `timing`.
 - **All geometry is computed in Python** (trimesh sections → shapely polygons). The browser only extrudes finished
   polygons; the STL export extrudes the same polygons with trimesh.
 - **A construction technique is one file** in `core/modes/` (see `interlocked.py`, about 50 lines): declare `Param`s and
@@ -571,6 +593,7 @@ People whose pull requests are part of Lamina:
 - [@Schnema1](https://github.com/Schnema1) — the next layer's outline engraved on each stacked slice, labels
   engraved on the parts themselves, the wider steps slider with its counter, the stock area to buy, and the SVG's
   one-group-per-colour switch.
+- [@DaveLauber](https://github.com/DaveLauber) — ring slices, the band lattice and max piece length, made in his fork and adapted for 0.4.0
 
 ## Support
 

@@ -369,6 +369,40 @@ S.fold = async () => {        // folded panels, printed: the lamp shade from its
     await js(`Object.assign(window.__t.state(),${was})`); await example("egg");
 };
 
+// ring slices: the head's stack as solid slices, then as rings with a wall, a wider wall, and pieces no longer than
+// 150 mm. Put back at the end: stacked remembers its settings, and the next stacked scene must not open as rings
+S.rings = async () => {
+    await example("head_igea"); await mode("stacked"); await tab("technique");
+    await params({ ...HEAD, distribution: "count", count: 10, connect: "dowel", ring_slices: false }); await heal();
+    await view(-50, 16, 1.05, 1.0); await project("rings");
+    await techClip("rings", -50, 16, 1.0, [["ring slices, wall 8 mm", async () => { await set("ring_slices", true); await settle(); await set("ring_wall", 8); }],
+        ["wall 15 mm", () => set("ring_wall", 15)], ["wall 8 mm", () => set("ring_wall", 8)],
+        ["pieces 150 mm at most", () => set("max_length", 150)], ["no limit", () => set("max_length", 0)]]);
+    await set("ring_slices", false); await settle();
+};
+// the band lattice on the sphere, the shape it suits: rings across x, y and z, half-lapped where they cross. In 3 mm
+// stock 4 x 4 x 4, 4 x 4 x 3 and 2 x 2 x 2 have every piece with a way in; the defaults (5 x 5 x 4) lock two. No
+// heal(): its grown outlines stay on the bands as the counts change. The technique card orbits 4 x 4 x 4 and changes
+// the counts; the second clip builds it up in the order its pieces go in, the first family whole and every later
+// piece slid in along its slots, then pulls it apart
+const BANDS = async (n) => { await set("nx", n[0]); await set("ny", n[1]); await set("nz", n[2]); };
+S.bands = async () => {
+    await example("sphere"); await mode("bands"); await tab("technique");
+    await params({ nx: 4, ny: 4, nz: 4 });
+    await view(-50, 22, 1.0, 1.0); await project("bands");
+    await techClip("bands", -50, 22, 1.0, [["2 x 2 x 2", () => BANDS([2, 2, 2])], ["4 x 4 x 3", () => BANDS([4, 4, 3])], ["4 x 4 x 4", () => BANDS([4, 4, 4])]]);
+    await BANDS([4, 4, 4]); await settle();
+    await set("viewmode", "only3d"); await sleep(600); await fit();
+    const dist = (await js("window.__t.camera.position.length()")) * 0.95;
+    const nparts = await js("window.__t.parts().length");
+    await cam(-50, 22, dist);
+    await clip("bands_build", 80, async i => {
+        if (i < 56) { await set("steps", Math.max(1, Math.round((i + 1) * nparts / 56))); await sleep(60); }
+        else { const t = (i - 56) / 23; await set("explode", (1 + 1.2 * Math.sin(t * Math.PI)).toFixed(2)); }
+    });
+    await set("explode", 1); await set("steps", nparts);
+    await set("viewmode", "both"); await sleep(500);
+};
 // a mask from a model: the lion head in Folded Panels, a seam round its face, the back selected with one click and
 // "connected", removed (its faces as dashed outlines), then turned to the front: only the mask is cut, and the
 // outlines behind it show what went. Real clicks

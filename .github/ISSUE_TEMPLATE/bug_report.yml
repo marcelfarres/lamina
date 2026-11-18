@@ -26,6 +26,7 @@ body:
         - Curve (ribs)
         - Folded Panels
         - Plaque
+        - Band Lattice
         - Not technique-specific (import, export, UI, install)
     validations:
       required: true
