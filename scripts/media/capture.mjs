@@ -177,21 +177,20 @@ S.lobes = async () => {       // the plane between two lobes is a part: select i
     });
     await js("window.__t.deselect()"); await fix({ offset: { "B-1-2": 0 }, tilt: { "B-1-2": 0 } });
 };
-S.curve = async () => {       // the horse is long along y; the curve follows the back and climbs the neck to the head
+S.curve = async () => {       // the horse is long along y; the curve follows the back and climbs the neck to the poll
     await example("horse"); await mode("curve"); await tab("technique");
-    // 20 ribs on one body spine, and a branch down each leg: ribs square to the leg and a spine of its own that slots
-    // into the body ribs, so no body rib cuts across a leg. Points in mm for the horse 300 mm long, as on the landing
-    // settings. The head goes up, not down: down, the head ribs cross (the legs no longer hold back the turn limit)
+    // 20 ribs on one body spine, and a branch down each leg and one for the head: ribs square to it and a spine of its
+    // own that slots into the body ribs, so no body rib cuts across a leg or the head. The head is turned to one side,
+    // where the flat body spine does not reach; the curve ends going up at the poll, so the head's spine lies in the
+    // head's profile. Points in mm for the horse 300 mm long, as in examples/presets.json
     await params({ plane: "yz", count: 20, spines: 1, round: 2, size: [0, 300, 0], thicken: 1 });
-    const CURVE = [[-119, 11], [-89, 18], [-59, 23], [-14, 10], [16, 13], [50, 22], [76, 47], [91, 76], [106, 89], [136, 83]];
+    const CURVE = [[-119, 11], [-89, 18], [-59, 23], [-14, 10], [16, 13], [50, 22], [76, 47], [86, 68], [94, 92], [97, 108]];
     const BRANCHES = [[[-2, 46.6, -33], [-5.2, 64.5, -128]], [[40.5, 36.8, -33], [49, 25.8, -125]],
-        [[-2.8, -100.1, -11], [-5, -134.2, -125]], [[52, -83.1, -15], [54.9, -101, -125]]];
+        [[-2.8, -100.1, -11], [-5, -134.2, -125]], [[52, -83.1, -15], [54.9, -101, -125]], [[2, 106, 94], [-68, 142, 62]]];
     await fix({ curve: CURVE, branches: BRANCHES }); await heal();
     await view(-70, 16, 0.9, 1.0); await project("curve");
-    // 12 ribs leave a rib floating and the head point at 136 puts the spine's material in a rib's slot path: 13 and
-    // 130 are the neighbours that come out clean on the exact remesh
-    await techClip("curve", -70, 16, 0.9, [["8 ribs", () => set("count", 8)], ["13 ribs", () => set("count", 13)], ["20 ribs", () => set("count", 20)],
-        ["head point up", () => fix({ curve: [...CURVE.slice(0, -1), [130, 92]] })], ["head point back", () => fix({ curve: CURVE })]]);
+    // 13 ribs put a hind leg's spine in R-3's slot path: 8, 10 and 20 come out clean
+    await techClip("curve", -70, 16, 0.9, [["8 ribs", () => set("count", 8)], ["10 ribs", () => set("count", 10)], ["20 ribs", () => set("count", 20)]]);
 };
 S.folded = async () => {      // the cow mesh is y-up: rotate x 90° stands it up
     await example("cow"); await mode("folded"); await tab("technique");

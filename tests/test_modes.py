@@ -528,7 +528,8 @@ def test_folded_lamp_has_a_window_in_its_faces_and_unfolds_flat():
     assert np.allclose(normals, normals[0], atol=1e-3)                       # flat: every face looks the same way
 
 
-# the horse on the landing page: its body curve and a branch down each leg, from where it leaves the body to the hoof
+# the horse example's body curve before its head became a branch (0.3.3), and a branch down each leg, from where it
+# leaves the body to the hoof
 HORSE = {"size": [0, 300, 0], "thicken": 1, "round": 2, "thickness": 3, "slot_offset": 0.1, "plane": "yz", "count": 20, "spines": 1}
 HORSE_CURVE = [[-119, 11], [-89, 18], [-59, 23], [-14, 10], [16, 13], [50, 22], [76, 47], [91, 76], [106, 89], [136, 83]]
 BRANCHES = [[[-2, 46.6, -33], [-5.2, 64.5, -128]], [[40.5, 36.8, -33], [49, 25.8, -125]],
@@ -562,6 +563,30 @@ def test_curve_branches_hold_every_leg_of_the_horse():
         assert held.mean() >= 0.95, f"leg {i}: {held.mean():.0%} of it in a branch spine"
         assert len([s for s in plan["slices"] if s["label"].startswith(f"R{i}-")]) >= 5
     assert len(plan["axes3d"]) == 4 and {b["label"] for b in plan["bounds3d"]} >= {"J-1", "J-2", "J-3", "J-4"}
+
+
+def test_curve_head_turned_aside_is_a_branch_of_its_own(tmp_path):
+    """The horse example turns its head to one side, where the flat body spine does not reach. In 0.3.3 one body rib
+    took the whole head as a slab, edge-on from the side the head faces (a fifth of its outline). As a branch it has
+    ribs square to it and a spine down its middle, slotted into two neck ribs so it does not hang on one joint, and
+    from that side its parts fill the head's outline."""
+    from shapely.geometry import Polygon
+    from shapely.ops import unary_union
+    from core.solid import piece_mesh
+    pr = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["horse"]
+    plan = build(EXAMPLES / "horse.stl", "curve", {**pr["params"], "slot_offset": 0.1}, mesh_out=tmp_path / "model.stl")
+    assert plan["counts"]["errors"] == 0
+    by = {s["label"]: s for s in plan["slices"]}
+    head = len(pr["params"]["branches"])                                    # the head is the last branch
+    assert len([lab for lab in by if lab.startswith(f"R{head}-")]) >= 5
+    assert len([x for x in by[f"K{head}"]["engages"] if x.startswith("R-")]) >= 2
+
+    def outline(meshes):                     # the head, past y = 112, seen from -x: its outline on the y-z plane
+        cut = [m.slice_plane([0, 112, 0], [0, 1, 0]) for m in meshes if m.vertices[:, 1].max() > 112]
+        return unary_union([g for m in cut for t in m.vertices[m.faces][:, :, 1:] if (g := Polygon(t)).area > 1e-6])
+    model = outline([trimesh.load(tmp_path / "model.stl")])
+    parts = outline([piece_mesh(pc, s["thickness"]) for s in plan["slices"] for pc in s["pieces"]])
+    assert model.intersection(parts).area / model.union(parts).area > 0.8
 
 
 def test_curve_branch_past_the_ribs_is_an_error():
