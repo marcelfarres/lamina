@@ -13,8 +13,7 @@ PRESETS = {k: v for k, v in json.loads((EXAMPLES / "presets.json").read_text(enc
 # Examples that still open with a warning, each waiting for better settings (bug 045). A new example opens clean, and
 # one that opens clean comes off the list, so it only gets shorter.
 STILL_WARNS = {"berry", "bunny", "cow", "cow_spot", "figure", "head_igea", "hook", "horse", "horse_statue", "lion_head",
-               "pyramid", "ripple", "snowman", "tall_bar", "torus", "twisted",
-               "vase"}      # vase: its 4 dowels left out are bug 046 (fix/046)
+               "pyramid", "ripple", "snowman", "tall_bar", "torus", "twisted"}
 
 
 def test_every_example_has_a_preset():
