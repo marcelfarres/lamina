@@ -38,24 +38,13 @@ What changed in each release. The GitHub release for a version is this section, 
   lower than the size you give and leaves the rest of the model as it is. The warning about panels of stiff sheet
   that press into each other now offers it as a fix, beside bigger triangles, which make the whole model coarser.
 
-- **Choose which slices of a crossed plaque go in first.** A new Plaque setting, *into the plate first*, picks the X
-  or the Y slices. The slices you pick go into the plate first, with their slots open to the front. The other slices
-  then slide down onto them one at a time. Put one long spine in first and the many cross slices slide onto it: you
-  no longer press a comb of 60 slots onto 60 slices at once. *First family height* makes those first slices lower,
-  as a percentage of the model's height. Their top keeps the shape of the model, so at 30 % they are a low rail at
-  the back that holds the others and is hardly seen from the front. The build steps in the 3D view show this order:
-  the plate, the slices that go in first, then the others. If a slice could not be put in where it is in that order,
-  the checks say so as an error.
-- **A warning for fingers that may snap.** When many crossing slices stand close together, the slices they go into
-  become combs: thin fingers of material between the slots. A finger narrower than the material is thick bends and
-  breaks when you push the crossing slice in. The part now says so, with the width of its thinnest finger. Put the
-  crossing slices farther apart, use fewer of them, or use thinner material.
+- **Choose which slices go in first.** *Into the plate first* picks the X or Y slices of a crossed plaque. The
+  others slide onto them one by one. *First family height* makes them a low rail. Their teeth are full width.
+- **A warning for weak fingers.** Many crossing slices close together turn a slice into a comb. A finger between two
+  slots that is thinner than the sheet now gets a warning with its width.
 
 ### Changed
 
-- **Bigger teeth on a crossed plaque.** The slices that go into the plate first now get teeth of the full *tooth
-  width*, also where a slice of the other family crosses them. Before, their teeth had to fit in the gaps between
-  the crossing slices: with slices close together they were thin slivers, or there were none.
 - **The spacing graph is under its tick.** *Vary the spacing* opens the graph right below the box, not under the 3D
   view. Both axes have a title. Every slice is an upright line across the graph, and a strip under it draws the
   model from its slices, so you see where the slices are dense. The graph's settings are on the page once.
