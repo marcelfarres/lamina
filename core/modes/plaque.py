@@ -6,6 +6,7 @@ from dataclasses import dataclass, field, replace
 
 import numpy as np
 import shapely
+from shapely.affinity import scale
 from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
@@ -158,7 +159,7 @@ class Plaque(Stacked):
     title = "Plaque"
     description = ("The model cut off at a flat back plate, its slices standing on edge on the plate: each slice has teeth that go "
                    "through plate slots. `sink` sets how deep the model goes into the plate; what is behind the plate is left out.")
-    legend = ("W-1 = the back plate · X-2 / Y-4 in a crossed plaque = the 2nd slice of the first family and the 4th of the second, "
+    legend = ("W-1 = the back plate · X-2 / Y-4 in a crossed plaque = the 2nd slice of the X family and the 4th of the Y family, "
               "which half-lap into each other · R-5 = the 5th half-slice of a radial fan, counted round from `angle` · X-3 = the 3rd slice across the plate, counted from the low end (Y- or Z- when the slices "
               "run that way): its teeth go into the row of plate slots under it · X-3a = spacer a between X-3 and X-4, which "
               "holds a piece of one of them that does not reach the plate")
@@ -185,15 +186,24 @@ class Plaque(Stacked):
         Param("plate_rotation", "number", 0.0, "Turn the plate about its middle (deg)", -180, 180, 1, unit="deg", label="plate rotation"),
         Param("layout", "choice", "parallel", "How the slices stand on the plate: parallel = side by side, one after another · "
               "radial = a fan of half-slices round a centre (move it with `center`), their inner ends meeting round a small hole · "
-              "crossed = two families at right angles, slotted into each other half way like an egg crate, both standing on the plate",
+              "crossed = two families at right angles, slotted into each other half way like an egg crate, both standing on the plate: "
+              "one goes into the plate first (`first`), the other drops onto it from the front",
               choices=["parallel", "radial", "crossed"], section="Slices — how the slices stand on the plate"),
         Param("axis", "choice", "x", "Slice direction (normal of the slices): one of the two axes that lie in the plate", choices=["x", "y", "z"],
               show_if=("layout", "parallel")),
         Param("planes", "int", 12, "Radial: planes through the centre; each gives two half-slices", 2, 90, 1, show_if=("layout", "radial"), label="radial planes"),
         Param("angle", "number", 0.0, "Radial: turn the whole fan about its centre (deg) · crossed: turn the grid on the plate",
               -90, 90, 1, unit="deg", show_if=("layout", ["radial", "crossed"]), label="rotate layout"),
-        Param("nx", "int", 8, "Crossed: slices of the first family, which goes into the plate first", 1, 200, 1, show_if=("layout", "crossed"), label="slices, 1st family"),
-        Param("ny", "int", 8, "Crossed: slices of the second family, which drops onto the first from the front", 1, 200, 1, show_if=("layout", "crossed"), label="slices, 2nd family"),
+        Param("nx", "int", 8, "Crossed: slices of the X family (X-1, X-2 …)", 1, 200, 1, show_if=("layout", "crossed"), label="slices, X family"),
+        Param("ny", "int", 8, "Crossed: slices of the Y family (Y-1, Y-2 …), square to the X family", 1, 200, 1, show_if=("layout", "crossed"), label="slices, Y family"),
+        Param("first", "choice", "x", "Crossed: the family that goes into the plate first. Its slots open to the front, and the other "
+              "family drops onto it one slice at a time, its slots open toward the plate. Put the family with fewer slices first "
+              "(one long spine, say) and the many slide onto it", choices=["x", "y"], choice_labels={"x": "X family", "y": "Y family"},
+              show_if=("layout", "crossed"), label="into the plate first"),
+        Param("first_height", "number", 100.0, "Crossed: the height of the family that goes into the plate first, as a percentage "
+              "of the model's height above the plate. Its top follows the model's shape, scaled down toward the plate: under 100 "
+              "it is a low rail at the back that holds the other family, hardly seen from the front", 5, 100, 1, unit="%",
+              show_if=("layout", "crossed"), label="first family height (%)"),
         Param("radius", "number", 0.0, "Radial: the radius of the hole in the middle of the fan, where the half-slices end (mm). "
               "0 = the least that lets them all fit round it; under that least their inner ends collide", 0, 500, 0.5, unit="mm",
               show_if=("layout", "radial"), label="center hole radius"),
@@ -312,8 +322,8 @@ class Plaque(Stacked):
 
     @staticmethod
     def _crossed(ctx, fr):
-        # Two families along the plate's own two directions, turned by `angle`. The first goes into the plate; the
-        # second drops onto it from the front, so its slots open toward the plate and the first family's away.
+        # Two families along the plate's own two directions, turned by `angle`. The one `first` names goes into the
+        # plate first; the other drops onto it from the front, so its slots open toward the plate and the first one's away.
         p = ctx.p; slot_w = p["thickness"] + p["slot_offset"]
         R = rot_about(fr.n_p, p["angle"]); front = box(-BIG, 0, BIG, BIG)
         fams = []
@@ -327,13 +337,15 @@ class Plaque(Stacked):
                 o = ctx.mid + e * (c + s + ctx.override("offset", lab))
                 fam.append(Layer(lab, name, frame(o + fr.n_p * (fr.z0 - o @ fr.n_p), e, up_hint=fr.n_p), ctx.thickness_of(lab), clip=as_multi(front)))
             fams.append(ctx.keep(fam))
-        clash = {}                      # slice → the stretches of its foot (from, to) where a slice of the other family stands
-        for mine, other in ((fams[0], fams[1]), (fams[1], fams[0])):
-            for sl in mine:
-                at = [float((o.M[:3, 3] - sl.M[:3, 3]) @ sl.M[:3, 0]) for o in other]
-                clash[sl.label] = [(x - slot_w / 2, x + slot_w / 2) for x in at]
+        slices = fams[0] + fams[1]
+        if p["first"] == "y":
+            fams.reverse()
+        # The family that drops on has its slots open at the plate: its teeth keep clear of where the first one stands.
+        # The first family is whole down to the plate where they cross, so its teeth go under the crossings.
+        clash = {sl.label: [(x - slot_w / 2, x + slot_w / 2) for x in (float((o.M[:3, 3] - sl.M[:3, 3]) @ sl.M[:3, 0]) for o in fams[0])]
+                 for sl in fams[1]}
         ctx.cover_r = max(ctx.ext) / max(1, min(p["nx"], p["ny"])) / 2 + p["thickness"]
-        return Layout(fams[0] + fams[1], front, Polygon(), BIG, clash, tuple(fams))
+        return Layout(slices, front, Polygon(), BIG, clash, tuple(fams))
 
     def _sectioned(self, ctx, lay, fr):
         """The layout's slices cut to the model in front of the plate, those left with nothing dropped, a crossed pair's slots notched."""
@@ -341,6 +353,10 @@ class Plaque(Stacked):
         self.profiles(ctx, slices)
         for sl in slices:
             sl.raw = as_multi(sl.raw.intersection(lay.front))
+        if lay.fams and ctx.p["first_height"] < 100:
+            for sl in lay.fams[0]:                      # the first family's top follows the model, scaled down toward the plate
+                sl.raw = as_multi(sl.raw.intersection(scale(sl.raw, 1.0, ctx.p["first_height"] / 100, origin=(0, 0))))
+                sl.clip = sl.raw                        # its half-laps only as deep as it is high
         slices = [s for s in slices if not s.raw.is_empty]
         if slices and lay.fams:
             interlock([s for s in lay.fams[0] if s in slices], [s for s in lay.fams[1] if s in slices], ctx, a_open=tuple(fr.n_p), b_open=tuple(-fr.n_p))
