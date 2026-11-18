@@ -147,9 +147,20 @@ def n040_lamp(app):
     app.p.uncheck("#lamp")
 
 
-LION_LOOP = """() => { const F = __t.plan().faces3d, y = f => (F.v[f[0]][1] + F.v[f[1]][1] + F.v[f[2]][1]) / 3;
-  return F.adj.filter(([a, b]) => (y(F.f[a]) < 0) !== (y(F.f[b]) < 0)).map(([a, b]) => F.f[a].filter(i => F.f[b].includes(i)).map(i => F.v[i])) }"""
-V3D = "#v3d"
+# the back of the lion: the largest joined area of faces that face backward (normal y over 0.3), behind the middle.
+# A seam round it, one click on it and `connected` take off the back alone; the face and the whole front mane stay
+LION_BACK = """() => (() => { const F = window.__t.plan().faces3d, V = F.v, sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const ny = F.f.map(([a, b, c]) => { const u = sub(V[b], V[a]), w = sub(V[c], V[a]), n = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]]; return n[1] / Math.hypot(...n) });
+  const my = F.f.map(f => (V[f[0]][1] + V[f[1]][1] + V[f[2]][1]) / 3), nb = F.f.map(() => []); F.adj.forEach(([a, b]) => { nb[a].push(b); nb[b].push(a) });
+  const ok = F.f.map((_, i) => ny[i] > 0.3 && my[i] > 0), seen = new Set(); let best = [];
+  for (let i = 0; i < F.f.length; i++) { if (!ok[i] || seen.has(i)) continue; const part = [i]; seen.add(i);
+    for (let k = 0; k < part.length; k++) for (const j of nb[part[k]]) if (ok[j] && !seen.has(j)) { seen.add(j); part.push(j) }
+    if (part.length > best.length) best = part }
+  const back = new Set(best);
+  return {back: [...back], loop: F.adj.filter(([a, b]) => back.has(a) !== back.has(b)).map(([a, b]) => F.f[a].filter(i => F.f[b].includes(i)).map(i => V[i]))} })()"""
+
+
+V3D = "#v3d"                                # the 3D view alone, its bar and its tool column: not the warnings under it
 
 
 def lion(app):                               # the lion opens in Folded Panels; its first slice takes about a minute
@@ -165,10 +176,10 @@ def look(app, az):                           # the lion from `az`, filling the v
 
 def n040_seams(app):
     lion(app)
-    app.p.evaluate(f"() => __t.applyFix({{seams: ({LION_LOOP})()}})")
+    app.p.evaluate(f"() => __t.applyFix({{seams: ({LION_BACK})().loop}})")
     app.idle()
     app.p.click('#tools [data-tool="seam"]')
-    look(app, -35)
+    look(app, 20)                            # from the side: the seam loop runs round the back, behind the mane
     app.shot("0.4.0-seams", V3D, [('#tools [data-tool="seam"]', "")])
     app.p.keyboard.press("Escape")
     app.p.evaluate("() => __t.applyFix({seams: []})")
@@ -177,15 +188,14 @@ def n040_seams(app):
 
 def n040_mask(app):
     lion(app)
-    app.p.evaluate(f"() => __t.applyFix({{seams: ({LION_LOOP})()}})")
+    app.p.evaluate(f"() => __t.applyFix({{seams: ({LION_BACK})().loop}})")
     app.idle()
     app.p.click('#tools [data-tool="face"]')
     look(app, 60)                            # from behind: the back of the head, which goes
-    at = app.p.evaluate("""() => { const F = __t.plan().faces3d, r = __t.canvas().getBoundingClientRect(), f = __t.faces(); let best = null;
-      for (let x = r.left + 80; x < r.right - 80; x += 10) for (let y = r.top + 100; y < r.bottom - 120; y += 10) { const u = f.under(x, y); if (u?.face === undefined) continue;
-        const t = F.f[u.face], my = (F.v[t[0]][1] + F.v[t[1]][1] + F.v[t[2]][1]) / 3, d = Math.hypot(x - r.left - r.width / 2, y - r.top - r.height / 2);
-        if (my > 15 && (!best || d < best.d)) best = {x, y, d} }
-      return best }""")
+    at = app.p.evaluate(f"""() => {{ const back = new Set(({LION_BACK})().back), r = __t.canvas().getBoundingClientRect(), f = __t.faces(); let best = null;
+      for (let x = r.left + 80; x < r.right - 80; x += 10) for (let y = r.top + 100; y < r.bottom - 120; y += 10) {{ const u = f.under(x, y);
+        if (u?.face === undefined || !back.has(u.face)) continue; const d = Math.hypot(x - r.left - r.width / 2, y - r.top - r.height / 2); if (!best || d < best.d) best = {{x, y, d}} }}
+      return best }}""")
     app.p.mouse.click(at["x"], at["y"])
     app.p.click('[data-faces="connected"]')
     app.p.click('[data-faces="remove"]')
