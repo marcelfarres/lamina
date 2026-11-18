@@ -6,10 +6,18 @@ import {popup} from './slice.js';
 // bump in two places. The dialog opens itself once when that version is not the one this browser last saw, with every
 // version since that one, and the header button opens the whole list, newest first. A browser that has never seen Lamina is not shown it: for them
 // none of it is new.
-const MDESC={'&':'&amp;','<':'&lt;','>':'&gt;'};
+const MDESC={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'};
+// A picture is written from the repo root (web/static/news/…) so that GitHub shows it too; the page sits where web/
+// does not (the server and the published build both serve static/ beside it). A link may be http(s) or a path only
+const url=u=>/^[a-z][\w+.-]*:/i.test(u)&&!/^https?:/i.test(u)?'#':u.replace(/^web\//,'');
+const img=(alt,src)=>`<img src="${url(src)}" alt="${alt}" title="${alt}" loading="lazy">`;
+const a=(body,href)=>`<a href="${url(href)}" target="_blank" rel="noopener">${body}</a>`;
 // a Windows checkout serves CHANGELOG.md with CRLF: a blank line is then \r\n\r\n, nothing split on /\n{2,}/, and a whole
 // version came out as one paragraph with its - bullets inline (reported). The line endings are made one first
-const md2html=s=>s.replace(/\r\n?/g,'\n').replace(/[&<>]/g,c=>MDESC[c])
+const md2html=s=>s.replace(/\r\n?/g,'\n').replace(/[&<>"]/g,c=>MDESC[c])
+  .replace(/\[!\[([^\]]*)\]\(([^)\s]+)\)\]\(([^)\s]+)\)/g,(_,t,src,href)=>a(img(t,src),href))   // a clip: its poster, linked to the mp4
+  .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g,(_,t,src)=>img(t,src))
+  .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g,(_,t,href)=>a(t,href))
   .replace(/^### +(.+)$/gm,'\n<h4>$1</h4>\n')
   .replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/(?<!\*)\*([^*]+)\*/g,'<i>$1</i>')
   .split(/\n{2,}/).map(b=>{
