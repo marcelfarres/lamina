@@ -15,6 +15,7 @@ import {applyLook, controls, banner, parts, guides, gizmo, axes, rings, camera, 
 import {renderWeight, renderDownloads, applyFix} from './results.js';
 import {saveProject, openProject, bump, projectObj, projName} from './project.js';
 import {initSeams, seamsNow} from './seams.js';
+import {initFaces, facesNow} from './faces.js';
 // what each technique makes, as a small drawing on its card
 const MODE_ICON={stacked:"<path d='M8 8h28M5 13h34M5 18h34M8 23h28' stroke-width='3'/>",interlocked:"<path d='M12 4v22M22 4v22M32 4v22M5 9h34M5 15h34M5 21h34' stroke-width='2'/>",
   bands:"<circle cx='22' cy='15' r='12' stroke-width='2'/><ellipse cx='22' cy='15' rx='12' ry='4.5' stroke-width='2'/><ellipse cx='22' cy='15' rx='4.5' ry='12' stroke-width='2'/>",
@@ -142,7 +143,7 @@ async function init(){
   else{setMode(location.hash.slice(1)||'interlocked',false);applyMachine(matOf(state.material).machine);applyPreset()}   // a fresh start gets the machine's compensation and the example's preset (the #technique in the URL is the app's own mirror of its state, not a request)
   ST.fresh=sess.mode?'page reloaded, last session resumed':'page opened on example '+$('#example').value; applyUnit(); slice();
 }
-initSeams();
+initSeams(); initFaces();
 init();
 
 // Counting, in two clearly separate halves. Only the published build carries <meta name="count-url">; a
@@ -204,7 +205,7 @@ window.laminaFeedback?.({bug:async withModel=>{
   sheets:ls('slicer_sheets',[]).filter(s=>!s[2]||s[2]===fam()).map(([n,s])=>[n,s]),units:state.units},null,1)})});
 
 // test and capture hook (tests/ui, scripts/media/capture.mjs)
-window.__t={spcXY,seams:seamsNow,lamp:()=>renderer.shadowMap.enabled,project:()=>projectObj(false),sizeAxes:()=>sizeAxes(),target:()=>controls.target,banner:()=>banner.visible?banner.userData.text:'',parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>ST.plan,job:()=>ST.job,
+window.__t={spcXY,seams:seamsNow,faces:facesNow,lamp:()=>renderer.shadowMap.enabled,project:()=>projectObj(false),sizeAxes:()=>sizeAxes(),target:()=>controls.target,banner:()=>banner.visible?banner.userData.text:'',parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>ST.plan,job:()=>ST.job,
   fold:s=>{$('#fold').value=s;applyFold();renderer.render(scene,camera)},
   idle:()=>!ST.timer&&!ST.busy,   // no change waiting out its debounce, no slice running: what a test or a capture waits for
   ghost:()=>ghost.children,ghostUrl:()=>ghostUrl,pivot:()=>pivot3&&rnd(pivot3),

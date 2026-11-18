@@ -15,7 +15,7 @@ import tempfile
 import time
 
 LOCK = pathlib.Path(tempfile.gettempdir()) / "lamina-test-turn.lock"
-GIVE_UP = 20 * 60          # s: a run that holds the turn this long is hung or huge; the next goes ahead beside it
+GIVE_UP = 40 * 60          # s: longer than the longest run (the page suite, 31 min); a run that holds the turn this long is hung, and the next goes ahead beside it
 
 
 def _lock(f):

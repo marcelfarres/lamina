@@ -52,7 +52,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Folded: score side | ✅ | `score_side`: inside (default; the net mirrored, scores and seam numbers inside the model) or outside; the sheet lies inside the surface; a warning when folds cannot close in the sheet thickness |
 | Folded: Split Panels | ✅ | `separate` (every triangle cut alone) |
 | Folded: unfolding quality | ✅ | strategies flat / strip / area / auto (best of several runs), joints sized to their triangles, tabs shown folded in 3D — see docs/folded-panels.md for the papers |
-| Folded: Add / Remove seams by clicking an edge | ✅ | `choose seams`: click an edge on the model or on a sheet to put a seam there, click it again to give it back; the other seams are still chosen automatically (`seams`, kept by the two ends of each edge) |
+| Folded: Add / Remove seams by clicking an edge | ✅ | the `put a seam` tool of the 3D view: click an edge on the model or on a sheet to put a seam there, or drag along edges; click it again to give it back; the other seams are still chosen automatically (`seams`, kept by the two ends of each edge) |
 | Folded: 10 joint types | ✅ | seam, tab, multitab, diamond, ticked, gear, tongue, puzzle, rivet, laced (+ loops, strip, rib) |
 | Folded: score vs cut, yellow fold lines | ✅ | SCORE layer: solid mountain, dashed valley, dotted perforate |
 | Folded: the material folds (extra) | ✅ | fold lines, and tabs or strips bending over a seam, in a sheet thicker than its material folds at are an error; one click cuts every face alone, joined by ribs |

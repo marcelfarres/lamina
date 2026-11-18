@@ -7,7 +7,8 @@ import {renderFields} from './form.js';
 import {slice} from './slice.js';
 import {renderer, ray, camera, gizmo, guides, parts, rings, mat4, V3, cubeHit, controls, placeRod, ghost, applyExplode, viewFrom} from './scene.js';
 import {hlSheet} from './results.js';
-import {seamClick} from './seams.js';
+import {seamClick, setSeamMode} from './seams.js';
+import {faceClick, setFaceMode} from './faces.js';
 
 // selection, gizmo, drag editing
 let down=null, drag=null;
@@ -234,10 +235,18 @@ function togglePoint(h,shift){ // alt-click: dowel (stacked) in the clicked slic
 // The keys work as before, with any tool
 const TOOL={alt:{altKey:true},branch:{altKey:true,shiftKey:true},tilt:{shiftKey:true},roll:{ctrlKey:true}};
 const keys=ev=>({altKey:ev.altKey,shiftKey:ev.shiftKey,ctrlKey:ev.ctrlKey,...TOOL[ST.tool]});
-function setTool(t){ST.tool=t;for(const b of $$('#tools button'))b.setAttribute('aria-pressed',b.dataset.tool===t)}
-// the tools the technique in use has: a dowel, a curve point or an axis to add; a branch on a curve; slices to tilt
+// `seam` and `face` (folded panels) are tools of their own: a click is for an edge or a face, and a drag with the left
+// button paints, so there the right button turns the view and the middle one moves it
+export function setTool(t){
+  if(t==='seam'&&!ST.plan?.edges3d){status('every face is a panel of its own here: every edge is a seam already');t=''}
+  ST.tool=t;for(const b of $$('#tools button'))b.setAttribute('aria-pressed',b.dataset.tool===t)
+  const paint=t==='seam'||t==='face'; setSeamMode(t==='seam'); setFaceMode(t==='face');
+  controls.mouseButtons=paint?{LEFT:-1,MIDDLE:THREE.MOUSE.PAN,RIGHT:THREE.MOUSE.ROTATE}:{LEFT:THREE.MOUSE.ROTATE,MIDDLE:THREE.MOUSE.DOLLY,RIGHT:THREE.MOUSE.PAN};
+  controls.touches.ONE=paint?-1:THREE.TOUCH.ROTATE}
+// the tools the technique in use has: a dowel, a curve point or an axis to add; a branch on a curve; slices to tilt;
+// seams and faces of a folded model
 export function syncTools(){const has=n=>ST.mode.params.some(p=>p.name===n),what=has('dowels')?'a dowel':has('curve')?'a curve point':has('axes')?'an axis':'';
-  const show={'':true,alt:!!what,branch:has('curve'),tilt:ST.mode.name!=='folded',roll:ST.mode.name!=='folded'};
+  const show={'':true,alt:!!what,branch:has('curve'),tilt:ST.mode.name!=='folded',roll:ST.mode.name!=='folded',seam:has('seams'),face:has('removed')};
   for(const b of $$('#tools button')){b.hidden=!show[b.dataset.tool];if(b.dataset.tool==='alt')b.querySelector('span').textContent=what}
   $('#tools').hidden=!Object.entries(show).some(([t,on])=>t&&on);   // turning the view alone is no choice: the column goes
   setTool('')}
@@ -315,7 +324,7 @@ renderer.domElement.addEventListener('pointerup',ev=>{const k=keys(ev);
     if(Math.abs(d.delta)>0.05){const k=d.mode,cur=state[k]?.[ST.selected]||0,st=niceStep(0.1*UNIT[ST.unit]);setEdit(k,cur+(k==='offset'?toMM(Math.round(d.delta*UNIT[ST.unit]/st)*st):Math.round(d.delta)))}else applyExplode();return}
   if(!down||Math.hypot(ev.clientX-down.x,ev.clientY-down.y)>10)return;
   if(down.cube){const cv=cubeHit(ev);if(cv)viewFrom(cv);return}
-  if(seamClick(ev))return;   // choosing seams: a click is for an edge, never for a part
+  if(seamClick(ev)||faceClick(ev))return;   // the seam and the face tool: a click is for an edge or a face, never for a part
   const h=hit(ev);if(h&&(h.object.userData.gizmo||h.object.userData.ring!==undefined))return;
   if(h&&(h.object.userData.ax!==undefined||h.object.userData.axline!==undefined)){if(k.altKey){const list=axisList(),i=h.object.userData.ax?h.object.userData.ax.i:h.object.userData.axline;   // alt-click an axis or its end: drop that fan (the last one stays — a radial job has to turn about something) or that branch
       if(list.length>1||lineParam()==='branches'){state[lineParam()]=dropLine(i);renderFields();slice()}
