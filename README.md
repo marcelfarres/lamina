@@ -445,26 +445,43 @@ sheets are always the same plan.
 
 ## How it is built
 
-```text
-web/app.py  (FastAPI)  ──▶  core/plan.py  ──▶  plan.json ──▶  core/export.py   SVG/DXF/PDF/EPS (OUTER, INNER, SCORE, LABEL)
-web/static/index.html         │                            ──▶  core/solid.py    assembled / per-part STL, 3MF prototype set (core/step.py: the same as STEP)
-(three.js, live)              ▼                            ──▶  browser          3D view from the facets in plan.json
-                     core/modes/*.py   one file per technique (plug-in): Slice objects with a frame + cuts (+ facets)
-                     core/ring.py      a section moved in by a wall: ring slices (stacked) and the band lattice
-                     core/ringcut.py   a ring cut across its wall with puzzle tabs (a band's: straight tongues): locked bands, `max_length`
-                     core/slidein.py   the band lattice's slide-in check: the order its pieces go in, and the ones that cannot
-                                       (connectors.py: the dowels, pegs and spacers of the stacked family)
-                     core/unfold.py    mesh → flat panels (greedy flattest-edge spanning tree, overlap-checked)
-                     core/notch.py     slots where families cross (ray casts, ratio, flare, relief)
-                     core/checks.py    physical checks and auto-fix
-                     core/split.py     split oversize parts with puzzle tabs      core/nest.py  outline nesting
-                     core/nofit.py     no-fit polygons: where a part may go beside the parts already on a sheet
-                     core/geometry.py  frames, mesh sections → shapely polygons, dowel shapes
-                     core/labels.py    the room a label takes, where it fits on a part, where it goes on the sheet
-                     core/mesh.py      the model loaded, sized, mended, kept for the next slice    core/remesh.py  modify form
-                     core/identical.py which parts are one part in several copies    core/progress.py  stages and their timing
+```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 320}}}%%
+flowchart LR
+    subgraph IN["1 – 4 · slice and check"]
+        direction TB
+        APP["web/static/index.html: the form and the live three.js view<br/>→ web/app.py (FastAPI), or the CLI: python -m core.plan<br/>→ core/plan.py · build()"]
+        S1["1 · Load the model<br/>core/mesh.py: load, size, mend, keep for the next slice<br/>core/remesh.py: modify form"]
+        S2["2 · Place slices and slots<br/>core/modes/*.py: one file per technique<br/>→ Slice objects: a frame + cuts (+ facets)"]
+        S3["3 · Section<br/>core/geometry.py: mesh section → shapely polygons<br/>cuts taken out, slivers left out"]
+        S4["4 · Check<br/>core/checks.py: physical checks, one-click fixes"]
+        HELP[["used by the techniques in step 2<br/>core/notch.py: slots where families cross<br/>core/unfold.py: mesh → flat panels<br/>core/ring.py, core/ringcut.py: rings, bands<br/>core/slidein.py: the order band pieces go in<br/>core/modes/connectors.py: dowels, pegs, spacers"]]
+        APP -- "model + parameters" --> S1 --> S2 --> S3 --> S4
+        S1 -. "preview mesh" .-> APP
+        S4 -- "a part floats, autofix = add:<br/>add a crossing slice, build again<br/>(3 passes at most)" --> S2
+        S4 ~~~ HELP
+    end
+
+    subgraph OUT["5 – 7 · cut and nest"]
+        direction TB
+        S5["5 · Cut into pieces<br/>core/split.py: oversize parts get puzzle tabs<br/>a locked band: its technique cuts it (core/ringcut.py)"]
+        S6["6 · Nest on sheets<br/>core/nest.py: outline nesting<br/>core/nofit.py: where a part may go<br/>core/labels.py: where each label goes"]
+        S7["7 · Finish<br/>core/identical.py: one part in several copies<br/>coverage of the model measured"]
+        PLAN[("plan.json")]
+        EXP(["core/export.py<br/>SVG, DXF, PDF, EPS"])
+        SOL(["core/solid.py, core/step.py<br/>STL, 3MF, STEP"])
+        VIEW(["browser<br/>3D view"])
+        S5 --> S6 --> S7 --> PLAN
+        PLAN --> EXP
+        PLAN --> SOL
+        PLAN --> VIEW
+    end
+
+    IN --> OUT
 ```
 
+- **`core/progress.py` times every stage.** The page shows each stage on its progress bar, and `plan.json` keeps the
+  times in `timing`.
 - **All geometry is computed in Python** (trimesh sections → shapely polygons). The browser only extrudes finished
   polygons; the STL export extrudes the same polygons with trimesh.
 - **A construction technique is one file** in `core/modes/` (see `interlocked.py`, about 50 lines): declare `Param`s and
