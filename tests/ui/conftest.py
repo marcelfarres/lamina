@@ -4,6 +4,7 @@ instead of in someone's inbox.
 
     uv run playwright install chromium
     LAMINA_UI=1 uv run pytest tests/ui -q
+    LAMINA_UI=1 LAMINA_BROWSER=firefox uv run pytest tests/ui -q     # or chrome / msedge: the browser installed here
 
 It drives the page the way a person does (real input events, the debounce, the real /api/slice), and fails on any
 uncaught JavaScript error, on a status line that never settles, and on a parameter whose value does not reach the
@@ -42,7 +43,8 @@ def server():
 def page(server):
     from playwright.sync_api import sync_playwright
     with sync_playwright() as p:
-        browser = p.chromium.launch()
+        name = os.environ.get("LAMINA_BROWSER", "chromium")    # playwright's own, unless a test run asks for another
+        browser = p.firefox.launch() if name == "firefox" else p.chromium.launch(channel=None if name == "chromium" else name)
         pg = browser.new_page(viewport={"width": 1500, "height": 950})
         pg.errors = []
         pg.on("pageerror", lambda e: pg.errors.append(str(e)))
