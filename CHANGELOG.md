@@ -110,7 +110,8 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
   beside it.
 - **Zip projects open at their size.** A project file from a download zip was read as one from an older
   version.
-- **Every dowel is cut.** Where a layer narrows, two dowels could land on each other and both were left out with a warning. The vase example now opens with no warning.
+- **Every dowel is cut.** Where a layer narrows, two dowels could land on each other and both were left out with
+  a warning. The vase example now opens with no warning.
 - **Examples open without warnings.** The blob example opens clean, ready to cut.
 
 ## 0.3.3
