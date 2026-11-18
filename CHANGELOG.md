@@ -6,9 +6,8 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ### Added
 
-- **See it as a lamp.** Tick *lamp* over the 3D view and a bulb lights the model from inside. A floor and a wall
-  catch the shadows that the parts throw, so you see the pattern before you cut. *Bulb height* moves the bulb from
-  the bottom to the top. Untick it and the view is as before.
+- **See it as a lamp.** Tick *lamp* over the 3D view: a bulb inside the model throws its pattern of light and soft
+  shadows on a room's walls. Three sliders move the bulb, and *bulb* picks LED or frosted.
 - **Choose where a folded model is cut apart.** The Technique tab of Folded Panels has a new *choose seams*
   button. With it on, every edge of the model shows what it is: a thin line is a fold, a dashed line is a seam the
   program chose, a thick line is a seam you chose. Click an edge on the model or on a sheet and the sheet is cut
