@@ -51,6 +51,8 @@ What changed in each release. The GitHub release for a version is this section, 
 - **The checks know your material.** The material you pick on the Sheet & fit tab now sets two checks: how wide a
   finger between slots must be, and how much material a slice can get past. The messages name the material.
 
+  ![In acrylic, which cracks, a finger must be 1.5 times the sheet: the warning says so](web/static/news/0.4.0-material.jpg)
+
 ### Changed
 
 - **The spacing graph is under its tick.** *Vary the spacing* opens the graph right below the box, not under the 3D
