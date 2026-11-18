@@ -18,8 +18,14 @@ What changed in each release. The GitHub release for a version is this section, 
   the model size afterwards, the edges change, and Lamina tells you which of your seams it could not find.
 - **Printed seams that click shut.** The *click* joint for printed folded panels: a tooth on one panel snaps under
   a bar on the other. No glue, no loose parts, nothing outside. *click size* fits it to any model.
+
+  ![The box laid flat: the teeth and bars of the click joint stand on the inside of the panels](web/static/news/0.4.0-click.jpg)
+
 - **Or seams held by clips.** The *snap* joint puts a short wall on each panel inside every seam, and a small
   printed clip pushed over the two holds them. The clips print on a plate of their own.
+
+  ![The box laid flat: a short wall on each panel at every seam, for the snap joint's clips](web/static/news/0.4.0-snap.jpg)
+
 - **Two more folded examples.** *fold_box* is a six-sided box with a turned lid, printed flat in PETG and folded up:
   every fold has its own angle. *fold_lantern* is the lamp shade at 420 mm for 3 mm plywood: 72 separate pieces,
   each with a window and lacing holes, numbered on the inside.
