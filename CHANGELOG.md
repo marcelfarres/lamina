@@ -6,18 +6,30 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ### Added
 
+- **Ring slices.** Tick *ring slices* on Stacked: each slice keeps only a wall, so the stack uses about a quarter
+  of the material. Each dowel sits in a collar. Thanks to @DaveLauber: adapted from his fork.
+
+  [![The scanned head as a stack of rings on dowels ▶](web/static/news/0.4.0-rings.jpg)](https://marcelfarres.github.io/lamina/media/rings.mp4)
+- **Band lattice.** A new technique: rings across x, y and z that slot together, best on round or boxy shapes.
+  Lamina names any piece that cannot slide in. Thanks to @DaveLauber: adapted from his fork.
+
+  [![The sphere's lattice built piece by piece, step 35 of 44 ▶](web/static/news/0.4.0-bands.jpg)](https://marcelfarres.github.io/lamina/media/bands_build.mp4)
+- **Shorter pieces for small sheets.** *Max piece length* cuts a long ring into pieces no longer than the length
+  you give, joined by tabs, so they fit a small sheet. Thanks to @DaveLauber: adapted from his fork.
+
+  ![The head's rings cut into pieces of 150 mm at most, nested on one sheet](web/static/news/0.4.0-max-length.jpg)
 - **See it as a lamp.** Tick *lamp* over the 3D view and a bulb lights the model from inside. A floor and a wall
   catch the shadows that the parts throw, so you see the pattern before you cut. *Bulb height* moves the bulb from
   the bottom to the top. Untick it and the view is as before.
 - **Make a mask from a model.** In Folded Panels, use the *select faces* tool: click, drag, *grow* or *connected*,
   then *remove*. Only what is left is cut, even when you change the face size. Try it on the new *lion_head*.
 
-  [![A lion head made into a mask: the back removed, shown as dashed outlines ▶](web/static/news/0.4.0-mask.jpg)](https://marcelfarres.github.io/lamina/media/mask.mp4)
+  [![A lion head made into a mask: the face and the whole mane kept, the back removed ▶](web/static/news/0.4.0-mask.jpg)](https://marcelfarres.github.io/lamina/media/mask.mp4)
 
 - **Put the seams where you want.** Use the *put a seam* tool of the 3D view: click an edge, or drag along edges.
   The sheet is cut apart there, and the panels are laid out round your seams.
 
-  ![The put a seam tool: your seams as thick lines round the lion's face](web/static/news/0.4.0-seams.jpg)
+  ![The put a seam tool: your seams as a thick line round the back of the lion's head](web/static/news/0.4.0-seams.jpg)
 
 - **Two more folded examples.** *fold_box* is a six-sided box with a turned lid, printed flat in PETG and folded up:
   every fold has its own angle. *fold_lantern* is the lamp shade at 420 mm for 3 mm plywood: 72 separate pieces,
@@ -26,30 +38,21 @@ What changed in each release. The GitHub release for a version is this section, 
   lower than the size you give and leaves the rest of the model as it is. The warning about panels of stiff sheet
   that press into each other now offers it as a fix, beside bigger triangles, which make the whole model coarser.
 
-- **Choose which slices of a crossed plaque go in first.** A new Plaque setting, *into the plate first*, picks the X
-  or the Y slices. The slices you pick go into the plate first, with their slots open to the front. The other slices
-  then slide down onto them one at a time. Put one long spine in first and the many cross slices slide onto it: you
-  no longer press a comb of 60 slots onto 60 slices at once. *First family height* makes those first slices lower,
-  as a percentage of the model's height. Their top keeps the shape of the model, so at 30 % they are a low rail at
-  the back that holds the others and is hardly seen from the front. The build steps in the 3D view show this order:
-  the plate, the slices that go in first, then the others. If a slice could not be put in where it is in that order,
-  the checks say so as an error.
-- **A warning for fingers that may snap.** When many crossing slices stand close together, the slices they go into
-  become combs: thin fingers of material between the slots. A finger that is too narrow for your material bends and
-  breaks when you push the crossing slice in. The part now says so, with the width of its thinnest finger and the
-  width your material needs. Put the crossing slices farther apart, use fewer of them, or use thinner material.
-- **The assembly checks know your material.** The material you pick on the Sheet & fit tab now decides two checks.
-  How wide a finger between two slots must be: as wide as the sheet is thick for plywood and PETG, half as wide again
-  for acrylic, MDF and PLA, which crack, and twice as wide for cardboard, foam and paper, which crush or tear. And how
-  much material may be in a slice's way when you slide it in: a soft sheet bends aside or is trimmed with a knife,
-  plywood is sanded, acrylic and metal hardly give. The messages name your material. A material of your own is
-  checked as the built-in material it was made from; with no material picked, the checks are as before.
+- **Choose which slices go in first.** *Into the plate first* picks the X or Y slices of a crossed plaque. The
+  others slide onto them one by one. *First family height* makes them a low rail. Their teeth are full width.
+
+  ![The cow as a plaque: the low rail goes in first, then the ribs slide onto it](web/static/news/0.4.0-first.jpg)
+
+- **A warning for weak fingers.** Many crossing slices close together turn a slice into a comb. A finger between two
+  slots that is thinner than your material can take now gets a warning with its width.
+
+  ![The egg's spine is a comb of thin fingers: the warning gives their width](web/static/news/0.4.0-fingers.jpg)
+
+- **The checks know your material.** The material you pick on the Sheet & fit tab now sets two checks: how wide a
+  finger between slots must be, and how much material a slice can get past. The messages name the material.
 
 ### Changed
 
-- **Bigger teeth on a crossed plaque.** The slices that go into the plate first now get teeth of the full *tooth
-  width*, also where a slice of the other family crosses them. Before, their teeth had to fit in the gaps between
-  the crossing slices: with slices close together they were thin slivers, or there were none.
 - **The spacing graph is under its tick.** *Vary the spacing* opens the graph right below the box, not under the 3D
   view. Both axes have a title. Every slice is an upright line across the graph, and a strip under it draws the
   model from its slices, so you see where the slices are dense. The graph's settings are on the page once.
@@ -98,6 +101,8 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ### Fixed
 
+- **Every dowel a stack asks for is cut.** Where a layer narrows, two dowels could land on top of each other and
+  both were left out with a warning. The vase example now opens with no warning.
 - **Cutting stiff sheet back at the seams no longer makes a small panel too small.** A panel that the cut-back would
   take under the minimum part or feature size keeps its edges and warns how far it presses into the next panel.
 - **No more specks beside a folded panel in stiff sheet.** Trimming a corner against the next panel could leave a
@@ -105,6 +110,7 @@ What changed in each release. The GitHub release for a version is this section, 
 - **A project file from a download zip opens at its own size.** The project file inside a downloaded zip was marked
   as made by an older Lamina, so opening it worked the model's size out again, as for an old file. It is now marked
   with the current version, like a project you save yourself.
+- **Examples open without warnings.** The blob example opens clean, ready to cut.
 
 ## 0.3.3
 

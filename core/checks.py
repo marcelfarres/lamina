@@ -15,8 +15,8 @@ from .model import Issue, LOOSE, kind_of
 from .geometry import (crossings, dowel_leverage, hole_reach, into, min_dims, plane_plane_line, rect_along, thin_spots,
                        to_local, to_world)
 
-HELD_GROUPS = ("X", "Y", "R", "C", "W")     # regions in these groups must be held by a slot / dowel / the core ("W" = a plaque's back plate)
-STRUCTURAL = ("X", "Y", "R", "C", "S")  # take part in the assembly-connectivity check (panels, pegs, strips, ribs do not)
+HELD_GROUPS = ("X", "Y", "Z", "R", "C", "W")     # regions in these groups must be held by a slot / dowel / the core ("W" = a plaque's back plate)
+STRUCTURAL = ("X", "Y", "Z", "R", "C", "S")  # take part in the assembly-connectivity check (panels, pegs, strips, ribs do not)
 CONNECTED = STRUCTURAL + ("W",)         # … and a plaque's back plate does too; it is not a plane through the model, so it gets no section treatment
 LEVERAGE_WARN = 1.5    # placement aims for 0.8 (geometry.LEVERAGE_OK); past this a piece's far edge visibly wanders
 # How each material takes a slotted assembly: (mm of material in a slice's way in that can still be got past — bent
@@ -84,7 +84,7 @@ def check_slice(sl, p):
                 sl.warnings.append(Issue(f"{tag} is a separate island — glued to its neighbours only (no dowel / peg through it); add a connection point inside it if it must be rigid", "island"))
         if sl.group == "S" and p.get("connect") == "dowel":
             _spread_warning(sl, reg, tag, p)
-    if sl.group in ("X", "Y") and not sl.engages:
+    if sl.group in ("X", "Y", "Z") and not sl.engages:
         sl.errors.append(Issue("no crossing slice — this slice touches nothing: add a slice of the other family through it, move it toward the centre, or delete it", "no-crossing"))
     # hole wall check: a closed cut (hole, slot, dowel) must leave at least min_feature of material to the outline
     if sl.cuts:
@@ -93,14 +93,18 @@ def check_slice(sl, p):
             if sl.raw.contains(c) and not inner.contains(c):
                 sl.warnings.append(Issue(f"a hole sits closer than {mf} mm to the outline (thin wall may tear) — move the connection point inward, use a smaller dowel, or accept", "hole-wall"))
                 break
-    # fingers: the material left between two slots side by side. Narrower than the material takes (about the sheet's
-    # thickness in plywood, more in a brittle or soft sheet), a finger snaps or crushes when the crossing slice is
-    # pushed in, though it is wider than min_feature
+    # fingers: the material left between the slots of two crossing slices side by side. Narrower than the material
+    # takes (about the sheet's thickness in plywood, more in a brittle or soft sheet), a finger snaps or crushes when
+    # the crossing slice is pushed in, though it is wider than min_feature. Two slots of one crossing slice end to end
+    # (its line passes the model twice) leave no finger: that is not one
     kind, (_, share) = fit_of(p)
     least = share * sl.thickness
-    if sl.group in ("X", "Y") and len(sl.cuts) > 1:
+    owner = {id(c): lab for lab, c, _ in sl.links}                  # each slot's crossing slice
+    if sl.group in ("X", "Y", "Z") and len(sl.cuts) > 1:
         a, b = STRtree(sl.cuts).query(sl.cuts, predicate="dwithin", distance=least - 1e-6)
-        widths = [d for i, j in zip(a, b) if i < j and (d := sl.cuts[i].distance(sl.cuts[j])) > 1e-6
+        two = lambda i, j: {owner.get(id(sl.cuts[i])), owner.get(id(sl.cuts[j]))}   # noqa: E731
+        widths = [d for i, j in zip(a, b) if i < j and len(two(i, j) - {None}) == 2
+                  and (d := sl.cuts[i].distance(sl.cuts[j])) > 1e-6
                   and sl.raw.contains(shapely.shortest_line(sl.cuts[i], sl.cuts[j]).interpolate(0.5, normalized=True))]
         if widths:
             need = f"{least:g} mm" + (f", {share:g} × the {sl.thickness:g} mm sheet" if share != 1 else " = the sheet's thickness")
@@ -219,7 +223,7 @@ def check_collisions(slices, mesh, span):
     they would physically collide. Crossing families are joined by slots and are fine."""
     groups = {}
     for s in slices:
-        if s.group in ("X", "Y", "S", "R", "C") and s.profile is not None:
+        if s.group in ("X", "Y", "Z", "S", "R", "C") and s.profile is not None:
             groups.setdefault(s.group, []).append(s)
     for members in groups.values():
         pairs = [(a, b) for i, a in enumerate(members) for b in members[i + 1:]]

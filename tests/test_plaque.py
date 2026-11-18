@@ -298,6 +298,13 @@ def test_the_material_sets_the_thinnest_finger(ball, material, warns):
         assert f"thinner than {material} can take" in w[0] and "× the 3 mm sheet" in w[0]
 
 
+def test_two_slots_of_one_crossing_slice_end_to_end_are_no_finger():
+    """The cow's ribs cross the spine twice where the line leaves the body and comes back (the neck): two slots of one
+    rib end to end, a hair apart. That hair is no finger between two ribs, and spacing the ribs out would not help."""
+    plan = build("examples/cow.stl", "plaque", {"back": "-y", "sink": 50, "layout": "crossed", "nx": 34, "ny": 1, "first": "y"})
+    assert not [w for w in by_group(plan, "Y")[0]["warnings"] if "finger" in w]
+
+
 def test_a_plaque_preset_names_its_own_gap_between_side_by_side_slices():
     """The page keeps a setting by name when the technique changes, and stacked's `space` is 0: a plaque example that
     left `space` to its default opened with touching slices, twice as many as it was made for."""
