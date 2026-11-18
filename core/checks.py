@@ -15,8 +15,8 @@ from .model import Issue, LOOSE, kind_of
 from .geometry import (crossings, dowel_leverage, hole_reach, into, min_dims, plane_plane_line, rect_along, thin_spots,
                        to_local, to_world)
 
-HELD_GROUPS = ("X", "Y", "R", "C", "W")     # regions in these groups must be held by a slot / dowel / the core ("W" = a plaque's back plate)
-STRUCTURAL = ("X", "Y", "R", "C", "S")  # take part in the assembly-connectivity check (panels, pegs, strips, ribs do not)
+HELD_GROUPS = ("X", "Y", "Z", "R", "C", "W")     # regions in these groups must be held by a slot / dowel / the core ("W" = a plaque's back plate)
+STRUCTURAL = ("X", "Y", "Z", "R", "C", "S")  # take part in the assembly-connectivity check (panels, pegs, strips, ribs do not)
 CONNECTED = STRUCTURAL + ("W",)         # … and a plaque's back plate does too; it is not a plane through the model, so it gets no section treatment
 LEVERAGE_WARN = 1.5    # placement aims for 0.8 (geometry.LEVERAGE_OK); past this a piece's far edge visibly wanders
 
@@ -69,7 +69,7 @@ def check_slice(sl, p):
                 sl.warnings.append(Issue(f"{tag} is a separate island — glued to its neighbours only (no dowel / peg through it); add a connection point inside it if it must be rigid", "island"))
         if sl.group == "S" and p.get("connect") == "dowel":
             _spread_warning(sl, reg, tag, p)
-    if sl.group in ("X", "Y") and not sl.engages:
+    if sl.group in ("X", "Y", "Z") and not sl.engages:
         sl.errors.append(Issue("no crossing slice — this slice touches nothing: add a slice of the other family through it, move it toward the centre, or delete it", "no-crossing"))
     # hole wall check: a closed cut (hole, slot, dowel) must leave at least min_feature of material to the outline
     if sl.cuts:
@@ -180,7 +180,7 @@ def check_collisions(slices, mesh, span):
     they would physically collide. Crossing families are joined by slots and are fine."""
     groups = {}
     for s in slices:
-        if s.group in ("X", "Y", "S", "R", "C") and s.profile is not None:
+        if s.group in ("X", "Y", "Z", "S", "R", "C") and s.profile is not None:
             groups.setdefault(s.group, []).append(s)
     for members in groups.values():
         pairs = [(a, b) for i, a in enumerate(members) for b in members[i + 1:]]

@@ -45,10 +45,16 @@ CLIPS = {                             # name: (crop, width, fps)
     "lobes": (FULL, 1200, 16),        # the plane between two lobes selected, its sliders in frame
     "square": (FULL, 1200, 16),       # a cube 8° off square, then the Model tab's square it up button
     "spacing": (FULL, 1200, 16),      # the spacing graph in the form: ticked on, a shape picked, a point dragged, follow the model
+    "rings": (VIEW43, 1100, 18),      # stacked ring slices: the head solid, as rings, a wider wall, pieces 150 mm at most
+    "bands": (VIEW43, 1100, 18),      # the band lattice on the sphere: 4 a family, then 2, 4 x 4 x 3, and 4 again
+    "bands_build": (VIEW3D, 1000, 20),   # the 4 x 4 x 4 lattice built up in the order its pieces go in, then pulled apart
     "mask": (VIEW, 1200, 16),         # folded: the lion head, a seam round its face, the back selected and removed, turned to the front
 }
 
-POSTER = {"spacing": 54, "mask": 104}             # the frame a clip's poster is, where the first one does not show its subject (the graph opens at frame 8)
+POSTER = {"spacing": 54,             # the frame a clip's poster is, where the first one does not show its subject (the graph opens at frame 8)
+          "mask": 104,
+          "rings": 44,               # the stack as rings, wall 8 mm (frames 0-29 are the solid slices)
+          "bands_build": 44}         # the lattice two thirds built (frame 0 is its first band alone)
 
 
 def px(crop):

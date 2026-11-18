@@ -208,6 +208,39 @@ def n040_mask(app):
     app.idle()
 
 
+def n040_rings(app):
+    app.example("head_igea", "stacked")
+    app.set("distribution", "count")
+    app.set("count", 10)
+    app.p.check("#p_ring_slices")              # a tick: App.set types a value, a checkbox needs check()
+    app.idle()
+    app.set("ring_wall", 8)
+    app.shot("0.4.0-rings", (0, 40, 1574, 860), [("section[data-tab=technique] .f[data-p=ring_slices]", "ring slices")])
+    app.p.uncheck("#p_ring_slices")
+    app.idle()
+
+
+def n040_bands(app):
+    app.example("sphere", "bands")             # the sphere at the defaults (5 x 5 x 4): no error, every piece has a way in
+    app.shot("0.4.0-bands", VIEW, [])
+
+
+def n040_max_length(app):
+    app.example("head_igea", "stacked")
+    app.set("distribution", "count")
+    app.set("count", 10)
+    app.p.check("#p_ring_slices")
+    app.idle()
+    app.set("max_length", 150)
+    app.p.select_option("#viewmode", "only2d")
+    app.p.wait_for_timeout(800)
+    app.shot("0.4.0-max-length", "#sheets", [])   # the sheet only: the setting's row is outside this crop
+    app.p.select_option("#viewmode", "both")
+    app.set("max_length", 0)
+    app.p.uncheck("#p_ring_slices")
+    app.idle()
+
+
 def n040_examples(app):
     halves = []
     for ex, open_, zoom in (("fold_box", 6, 1.7), ("fold_lantern", 0, 1.15)):   # closed, the box reads as a block

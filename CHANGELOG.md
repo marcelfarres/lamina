@@ -4,10 +4,25 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ## 0.4.0
 
-A new look: settings with full names in short sections, and tool buttons in the 3D view. Light a model from inside
-to see it as a lamp, and make a mask from any model.
+A new way to build, the band lattice, and a new look: settings with full names in short sections, and tool buttons
+in the 3D view. Make a mask from any model, and light it from inside to see it as a lamp.
 
 ### Added
+
+- **Band lattice.** A new technique: rings across x, y and z that slot together, best on round or boxy shapes.
+  Lamina names any piece that cannot slide in. Thanks to @DaveLauber: adapted from his fork.
+
+  [![The sphere's lattice built piece by piece, step 35 of 44 ▶](web/static/news/0.4.0-bands.jpg)](https://marcelfarres.github.io/lamina/media/bands_build.mp4)
+
+- **Ring slices.** Tick *ring slices* on Stacked: each slice keeps only a wall, so the stack uses about a quarter
+  of the material. Each dowel sits in a collar. Thanks to @DaveLauber: adapted from his fork.
+
+  [![The scanned head as a stack of rings on dowels ▶](web/static/news/0.4.0-rings.jpg)](https://marcelfarres.github.io/lamina/media/rings.mp4)
+
+- **Shorter pieces for small sheets.** *Max piece length* cuts a long ring into pieces no longer than the length
+  you give, joined by tabs, so they fit a small sheet. Thanks to @DaveLauber: adapted from his fork.
+
+  ![The head's rings cut into pieces of 150 mm at most, nested on one sheet](web/static/news/0.4.0-max-length.jpg)
 
 - **See it as a lamp.** Tick *lamp* over the 3D view. A bulb lights the model from inside, and the floor catches
   the shadows of the parts.

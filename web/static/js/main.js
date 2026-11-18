@@ -18,6 +18,7 @@ import {initSeams, seamsNow} from './seams.js';
 import {initFaces, facesNow} from './faces.js';
 // what each technique makes, as a small drawing on its card
 const MODE_ICON={stacked:"<path d='M8 8h28M5 13h34M5 18h34M8 23h28' stroke-width='3'/>",interlocked:"<path d='M12 4v22M22 4v22M32 4v22M5 9h34M5 15h34M5 21h34' stroke-width='2'/>",
+  bands:"<circle cx='22' cy='15' r='12' stroke-width='2'/><ellipse cx='22' cy='15' rx='12' ry='4.5' stroke-width='2'/><ellipse cx='22' cy='15' rx='4.5' ry='12' stroke-width='2'/>",
   radial:"<path d='M22 2v26M9 6l26 18M35 6L9 24' stroke-width='2'/><ellipse cx='22' cy='15' rx='15' ry='5' stroke-width='1.5'/>",
   curve:"<path d='M4 24C12 4 30 26 40 6' stroke-width='2'/><path d='M9 12l5 5M17 9l1 7M26 12l-2 7M33 9l4 6' stroke-width='3'/>",
   folded:"<path d='M22 3l15 8-4 14H11L7 11zM22 3v22M7 11l15 14 15-14' stroke-width='1.6'/>",plaque:"<path d='M4 25h36' stroke-width='4'/><path d='M10 23V12M16 23V7M22 23V4M28 23V7M34 23V12' stroke-width='2.5'/>"};
