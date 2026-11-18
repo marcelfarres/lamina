@@ -85,6 +85,10 @@ What changed in each release. The GitHub release for a version is this section, 
   thickness found.
 - **A print set says when it could not cut the grooves.** A build that cannot cut solids (the one in the browser)
   now writes into the set's README which parts were exported without their fold grooves or labels.
+- **A better head on the horse.** The horse example's head is now a branch: a spine down its middle and ribs across
+  it, where it was one flat slab. A turned head on your model can have a branch too.
+
+  ![The horse's head in 0.3.3, one flat slab, beside 0.4.0, a spine with ribs across it](web/static/news/0.4.0-horse-head.jpg)
 
 ### Fixed
 
