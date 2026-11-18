@@ -241,6 +241,34 @@ def n040_max_length(app):
     app.idle()
 
 
+# the horse example's curve and branches in 0.3.3, before its head became a branch of its own
+HORSE_033 = {"curve": [[-119, 11], [-89, 18], [-59, 23], [-14, 10], [16, 13], [50, 22], [76, 47], [91, 76], [106, 89], [136, 83]],
+             "branches": [[[-2, 46.6, -33], [-5.2, 64.5, -128]], [[40.5, 36.8, -33], [49, 25.8, -125]],
+                          [[-2.8, -100.1, -11], [-5, -134.2, -125]], [[52, -83.1, -15], [54.9, -101, -125]]]}
+
+
+def n040_horse_head(app):
+    """The horse's head in 0.3.3 (one slab) beside the example now (its own spine and ribs), parts only, from its
+    right front, where the head shows its profile."""
+    halves = []
+    for label, old in (("0.3.3: one slab", True), ("0.4.0: spine and ribs", False)):
+        app.example("horse")
+        if old:
+            app.p.evaluate("f => window.__t.applyFix(f)", HORSE_033)
+            app.idle()
+        app.view(60, 15)
+        app.p.uncheck("#ghost")
+        app.p.evaluate("() => { const t = window.__t; t.target().set(-25, 120, 80); t.cam(60, 15, 300);"
+                       " for (const g of [t.guides(), t.axes()]) for (const o of g) o.visible = false;"
+                       " for (const m of t.parts()) if (m.userData.group === 'B') m.visible = false; t.frame() }")
+        app.p.wait_for_timeout(500)
+        x0, y0, x1, y1 = app.box("#v3d")
+        w, h = x1 - x0, y1 - y0
+        halves.append(caption(app.grab((x0 + 0.24 * w, y0 + 0.2 * h, x1 - 0.18 * w, y1 - 0.12 * h)), label))
+        app.p.check("#ghost")
+    save("0.4.0-horse-head", side_by_side(*halves))
+
+
 def n040_examples(app):
     halves = []
     for ex, open_, zoom in (("fold_box", 6, 1.7), ("fold_lantern", 0, 1.15)):   # closed, the box reads as a block

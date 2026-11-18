@@ -32,12 +32,12 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
 - **Make a mask from a model.** In Folded Panels, use the *select faces* tool: click, drag, *grow* or *connected*,
   then *remove*. Only what is left is cut, even when you change the face size. Try it on the new *lion_head*.
 
-  [![A lion head made into a mask: the back removed, shown as dashed outlines ▶](web/static/news/0.4.0-mask.jpg)](https://marcelfarres.github.io/lamina/media/mask.mp4)
+  [![A lion head made into a mask: the face and the whole mane kept, the back removed ▶](web/static/news/0.4.0-mask.jpg)](https://marcelfarres.github.io/lamina/media/mask.mp4)
 
 - **Put the seams where you want.** Use the *put a seam* tool of the 3D view: click an edge, or drag along edges.
   The sheet is cut apart there, and the panels are laid out round your seams.
 
-  ![The put a seam tool: your seams as thick lines round the lion's face](web/static/news/0.4.0-seams.jpg)
+  ![The put a seam tool: your seams as a thick line round the back of the lion's head](web/static/news/0.4.0-seams.jpg)
 
 - **Two new folded examples.** *fold_box* is a box with a lid that you print flat and fold up. *fold_lantern* is a
   plywood lantern of 72 pieces.
@@ -99,12 +99,19 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
 - **Small changes to folded panels.** The printed-fold settings show only on a print job. A fin thinner than two
   sheets gets a warning. A print set says which parts lost their grooves.
 
+- **A better head on the horse.** The horse example's head is now a branch: a spine down its middle and ribs across
+  it, where it was one flat slab. A turned head on your model can have a branch too.
+
+  ![The horse's head in 0.3.3, one flat slab, beside 0.4.0, a spine with ribs across it](web/static/news/0.4.0-horse-head.jpg)
+
 ### Fixed
 
 - **Cleaner seams in stiff sheet.** A small panel is no longer cut too small at a seam, and no specks are left
   beside it.
 - **Zip projects open at their size.** A project file from a download zip was read as one from an older
   version.
+- **Every dowel is cut.** Where a layer narrows, two dowels could land on each other and both were left out with a warning. The vase example now opens with no warning.
+- **Examples open without warnings.** The blob example opens clean, ready to cut.
 
 ## 0.3.3
 
