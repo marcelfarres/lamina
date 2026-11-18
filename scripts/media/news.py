@@ -221,8 +221,9 @@ def n040_rings(app):
 
 
 def n040_bands(app):
-    app.example("sphere", "bands")             # the sphere at the defaults (5 x 5 x 4): no error, every piece has a way in
-    app.shot("0.4.0-bands", VIEW, [])
+    app.example("sphere", "bands")             # the sphere at the defaults (4 x 4): no error, every piece has a way in
+    app.view(30, 20, 0.9)
+    app.shot("0.4.0-bands", "#v3d", [])
 
 
 def n040_max_length(app):
@@ -234,7 +235,8 @@ def n040_max_length(app):
     app.set("max_length", 150)
     app.p.select_option("#viewmode", "only2d")
     app.p.wait_for_timeout(800)
-    app.shot("0.4.0-max-length", "#sheets", [])   # the sheet only: the setting's row is outside this crop
+    x0, y0, x1, y1 = app.box("#sheets")              # the sheet only, where the pieces lie (its top half is empty)
+    app.shot("0.4.0-max-length", (x0, y0 + 0.5 * (y1 - y0), x1, y1), [])
     app.p.select_option("#viewmode", "both")
     app.set("max_length", 0)
     app.p.uncheck("#p_ring_slices")
@@ -334,9 +336,10 @@ def n040_cards(app):
 
 
 def n040_warnings(app):
-    app.example("vase", "stacked")
-    app.set("n_points", 6)                  # six dowels a layer: the vase's neck has no room for them all, so a warning
-    app.view(25, 20, 0.75, only3d=False)
+    app.example("cone", "stacked")          # 20 mm dowels: the tip is too narrow for one, so it is left out (test_modes)
+    for k, v in (("connect", "dowel"), ("n_points", 2), ("dowel_d", 20), ("distribution", "count"), ("count", 8)):
+        app.set(k, v)
+    app.view(25, 20, 0.9, only3d=False)
     x0, y0, x1, _ = app.box(VIEW)
     app.shot("0.4.0-warnings", (x0, y0, x1, app.box("#msgs")[3]), [("#msgs", "a warning, counted")])
 

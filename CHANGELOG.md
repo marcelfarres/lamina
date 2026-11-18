@@ -85,7 +85,7 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
 - **Clear warnings.** A warning starts with ⚠ WARNING and an error with ✖ ERROR. A dowel with no room is now a
   counted warning, with a ring where it is.
 
-  ![A dowel warning, and the rings in the 3D view where the dowels found no room](web/static/news/0.4.0-warnings.jpg)
+  ![A warning and an error, each with its sign: the cone's tip has no room for its dowel](web/static/news/0.4.0-warnings.jpg)
 
 - **Watch it fold up.** On a folded job, the steps slider ends by folding the panels from flat to the model.
 
