@@ -76,6 +76,8 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ### Fixed
 
+- **Every dowel a stack asks for is cut.** Where a layer narrows, two dowels could land on top of each other and
+  both were left out with a warning. The vase example now opens with no warning.
 - **Cutting stiff sheet back at the seams no longer makes a small panel too small.** A panel that the cut-back would
   take under the minimum part or feature size keeps its edges and warns how far it presses into the next panel.
 - **No more specks beside a folded panel in stiff sheet.** Trimming a corner against the next panel could leave a
