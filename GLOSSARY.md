@@ -55,4 +55,6 @@ The words Lamina uses for its parts. One word for one thing.
   stands up behind it. The joint is *click*.
 - **Bar**: the small beam on the inside of the other panel, printed as a bridge between two posts. It springs up to
   let the tooth past.
+- **Locator**: a click without the tooth's ridge. It keeps the edges of a seam level but does not hold the seam shut.
+  A seam gets one when it closes in the same motion as another seam that has a click, as on a lid.
 - **Tab**: a flap on a seam edge that is glued to the next panel. On a printed panel a tab is only as thick as the skin.

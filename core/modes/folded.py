@@ -5,6 +5,7 @@ Joint sizes adapt to the triangle they sit in (a hole or slot never crosses a fo
 shrink is reported per panel. Tabs are shown in the 3D view folded onto the panel they glue to."""
 from __future__ import annotations
 import math
+from collections import Counter
 import numpy as np
 import shapely
 from shapely import affinity
@@ -294,6 +295,10 @@ class Folded(Mode):
         Param("click_deep", "number", 2.4, "Click joint: the bar's depth across the seam (mm): what keeps it straight when the seam is "
               "pulled. The bar bows out and lets the tooth go: deeper. A deeper bar needs a wider frame beside a window", 1.2, 5, 0.2,
               unit="mm", show_if=("joint", ["click"]), label="bar depth"),
+        Param("click_together", "bool", True, "Click joint: seams that close in the same motion, like the edges of a lid as it "
+              "folds down, get one click; the others get a locator, the tooth without its ridge, which keeps the edges level and "
+              "goes in with no force. A piece on no fold gets two clicks, so it cannot swing out. Off: every seam its own "
+              "click, all to press in at once", show_if=("joint", ["click"]), label="one click at a time"),
         Param("click_solid", "number", 0.5, "Click joint: how much of the bar is solid down to the panel. 0 = the bar is a free bridge from "
               "post to post and springs up to let the tooth past. 1 = the posts grow in under the bar as far as the tooth, and only "
               "the piece of bar over the tooth is free: much stronger, but that short piece cannot spring, so the seam has to give "
@@ -461,6 +466,8 @@ class Folded(Mode):
         if p["joint"] == "click":
             self.closers = {}                                 # panel → the edges another face folds or closes over it at
             self.tight = {}                                   # panel → (it, the seams whose bar is stretched past its material's limit, how far)
+            self.together = self.closing(slices, seams) if p["click_together"] else {}   # seam → the part that closes it with other seams
+            self.clicked, self.located = Counter(), []        # part → the clicks it has; the seams given a locator
             for k in [k for sl in slices for k in self.creases(sl.pn)] + list(seams):
                 if convex[k]:
                     va, vb = mesh.face_adjacency_edges[k]; a, b = (self.side(owner[int(f)], int(f), va, vb) for f in mesh.face_adjacency[k])
@@ -474,6 +481,10 @@ class Folded(Mode):
             phi = self.interior_angle(k)
             extra += self.joint(j, k, sides, phi, convex[k])
         # additions (tabs) → raw; facets for the 3D view: the profile of every face in its own frame (+ folded tabs)
+        if p["joint"] == "click" and self.located:
+            ctx.notes_extra = " · ".join(x for x in [ctx.notes_extra, f"{len(self.located)} seam(s) close in the same motion as one "
+                                       "with a click: they have a locator, the tooth without its ridge, so only one click goes in at "
+                                       f"a time (seams {', '.join(map(str, sorted(self.located)))})"] if x)
         for sl, js, far in getattr(self, "tight", {}).values() if p["joint"] == "click" else ():
             press, strain = max(far)
             sl.warnings.append(f"{len(set(js))} click joint(s) are stiff: about {press / 9.81:.0f} kg to press one shut, and its bar must stretch "
@@ -537,7 +548,7 @@ class Folded(Mode):
         self.check_folds(ctx, panels, seams)
         if len(ctx.errors) == said:                           # a sheet that does not fold at all has said so: how far it folds is moot
             self.check_closing(slices)
-        ctx.notes_extra = f"unfolded {len(mesh.faces)} triangles into {n_panels} panel(s), {len(seams)} seams"
+        ctx.notes_extra = " · ".join(x for x in [f"unfolded {len(mesh.faces)} triangles into {n_panels} panel(s), {len(seams)} seams", ctx.notes_extra] if x)
         if not p["separate"]:
             ctx.view["edges3d"] = self.edges3d(seams, chosen)
         if lost and slices:
@@ -763,6 +774,53 @@ class Folded(Mode):
     def click_cap(self):
         """The most a click's bar may be stretched letting the tooth past, for the job's material."""
         return CLICK_STRAIN.get(self.p.get("material_kind") or self.p.get("material"), 0.03)
+
+    def closing(self, slices, seams):
+        """Which seams close in one motion → {seam: the flat part that closes it}, for the parts that close two or more.
+        Folding goes out from the biggest flat part of the biggest panel: a part folds after the one it hangs from,
+        a flap (a part on one fold with nothing beyond it, like a lid) after the parts that carry others, since it caps
+        the shape, of two flaps the one with more seams on its edges, and a panel of its own after the bigger ones. A seam closes when the later of its two parts moves,
+        and every seam that part closes moves with it: a lid on its fold, a loose wall put in place. Two parts as
+        late as each other (two walls on one bottom) close their seam one after the other: not together.
+        ponytail: the order is assumed, not known; a model folded another way may close other seams together."""
+        m = self.mesh; when = {}
+        for rank, sl in enumerate(sorted(slices, key=lambda sl: -sum(m.area_faces[f] for f in sl.pn.faces))):
+            part = {f: f for f in sl.pn.faces}               # the flat parts: faces joined by folds that do not bend
+
+            def top(f, part=part):
+                while part[f] != f:
+                    f = part[f]
+                return f
+            bent = []
+            for k in sl.pn.folds:
+                a, b = (int(f) for f in m.face_adjacency[k])
+                if m.face_adjacency_angles[k] < FLAT:
+                    part[top(a)] = top(b)
+                else:
+                    bent.append((a, b))
+            area, nb = {}, {}
+            for f in sl.pn.faces:
+                area[top(f)] = area.get(top(f), 0.0) + m.area_faces[f]
+            for a, b in bent:
+                nb.setdefault(top(a), set()).add(top(b)); nb.setdefault(top(b), set()).add(top(a))
+            depth = {max(area, key=area.get): 0}; todo = list(depth)   # out from the biggest part, one fold at a time
+            while todo:
+                q = todo.pop(0)
+                for r in nb.get(q, ()):
+                    if r not in depth:
+                        depth[r] = depth[q] + 1; todo.append(r)
+            root = next(iter(depth))
+            for f in sl.pn.faces:
+                q = top(f); when[f] = (rank, q != root and len(nb.get(q, ())) == 1, depth[q], q)
+        edges = Counter(when[int(f)][3] for k in seams for f in m.face_adjacency[k])     # part → the seams on its edges
+        when = {f: (r, flap, edges[q] if flap else 0, d, q) for f, (r, flap, d, q) in when.items()}
+        later = {}
+        for k in seams:
+            a, b = (when[int(f)] for f in m.face_adjacency[k])
+            if a[:4] != b[:4]:
+                later[k] = max(a, b)
+        count = Counter(later.values())
+        return {k: q for k, q in later.items() if count[q] > 1}
 
     def far(self, k, sides):
         """How far seam k is from the folds of the flat faces it closes (mm, from its middle to the middle of the
@@ -1169,6 +1227,11 @@ class Folded(Mode):
         longest = min(spans[1], math.floor(L / n - 3 - 2 * post))     # the bar as long as the seam lets it be
         why = ("the seam bends more than 100°: the walls would lean too far to print" if bend / 2 > SNAP_LEAN else
                "the seam is too short" if longest < spans[0] else "")
+        # a seam that closes with others in one motion gets the click only if none of them has it yet: the rest get
+        # a locator, the tooth without its ridge, which keeps the edges level and goes in with no force
+        # a part on a fold needs one click: the fold holds the rest. A piece on no fold (a panel of its own) needs two,
+        # or it could swing out about the one
+        group = self.together.get(k); locate = group is not None and self.clicked[group] >= (2 if group[0] and not group[3] else 1)
         placed = 0
         for span in ([] if why else sorted({longest, spans[0]}, reverse=True)):
             parts = self.click_parts(bend, convex, room, span)
@@ -1179,7 +1242,7 @@ class Folded(Mode):
 
             def pieces(c, parts=parts, half=half, tooth=tooth):   # noqa: B023   # what a click centred c along the seam stands on each side
                 out = [(a, c - tooth - 3 * size, c + tooth + 3 * size, parts.wall), (b, c - half - 0.5, c + half + 0.5, parts.bar)]   # the bar: half a millimetre into each post
-                out += [(a, c - x1, c + x1, prof) for _, x1, prof in parts.teeth]
+                out += [(a, c - x1, c + x1, prof) for _, x1, prof in parts.teeth[1 if locate else 0:]]
                 for sign in (-1, 1):
                     out.append((b, *sorted((c + sign * (half - p["click_solid"] * (half - tooth - CLICK_GAP * size / 2)), c + sign * (half + post))), parts.post))   # the post, and what of it is under the bar
                     out.append((b, *sorted((c + sign * (tooth + 0.25), c + sign * (half + 0.5))), parts.guide))     # a block from the tooth to the post, under the bar
@@ -1191,7 +1254,11 @@ class Folded(Mode):
                         for q in pieces(c):
                             self.stand(q[0], va, e, *q[1:])
                         placed += 1
-                        if parts.press > CLICK_HARD * size * size:
+                        if locate:
+                            self.located.append(j)
+                        elif group is not None:
+                            self.clicked[group] += 1
+                        if not locate and parts.press > CLICK_HARD * size * size:
                             self.tight.setdefault(id(a.sl), (a.sl, [], []))[1].append(j); self.tight[id(a.sl)][2].append((parts.press, parts.strain))
                         break
             if placed:

@@ -171,6 +171,19 @@ Which seams get a click when not all can: `Folded.far` puts the seams in order, 
 face first. A lid hangs on one fold. The seam opposite that fold holds it shut, so it finds its place before the
 seams beside the fold, which the fold holds already.
 
+One click at a time: several clicks that must go in at the same moment are hard to press shut. `Folded.closing`
+finds the seams that close in one motion and gives only one of them a click; the others get a locator, the tooth
+without its ridge, which keeps the edges level and goes in with no force. It assumes an order of folding: out from
+the biggest flat part of the biggest panel; a flap (a part on one fold with nothing beyond it, like a lid) after
+the parts that carry others; of two flaps, the one with more seams on its edges; a panel of its own after the bigger
+ones. A seam closes when the later of its two parts moves. Two parts equally late, such as two walls on one bottom,
+close their seam one after the other, so both keep their clicks. The box's lid closes five seams as it folds down:
+it gets one click, opposite its fold, and locators where there is room. The fold holds the lid on one side, and the
+click opposite it stops the lid turning about it with the longest lever. A piece on no fold (a panel of its own)
+gets two clicks, or it could swing out about the one. A model folded in another order can still close two clicks at
+once, as the last wall of a ring does. `one click at a time` (`click_together`) turns the rule off: every seam its
+own click.
+
 Everything else is a plain block. The tooth is one block 10 mm wide on a 2.4 mm wall, with the one ridge. Every
 upright (the tooth's wall, the posts, the blocks under the bar) is a wedge (`Folded.braced`, `CLICK_FOOT`): its
 front, a flat top, and one slope down into the panel, so a pull on the seam does not bend a thin wall at its foot

@@ -42,7 +42,8 @@ def test_the_seams_of_the_box_click_with_no_part_of_their_own_and_nothing_on_the
     assert plan["counts"]["errors"] == 0 and all("without a click joint" in w for w in said)     # a small box: some seams are too short for a bar
     assert {s["group"] for s in plan["slices"]} == {"F"}              # panels only: no clip, nothing loose
     bars = [r for r in walls if min(z for _, z in r["profile"]) > 2.5]            # the bars: off the panel, between their posts
-    assert len(bars) >= 7 and len(walls) == 8 * len(bars)             # a click: a wall, the tooth and its ridge; a bar, two posts, two blocks
+    located = int(next(n for n in plan["notes"] if "locator" in n).split(" seam(s) close")[0].split()[-1])
+    assert len(bars) >= 7 and len(walls) == 8 * len(bars) - located   # a click: a wall, the tooth and its ridge; a bar, two posts, two blocks. A locator: no ridge
     assert all(F.CLICK_SPAN[0] + 1 - 1e-3 <= math.dist(r["a"], r["b"]) <= F.CLICK_SPAN[1] + 1 + 1e-3 for r in bars)
     assert outline(box(joint="seam")).symmetric_difference(outline(plan)).area < 1e-6
     feet = [(F.Rail(r["a"], r["b"], r["into"], r["profile"]).foot(), tuple(round(x, 3) for x in r["into"])) for r in walls]
@@ -113,19 +114,20 @@ def test_the_whole_click_goes_with_its_size_and_the_posts_with_theirs():
     assert int(short[0].split()[0]) < 8                     # smaller clicks fit seams the full size does not
 
 
-def test_a_lid_on_one_fold_gets_its_click_on_the_seam_opposite_the_fold(monkeypatch):
-    seen = []; click = F.Folded.click       # the box's lid: a hexagon of 25 mm edges on one fold. Its five seams are too close to all take a click
+def test_a_lid_closes_its_seams_in_one_motion_so_it_gets_one_click_on_the_seam_opposite_its_fold(monkeypatch):
+    seen = []; click = F.Folded.click       # the box's lid: a hexagon of 25 mm edges on one fold, five seams that all close as it folds down
 
     def watched(self, j, k, sides, convex):
         had = len(sides[0].sl.rails); out = click(self, j, k, sides, convex); m = self.mesh
         if max(m.face_normals[s.f][2] for s in sides) > 0.99:                   # a seam of the lid
-            seen.append((self.far(k, sides), len(sides[0].sl.rails) > had, m.vertices[m.face_adjacency_edges[k]].mean(axis=0)))
+            seen.append((self.far(k, sides), len(sides[0].sl.rails) > had, m.vertices[m.face_adjacency_edges[k]].mean(axis=0), j in self.located))
         return out
     monkeypatch.setattr(F.Folded, "click", watched)
     assert box(joint="click")["counts"]["errors"] == 0 and len(seen) == 5
-    far, placed, mid = seen[0]
-    assert placed and far == max(f for f, _, _ in seen) > 40                    # the first to find its place: the seam across the lid from its fold
-    assert all(np.linalg.norm(mid - m) > 20 for _, _, m in seen[1:])
+    far, placed, mid, located = seen[0]
+    assert placed and not located and far == max(f for f, *_ in seen) > 40     # the click: on the seam across the lid from its fold
+    assert all(np.linalg.norm(mid - m) > 20 for _, _, m, _ in seen[1:])
+    assert all(loc for _, placed, _, loc in seen[1:] if placed) and sum(p for _, p, _, _ in seen) >= 3   # the others: locators, to go in with it
 
 
 def test_every_upright_stands_on_a_ramp_several_times_as_deep_as_the_wall():
@@ -142,6 +144,22 @@ def test_a_click_beside_a_fold_that_would_close_onto_it_takes_a_shorter_bar():
     rails = [r for s in plan["slices"] for pc in s["pieces"] for r in pc["rails"]]
     bars = sorted(round(math.dist(r["a"], r["b"]) - 1) for r in rails if len(r["profile"]) == 4 and min(z for _, z in r["profile"]) > 2.5)
     assert bars == [16, 16, 16, 24] and len(rails) == 32
+
+
+def test_a_piece_on_no_fold_gets_two_clicks_so_it_cannot_swing_out_and_the_rule_can_be_turned_off(monkeypatch):
+    lid = [[a, b] for _, _, a, b, *_ in box(joint="seam")["edges3d"] if min(a[2], b[2]) > 22]    # the lid's six edges, all cut: a piece of its own
+    seen = []; click = F.Folded.click
+
+    def watched(self, j, k, sides, convex):
+        had = len(sides[0].sl.rails); out = click(self, j, k, sides, convex)
+        if max(self.mesh.face_normals[s.f][2] for s in sides) > 0.99:                 # a seam of the lid
+            seen.append("locator" if j in self.located else "click" if len(sides[0].sl.rails) > had else "none")
+        return out
+    monkeypatch.setattr(F.Folded, "click", watched)
+    assert len(lid) == 6 and box(joint="click", seams=lid)["counts"]["errors"] == 0 and len(seen) == 6
+    assert seen.count("click") == 2 and seen.count("locator") >= 1            # put in place it closes six seams: two clicks, so it cannot swing about one
+    seen.clear(); box(joint="click", seams=lid, click_together=False)
+    assert "locator" not in seen and seen.count("click") >= 3                   # off: every seam that has room its own click, all at once
 
 
 def test_a_seam_whose_tooth_needs_higher_walls_than_allowed_is_left_plain_and_said():
