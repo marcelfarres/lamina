@@ -34,7 +34,7 @@ const exCard=n=>`<div class="card" data-example="${esc(n)}"><img src="static/exa
 // listed again on every show and change; a listing that finishes after a newer one started is dropped, and one that
 // draws what is there is not drawn again: a slice tells onChange twice, and a re-draw takes the button under the pointer
 async function render(){const k=++listing, ps=await lib.entries().catch(e=>{
-    if(lib.storeState().state!=='needs-permission'){tell(e.message,'err');failed=note}return null});   // that one the folder line says, with its buttons
+    if(!['needs-permission','unknown'].includes(lib.storeState().state)){tell(e.message,'err');failed=note}return null});   // those two the folder line says
   if(k!==listing)return;
   if(ps&&failed){if(note===failed)note='';failed=''}
   where();
@@ -52,6 +52,7 @@ function where(){const s=lib.storeState(), b=(id,t)=>`<button class="small" id="
     still=s.browser?` ${plural(s.browser,'revision')} ${s.browser===1?'is':'are'} still in this browser: unlink to see ${it}, or press ${s.state==='folder'?'change folder':'pick another folder'} and pick <b>${esc(s.label)}</b> to move ${it}.`:'';
   const [line,buttons]=s.state==='folder'?[`📁 kept in the folder <b>${esc(s.label)}</b> · ${plural(s.files,'file')}.${still}${stayed}`,b('libchange','change folder')+b('libunlink','unlink')]
     :s.state==='needs-permission'?[`⚠ The linked folder <b>${esc(s.label)}</b> cannot be reached.${still}`,b('libreconnect',rec?'reconnecting…':'reconnect folder')+b('libchange','pick another folder')+b('libunlink','unlink')]
+    :s.state==='unknown'?['⚠ The library could not be opened. Reload the page.','']
     :['💾 kept in this browser only. Clearing the site data deletes them: use <b>export all</b> for a backup.'+stayed,
       lib.canLink()?b('liblink','link a folder'):'<button class="small" id="liblink" disabled title="needs Chrome or Edge">link a folder (needs Chrome or Edge)</button>'];
   $('#libwhere').innerHTML=`<span>${line}</span><span class="sp"></span>${buttons}${note?`<div class="note">${esc(note)}</div>`:''}`}
@@ -68,8 +69,9 @@ function reconnect(){const {label}=lib.storeState(), p=lib.reconnect();rec=true;
 // a revision by its file name, as the person knows it: "bunny plaque v1.0"
 const named=f=>{const m=/^(.*)_v(.+)\.lamina\.json$/.exec(f);return m?`${m[1]} v${m[2]}`:f};
 // what a link did: how many moved, and each revision that stayed in this browser, that it is safe, why, and what to do
-function told(name,{moved,skipped,changed}){const asked=skipped.filter(f=>!changed.includes(f)), it=skipped.length===1?'it':'them',
+function told(name,{moved,skipped,changed,kept}){const asked=skipped.filter(f=>!changed.includes(f)), it=skipped.length===1?'it':'them',
     out=[`Linked ${name}: ${plural(moved.length,'revision')} moved into it.`];
+  if(kept.length)out.push(`${few(kept.map(k=>`${k.rev} as v${k.as}`))} moved in as a new revision instead of replacing, as the folder's file cannot be read.`);
   if(asked.length)out.push(`${few(asked.map(named))} stayed in this browser, safe: the folder already had that revision and the question was cancelled.`);
   if(changed.length)out.push(`${few(changed.map(named))} stayed in this browser, safe: another tab saved ${changed.length===1?'it':'them'} again during the link (the folder has the copy from before).`);
   if(skipped.length)out.push(`To move ${it}, press change folder, pick ${name} again and choose keep both. To see ${it} or export ${it}, unlink.`);
