@@ -24,12 +24,12 @@ What changed in each release. The GitHub release for a version is this section, 
 - **Make a mask from a model.** In Folded Panels, use the *select faces* tool: click, drag, *grow* or *connected*,
   then *remove*. Only what is left is cut, even when you change the face size. Try it on the new *lion_head*.
 
-  [![A lion head made into a mask: the back removed, shown as dashed outlines ▶](web/static/news/0.4.0-mask.jpg)](https://marcelfarres.github.io/lamina/media/mask.mp4)
+  [![A lion head made into a mask: the face and the whole mane kept, the back removed ▶](web/static/news/0.4.0-mask.jpg)](https://marcelfarres.github.io/lamina/media/mask.mp4)
 
 - **Put the seams where you want.** Use the *put a seam* tool of the 3D view: click an edge, or drag along edges.
   The sheet is cut apart there, and the panels are laid out round your seams.
 
-  ![The put a seam tool: your seams as thick lines round the lion's face](web/static/news/0.4.0-seams.jpg)
+  ![The put a seam tool: your seams as a thick line round the back of the lion's head](web/static/news/0.4.0-seams.jpg)
 
 - **Two more folded examples.** *fold_box* is a six-sided box with a turned lid, printed flat in PETG and folded up:
   every fold has its own angle. *fold_lantern* is the lamp shade at 420 mm for 3 mm plywood: 72 separate pieces,
