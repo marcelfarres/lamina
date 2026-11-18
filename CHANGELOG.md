@@ -2,7 +2,7 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
-## 0.3.4
+## 0.4.0
 
 ### Added
 
