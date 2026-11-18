@@ -370,8 +370,8 @@ class Connectors:
             # A shared point is a rod through every layer, but a layer can already hold a rod carried up from wider
             # layers below, beside where the shared point falls: the vase's waist had them 3.8 mm apart, the two
             # holes overlapped, and `fits` left four dowels out. A shared point keeps a wall from every hole the
-            # layer already has, or is that hole.
-            mine = [q for q in fixed if isl.contains(Point(q)) and all(_dist(q, t) < 1e-6 or _dist(q, t) > clearance for t in taken)]
+            # layer already has, or is that hole (a hole's key is rounded to 0.01 mm: within that it is the same rod).
+            mine = [q for q in fixed if isl.contains(Point(q)) and all(_dist(q, t) < 0.01 or _dist(q, t) > clearance for t in taken)]
             # One point is a hinge: a piece pinned once still turns about it, which is exactly what a glued stack
             # does while it dries. Two locate it. An island the common points miss (an ear) gets its own, and one
             # they touch only once is topped up from its own spread, clear of the point already there.
