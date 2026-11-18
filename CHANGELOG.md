@@ -40,8 +40,13 @@ What changed in each release. The GitHub release for a version is this section, 
 
 - **Choose which slices go in first.** *Into the plate first* picks the X or Y slices of a crossed plaque. The
   others slide onto them one by one. *First family height* makes them a low rail. Their teeth are full width.
+
+  ![The cow as a plaque: the low rail goes in first, then the ribs slide onto it](web/static/news/0.4.0-first.jpg)
+
 - **A warning for weak fingers.** Many crossing slices close together turn a slice into a comb. A finger between two
   slots that is thinner than the sheet now gets a warning with its width.
+
+  ![The egg's spine is a comb of thin fingers: the warning gives their width](web/static/news/0.4.0-fingers.jpg)
 
 ### Changed
 
