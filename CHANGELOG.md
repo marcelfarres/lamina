@@ -83,6 +83,7 @@ What changed in each release. The GitHub release for a version is this section, 
 - **A project file from a download zip opens at its own size.** The project file inside a downloaded zip was marked
   as made by an older Lamina, so opening it worked the model's size out again, as for an old file. It is now marked
   with the current version, like a project you save yourself.
+- **Examples open without warnings.** The blob example opens clean, ready to cut.
 
 ## 0.3.3
 
