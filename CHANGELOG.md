@@ -5,7 +5,7 @@ What changed in each release. The GitHub release for a version is this section, 
 ## 0.4.0
 
 A new look: settings with full names in short sections, and tool buttons in the 3D view. Light a model from inside
-to see it as a lamp, and choose where a folded model is cut apart.
+to see it as a lamp, and make a mask from any model.
 
 ### Added
 
@@ -14,13 +14,15 @@ to see it as a lamp, and choose where a folded model is cut apart.
 
   ![The lamp tick over the 3D view, and the shadows on the floor](web/static/news/0.4.0-lamp.jpg)
 
-- **Choose where a folded model is cut apart.** The Technique tab of Folded Panels has a new *choose seams*
-  button. With it on, every edge of the model shows what it is: a thin line is a fold, a dashed line is a seam the
-  program chose, a thick line is a seam you chose. Click an edge on the model or on a sheet and the sheet is cut
-  apart there; the panels are laid out again round your seams. Click a seam of yours again and the program
-  decides that edge again. The edge under the pointer lights up on the model and on the sheet at the same time, so
-  you can pick it where it is easier to see. Your seams are saved with the project. If you change the facet size or
-  the model size afterwards, the edges change, and Lamina tells you which of your seams it could not find.
+- **Make a mask from a model.** In Folded Panels, use the *select faces* tool: click, drag, *grow* or *connected*,
+  then *remove*. Only what is left is cut, even when you change the face size. Try it on the new *lion_head*.
+
+  [![A lion head made into a mask: the back removed, shown as dashed outlines ▶](web/static/news/0.4.0-mask.jpg)](https://marcelfarres.github.io/lamina/media/mask.mp4)
+
+- **Put the seams where you want.** Use the *put a seam* tool of the 3D view: click an edge, or drag along edges.
+  The sheet is cut apart there, and the panels are laid out round your seams.
+
+  ![The put a seam tool: your seams as thick lines round the lion's face](web/static/news/0.4.0-seams.jpg)
 
 - **Two new folded examples.** *fold_box* is a box with a lid that you print flat and fold up. *fold_lantern* is a
   plywood lantern of 72 pieces.

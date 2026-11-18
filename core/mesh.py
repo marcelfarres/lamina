@@ -132,22 +132,30 @@ def _prepare(path, params, notes, surface):
     # `size` is the model's own, along the file's axes, and is applied before any turn: aimed at the world axes after
     # the turn, as it used to be, a bear made 500 mm tall and then stood up along x was 500 mm long and half as big
     # again (034). The page shows and takes the numbers along the view's axes and keeps them on the model's.
+    frame = np.eye(4)                                 # the file's coordinates → the model's: every scale, turn and move below
+
+    def move(T):
+        nonlocal frame
+        mesh.apply_transform(T); frame = T @ frame
+
+    def scale(s):
+        move(np.diag([*(np.ones(3) * s), 1.0]))
     size = params.get("size") or []
     if any(size):
         tgt = np.array([s if s else 0 for s in (list(size) + [0, 0, 0])[:3]], float)
         ext = mesh.extents
         if (tgt > 0).sum() == 1:                      # one value → uniform
-            i = int(np.argmax(tgt)); mesh.apply_scale(tgt[i] / ext[i])
+            i = int(np.argmax(tgt)); scale(tgt[i] / ext[i])
         else:
-            mesh.apply_scale([tgt[i] / ext[i] if tgt[i] > 0 else 1 for i in range(3)])
+            scale([tgt[i] / ext[i] if tgt[i] > 0 else 1 for i in range(3)])
     if params["scale"] != 1:                          # multiplies the target size when one is set
-        mesh.apply_scale(params["scale"])
+        scale(params["scale"])
     if params["up_axis"] != "z":
         src = "xyz".index(params["up_axis"])
-        mesh.apply_transform(trimesh.geometry.align_vectors(np.eye(3)[src], [0, 0, 1]))
+        move(trimesh.geometry.align_vectors(np.eye(3)[src], [0, 0, 1]))
     rot = params.get("rotate") or [0, 0, 0]
     if any(rot):
-        mesh.apply_transform(trimesh.transformations.euler_matrix(*np.radians(rot[:3]), "sxyz"))
+        move(trimesh.transformations.euler_matrix(*np.radians(rot[:3]), "sxyz"))
     if max(mesh.extents) < 5:                         # Blender writes metres: a 100 mm cube arrives 0.1 mm across
         notes.append(f"the model is only {max(mesh.extents):.3g} mm across — saved in metres or centimetres? Set size "
                      "to its real size in mm (100 mm cube: size 100)")
@@ -177,8 +185,11 @@ def _prepare(path, params, notes, surface):
     if params["smooth"] or auto:                      # Taubin: a volume-preserving Laplacian, so pointy vertices soften and nothing shrinks
         progress("smoothing", 0.16)
         mesh = mesh.copy(); trimesh.smoothing.filter_taubin(mesh, iterations=int(params["smooth"] or 10))
-    mesh.apply_translation(-mesh.bounds.mean(0))
+    move(trimesh.transformations.translation_matrix(-mesh.bounds.mean(0)))
     mesh.metadata["sized_extents"] = sized
+    # what the user marks on the model and keeps by its place (the removed faces of a folded model) is kept in the file's
+    # coordinates and brought here with this, so it follows the model when its size or its rotation changes
+    mesh.metadata["frame"] = frame
     return mesh
 
 

@@ -219,6 +219,43 @@ def edges_at(mesh, lines, tol=0.05):
     return found, lost
 
 
+def faces_at(mesh, tris, frame=None):
+    """Which faces of `mesh` lie where the triangles `tris` ([[x, y, z] × 3], …) are: a bool per face. A removed face
+    keeps its place, not a number, and a mesh simplified again has other faces. A face is there when the line through
+    its middle, along its own normal, meets one of the triangles that faces the same way, no further off than half
+    that triangle's longest edge. Along the face's own normal: the triangles of a region lie edge to edge, so a line
+    through the region meets one of them, where a flat projection onto each leaves a gap along every ridge between
+    two. The same way: the far side of a thin wall is not there. `frame` (4 × 4) brings `tris` to the mesh first.
+    ponytail: one pass over the faces per triangle (2000 triangles × 4000 faces is 0.2 s); a grid of the triangles
+    if the lists ever get longer than the model has faces."""
+    try:
+        tris = np.asarray(tris, float).reshape(-1, 3, 3)
+    except (TypeError, ValueError):
+        tris = np.zeros((0, 3, 3))
+    if frame is not None:
+        tris = tris @ np.asarray(frame)[:3, :3].T + np.asarray(frame)[:3, 3]
+    return points_at(mesh.triangles_center, mesh.face_normals, tris)
+
+
+def points_at(mid, way, tris):
+    """faces_at for any points on a surface (`mid`) with the surface's normal at each (`way`): which of them lie where
+    the triangles `tris` (n × 3 × 3, in the points' coordinates) are."""
+    here = np.zeros(len(mid), bool)
+    for a, b, c in tris:                                     # Möller–Trumbore, every face's line against this triangle
+        u, v = b - a, c - a
+        n = np.cross(u, v)
+        facing = way @ n                                      # 2 × its area × the cosine between the two normals
+        with np.errstate(divide="ignore", invalid="ignore"):
+            s = mid - a
+            q = np.cross(s, u)
+            bu = -np.einsum("ij,ij->i", s, np.cross(way, v)) / facing
+            bv = -np.einsum("ij,ij->i", way, q) / facing
+            off = -(q @ v) / facing
+            reach = max(np.linalg.norm(u), np.linalg.norm(v), np.linalg.norm(c - b)) / 2
+            here |= (facing > 1e-9) & (bu >= -1e-7) & (bv >= -1e-7) & (bu + bv <= 1 + 1e-7) & (np.abs(off) <= reach)
+    return here
+
+
 def closing_shortfall(mesh, give, folds):
     """Which of the fold edges `folds` (adjacency indices) cannot close. `give[k]` is what fold k takes off the closing
     face of each of its two faces, times its length (mm²): the inside of a mountain fold, the outside of a valley

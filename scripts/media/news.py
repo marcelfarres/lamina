@@ -147,6 +147,57 @@ def n040_lamp(app):
     app.p.uncheck("#lamp")
 
 
+LION_LOOP = """() => { const F = __t.plan().faces3d, y = f => (F.v[f[0]][1] + F.v[f[1]][1] + F.v[f[2]][1]) / 3;
+  return F.adj.filter(([a, b]) => (y(F.f[a]) < 0) !== (y(F.f[b]) < 0)).map(([a, b]) => F.f[a].filter(i => F.f[b].includes(i)).map(i => F.v[i])) }"""
+V3D = "#v3d"
+
+
+def lion(app):                               # the lion opens in Folded Panels; its first slice takes about a minute
+    app.example("lion_head")
+    app.p.wait_for_function("window.__t.plan()?.faces3d && window.__t.idle()", timeout=300_000)
+    app.tab("technique")                     # the Model tab draws the rotate rings round the model
+
+
+def look(app, az):                           # the lion from `az`, filling the view
+    app.p.evaluate(f"() => {{ document.getElementById('fit').click(); const d = __t.camera.position.distanceTo(__t.target()); __t.cam({az}, 12, d * 0.88); __t.frame() }}")
+    app.p.wait_for_timeout(600)
+
+
+def n040_seams(app):
+    lion(app)
+    app.p.evaluate(f"() => __t.applyFix({{seams: ({LION_LOOP})()}})")
+    app.idle()
+    app.p.click('#tools [data-tool="seam"]')
+    look(app, -35)
+    app.shot("0.4.0-seams", V3D, [('#tools [data-tool="seam"]', "")])
+    app.p.keyboard.press("Escape")
+    app.p.evaluate("() => __t.applyFix({seams: []})")
+    app.idle()
+
+
+def n040_mask(app):
+    lion(app)
+    app.p.evaluate(f"() => __t.applyFix({{seams: ({LION_LOOP})()}})")
+    app.idle()
+    app.p.click('#tools [data-tool="face"]')
+    look(app, 60)                            # from behind: the back of the head, which goes
+    at = app.p.evaluate("""() => { const F = __t.plan().faces3d, r = __t.canvas().getBoundingClientRect(), f = __t.faces(); let best = null;
+      for (let x = r.left + 80; x < r.right - 80; x += 10) for (let y = r.top + 100; y < r.bottom - 120; y += 10) { const u = f.under(x, y); if (u?.face === undefined) continue;
+        const t = F.f[u.face], my = (F.v[t[0]][1] + F.v[t[1]][1] + F.v[t[2]][1]) / 3, d = Math.hypot(x - r.left - r.width / 2, y - r.top - r.height / 2);
+        if (my > 15 && (!best || d < best.d)) best = {x, y, d} }
+      return best }""")
+    app.p.mouse.click(at["x"], at["y"])
+    app.p.click('[data-faces="connected"]')
+    app.p.click('[data-faces="remove"]')
+    app.idle()
+    look(app, -60)                           # the mask from the front, the removed back as dashed outlines behind it
+    app.shot("0.4.0-mask", V3D, [('#tools [data-tool="face"]', ""), ("#facebar", "select faces")])
+    app.p.evaluate("() => document.querySelector('[data-faces=back]').click()")
+    app.p.keyboard.press("Escape")
+    app.p.evaluate("() => __t.applyFix({seams: []})")
+    app.idle()
+
+
 def n040_examples(app):
     halves = []
     for ex, open_, zoom in (("fold_box", 6, 1.7), ("fold_lantern", 0, 1.15)):   # closed, the box reads as a block

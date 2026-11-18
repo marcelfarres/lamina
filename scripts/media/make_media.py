@@ -45,9 +45,10 @@ CLIPS = {                             # name: (crop, width, fps)
     "lobes": (FULL, 1200, 16),        # the plane between two lobes selected, its sliders in frame
     "square": (FULL, 1200, 16),       # a cube 8° off square, then the Model tab's square it up button
     "spacing": (FULL, 1200, 16),      # the spacing graph in the form: ticked on, a shape picked, a point dragged, follow the model
+    "mask": (VIEW, 1200, 16),         # folded: the lion head, a seam round its face, the back selected and removed, turned to the front
 }
 
-POSTER = {"spacing": 54}             # the frame a clip's poster is, where the first one does not show its subject (the graph opens at frame 8)
+POSTER = {"spacing": 54, "mask": 104}             # the frame a clip's poster is, where the first one does not show its subject (the graph opens at frame 8)
 
 
 def px(crop):
