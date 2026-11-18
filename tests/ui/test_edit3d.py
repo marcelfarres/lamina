@@ -268,6 +268,43 @@ def test_the_cube_snaps_on_a_click_and_a_drag_turns_the_view_not_the_model(page)
     assert page.evaluate("() => window.__t.idle()")
 
 
+def test_a_ring_slice_takes_its_own_wall_from_the_selection_panel(page):
+    """Ring slices on stacked: the wall box shows when ring slices are on, and a slice selected in the 3D view takes its
+    own wall from the selection panel, which reaches the slicer (`wall`) and leaves that slice's ring wider."""
+    use(page, example="cube", mode="stacked")
+    set_fields(page, [("p_distribution", "count"), ("p_count", 4), ("p_connect", "none"), ("p_ring_slices", True), ("p_ring_wall", 10)])
+    settle(page)
+    area = lambda p, lab: sum(pc["area"] for s in p["slices"] if s["label"] == lab for pc in s["pieces"])   # noqa: E731
+    before = area(plan(page), "Z-2")
+    assert abs(before - (180 ** 2 - 160 ** 2)) < 200, before
+    page.evaluate("() => window.__t.select('Z-2')"); page.wait_for_timeout(200)
+    assert page.is_visible("#n_wall"), "no wall box in the selection panel"
+    page.fill("#n_wall", "30"); page.dispatch_event("#n_wall", "change"); settle(page)
+    assert abs(state(page)["wall"]["Z-2"] - 30) < 1e-6
+    assert abs(area(plan(page), "Z-2") - (180 ** 2 - 120 ** 2)) < 300
+    assert abs(area(plan(page), "Z-3") - before) < 1                    # the others keep the stack's wall
+    assert not page.errors, page.errors
+
+
+def test_a_band_takes_its_own_wall_and_cut_shift_from_the_selection_panel(page):
+    """Band lattice: a band selected in the 3D view shows its wall and its cut shift, and both reach the slicer."""
+    use(page, example="cube", mode="bands")
+    set_fields(page, [("p_nx", 3), ("p_ny", 3), ("p_nz", 3), ("p_ring_wall", 12)])
+    settle(page)
+    p = plan(page)
+    assert p["counts"]["slices"] == 9 and p["counts"]["errors"] == 0, p["counts"]
+    cut = next(s["label"] for s in p["slices"] if len(s["pieces"]) > 1)
+    page.evaluate(f"() => window.__t.select('{cut}')"); page.wait_for_timeout(200)
+    assert page.is_visible("#n_wall") and page.is_visible("#n_cut_shift")
+    page.fill("#n_cut_shift", "5"); page.dispatch_event("#n_cut_shift", "change"); settle(page)
+    assert abs(state(page)["cut_shift"][cut] - 5) < 1e-6
+    page.evaluate(f"() => window.__t.select('{cut}')"); page.wait_for_timeout(200)
+    page.fill("#n_wall", "20"); page.dispatch_event("#n_wall", "change"); settle(page)
+    assert abs(state(page)["wall"][cut] - 20) < 1e-6
+    assert plan(page)["counts"]["errors"] == 0
+    assert not page.errors, page.errors
+
+
 def test_a_seam_is_chosen_on_the_model_or_on_a_sheet_and_shows_on_both(page):
     """Asked for: to say where a folded model is cut apart. With the `put a seam` tool, a click on an edge of the model
     puts a seam there and a click on an edge of the net does the same; the edge under the pointer lights up in both

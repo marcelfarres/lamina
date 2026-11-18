@@ -24,6 +24,7 @@ class Layer(Slice):
     cutnames: dict = field(default_factory=dict)  # stacked: the same key → its dowel's name (Z-3a), so a rod carried up keeps its name
     inner: MultiPolygon | None = None   # stacked: raw eroded by min_feature, where a cut keeps a full wall (cached)
     dowel_room: list = field(default_factory=list)  # stacked: where a rod through this slice and a neighbour can go (checks)
+    ring: tuple | None = None           # stacked ring slices: (its section, the ring it is cut back to once the connectors are in)
 
 
 def hole_mark(sl, hole, text, font):
@@ -367,7 +368,11 @@ class Connectors:
             # ear stood in for one of its two and the ear came out held 1.56 where the check promised 1.2
             need = want + sum(isl.contains(Point(q)) for q in p["dowels"])
             held = lambda pts, need=need, lev=lev: len(pts) >= need and lev(pts) <= LEVERAGE_OK   # noqa: E731
-            mine = [q for q in fixed if isl.contains(Point(q))]
+            # A shared point is a rod through every layer, but a layer can already hold a rod carried up from wider
+            # layers below, beside where the shared point falls: the vase's waist had them 3.8 mm apart, the two
+            # holes overlapped, and `fits` left four dowels out. A shared point keeps a wall from every hole the
+            # layer already has, or is that hole.
+            mine = [q for q in fixed if isl.contains(Point(q)) and all(_dist(q, t) < 1e-6 or _dist(q, t) > clearance for t in taken)]
             # One point is a hinge: a piece pinned once still turns about it, which is exactly what a glued stack
             # does while it dries. Two locate it. An island the common points miss (an ear) gets its own, and one
             # they touch only once is topped up from its own spread, clear of the point already there.

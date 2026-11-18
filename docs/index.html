@@ -22,7 +22,7 @@
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://marcelfarres.github.io/lamina/">
 <meta property="og:title" content="Lamina — 3D models into flat cut parts">
-<meta property="og:description" content="A free replacement for Autodesk's discontinued Slicer for Fusion 360 — not the 3D-printing kind of slicing. Stacked, interlocked, radial, ribbed, folded or plaque-mounted flat parts for laser, router, plasma or vinyl cutters, with physical checks, one-click fixes and nesting.">
+<meta property="og:description" content="A free replacement for Autodesk's discontinued Slicer for Fusion 360 — not the 3D-printing kind of slicing. Stacked, interlocked, radial, ribbed, folded, plaque-mounted or band-lattice flat parts for laser, router, plasma or vinyl cutters, with physical checks, one-click fixes and nesting.">
 <!-- Open Graph needs an absolute URL: Slack, LinkedIn and Discord do not resolve a relative one, and the card
      renders with an empty image slot. Keep this in step with the Pages origin if the repo is ever renamed. -->
 <meta property="og:image" content="https://marcelfarres.github.io/lamina/media/hero.jpg">
@@ -216,13 +216,17 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
 </div></section>
 
 <section id="techniques"><div class="wrap">
-  <h2>Six ways to build a model</h2>
+  <h2>Seven ways to build a model</h2>
   <p class="sub">Each technique on a shape that suits it. Switching technique keeps your material and sheet settings,
   and remembers the parameters you had for each one.</p>
   <!-- one technique per row: the clip orbits the result, then changes the parameters that matter for it -->
   <article class="tech">
-    <video src="media/stacked.mp4" poster="media/stacked_poster.jpg" width="1100" height="825" muted loop playsinline controls preload="none"
-           aria-label="A rearing horse statue in stacked side profiles with a gap between them, orbiting; then its dowel holes round, hexagonal, cross-shaped and square"></video>
+    <div>
+      <video src="media/stacked.mp4" poster="media/stacked_poster.jpg" width="1100" height="825" muted loop playsinline controls preload="none"
+             aria-label="A rearing horse statue in stacked side profiles with a gap between them, orbiting; then its dowel holes round, hexagonal, cross-shaped and square"></video>
+      <video src="media/rings.mp4" poster="media/rings_poster.jpg" width="1100" height="825" muted loop playsinline controls preload="none" style="margin-top:14px"
+             aria-label="A scanned head in ten stacked slices, orbiting; then the slices become rings with an 8 mm wall, a 15 mm wall, back to 8 mm, and the rings cut into pieces no longer than 150 mm"></video>
+    </div>
     <div>
       <h3>Stacked slices</h3>
       <p>Parallel sections along one axis, touching or with an empty space between them — the topographic look. Hold
@@ -231,13 +235,21 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
       slices, or follow 3D lines you draw; alt-click a slice to place one by hand. The outline can also follow the
       surface across the slice's thickness, which is what Autodesk's Slicer called 3D Slices — cut it, then sand down
       to the shape.</p>
-      <p class="clip"><b>In the clip:</b> a 260 mm porcelain horse rearing on its base (the bundled
+      <p><b>Ring slices</b> keep only a wall of the width you give and cut the middle away: the stack is a shell, and
+      uses about a quarter of the material. Each slice can have its own wall. A dowel the wall is too thin for gets a
+      collar, and a ring that sits inside the hole of the ring beside it gets a lug to their dowel, so every ring is
+      held. A ring longer than the <b>max piece length</b> is cut across its wall into pieces joined by puzzle tabs,
+      to fit a small sheet or printer bed.</p>
+      <p class="clip"><b>In the first clip:</b> a 260 mm porcelain horse rearing on its base (the bundled
       <b>horse_statue</b>), in 3 mm cardboard: side profiles across its width with a 4 mm gap, on 2 mm dowels at random
       points; then the holes round, hexagonal, cross-shaped and back to square. Across the width, each layer is a whole
       side view of the horse; layered up its height instead, the body would sit over the slanted hind legs with nothing
       to hold it. Every dowel keeps a 2 mm wall to the outline.</p>
+      <p class="clip"><b>In the second:</b> the scanned head in 10 slices on dowels; then ring slices with an 8 mm wall,
+      15 mm, 8 mm again, and the rings cut into pieces of 150 mm at most.</p>
       <p class="clip"><b>Parameters:</b> axis · spacing or count · gap · outline mid / outer / inner · connector
-      type, size and hole shape · placement · points per island · per-slice offset, tilt, roll and thickness.</p>
+      type, size and hole shape · placement · points per island · per-slice offset, tilt, roll and thickness · ring
+      slices, wall, solid ends · max piece length.</p>
     </div>
   </article>
   <article class="tech">
@@ -323,7 +335,7 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
       <video src="media/fold.mp4" poster="media/fold_poster.jpg" width="1100" height="825" muted loop playsinline controls preload="none" style="margin-top:14px"
              aria-label="A lamp shade printed as one flat panel with a window in every face: the panel folds up into the shade, every face turning about its own fold line, turns, and unfolds again"></video>
       <video src="media/mask.mp4" poster="media/mask_poster.jpg" width="1200" height="496" muted loop playsinline controls preload="none" style="margin-top:14px"
-             aria-label="A carved lion head: a seam is put round its face, the back of the head is selected with one click and removed, and the head turns to the front: only the mask is left to cut"></video>
+             aria-label="A carved lion head: a seam is put round the back of the head, the back is selected with one click and removed, and the head turns to the front: the face with its whole mane is the mask"></video>
     </div>
     <div>
       <h3>Folded panels</h3>
@@ -338,8 +350,8 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
       with a V groove along every fold, cut to that fold's own angle: the thin skin at the bottom is the hinge, and
       the fold stops when it reaches the model's shape. Add windows for a lamp shade, and drag the fold slider to
       watch the flat panel fold into the model. Try the examples <i>fold_test</i> and <i>fold_lamp</i>.</p>
-      <p><b>Keep only a part: a mask.</b> Put a seam round the face of a head, select the back with one click, remove
-      it, and only the mask is cut. The removed part stays removed when you change the face size. Try the example
+      <p><b>Keep only a part: a mask.</b> Put a seam round the back of a head, select the back with one click, remove
+      it, and only the mask is cut: the face with its whole mane. The removed part stays removed when you change the face size. Try the example
       <i>lion_head</i>.</p>
       <p class="clip"><b>In the clip:</b> the cow at a 15 mm facet in 1 mm card, 19 panels with tabs; then laced, a
       coarser 25 mm facet, ribs at that facet, tabs again, and back to 15 mm.</p>
@@ -366,6 +378,28 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
       it; then the plate as a circle, as the tree's own silhouette, and rounded again.</p>
       <p class="clip"><b>Parameters:</b> back of the model · sink · layout (side by side, radial, crossed) · plate
       shape, margin, size, offset and rotation · plate thickness · teeth per slice, tooth width and spacing.</p>
+    </div>
+  </article>
+  <article class="tech">
+    <div>
+      <video src="media/bands.mp4" poster="media/bands_poster.jpg" width="1100" height="825" muted loop playsinline controls preload="none"
+             aria-label="A sphere as a lattice of rings across x, y and z, half-lapped where they cross, orbiting; then 2 bands a family, 4 by 4 by 3, and 4 a family again"></video>
+      <video src="media/bands_build.mp4" poster="media/bands_build_poster.jpg" width="1000" height="732" muted loop playsinline controls preload="none" style="margin-top:14px"
+             aria-label="The sphere's lattice of 4 bands a family built up piece by piece: the x bands whole first, then each later piece slid in along its slots; then pulled apart and put back together"></video>
+    </div>
+    <div>
+      <h3>Band lattice</h3>
+      <p>Rings across x, y and z — only a wall left inside each section — half-lapped where two bands cross. The first
+      family goes in whole. A band of a later family cannot go in whole, so Lamina cuts it into pieces that each slide
+      in along their slots, in their own plane, joined by a straight tongue. It works out the order the pieces go in
+      and checks that each one has a free way in; a piece that has none is named in the Checks tab, with what is in its
+      way. Best on round or boxy shapes: a sphere, an egg, a box.</p>
+      <p class="clip"><b>In the first clip:</b> the bundled <b>sphere</b> in 3 mm cardboard, 4 bands a family, every
+      piece with a way in; then 2 a family, 4 by 4 by 3, and 4 again.</p>
+      <p class="clip"><b>In the second:</b> 4 bands a family built up in the order Lamina gives — the x bands whole,
+      then every other piece slid in — and pulled apart.</p>
+      <p class="clip"><b>Parameters:</b> which families · count or spacing per family · wall, per band too ·
+      assembly order · cut locked bands · max piece length · per-band cut shift.</p>
     </div>
   </article>
 </div></section>

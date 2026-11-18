@@ -369,23 +369,65 @@ S.fold = async () => {        // folded panels, printed: the lamp shade from its
     await js(`Object.assign(window.__t.state(),${was})`); await example("egg");
 };
 
-// a mask from a model: the lion head in Folded Panels, a seam round its face, the back selected with one click and
+// ring slices: the head's stack as solid slices, then as rings with a wall, a wider wall, and pieces no longer than
+// 150 mm. Put back at the end: stacked remembers its settings, and the next stacked scene must not open as rings
+S.rings = async () => {
+    await example("head_igea"); await mode("stacked"); await tab("technique");
+    await params({ ...HEAD, distribution: "count", count: 10, connect: "dowel", ring_slices: false }); await heal();
+    await view(-50, 16, 1.05, 1.0); await project("rings");
+    await techClip("rings", -50, 16, 1.0, [["ring slices, wall 8 mm", async () => { await set("ring_slices", true); await settle(); await set("ring_wall", 8); }],
+        ["wall 15 mm", () => set("ring_wall", 15)], ["wall 8 mm", () => set("ring_wall", 8)],
+        ["pieces 150 mm at most", () => set("max_length", 150)], ["no limit", () => set("max_length", 0)]]);
+    await set("ring_slices", false); await settle();
+};
+// the band lattice on the sphere, the shape it suits: rings across x, y and z, half-lapped where they cross. In 3 mm
+// stock 4 x 4 x 4, 4 x 4 x 3 and 2 x 2 x 2 have every piece with a way in; the defaults (5 x 5 x 4) lock two. No
+// heal(): its grown outlines stay on the bands as the counts change. The technique card orbits 4 x 4 x 4 and changes
+// the counts; the second clip builds it up in the order its pieces go in, the first family whole and every later
+// piece slid in along its slots, then pulls it apart
+const BANDS = async (n) => { await set("nx", n[0]); await set("ny", n[1]); await set("nz", n[2]); };
+S.bands = async () => {
+    await example("sphere"); await mode("bands"); await tab("technique");
+    await params({ nx: 4, ny: 4, nz: 4 });
+    await view(-50, 22, 1.0, 1.0); await project("bands");
+    await techClip("bands", -50, 22, 1.0, [["2 x 2 x 2", () => BANDS([2, 2, 2])], ["4 x 4 x 3", () => BANDS([4, 4, 3])], ["4 x 4 x 4", () => BANDS([4, 4, 4])]]);
+    await BANDS([4, 4, 4]); await settle();
+    await set("viewmode", "only3d"); await sleep(600); await fit();
+    const dist = (await js("window.__t.camera.position.length()")) * 0.95;
+    const nparts = await js("window.__t.parts().length");
+    await cam(-50, 22, dist);
+    await clip("bands_build", 80, async i => {
+        if (i < 56) { await set("steps", Math.max(1, Math.round((i + 1) * nparts / 56))); await sleep(60); }
+        else { const t = (i - 56) / 23; await set("explode", (1 + 1.2 * Math.sin(t * Math.PI)).toFixed(2)); }
+    });
+    await set("explode", 1); await set("steps", nparts);
+    await set("viewmode", "both"); await sleep(500);
+};
+// a mask from a model: the lion head in Folded Panels, a seam round the back of its head, the back selected with one click and
 // "connected", removed (its faces as dashed outlines), then turned to the front: only the mask is cut, and the
 // outlines behind it show what went. Real clicks
 // on the 3D view; the page says where a face is on the screen (__t.faces().under)
-const LION_LOOP = `(() => { const F = window.__t.plan().faces3d, y = f => (F.v[f[0]][1] + F.v[f[1]][1] + F.v[f[2]][1]) / 3;
-  return F.adj.filter(([a, b]) => (y(F.f[a]) < 0) !== (y(F.f[b]) < 0)).map(([a, b]) => F.f[a].filter(i => F.f[b].includes(i)).map(i => F.v[i])) })()`;
+// the back of the lion: the largest joined area of faces that face backward; a seam round it keeps the whole front mane
+const LION_BACK = `(() => { const F = window.__t.plan().faces3d, V = F.v, sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const ny = F.f.map(([a, b, c]) => { const u = sub(V[b], V[a]), w = sub(V[c], V[a]), n = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]]; return n[1] / Math.hypot(...n) });
+  const my = F.f.map(f => (V[f[0]][1] + V[f[1]][1] + V[f[2]][1]) / 3), nb = F.f.map(() => []); F.adj.forEach(([a, b]) => { nb[a].push(b); nb[b].push(a) });
+  const ok = F.f.map((_, i) => ny[i] > 0.3 && my[i] > 0), seen = new Set(); let best = [];
+  for (let i = 0; i < F.f.length; i++) { if (!ok[i] || seen.has(i)) continue; const part = [i]; seen.add(i);
+    for (let k = 0; k < part.length; k++) for (const j of nb[part[k]]) if (ok[j] && !seen.has(j)) { seen.add(j); part.push(j) }
+    if (part.length > best.length) best = part }
+  const back = new Set(best);
+  return {back: [...back], loop: F.adj.filter(([a, b]) => back.has(a) !== back.has(b)).map(([a, b]) => F.f[a].filter(i => F.f[b].includes(i)).map(i => V[i]))} })()`;
 const press = async (x, y) => { await mouse("mousePressed", x, y, { clickCount: 1 }); await mouse("mouseReleased", x, y, { clickCount: 1, buttons: 0 }); };
 S.mask = async () => {
     await example("lion_head"); await tab("technique");    // opens in Folded Panels; the Model tab would draw the rotate rings
     await until("window.__t.plan()?.faces3d"); await settle();
-    await fix({ seams: await js(LION_LOOP) });
+    await fix({ seams: (await js(LION_BACK)).loop });
     await js("document.querySelector('#tools [data-tool=seam]').click()"); await sleep(400);
     await fit(); const d = (await js("window.__t.camera.position.distanceTo(window.__t.target())")) * 0.88;
     let az = 75; await cam(az, 12, d); await sleep(300);
-    const back = () => js(`(()=>{const F=window.__t.plan().faces3d,r=window.__t.canvas().getBoundingClientRect(),f=window.__t.faces();let best=null;
-        for(let x=r.left+80;x<r.right-80;x+=10)for(let y=r.top+100;y<r.bottom-120;y+=10){const u=f.under(x,y);if(u?.face===undefined)continue;
-          const t=F.f[u.face],my=(F.v[t[0]][1]+F.v[t[1]][1]+F.v[t[2]][1])/3,dd=Math.hypot(x-r.left-r.width/2,y-r.top-r.height/2);if(my>15&&(!best||dd<best.dd))best={x,y,dd}}
+    const back = () => js(`(()=>{const back=new Set(${LION_BACK}.back),r=window.__t.canvas().getBoundingClientRect(),f=window.__t.faces();let best=null;
+        for(let x=r.left+80;x<r.right-80;x+=10)for(let y=r.top+100;y<r.bottom-120;y+=10){const u=f.under(x,y);if(u?.face===undefined||!back.has(u.face))continue;
+          const dd=Math.hypot(x-r.left-r.width/2,y-r.top-r.height/2);if(!best||dd<best.dd)best={x,y,dd}}
         return best})()`);
     await clip("mask", 120, async i => {
         // 0–15 the seam loop · 16 select faces, one click · 26 grow · 36 connected · 48 remove · 60–105 turning to the front
