@@ -74,7 +74,11 @@ CLICK_THIN = 1.2                      # the thinnest bar: six layers. In his pri
 CLICK_NOSE, CLICK_LAND = 10.0, 1.2    # the tooth's width along the seam, and the flat top of its ridge across it: three lines of a 0.4 mm nozzle
 CLICK_GAP = 0.7                       # a fully supported bar: the room the posts leave round the tooth, both sides together
 CLICK_RIDGE = 2.4                     # the ridge's length along the seam, in the middle of the tooth
-CLICK_WALL, CLICK_NECK = 2.4, 1.6     # the thickness of the wall the tooth stands on, and of the tooth where it goes under the bar
+CLICK_WALL, CLICK_NECK = 2.4, 1.2     # the thickness of the wall the tooth stands on, and of the tooth where it goes under the bar
+CLICK_LEAD, CLICK_TIP = 1.2, 0.6      # the ramp in front of the ridge that lifts the bar, and the least thickness at its tip
+CLICK_LEAN = math.radians(55)         # the tooth's underside: a short overhang, so a little more than SNAP_LEAN prints
+CLICK_BACK = 0.15                     # the click's front faces stand this far back from the plane the panels meet on: shut, only
+                                      # the panel edges meet there, and a printed face a little proud does not hold the seam open
 CLICK_FOOT = 4.0                      # the ramp behind every upright: how far it runs into the panel at most
 
 FLAT = math.radians(1)                # two faces closer to one plane than this are one flat piece: no score between them
@@ -1054,7 +1058,10 @@ class Folded(Mode):
         sentence, when the tooth does not fit.
         Drawn in the seam's own terms: s up the plane the panels meet on, m across it. The tooth goes through that
         plane, under the bar, and its ridge stands up behind it. Its underside rises as steeply as prints without
-        support and stays clear of the other panel, so the sharper the seam, the higher the bar sits.
+        support (`CLICK_LEAN`) and stays clear of the other panel. The further the tooth reaches past the plane, the
+        taller the joint: on a sharp seam because the other panel stands up there, on a shallow one because the
+        underside rises all the way. Every part of the reach is kept short for that. The fronts stand `CLICK_BACK`
+        back from the plane.
         The bar is a bridge between its two posts, `span` apart. Lifted by the tooth's height in its middle it is
         stretched 12 · lift · thickness / span² (a beam held at both ends), so it is as thick as `bar thickness`
         asks, or thinner where that would stretch it past its material's `CLICK_STRAIN` or take more than `CLICK_PRESS`
@@ -1068,12 +1075,14 @@ class Folded(Mode):
         span = CLICK_SPAN[0] * k if span is None else span
         wall, at, up, back, _ = self.snap_wall(bend, convex, 1.0, CLICK_WALL * k, False)
         q = lambda s, m: tuple(float(x) for x in at + up * s + back * m)   # noqa: E731
-        slope = math.tan(math.pi / 2 - SNAP_LEAN - (h if convex else -h))     # the printable underside, seen from the plane
+        c = CLICK_BACK
+        sw = lambda H, w: [(u + back[0] * c, z + back[1] * c) for u, z in self.snap_wall(bend, convex, H, w, False)[0]]   # noqa: E731  a wall of the click, set back
+        slope = math.tan(math.pi / 2 - CLICK_LEAN - (h if convex else -h))     # the printable underside, seen from the plane
         # under the tooth, d past the plane: over the slope that prints, and 0.3 mm over the other panel's inside face
         clear = lambda d: (t + 0.3 - at[1] - back[1] * d) / up[1]   # noqa: E731
         low = lambda d: max(clear(d), max(0.0, clear(0)) + d * slope)   # noqa: E731
-        d1 = D + fit; d2 = d1 + (CLICK_LAND + 1.6) * k      # the back of the bar, where the ridge stands up; the tooth's tip
-        neck = max(low(0) + CLICK_NECK * k, low(d1) + CLICK_NECK * k, low(d2) + 1.2 * k)   # the top of the tooth's neck
+        d1 = c + D + fit; d2 = d1 + (CLICK_LAND + CLICK_LEAD) * k   # the back of the bar, where the ridge stands up; the tooth's tip
+        neck = max(low(0) + CLICK_NECK * k, low(d1) + CLICK_NECK * k, low(d2) + (CLICK_TIP + 0.3) * k)   # the top of the tooth's neck
         sb = neck + fit + 0.05                              # the bar's underside
         solid = self.p["click_solid"]
         free = span - solid * (span - (CLICK_NOSE + CLICK_GAP) * k) - CLICK_RIDGE * k     # the length the bar bends over: between its posts, less what of them is under it
@@ -1086,17 +1095,17 @@ class Folded(Mode):
         tb = next((float(x) for x in thick if high(x) <= self.p["snap_h"]), None)
         if tb is None:
             return f"the tooth needs walls {high(thick[-1]):.1f} mm high: raise `snap wall`"
-        top = sb + tb; under = [q(low(d), -d) for d in np.linspace(0, d2, 9)]
+        top = sb + tb; under = [q(low(d), -d) for d in np.linspace(-c, d2, 9)]
 
         def tooth(ridge):                                     # the wall with the tooth on it, its ridge this far up behind the bar
             head = [q(neck - 0.3, -d2), q(sb + ridge, -d1 - CLICK_LAND * k), q(sb + ridge, -d1), q(neck, -d1)] if ridge > 0 else [q(neck - 0.3, -d2), q(neck, -d2 + 0.6)]
-            return [tuple(c) for c in orient(Polygon(wall).buffer(0).union(Polygon([q(low(0), 0.3), *under, *head, q(neck, 0.3)]))).exterior.coords[:-1]]
-        wall = self.braced(self.snap_wall(bend, convex, sb + bite, CLICK_WALL * k, False)[0], room, CLICK_FOOT * k)
+            return [tuple(x) for x in orient(Polygon(wall).buffer(0).union(Polygon([q(low(-c), c + 0.3), *under, *head, q(neck, c + 0.3)]))).exterior.coords[:-1]]
+        wall = self.braced(sw(sb + bite, CLICK_WALL * k), room, CLICK_FOOT * k)
         teeth = [(0.0, CLICK_RIDGE * k / 2, tooth(bite)), (0.0, CLICK_NOSE * k / 2, tooth(0))]     # the ridge inside the block: one solid
         foot = CLICK_FOOT * k * self.p["click_post"]         # the posts' ramp: as deep as `post size` asks
-        post = self.braced(self.snap_wall(bend, convex, top, D, False)[0], room, foot)
-        guide = self.braced(self.snap_wall(bend, convex, max(sb - 1.2, 0.9), D, False)[0], room, foot)
-        bar = [q(sb, 0), q(top, 0), q(top, D), q(sb, D)]
+        post = self.braced(sw(top, D), room, foot)
+        guide = self.braced(sw(max(sb - 1.2, 0.9), D), room, foot)
+        bar = [q(sb, c), q(top, c), q(top, c + D), q(sb, c + D)]
         reach = max(u for prof in (wall, post) for u, z in prof if z < t + 0.1)
         return Click(wall, teeth, post, bar, guide, reach, tb, 12 * bite * tb / free ** 2, press(tb))
 

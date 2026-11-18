@@ -126,8 +126,8 @@ needs a printed material, a hinge and `score side` inside, because the walls sta
 
 ### The click joint: a tooth under a bridged bar, no part of its own
 The `click` joint closes a printed seam with nothing loose. It uses the same plane as the snap joint: one panel
-gets a wall with a tooth (`CLICK_NOSE` wide) that goes through the plane, the other gets a bar whose
-front is on the plane, bridged between two posts `CLICK_SPAN` apart. Pressed shut, the tooth goes under the bar and
+gets a wall with a tooth (`CLICK_NOSE` wide) that goes through the plane, the other gets a bar beside the plane,
+bridged between two posts `CLICK_SPAN` apart. Pressed shut, the tooth goes under the bar and
 stands `tooth height` up behind it. `Folded.click_parts` makes the five cross-sections; all of them are walls in the
 plan (`rails`), so `core.solid` needs nothing new.
 
@@ -179,10 +179,20 @@ slides along its seam to stand clear of the walls of the seams round the corner 
 bar when that is not enough, and is left out, with a warning, when it still finds no room: two walls grown into one
 would not fold.
 
-The underside of the tooth rises as steeply as prints without support (`SNAP_LEAN`) and stays 0.3 mm over the other
-panel's inside face. So the sharper the seam, the higher the bar sits. A seam whose tooth needs walls higher than
-`snap wall` is left plain with a warning, like a seam bent over 100°, a seam shorter than `CLICK_LONG` and its
-margins, or a window frame narrower than a wall's foot. A block each side of the tooth, from it to the post and
+The underside of the tooth rises as steeply as prints without support and stays 0.3 mm over the other panel's
+inside face. It is a short overhang, so it may lean 55° from upright (`CLICK_LEAN`), where a tall wall may lean 50°.
+How far the tooth reaches past the plane sets the joint's height: on a sharp seam because the other panel stands up
+there, on a shallow one because the underside rises all the way. So every part of the reach is short: the bar's
+depth, the ridge's top, and a lead-in ramp of `CLICK_LEAD` with a tip `CLICK_TIP` thick. His sixth print found the
+joint too tall to assemble; these cut 0.5 to 1.1 mm. `bar depth` 2.0 cuts about 0.3 mm more.
+
+The fronts of the tooth's wall, the posts, the bar and the blocks stand `CLICK_BACK` (0.15 mm) back from the plane.
+Shut, only the panel edges meet there. A printed face a little proud, or the steps of its layers, would otherwise
+hold the seam open by that much.
+
+A seam whose tooth needs walls higher than `snap wall` is left plain with a warning, like a seam bent over 100°, a
+seam too short for the shortest bar and its posts (about 22 mm at `click size` 1), or a window frame narrower than a
+wall's foot. A block each side of the tooth, from it to the post and
 1 mm under the bar, stops the seam from sliding along its length.
 
 Across the thickness of the sheet the tooth sits between the bar and the other panel's inside face, so the two

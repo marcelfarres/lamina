@@ -60,7 +60,7 @@ def test_the_tooth_goes_under_the_bar_and_stands_up_behind_it_and_everything_pri
     bar = mirror(Polygon([to(q) for q in c.bar]))
     edge = ((f.snap_wall(b, outward)[1][0], f.t), (f.land / 2, f.skin)) if outward else ((0, f.t),)      # an outward seam's edge is mitred
     sheet = mirror(Polygon([to(q) for q in ((0, 0), (9, 0), (9, f.t), *edge)]))
-    assert bar.bounds[0] == pytest.approx(0, abs=1e-6)                          # the bar's front is the plane: it meets the tooth's wall
+    assert bar.bounds[0] == pytest.approx(F.CLICK_BACK, abs=1e-6)               # the bar's front stands back from the plane: only the panel edges meet
     ridges = []
     for _, _, profile in c.teeth:                                               # the tooth in its middle, beside it, and further out
         tooth = Polygon([to(q) for q in profile]).buffer(0)
@@ -73,11 +73,11 @@ def test_the_tooth_goes_under_the_bar_and_stands_up_behind_it_and_everything_pri
     assert F.CLICK_THIN <= c.thick <= f.p["click_bar"] and c.strain <= F.CLICK_STRAIN["PETG"]   # the bar is stretched no more than PETG takes letting the tooth past
     assert c.strain == pytest.approx(12 * f.p["click_bite"] * c.thick / (F.CLICK_SPAN[0] - F.CLICK_RIDGE) ** 2)
     assert all(len(p) <= 5 for p in (c.wall, c.post, c.guide)) and c.reach < 12.5 and f.click_parts(b, outward, room=4.0).reach <= max(3.2, f.click_parts(b, outward, room=0).reach) + 1e-6      # the ramp stays 0.8 mm inside a narrow frame
-    for profile in (*(p for _, _, p in c.teeth), c.wall, c.post, c.guide):      # as printed: no underside over 50° from upright
+    for profile, lean in [*((p, F.CLICK_LEAN) for _, _, p in c.teeth), *((p, F.SNAP_LEAN) for p in (c.wall, c.post, c.guide))]:   # as printed: no underside steeper than prints
         ring = list(orient(Polygon(profile).buffer(0)).exterior.coords)
         for (x0, z0), (x1, z1) in zip(ring, ring[1:]):
             if x1 - x0 > 1e-9 and max(z0, z1) > f.t + 0.7:                     # faces down, above the sheet and the wall's 0.6 mm lead
-                assert math.atan2(x1 - x0, abs(z1 - z0)) <= F.SNAP_LEAN + 1e-6
+                assert math.atan2(x1 - x0, abs(z1 - z0)) <= lean + 1e-6
 
 
 def test_a_longer_seam_gets_a_longer_and_thicker_bar_at_no_more_strain():
