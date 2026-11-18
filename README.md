@@ -575,7 +575,7 @@ People whose pull requests are part of Lamina:
 - [@Schnema1](https://github.com/Schnema1) — the next layer's outline engraved on each stacked slice, labels
   engraved on the parts themselves, the wider steps slider with its counter, the stock area to buy, and the SVG's
   one-group-per-colour switch.
-- [@DaveLauber](https://github.com/DaveLauber) — ring slices, the band lattice and max piece length, made in his fork and adapted for 0.3.4
+- [@DaveLauber](https://github.com/DaveLauber) — ring slices, the band lattice and max piece length, made in his fork and adapted for 0.4.0
 
 ## Support
 

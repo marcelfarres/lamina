@@ -6,29 +6,12 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ### Added
 
-- **Ring slices.** A new stacked setting, *ring slices*, keeps only a wall of the width you give inside each
-  slice and cuts the middle away, so the stack is a shell of rings and uses much less material. Every hole and
-  island gets its own wall, narrow parts stay solid, and the first and last slice can stay solid to close the
-  ends. A slice can have its own wall: select it in the 3D view. Dowels and spacers get a collar of material
-  where the wall is too thin for them. On a steep or round shape a ring can lie inside the hole of the ring
-  beside it: the wider ring then grows a lug in to the dowel that joins the two, so every ring is held. Thanks to
-  @DaveLauber, who made this in his fork. It was adapted for
-  this release, not merged as it was.
-- **Band lattice.** A new technique, *Band Lattice*, cuts the model into rings across x, y and z that lock
-  together with half-lap slots where they cross. The first family goes in whole; a band that cannot slide in
-  whole is cut into pieces, each cut a straight tongue that the later piece slides onto. Lamina checks that every
-  piece can slide in past the pieces already there, and names a piece that cannot and what is in its way. Where
-  two crossings sit close together on a band, the cut goes along one of the joints, or a small corner between the
-  two slots is cut off and glued in last, so that the pieces beside it can slide in. You
-  choose the assembly order, or let Lamina pick the one with the fewest cuts, and each band can have its own wall
-  and move its cuts. It suits simple round or boxy shapes, such as a sphere, an egg or a box. On a shape with
-  necks or long flat sides, such as the head, some pieces may have no way in: the Checks tab names each one, so
-  you know before you cut. Thanks to @DaveLauber, who made the technique in his fork. The tongue and the slide-in
-  check were added when it was adapted for this release.
-- **Max piece length.** Ring slices and bands take a longest piece, measured along the ring: a longer ring is
-  cut across its wall into shorter pieces joined by puzzle tabs (straight tongues in a band that slides in), clear
-  of the holes and slots. A ring too big for the sheet is always cut this way, not in straight strips. Thanks to
-  @DaveLauber, who made this in his fork. It was adapted for this release.
+- **Ring slices.** Tick *ring slices* on Stacked: each slice keeps only a wall, so the stack uses about a quarter
+  of the material. Each dowel sits in a collar. Thanks to @DaveLauber: adapted from his fork.
+- **Band lattice.** A new technique: rings across x, y and z that slot together, best on round or boxy shapes.
+  Lamina names any piece that cannot slide in. Thanks to @DaveLauber: adapted from his fork.
+- **Shorter pieces for small sheets.** *Max piece length* cuts a long ring into pieces no longer than the length
+  you give, joined by tabs, so they fit a small sheet. Thanks to @DaveLauber: adapted from his fork.
 - **See it as a lamp.** Tick *lamp* over the 3D view and a bulb lights the model from inside. A floor and a wall
   catch the shadows that the parts throw, so you see the pattern before you cut. *Bulb height* moves the bulb from
   the bottom to the top. Untick it and the view is as before.
