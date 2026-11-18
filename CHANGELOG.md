@@ -9,25 +9,16 @@ What changed in each release. The GitHub release for a version is this section, 
 - **See it as a lamp.** Tick *lamp* over the 3D view and a bulb lights the model from inside. A floor and a wall
   catch the shadows that the parts throw, so you see the pattern before you cut. *Bulb height* moves the bulb from
   the bottom to the top. Untick it and the view is as before.
-- **Keep only a part of a model: a mask from a head.** Folded Panels has a new tool at the left of the 3D view,
-  *select faces*. Click or drag on the model to select faces. *Grow* adds the faces next to them, and *connected*
-  adds every face joined to them, up to a seam you chose. *Remove* takes the selected faces off: they are not cut,
-  and the edge round them is a plain cut edge. So you can put a seam round a face, select the back of the head with
-  one click and *connected*, and remove it. Removed faces show as dashed outlines while the tool is on; click one
-  to put it back, or use *put all back*. Lamina remembers the places, not the faces: when you change the face size,
-  the size of the model or its rotation, the same places stay removed and you do not select them again. They are
-  saved with the project.
-- **Choose where a folded model is cut apart.** Folded Panels has a new tool at the left of the 3D view, *put a
-  seam*. With it on, every edge of the model shows what it is: a thin line is a fold, a dashed line is a seam the
-  program chose, a thick line is a seam you chose. Click an edge on the model or on a sheet and the sheet is cut
-  apart there; drag along edges of the model to put many seams in one stroke. The panels are laid out again round
-  your seams. Click a seam of yours again and the program decides that edge again. While this tool or *select
-  faces* is on, the right mouse button turns the view and the middle button moves it. The edge under the pointer lights up on the model and on the sheet at the same time, so
-  you can pick it where it is easier to see. Your seams are saved with the project. If you change the facet size or
-  the model size afterwards, the edges change, and Lamina tells you which of your seams it could not find.
-- **A lion head to make a mask from.** The new example *lion_head* is a carved lion head (by Tina, from Poly Haven,
-  public domain: cut it and sell it as you like). It opens in Folded Panels. Put a seam round the face, select the
-  back with *select faces* and remove it, and what is left is a mask.
+- **Make a mask from a model.** In Folded Panels, use the *select faces* tool: click, drag, *grow* or *connected*,
+  then *remove*. Only what is left is cut, even when you change the face size. Try it on the new *lion_head*.
+
+  [![A lion head made into a mask: the back removed, shown as dashed outlines ▶](web/static/news/0.4.0-mask.jpg)](https://marcelfarres.github.io/lamina/media/mask.mp4)
+
+- **Put the seams where you want.** Use the *put a seam* tool of the 3D view: click an edge, or drag along edges.
+  The sheet is cut apart there, and the panels are laid out round your seams.
+
+  ![The put a seam tool: your seams as thick lines round the lion's face](web/static/news/0.4.0-seams.jpg)
+
 - **Two more folded examples.** *fold_box* is a six-sided box with a turned lid, printed flat in PETG and folded up:
   every fold has its own angle. *fold_lantern* is the lamp shade at 420 mm for 3 mm plywood: 72 separate pieces,
   each with a window and lacing holes, numbered on the inside.
