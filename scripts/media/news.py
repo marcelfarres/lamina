@@ -147,16 +147,6 @@ def n040_lamp(app):
     app.p.uncheck("#lamp")
 
 
-def n040_seams(app):                        # session 61 replaces this one: seams are a tool after remove-faces
-    app.example("fold_box")
-    app.tab("technique")
-    app.p.click("button[data-seams=mode]")
-    app.idle()
-    app.view(35, 25, 1.2, only3d=False)
-    app.shot("0.4.0-seams", VIEW, [("#seampanel", "choose seams")])
-    app.p.click("#seampanel button[data-seams=mode]")
-
-
 def n040_examples(app):
     halves = []
     for ex, open_, zoom in (("fold_box", 6, 1.7), ("fold_lantern", 0, 1.15)):   # closed, the box reads as a block
