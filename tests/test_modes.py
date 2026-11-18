@@ -964,7 +964,7 @@ def test_the_basic_list_names_settings_that_exist():
 def test_a_connector_that_was_asked_for_and_left_out_is_a_warning_of_the_plan():
     """A pair of layers that gets no dowel used to be a note under a green "0 warnings". It is counted now, and it
     names the setting as the form does."""
-    plan = build(EXAMPLES / "egg.stl", "stacked", {"connect": "dowel", "placement": "random", "n_points": 20, "dowel_d": 8})
+    plan = build(EXAMPLES / "cone.stl", "stacked", {"connect": "dowel", "n_points": 2, "dowel_d": 20, "distribution": "count", "count": 8})   # the tip is too narrow for a 20 mm dowel
     assert len(plan["warnings"]) == 1 and "got no connector" in plan["warnings"][0], plan["warnings"]
     assert plan["counts"]["warnings"] == 1 + sum(len(sl["warnings"]) for sl in plan["slices"])
     assert not any("connector" in n for n in plan["notes"]) and "dowel_d" not in plan["warnings"][0]

@@ -2,7 +2,7 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
-## 0.3.4
+## 0.4.0
 
 ### Added
 
@@ -16,25 +16,10 @@ What changed in each release. The GitHub release for a version is this section, 
   decides that edge again. The edge under the pointer lights up on the model and on the sheet at the same time, so
   you can pick it where it is easier to see. Your seams are saved with the project. If you change the facet size or
   the model size afterwards, the edges change, and Lamina tells you which of your seams it could not find.
-- **A printed model that clicks together: the *snap* joint.** For printed folded panels there is a new joint that
-  needs no glue and shows nothing on the outside. Each panel gets a short wall on its inside face at every seam.
-  When you close a seam, the two walls stand face to face inside the model, and you push a small printed clip over
-  them until it clicks. The clips are all the same, whatever the angle of the seam, and they print flat on a plate
-  of their own. From outside you see only the seam line. *snap fit* sets how tight the clips are: print one seam
-  first and set it for your printer. A seam that bends more than 100° is left plain, because its walls would lean
-  too far to print without support, and Lamina says which ones.
-- **Or one with no loose parts at all: the *click* joint.** The same idea without the clips. At each seam one
-  panel gets a small tooth on its inside face and the other gets a small bar, printed as a bridge between two posts.
-  You press the seam shut: the tooth goes under the bar, the bar springs up to let it past and drops behind it.
-  Nothing extra to print, nothing to lose, nothing on the outside. *click size* makes the whole joint smaller for a
-  small model or bigger for a big one. *tooth height* sets what holds the seam shut, *bar thickness* how hard the
-  bar springs, *bar depth* how straight it stays when the seam is pulled, *bar support* how much of the bar is solid
-  down to the panel, and *post size* how big its two posts are. Lamina says when a joint is too stiff to press shut
-  by hand, and with how many kilos. *snap fit* sets the room between the tooth and the bar. A seam shorter than
-  22 mm is left plain at size 1, because the bar needs its length to spring. So is a seam with no room beside the
-  joints and folds next to it: a click stands clear of the panel that folds over it, so every fold closes fully.
-  Lamina says which ones. Where the seams of a lid are too close for a click each, the seam across from the lid's
-  fold gets one first: that is where a lid is held shut.
+- **Printed seams that click shut.** The *click* joint for printed folded panels: a tooth on one panel snaps under
+  a bar on the other. No glue, no loose parts, nothing outside. *click size* fits it to any model.
+- **Or seams held by clips.** The *snap* joint puts a short wall on each panel inside every seam, and a small
+  printed clip pushed over the two holds them. The clips print on a plate of their own.
 - **Two more folded examples.** *fold_box* is a six-sided box with a turned lid, printed flat in PETG and folded up:
   every fold has its own angle. *fold_lantern* is the lamp shade at 420 mm for 3 mm plywood: 72 separate pieces,
   each with a window and lacing holes, numbered on the inside.
