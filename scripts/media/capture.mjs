@@ -381,7 +381,7 @@ S.rings = async () => {
     await set("ring_slices", false); await settle();
 };
 // the band lattice on the sphere, the shape it suits: rings across x, y and z, half-lapped where they cross. In 3 mm
-// stock 4 x 4 x 4, 4 x 4 x 3 and 2 x 2 x 2 have every piece with a way in; the defaults (5 x 5 x 4) lock two. No
+// stock 4 x 4 x 4 (the default), 4 x 4 x 3 and 2 x 2 x 2 have every piece with a way in; 5 x 5 x 4 locks two. No
 // heal(): its grown outlines stay on the bands as the counts change. The technique card orbits 4 x 4 x 4 and changes
 // the counts; the second clip builds it up in the order its pieces go in, the first family whole and every later
 // piece slid in along its slots, then pulls it apart
