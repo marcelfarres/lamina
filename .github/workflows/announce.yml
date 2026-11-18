@@ -1,0 +1,39 @@
+name: announce
+
+# Posts a release's message, with its pictures and clip, to the Discord #announcements channel. Only by hand: Marcel
+# reads the message on the launch board, then presses Run workflow here with the version. The text and the files are
+# .github/announce/<version>.md on main, which moves only at a release and has the release's clips once the media run
+# committed them. The channel's address is the DISCORD_WEBHOOK secret (Server Settings → Integrations → Webhooks).
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "the released version, as in CHANGELOG.md (e.g. 0.4.0)"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: announce
+  cancel-in-progress: false
+
+jobs:
+  discord:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - name: released?
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "not a version: $VERSION"; exit 1; }
+          git fetch --tags --quiet
+          git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null || { echo "v$VERSION is not tagged: nothing to announce"; exit 1; }
+      - name: post
+        env:
+          VERSION: ${{ inputs.version }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: python3 scripts/announce.py ".github/announce/$VERSION.md" --send

@@ -263,7 +263,8 @@ def n040_cards(app):
 
 
 def n040_warnings(app):
-    app.example("vase", "stacked")          # the vase opens with 4 dowels that find no room: one warning, 4 rings
+    app.example("vase", "stacked")
+    app.set("n_points", 6)                  # six dowels a layer: the vase's neck has no room for them all, so a warning
     app.view(25, 20, 0.75, only3d=False)
     x0, y0, x1, _ = app.box(VIEW)
     app.shot("0.4.0-warnings", (x0, y0, x1, app.box("#msgs")[3]), [("#msgs", "a warning, counted")])
