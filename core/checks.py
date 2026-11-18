@@ -143,12 +143,20 @@ def check_insertion(slices, p):
     in the path (the second wall of a hollow section the line crosses twice, a concave outline that closes over the
     mouth) makes the assembly physically impossible, however good the slots look on paper."""
     by = {s.label: s for s in slices}
+    step = {s.label: i for i, s in enumerate(slices)}               # the build order: the steps the 3D view plays
     for a in slices:
         if a.profile is None or a.profile.is_empty:
             continue
         for lb, o in a.slot_dirs.items():
             b = by.get(lb)
             if b is None or b.profile is None or b.profile.is_empty:
+                continue
+            # b goes in after a, along the one way it can move (a plaque's slice: toward the plate): it enters a's slot
+            # through the mouth, so that slot must open toward where b comes from
+            if b.travel is not None and step[lb] > step[a.label] and np.dot(o, b.travel) > -0.5:
+                b.errors.append(Issue(f"{b.label} cannot be put in: it goes in after {a.label}, but the slot in {a.label} opens away "
+                                      f"from where {b.label} comes from — the slices that go in first need their slots open toward the "
+                                      f"ones that come after them"))
                 continue
             ln = plane_plane_line(a.M, b.M)
             if ln is None:

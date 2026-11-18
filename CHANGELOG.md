@@ -31,7 +31,9 @@ What changed in each release. The GitHub release for a version is this section, 
   then slide down onto them one at a time. Put one long spine in first and the many cross slices slide onto it: you
   no longer press a comb of 60 slots onto 60 slices at once. *First family height* makes those first slices lower,
   as a percentage of the model's height. Their top keeps the shape of the model, so at 30 % they are a low rail at
-  the back that holds the others and is hardly seen from the front.
+  the back that holds the others and is hardly seen from the front. The build steps in the 3D view show this order:
+  the plate, the slices that go in first, then the others. If a slice could not be put in where it is in that order,
+  the checks say so as an error.
 - **A warning for fingers that may snap.** When many crossing slices stand close together, the slices they go into
   become combs: thin fingers of material between the slots. A finger narrower than the material is thick bends and
   breaks when you push the crossing slice in. The part now says so, with the width of its thinnest finger. Put the

@@ -337,15 +337,16 @@ class Plaque(Stacked):
                 o = ctx.mid + e * (c + s + ctx.override("offset", lab))
                 fam.append(Layer(lab, name, frame(o + fr.n_p * (fr.z0 - o @ fr.n_p), e, up_hint=fr.n_p), ctx.thickness_of(lab), clip=as_multi(front)))
             fams.append(ctx.keep(fam))
-        slices = fams[0] + fams[1]
         if p["first"] == "y":
             fams.reverse()
+        for sl in fams[0] + fams[1]:
+            sl.travel = tuple(-fr.n_p)                                  # its teeth go into the plate: it can only move toward it
         # The family that drops on has its slots open at the plate: its teeth keep clear of where the first one stands.
         # The first family is whole down to the plate where they cross, so its teeth go under the crossings.
         clash = {sl.label: [(x - slot_w / 2, x + slot_w / 2) for x in (float((o.M[:3, 3] - sl.M[:3, 3]) @ sl.M[:3, 0]) for o in fams[0])]
                  for sl in fams[1]}
         ctx.cover_r = max(ctx.ext) / max(1, min(p["nx"], p["ny"])) / 2 + p["thickness"]
-        return Layout(slices, front, Polygon(), BIG, clash, tuple(fams))
+        return Layout(fams[0] + fams[1], front, Polygon(), BIG, clash, tuple(fams))     # in the order they go in: the build steps
 
     def _sectioned(self, ctx, lay, fr):
         """The layout's slices cut to the model in front of the plate, those left with nothing dropped, a crossed pair's slots notched."""

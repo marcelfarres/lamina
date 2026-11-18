@@ -248,6 +248,33 @@ def test_the_first_family_can_be_a_low_rail_that_follows_the_models_shape(ball):
         assert x["engages"] and all(g.bounds[3] < top for g in notches(x)), x["label"]
 
 
+@pytest.mark.parametrize("first", ["x", "y"])
+def test_the_build_steps_put_in_the_plate_then_the_first_family_then_the_other(ball, first):
+    """The 3D view plays the parts in the plan's order: the plate, the family that goes in first, then the one that
+    drops onto it. The other way round, a slice would have to pass through the slots of the ones already in."""
+    plan = build(ball, "plaque", {**BASE, "layout": "crossed", "nx": 4, "ny": 3, "sink": 50, "plate": "circle", "first": first})
+    assert plan["counts"]["errors"] == 0
+    other = "y" if first == "x" else "x"
+    groups = [s["group"] for s in plan["slices"]]
+    assert groups == ["W"] + [first.upper()] * groups.count(first.upper()) + [other.upper()] * groups.count(other.upper())
+
+
+def test_a_slice_that_cannot_go_in_in_the_build_order_is_an_error(ball, monkeypatch):
+    """A layout that puts the slices in the wrong order (the family whose slots open toward the plate first, so the other
+    must pass through solid material to reach the plate) fails the check: the plan can not be cut as it is."""
+    from core.modes.plaque import Plaque
+    crossed = Plaque._crossed
+
+    def wrong_order(ctx, fr):
+        lay = crossed(ctx, fr)
+        lay.slices = list(lay.fams[1]) + list(lay.fams[0])
+        return lay
+    monkeypatch.setattr(Plaque, "_crossed", staticmethod(wrong_order))
+    plan = build(ball, "plaque", {**BASE, "layout": "crossed", "nx": 4, "ny": 3, "sink": 50, "plate": "circle", "first": "y"})
+    errs = [e for s in plan["slices"] for e in s["errors"] if "cannot be put in" in e]
+    assert errs and all(s["label"].startswith("Y-") for s in plan["slices"] if any("cannot be put in" in e for e in s["errors"]))
+
+
 def test_fingers_between_slots_thinner_than_the_material_are_a_warning(ball):
     """A spine with many ribs close together is a comb: the material between two of its slots, narrower than the sheet
     is thick, snaps when the ribs go in. The part says so, with the width; ribs farther apart leave no such finger."""
