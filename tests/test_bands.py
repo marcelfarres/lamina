@@ -74,6 +74,7 @@ def later_pieces(plan):
 # along a wall of a band they cross (a grazing joint), so the slot lies along that wall and no cut across it clears it.
 @pytest.mark.parametrize("model, prm", [
     ("cube.stl", {}),
+    ("sphere.stl", {"thickness": 3}),       # the defaults in the sphere example's own 3 mm stock: 5 x 5 x 4 locked two
     ("sphere.stl", {"nx": 3, "ny": 3, "nz": 3}),
     ("sphere.stl", {"nx": 4, "ny": 4, "nz": 4}),
     pytest.param("head_igea.stl", {}, marks=pytest.mark.xfail(strict=True, reason="grazing joints lock pieces")),
