@@ -48,4 +48,9 @@ The words Lamina uses for its parts. One word for one thing.
   edges are on the model's edge.
 - **Cut-back**: the strip taken off a seam edge so that stiff panels do not occupy the same corner.
 - **Window**: an opening cut in a face, the shape of the face. The **frame** is what is left round it.
+- **Removed face**: a face the user took off the surface. It is not cut and belongs to no panel. A removed face stays
+  removed when the faces are made again. Used to keep part of the surface, for example a mask from a head.
+  Not a *window*, which opens a face and leaves its frame.
+- **Rim**: the free edge round removed faces, or round an opening the model has itself. It is a plain cut edge: not a
+  seam, and it has no joint.
 - **Tab**: a flap on a seam edge that is glued to the next panel. On a printed panel a tab is only as thick as the skin.

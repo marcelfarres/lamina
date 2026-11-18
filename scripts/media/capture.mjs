@@ -368,6 +368,39 @@ S.fold = async () => {        // folded panels, printed: the lamp shade from its
     await js(`Object.assign(window.__t.state(),${was})`); await example("egg");
 };
 
+// a mask from a model: the lion head in Folded Panels, a seam round its face, the back selected with one click and
+// "connected", removed (its faces as dashed outlines), then turned to the front: only the mask is cut, and the
+// outlines behind it show what went. Real clicks
+// on the 3D view; the page says where a face is on the screen (__t.faces().under)
+const LION_LOOP = `(() => { const F = window.__t.plan().faces3d, y = f => (F.v[f[0]][1] + F.v[f[1]][1] + F.v[f[2]][1]) / 3;
+  return F.adj.filter(([a, b]) => (y(F.f[a]) < 0) !== (y(F.f[b]) < 0)).map(([a, b]) => F.f[a].filter(i => F.f[b].includes(i)).map(i => F.v[i])) })()`;
+const press = async (x, y) => { await mouse("mousePressed", x, y, { clickCount: 1 }); await mouse("mouseReleased", x, y, { clickCount: 1, buttons: 0 }); };
+S.mask = async () => {
+    await example("lion_head"); await tab("technique");    // opens in Folded Panels; the Model tab would draw the rotate rings
+    await until("window.__t.plan()?.faces3d"); await settle();
+    await fix({ seams: await js(LION_LOOP) });
+    await js("document.querySelector('#tools [data-tool=seam]').click()"); await sleep(400);
+    await fit(); const d = (await js("window.__t.camera.position.distanceTo(window.__t.target())")) * 0.88;
+    let az = 75; await cam(az, 12, d); await sleep(300);
+    const back = () => js(`(()=>{const F=window.__t.plan().faces3d,r=window.__t.canvas().getBoundingClientRect(),f=window.__t.faces();let best=null;
+        for(let x=r.left+80;x<r.right-80;x+=10)for(let y=r.top+100;y<r.bottom-120;y+=10){const u=f.under(x,y);if(u?.face===undefined)continue;
+          const t=F.f[u.face],my=(F.v[t[0]][1]+F.v[t[1]][1]+F.v[t[2]][1])/3,dd=Math.hypot(x-r.left-r.width/2,y-r.top-r.height/2);if(my>15&&(!best||dd<best.dd))best={x,y,dd}}
+        return best})()`);
+    await clip("mask", 120, async i => {
+        // 0–15 the seam loop · 16 select faces, one click · 26 grow · 36 connected · 48 remove · 60–105 turning to the front
+        if (i === 16) { await js("document.querySelector('#tools [data-tool=face]').click()"); await sleep(300); const p = await back(); await press(p.x, p.y); await sleep(300); }
+        else if (i === 26) { await js("document.querySelector('[data-faces=grow]').click()"); await sleep(300); }
+        else if (i === 36) { await js("document.querySelector('[data-faces=connected]').click()"); await sleep(300); }
+        else if (i === 48) { await js("document.querySelector('[data-faces=remove]').click()"); await settle(); }
+        else if (i >= 60 && i < 106) { az -= 3; await cam(az, 12, d); }
+        else await sleep(120);
+    });
+    console.log("  mask:", await js("(()=>{const p=window.__t.plan();return p.faces3d.f.length+' faces left, '+p.faces3d.removed+' removed'})()"));
+    await project("mask");
+    await js("document.querySelector('[data-faces=back]').click()"); await fix({ seams: [] });
+    await example("egg");
+};
+
 await send("Page.reload"); await sleep(4000);              // a fresh tab: the last run may have left it mid-request
 await until("document.querySelector('#stats').textContent.includes('parts')");
 await js("document.querySelector('#pname').value='Lamina demo';document.querySelector('#pname').dispatchEvent(new Event('input'))");

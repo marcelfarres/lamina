@@ -269,9 +269,10 @@ def test_the_cube_snaps_on_a_click_and_a_drag_turns_the_view_not_the_model(page)
 
 
 def test_a_seam_is_chosen_on_the_model_or_on_a_sheet_and_shows_on_both(page):
-    """Asked for: to say where a folded model is cut apart. With `choose seams` on, a click on an edge of the model puts
-    a seam there and a click on an edge of the net does the same; the edge under the pointer lights up in both views;
-    a seam of the user's is marked on the model and on both panel edges it lies on; a click on it gives it back."""
+    """Asked for: to say where a folded model is cut apart. With the `put a seam` tool, a click on an edge of the model
+    puts a seam there and a click on an edge of the net does the same; the edge under the pointer lights up in both
+    views; a seam of the user's is marked on the model and on both panel edges it lies on; a click on it gives it back;
+    a drag along an edge paints a seam, and turns nothing: in this tool the right button turns the view."""
     # the middle of an edge of one kind: on the model (facing the camera, nearest the middle of the view) and on a sheet
     on_model = """kind => { const cam = __t.camera, V3 = cam.position.constructor, r = __t.canvas().getBoundingClientRect(); let best = null;
       for (const e of __t.plan().edges3d) { if (e[1] !== kind) continue; const mid = new V3(...e[2]).add(new V3(...e[3])).multiplyScalar(.5), to = mid.clone().sub(cam.position);
@@ -293,8 +294,9 @@ def test_a_seam_is_chosen_on_the_model_or_on_a_sheet_and_shows_on_both(page):
     start = page.evaluate(seen)
     assert start["yours"] == start["chosen"] == start["marks"] == 0 and not page.is_visible("#seampanel")
     assert not page.evaluate("() => window.__t.seams().shown")               # no edge lines until they are asked for
-    page.click('[data-p="seams"] [data-seams="mode"]')
+    page.click('#tools button[data-tool="seam"]')
     assert page.is_visible("#seampanel") and page.evaluate("() => window.__t.seams().shown")
+    assert not page.query_selector('[data-p="seams"] [data-seams="mode"]')    # one place to start it: the tool
     # on the model: the fold under the pointer lights up there and on its sheet, and says what a click does
     top(); e = page.evaluate(on_model, "fold"); page.mouse.move(e["x"], e["y"]); page.wait_for_timeout(200)
     s = page.evaluate(seen)
@@ -320,5 +322,77 @@ def test_a_seam_is_chosen_on_the_model_or_on_a_sheet_and_shows_on_both(page):
     assert s["yours"] == s["chosen"] == 1 and s["marks"] == 2, s
     page.click('#seampanel [data-seams="clear"]'); page.wait_for_timeout(600); settle(page)
     assert page.evaluate(seen)["yours"] == 0 and page.evaluate(seen)["chosen"] == 0
+    # a drag along a fold paints it: one seam, one slice, and the view did not turn; the right button turns it
+    ends = """() => { const cam = __t.camera, V3 = cam.position.constructor, r = __t.canvas().getBoundingClientRect(), at = p => { const q = new V3(...p).project(cam); return [r.left + (q.x + 1) / 2 * r.width, r.top + (1 - q.y) / 2 * r.height] };
+      for (const e of __t.plan().edges3d) { if (e[1] !== 'fold') continue; const to = new V3(...e[2]).sub(cam.position); if (new V3(...e[4]).dot(to) > -0.7 * to.length()) continue;
+        const A = at(e[2]), B = at(e[3]), mid = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2]; if (Math.hypot(A[0] - B[0], A[1] - B[1]) > 40 && Math.hypot(mid[0] - r.left - r.width / 2, mid[1] - r.top - r.height / 2) < 120) return {A, B} } }"""
+    eye = lambda: page.evaluate("() => window.__t.camera.position.toArray()")   # noqa: E731
+    top(); d = page.evaluate(ends); was = eye()
+    (ax, ay), (bx, by) = d["A"], d["B"]
+    page.mouse.move(ax + (bx - ax) * 0.2, ay + (by - ay) * 0.2); page.mouse.down(); page.mouse.move(ax + (bx - ax) * 0.8, ay + (by - ay) * 0.8, steps=8); page.mouse.up()
+    page.wait_for_timeout(600); settle(page)
+    s = page.evaluate(seen)
+    assert s["yours"] == s["chosen"] >= 1 and eye() == was, s
+    page.mouse.move(ax, ay); page.mouse.down(button="right"); page.mouse.move(ax + 80, ay, steps=6); page.mouse.up(button="right")
+    assert eye() != was
     page.keyboard.press("Escape")
     assert not page.is_visible("#seampanel") and not page.evaluate("() => window.__t.seams().shown")
+    assert page.get_attribute('#tools button[data-tool=""]', "aria-pressed") == "true"
+
+
+@pytest.mark.timeout(600)                         # ten slices of the egg: 166 s on a busy machine
+def test_faces_are_selected_removed_and_stay_removed_when_the_faces_are_made_again(page):
+    """Asked for: to keep only a part of a folded model (a mask from a head). With the `select faces` tool a click or a
+    drag selects faces, `grow` and `connected` add to the selection, `remove` takes the faces off: they are not cut,
+    and they stay off when the face size changes. A click on a removed face puts it back; undo puts back a remove."""
+    here = """() => { const r = __t.canvas().getBoundingClientRect(), f = __t.faces(); let best = null;   // a point on a face, or on a removed one, nearest the middle of the view
+      for (let x = r.left + 80; x < r.right - 80; x += 9) for (let y = r.top + 100; y < r.bottom - 120; y += 9) { const u = f.under(x, y); if (!u) continue;
+        const d = Math.hypot(x - r.left - r.width / 2, y - r.top - r.height / 2), k = u.ghost !== undefined ? 'ghost' : 'face'; if (!best?.[k] || d < best[k].d) (best ||= {})[k] = {x, y, d, i: u[k]} }
+      return best }"""
+    seen = """() => { const p = __t.plan(), f = __t.faces(); return {faces: p.faces3d.f.length, off: p.faces3d.removed, places: (__t.state().removed || []).length, sel: f.selected.length, ghosts: f.ghosts,
+      area: p.slices.filter(s => s.group === 'F').reduce((a, s) => a + s.pieces.reduce((b, c) => b + c.area, 0), 0), bar: document.getElementById('facebar').innerText, errors: p.errors} }"""
+    tools = lambda: page.evaluate("() => [...document.querySelectorAll('#tools button')].filter(b => !b.hidden).map(b => b.dataset.tool)")   # noqa: E731
+    eye = lambda: page.evaluate("() => window.__t.camera.position.toArray()")   # noqa: E731
+    wait = lambda: (page.wait_for_timeout(600), settle(page))   # noqa: E731
+    use(page, "egg", "folded"); assert tools() == ["", "seam", "face"]
+    set_fields(page, [("p_facet", 30)]); wait(); page.click("#fit")
+    page.evaluate("() => document.getElementById('v3d').scrollIntoView()")
+    whole = page.evaluate(seen)
+    assert whole["off"] == whole["places"] == 0 and not page.is_visible("#facebar")
+    page.click('#tools button[data-tool="face"]')
+    assert page.is_visible("#facebar") and page.evaluate("() => window.__t.faces().shown") and "none removed" in whole["bar"] + page.evaluate(seen)["bar"]
+    # a click selects one face; grow adds the faces across its edges, but not across a seam of the user's; a drag
+    # paints more, and does not turn the view
+    p = page.evaluate(here)["face"]
+    page.evaluate("i => { const F = __t.plan().faces3d, [a, b] = F.adj.find(e => e.includes(i)); __t.applyFix({seams: [F.f[a].filter(v => F.f[b].includes(v)).map(v => F.v[v])]}) }", p["i"]); wait()
+    assert len(state(page)["seams"]) == 1 and page.evaluate(here)["face"]["i"] == p["i"]
+    page.mouse.click(p["x"], p["y"])
+    assert page.evaluate("() => window.__t.faces().selected") == [p["i"]]
+    page.click('[data-faces="grow"]'); assert page.evaluate(seen)["sel"] == 3
+    was = eye(); page.mouse.move(p["x"] - 70, p["y"] - 40); page.mouse.down(); page.mouse.move(p["x"] + 70, p["y"] + 40, steps=14); page.mouse.up()
+    n = page.evaluate(seen)["sel"]; assert n > 3 and eye() == was, n
+    page.click('[data-faces="remove"]'); wait()
+    s = page.evaluate(seen)
+    assert s["faces"] == whole["faces"] - n and s["off"] == s["places"] == s["ghosts"] == n and s["sel"] == 0 and f"{n} removed" in s["bar"], s
+    assert s["area"] < whole["area"] and not s["errors"]
+    # the seam was on an edge of a face that went: it went with it, and nothing says a seam was lost
+    assert state(page)["seams"] == [] and "on no edge" not in page.inner_text("#seam_n")
+    # the faces made again at another size: the same places are off, without a click
+    set_fields(page, [("p_facet", 20)]); wait()
+    t = page.evaluate(seen)
+    assert t["places"] == n and t["off"] > 0 and abs(t["area"] - s["area"]) < 0.15 * s["area"], (s, t)
+    # a click on a removed face puts that place back; the button puts all back
+    page.evaluate("() => document.getElementById('v3d').scrollIntoView()")
+    g = page.evaluate(here)["ghost"]; page.mouse.click(g["x"], g["y"]); wait()
+    assert page.evaluate(seen)["places"] == n - 1
+    page.click('#facebar [data-faces="back"]'); wait()
+    back = page.evaluate(seen); assert back["places"] == back["off"] == back["ghosts"] == 0, back
+    # connected with no seam of the user's in the way takes every face: an error, nothing to cut, and undo brings them back
+    p = page.evaluate(here)["face"]; page.mouse.click(p["x"], p["y"]); page.click('[data-faces="connected"]')
+    assert page.evaluate(seen)["sel"] == back["faces"]
+    page.click('[data-faces="remove"]'); wait()
+    gone = page.evaluate(seen); assert gone["faces"] == 0 and any("every face" in e for e in gone["errors"]) and gone["ghosts"] == back["faces"], gone
+    page.click("#undo"); wait()
+    assert page.evaluate(seen)["faces"] == back["faces"] and page.evaluate(seen)["places"] == 0
+    page.keyboard.press("Escape")
+    assert not page.is_visible("#facebar") and page.get_attribute('#tools button[data-tool=""]', "aria-pressed") == "true"
