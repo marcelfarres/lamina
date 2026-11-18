@@ -19,6 +19,21 @@ HELD_GROUPS = ("X", "Y", "R", "C", "W")     # regions in these groups must be he
 STRUCTURAL = ("X", "Y", "R", "C", "S")  # take part in the assembly-connectivity check (panels, pegs, strips, ribs do not)
 CONNECTED = STRUCTURAL + ("W",)         # … and a plaque's back plate does too; it is not a plane through the model, so it gets no section treatment
 LEVERAGE_WARN = 1.5    # placement aims for 0.8 (geometry.LEVERAGE_OK); past this a piece's far edge visibly wanders
+# How each material takes a slotted assembly: (mm of material in a slice's way in that can still be got past — bent
+# aside or trimmed with a knife in a soft sheet, sanded or filed in a hard one; the thinnest finger of material between
+# two slots, as a share of the sheet's thickness). Up to 8 mm: the tube example's far walls (9 and 14 mm in the way)
+# block in every material. A material not listed takes the plywood figures, which were the only ones before.
+# ponytail: rules of thumb like folded's SQUISH and FOLDS, to be corrected by what gets built.
+FIT = {"paper": (8, 2), "card": (8, 2), "fabric": (8, 2), "cardboard": (8, 2), "EVA foam": (8, 2), "foam board": (8, 2),
+       "greyboard": (8, 2), "balsa": (8, 2), "leather": (8, 1), "polypropylene": (8, 1),
+       "plywood": (6, 1), "PETG": (6, 1), "basswood": (6, 1.5), "mdf": (4, 1.5), "PLA": (4, 1.5), "acrylic": (3, 1.5),
+       "steel": (2, 0.5), "stainless steel": (2, 0.5), "aluminium": (2, 0.5), "brass": (2, 0.5), "copper": (2, 0.5)}
+
+
+def fit_of(p):
+    """The material's name and its FIT figures (the plywood ones for a material not listed)."""
+    kind = p.get("material_kind") or p.get("material") or ""
+    return kind, FIT.get(kind, FIT["plywood"])
 
 
 def check_slice(sl, p):
@@ -78,16 +93,20 @@ def check_slice(sl, p):
             if sl.raw.contains(c) and not inner.contains(c):
                 sl.warnings.append(Issue(f"a hole sits closer than {mf} mm to the outline (thin wall may tear) — move the connection point inward, use a smaller dowel, or accept", "hole-wall"))
                 break
-    # fingers: the material left between two slots side by side. Narrower than the sheet is thick, a finger bends
-    # and snaps when the crossing slice is pushed in, though it is wider than min_feature
+    # fingers: the material left between two slots side by side. Narrower than the material takes (about the sheet's
+    # thickness in plywood, more in a brittle or soft sheet), a finger snaps or crushes when the crossing slice is
+    # pushed in, though it is wider than min_feature
+    kind, (_, share) = fit_of(p)
+    least = share * sl.thickness
     if sl.group in ("X", "Y") and len(sl.cuts) > 1:
-        a, b = STRtree(sl.cuts).query(sl.cuts, predicate="dwithin", distance=sl.thickness - 1e-6)
+        a, b = STRtree(sl.cuts).query(sl.cuts, predicate="dwithin", distance=least - 1e-6)
         widths = [d for i, j in zip(a, b) if i < j and (d := sl.cuts[i].distance(sl.cuts[j])) > 1e-6
                   and sl.raw.contains(shapely.shortest_line(sl.cuts[i], sl.cuts[j]).interpolate(0.5, normalized=True))]
         if widths:
-            sl.warnings.append(Issue(f"{len(widths)} finger(s) between slots are thinner than the material ({min(widths):.1f} mm < "
-                                     f"{sl.thickness:g} mm) and may break when the crossing slices go in: put the crossing slices "
-                                     f"farther apart (fewer of them, or a bigger gap), or use thinner material"))
+            need = f"{least:g} mm" + (f", {share:g} × the {sl.thickness:g} mm sheet" if share != 1 else " = the sheet's thickness")
+            sl.warnings.append(Issue(f"{len(widths)} finger(s) between slots are thinner than {kind or 'the material'} can take "
+                                     f"({min(widths):.1f} mm < {need}) and may break when the crossing slices go in: put the "
+                                     f"crossing slices farther apart (fewer of them, or a bigger gap), or use thinner material"))
     # Slicer's "multiple / overlapping notches on one part": two cuts crossing each other inside the material
     inside = [c for c in sl.cuts if sl.raw.intersects(c)]
     if len(inside) > 1:
@@ -144,6 +163,7 @@ def check_insertion(slices, p):
     mouth) makes the assembly physically impossible, however good the slots look on paper."""
     by = {s.label: s for s in slices}
     step = {s.label: i for i, s in enumerate(slices)}               # the build order: the steps the 3D view plays
+    kind, (give, _) = fit_of(p)                                     # what of the path the material lets a slice get past
     for a in slices:
         if a.profile is None or a.profile.is_empty:
             continue
@@ -175,8 +195,9 @@ def check_insertion(slices, p):
             if not strips:
                 continue
             blocked = a.profile.intersection(unary_union(strips))
-            if blocked.area > 6 * b.thickness:            # a few thicknesses of path: a sliver at the mouth is sanded, a wall is not
-                a.errors.append(Issue(f"{b.label} cannot slide into its slot: {a.label}'s material is in its path ({blocked.area / b.thickness:.0f} mm of it) — "
+            if blocked.area > give * b.thickness:         # a lip at the mouth is bent aside, trimmed or sanded; a wall is not
+                a.errors.append(Issue(f"{b.label} cannot slide into its slot: {a.label}'s material is in its path ({blocked.area / b.thickness:.0f} mm of it, "
+                                      f"{kind or 'the material'} lets {give:g} mm through) — "
                                       f"the crossing line meets {a.label} twice (a hollow or concave section): move {b.label} (offset), lower the notch ratio, or delete {b.label}",
                                       "blocked", other=b.label))
 

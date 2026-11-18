@@ -35,9 +35,15 @@ What changed in each release. The GitHub release for a version is this section, 
   the plate, the slices that go in first, then the others. If a slice could not be put in where it is in that order,
   the checks say so as an error.
 - **A warning for fingers that may snap.** When many crossing slices stand close together, the slices they go into
-  become combs: thin fingers of material between the slots. A finger narrower than the material is thick bends and
-  breaks when you push the crossing slice in. The part now says so, with the width of its thinnest finger. Put the
-  crossing slices farther apart, use fewer of them, or use thinner material.
+  become combs: thin fingers of material between the slots. A finger that is too narrow for your material bends and
+  breaks when you push the crossing slice in. The part now says so, with the width of its thinnest finger and the
+  width your material needs. Put the crossing slices farther apart, use fewer of them, or use thinner material.
+- **The assembly checks know your material.** The material you pick on the Sheet & fit tab now decides two checks.
+  How wide a finger between two slots must be: as wide as the sheet is thick for plywood and PETG, half as wide again
+  for acrylic, MDF and PLA, which crack, and twice as wide for cardboard, foam and paper, which crush or tear. And how
+  much material may be in a slice's way when you slide it in: a soft sheet bends aside or is trimmed with a knife,
+  plywood is sanded, acrylic and metal hardly give. The messages name your material. A material of your own is
+  checked as the built-in material it was made from; with no material picked, the checks are as before.
 
 ### Changed
 
