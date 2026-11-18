@@ -14,9 +14,10 @@ from .modes import load_all, Ctx
 from .geometry import section_polygons, as_multi, poly_coords, line_coords, min_dims, trim_thin
 from .labels import mark_box, mark_rot, orient_arrows
 from .checks import STRUCTURAL, check_plan, suggest_fixes, crossing_suggestions
-from .split import split_slice, fits_rotated, islands
+from .split import split_slice, fits_rotated, islands, pieces_of
 from .nest import nest
 from .mesh import load_mesh, reuse, simplify, square_up
+from .unfold import points_at
 from .identical import mark_identical
 from .model import Piece, label_codes, label_tag
 
@@ -40,7 +41,7 @@ def coerce_params(mode, raw: dict) -> dict:
 ONE_SHEET_H = 100000.0     # "one sheet" mode nests against this height and reports the length actually used
 
 
-def coverage(mesh, slices, r, lat=3.0):
+def coverage(mesh, slices, r, lat=3.0, skip=None):
     """Fraction of the model's surface represented by the parts: sample points on the surface and count those that
     have a part within `r` across its plane (about half a slice spacing) and within `lat` sideways. A leg or an ear
     no slice reaches lowers it.
@@ -51,8 +52,12 @@ def coverage(mesh, slices, r, lat=3.0):
     gigabytes on a 40k-face model, while surface points answer the same question for one barycentric mix each.
     Dense slicings (interlocked, radial) put a slice near every point and legitimately score close to 100 %; the
     number carries the most signal for stacked and folded work.
+    `skip`: triangles (n × 3 × 3) where the parts are not meant to be, the faces the user removed from a folded model;
+    the points there are not counted.
     """
-    pts = mesh.sample(3000, seed=0)                      # seeded: the same model and params must give the same plan
+    pts, face = mesh.sample(3000, seed=0, return_index=True)   # seeded: the same model and params must give the same plan
+    if skip is not None:
+        pts = pts[~points_at(pts, mesh.face_normals[face], skip)]
     if len(pts) == 0:
         return 1.0
     covered = np.zeros(len(pts), bool)
@@ -173,6 +178,9 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     # split + pack
     progress("nesting the parts on sheets", 0.85)
     for sl in slices:
+        if sl.facets is None and (geoms := mode.cut(ctx, sl)):      # the technique cuts it itself (a locked band)
+            sl.pieces = pieces_of(sl, geoms)
+            continue
         if p["split"] and sl.facets is None:
             split_slice(sl, p["sheet"], p["sheet_margin"], p["tab"], p["grain"])
         else:
@@ -200,7 +208,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         top = max([pc.placed.bounds[3] for pc in pieces] + [pc.label_pos[1] + p["font"] * 0.7 for pc in pieces if pc.label_pos], default=0.0) + p["sheet_margin"]
         sheet_out = [sheet0[0], float(np.ceil(top))]; p["sheet"] = sheet0
     progress("measuring coverage", 0.94)
-    cov = coverage(mesh if ctx.view["clip"] is None else mesh.slice_plane(*ctx.view["clip"]), slices, ctx.cover_r or max(mesh.extents) / 8, lat=max(3.0, p["thickness"]))
+    cov = coverage(mesh if ctx.view["clip"] is None else mesh.slice_plane(*ctx.view["clip"]), slices, ctx.cover_r or max(mesh.extents) / 8, lat=max(3.0, p["thickness"]), skip=ctx.cover_skip)
     progress("done", 1.0)
     if ctx.notes_extra:
         notes.append(ctx.notes_extra)

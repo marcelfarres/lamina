@@ -1,6 +1,7 @@
 """Modify form and connector placement keep to what was asked: a small thicken stays small, a square dowel keeps
 its wall."""
 import collections
+import json
 import os
 import pathlib
 import re
@@ -293,6 +294,20 @@ def test_a_stack_is_dowelled_through_without_holes_running_together(name, over, 
         # two holes need a wall of material between their edges, or they cut into one another and locate nothing
         assert all(g >= d + min_feature - 0.01 for g in gaps), \
             f"dowels {min(gaps):.1f} mm apart at z={z} leave no wall between them (d={d}, min_feature={min_feature})"
+
+
+def test_the_vase_example_opens_with_every_dowel_it_asks_for():
+    """Bug 046: the vase example, as it opens, left 4 dowels out at its waist with a warning. The points shared by the
+    whole stack fell 3.8 mm from the rods carried up from the wider layers below, the holes overlapped, and each
+    was turned down. Every dowel it asks for is cut now, and no two holes in a layer run into each other."""
+    preset = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["vase"]
+    plan = build(EXAMPLES / "vase.stl", preset["mode"], {"slot_offset": 0.1, "kerf": 0.15, **preset["params"]})
+    assert plan["counts"]["errors"] == 0 and plan["counts"]["warnings"] == 0, plan["warnings"]
+    assert plan["left_out"] == [] and len(plan["rods"]) == 38
+    d, wall = preset["params"]["dowel_d"], 2.0
+    for z, pts in dowels_by_level(plan).items():
+        gaps = [float(np.hypot(*(pts[i] - pts[j]))) for i in range(len(pts)) for j in range(i + 1, len(pts))]
+        assert all(g >= d + wall - 0.01 for g in gaps), f"holes {min(gaps):.1f} mm apart at z={z}"
 
 
 def test_a_stack_with_nothing_joining_its_layers_keeps_every_layer():

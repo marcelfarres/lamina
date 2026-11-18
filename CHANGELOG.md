@@ -6,15 +6,30 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ### Added
 
+- **Ring slices.** Tick *ring slices* on Stacked: each slice keeps only a wall, so the stack uses about a quarter
+  of the material. Each dowel sits in a collar. Thanks to @DaveLauber: adapted from his fork.
+
+  [![The scanned head as a stack of rings on dowels ▶](web/static/news/0.4.0-rings.jpg)](https://marcelfarres.github.io/lamina/media/rings.mp4)
+- **Band lattice.** A new technique: rings across x, y and z that slot together, best on round or boxy shapes.
+  Lamina names any piece that cannot slide in. Thanks to @DaveLauber: adapted from his fork.
+
+  [![The sphere's lattice built piece by piece, step 35 of 44 ▶](web/static/news/0.4.0-bands.jpg)](https://marcelfarres.github.io/lamina/media/bands_build.mp4)
+- **Shorter pieces for small sheets.** *Max piece length* cuts a long ring into pieces no longer than the length
+  you give, joined by tabs, so they fit a small sheet. Thanks to @DaveLauber: adapted from his fork.
+
+  ![The head's rings cut into pieces of 150 mm at most, nested on one sheet](web/static/news/0.4.0-max-length.jpg)
 - **See it as a lamp.** Tick *lamp* over the 3D view: a bulb inside the model throws its pattern of light and soft
   shadows on a room's walls. Three sliders move the bulb, and *bulb* picks LED or frosted.
-- **Choose where a folded model is cut apart.** The Technique tab of Folded Panels has a new *choose seams*
-  button. With it on, every edge of the model shows what it is: a thin line is a fold, a dashed line is a seam the
-  program chose, a thick line is a seam you chose. Click an edge on the model or on a sheet and the sheet is cut
-  apart there; the panels are laid out again round your seams. Click a seam of yours again and the program
-  decides that edge again. The edge under the pointer lights up on the model and on the sheet at the same time, so
-  you can pick it where it is easier to see. Your seams are saved with the project. If you change the facet size or
-  the model size afterwards, the edges change, and Lamina tells you which of your seams it could not find.
+- **Make a mask from a model.** In Folded Panels, use the *select faces* tool: click, drag, *grow* or *connected*,
+  then *remove*. Only what is left is cut, even when you change the face size. Try it on the new *lion_head*.
+
+  [![A lion head made into a mask: the face and the whole mane kept, the back removed ▶](web/static/news/0.4.0-mask.jpg)](https://marcelfarres.github.io/lamina/media/mask.mp4)
+
+- **Put the seams where you want.** Use the *put a seam* tool of the 3D view: click an edge, or drag along edges.
+  The sheet is cut apart there, and the panels are laid out round your seams.
+
+  ![The put a seam tool: your seams as a thick line round the back of the lion's head](web/static/news/0.4.0-seams.jpg)
+
 - **Two more folded examples.** *fold_box* is a six-sided box with a turned lid, printed flat in PETG and folded up:
   every fold has its own angle. *fold_lantern* is the lamp shade at 420 mm for 3 mm plywood: 72 separate pieces,
   each with a window and lacing holes, numbered on the inside.
@@ -69,9 +84,15 @@ What changed in each release. The GitHub release for a version is this section, 
   thickness found.
 - **A print set says when it could not cut the grooves.** A build that cannot cut solids (the one in the browser)
   now writes into the set's README which parts were exported without their fold grooves or labels.
+- **A better head on the horse.** The horse example's head is now a branch: a spine down its middle and ribs across
+  it, where it was one flat slab. A turned head on your model can have a branch too.
+
+  ![The horse's head in 0.3.3, one flat slab, beside 0.4.0, a spine with ribs across it](web/static/news/0.4.0-horse-head.jpg)
 
 ### Fixed
 
+- **Every dowel a stack asks for is cut.** Where a layer narrows, two dowels could land on top of each other and
+  both were left out with a warning. The vase example now opens with no warning.
 - **Cutting stiff sheet back at the seams no longer makes a small panel too small.** A panel that the cut-back would
   take under the minimum part or feature size keeps its edges and warns how far it presses into the next panel.
 - **No more specks beside a folded panel in stiff sheet.** Trimming a corner against the next panel could leave a
@@ -79,6 +100,7 @@ What changed in each release. The GitHub release for a version is this section, 
 - **A project file from a download zip opens at its own size.** The project file inside a downloaded zip was marked
   as made by an older Lamina, so opening it worked the model's size out again, as for an old file. It is now marked
   with the current version, like a project you save yourself.
+- **Examples open without warnings.** The blob example opens clean, ready to cut.
 
 ## 0.3.3
 
