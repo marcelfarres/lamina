@@ -336,10 +336,10 @@ def n040_cards(app):
 
 
 def n040_warnings(app):
-    app.example("cone", "stacked")          # 20 mm dowels: the tip is too narrow for one, so it is left out (test_modes)
-    for k, v in (("connect", "dowel"), ("n_points", 2), ("dowel_d", 20), ("distribution", "count"), ("count", 8)):
-        app.set(k, v)
-    app.view(25, 20, 0.9, only3d=False)
+    app.example("vase", "stacked")          # two dowel points 3 mm apart: no room for both, so 8 are left out, each ringed
+    app.p.evaluate("d => window.__t.applyFix({dowels: d})", [[0, 0], [3, 0]])
+    app.idle()
+    app.view(25, 20, 0.75, only3d=False)
     x0, y0, x1, _ = app.box(VIEW)
     app.shot("0.4.0-warnings", (x0, y0, x1, app.box("#msgs")[3]), [("#msgs", "a warning, counted")])
 
