@@ -44,9 +44,14 @@ What changed in each release. The GitHub release for a version is this section, 
   ![The cow as a plaque: the low rail goes in first, then the ribs slide onto it](web/static/news/0.4.0-first.jpg)
 
 - **A warning for weak fingers.** Many crossing slices close together turn a slice into a comb. A finger between two
-  slots that is thinner than the sheet now gets a warning with its width.
+  slots that is thinner than your material can take now gets a warning with its width.
 
   ![The egg's spine is a comb of thin fingers: the warning gives their width](web/static/news/0.4.0-fingers.jpg)
+
+- **The checks know your material.** The material you pick on the Sheet & fit tab now sets two checks: how wide a
+  finger between slots must be, and how much material a slice can get past. The messages name the material.
+
+  ![In acrylic, which cracks, a finger must be 1.5 times the sheet: the warning says so](web/static/news/0.4.0-material.jpg)
 
 ### Changed
 
