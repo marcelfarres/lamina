@@ -69,16 +69,21 @@ class Curve(Mode):
         return {"title": f"add a rib ({ctx.p['count'] + 1} in total)", "set": {"count": ctx.p["count"] + 1, "distribution": "count"}}
 
     @staticmethod
-    def reach(ctx, eu, ev, Q, keep):
-        """How far the material reaches from the curve, measured in the curve's plane — two rib planes meet along a
-        line at some distance from the curve, and that line must stay outside the model. Sampled, not exact. Only
-        the `keep` vertices count: a leg with ribs of its own is not where the body ribs meet."""
+    def reach(ctx, eu, ev, Q, s, keep):
+        """How far the material reaches from the curve, measured in the curve's plane: for each bit of it, its
+        distance, where along the curve (arc length) it is nearest, and on which side (+1 left of the curve's
+        direction). Two rib planes meet along a line on the inside of the bend at some distance from the curve, and
+        that line must stay outside the model near those two ribs. Sampled, not exact. Only the `keep` vertices
+        count: a leg with ribs of its own is not where the body ribs meet."""
         V = ctx.mesh.vertices[keep]
-        V = V[:: max(1, len(V) // 2000)] - ctx.mid
-        C = Q[:: max(1, len(Q) // 60)]
-        d2 = (V @ eu)[:, None] - C[None, :, 0]
-        e2 = (V @ ev)[:, None] - C[None, :, 1]
-        return float(np.sqrt((d2 ** 2 + e2 ** 2).min(1)).max())
+        V = V[:: max(1, len(V) // 4000)] - ctx.mid
+        step = max(1, len(Q) // 100)
+        C, sc, T = Q[::step], s[::step], np.gradient(Q, axis=0)[::step]
+        X = np.stack([V @ eu, V @ ev], 1)[:, None] - C[None]
+        D = np.hypot(X[..., 0], X[..., 1])
+        j = D.argmin(1); r = np.arange(len(V))
+        side = np.sign(T[j, 0] * X[r, j, 1] - T[j, 1] * X[r, j, 0])
+        return D[r, j], sc[j], side
 
     def _centroids(self, ctx, u, eu, stations):
         """(s, world point) of the model's section centroid at each station s along `eu`; a station the plane misses is left out."""
@@ -228,19 +233,28 @@ class Curve(Mode):
         # Ribs perpendicular to a bend meet on its inside: two neighbours whose planes differ by θ and sit `d` apart
         # cross at d / (2·tan(θ/2)) from the curve, so the turn between consecutive ribs is limited to keep that
         # crossing outside the model. The reach is doubled because a crossing exactly at the material's edge still
-        # cuts the parts living there. Clamping runs outward from the middle rib, so on a bend tighter than the
-        # model is wide the shortfall is shared by both ends instead of piling up at one.
+        # cuts the parts living there. It is the material's reach near those two ribs (a rib pitch either side) and
+        # on the inside of their bend, where they meet: one reach for the whole model, all round, let the depth of the
+        # chest hold back the ribs of a slim neck. Material across a tight U-turn is nearest the curve's other arm and
+        # not counted here; ribs that meet in it are still caught, as an error, by the collision check
+        # (checks.check_collisions). Clamping runs outward from the middle rib, so on a bend tighter than the model
+        # is wide the shortfall is shared by both ends.
         V = ctx.mesh.vertices
         body = ~np.any([np.all([(V - m) @ nm > 0 for m, nm in cell], axis=0) for *_, cell, _ in br], axis=0) if br else slice(None)
-        reach = 2 * (self.reach(ctx, eu, ev, Q, body) + p["thickness"])
+        dist, at, side = self.reach(ctx, eu, ev, Q, s, body)
+        pitch = s[-1] / (n + 1)
         turned = 0
         mid = len(place) // 2
         for i in list(range(mid + 1, len(place))) + list(range(mid - 1, -1, -1)):
             k = i - 1 if i > mid else i + 1                      # the neighbour already settled
             d = float(np.linalg.norm(place[i][0] - place[k][0]))
-            lim = 2 * math.atan(d / (2 * reach)) if reach > 1e-9 else math.pi
             prev = place[k][1]
             diff = (place[i][1] - prev + math.pi) % (2 * math.pi) - math.pi
+            lo, hi = sorted((stations[i], stations[k]))
+            # the inside of the turn from k to i: left of the curve's direction when it turns left
+            near = dist[(at >= lo - pitch) & (at <= hi + pitch) & (side == math.copysign(1, diff * (i - k)))]
+            reach = 2 * (float(near.max(initial=0.0)) + p["thickness"])
+            lim = 2 * math.atan(d / (2 * reach))
             if abs(diff) > lim:
                 place[i] = (place[i][0], prev + math.copysign(lim, diff), *place[i][2:]); turned += 1
         if turned:

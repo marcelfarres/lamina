@@ -528,12 +528,11 @@ def test_folded_lamp_has_a_window_in_its_faces_and_unfolds_flat():
     assert np.allclose(normals, normals[0], atol=1e-3)                       # flat: every face looks the same way
 
 
-# the horse example's body curve before its head became a branch (0.3.3), and a branch down each leg, from where it
-# leaves the body to the hoof
+# the horse example as it opens: its body curve, a branch down each leg from where it leaves the body to the hoof, and
+# the head's branch (the last)
 HORSE = {"size": [0, 300, 0], "thicken": 1, "round": 2, "thickness": 3, "slot_offset": 0.1, "plane": "yz", "count": 20, "spines": 1}
-HORSE_CURVE = [[-119, 11], [-89, 18], [-59, 23], [-14, 10], [16, 13], [50, 22], [76, 47], [91, 76], [106, 89], [136, 83]]
-BRANCHES = [[[-2, 46.6, -33], [-5.2, 64.5, -128]], [[40.5, 36.8, -33], [49, 25.8, -125]],
-            [[-2.8, -100.1, -11], [-5, -134.2, -125]], [[52, -83.1, -15], [54.9, -101, -125]]]
+HORSE_EXAMPLE = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["horse"]["params"]
+HORSE_CURVE, BRANCHES, HEAD = HORSE_EXAMPLE["curve"], HORSE_EXAMPLE["branches"][:-1], HORSE_EXAMPLE["branches"][-1]
 # each leg's centreline, measured on the model: a leg bends, its branch is one straight line from body to hoof
 LEGS = [[[-2.0, 46.6, -33], [-2.3, 47.8, -61], [-3.7, 49.2, -81], [-3.6, 54.9, -101], [-5.2, 64.5, -128]],
         [[40.5, 36.8, -33], [44.5, 30.7, -61], [47.1, 23.6, -81], [48.6, 19.9, -101], [49.0, 25.8, -125]],
@@ -548,7 +547,7 @@ def test_curve_branches_hold_every_leg_of_the_horse():
     error and the model is still covered."""
     from shapely.geometry import Point, Polygon
     from shapely.ops import unary_union
-    plan = build(EXAMPLES / "horse.stl", "curve", {**HORSE, "curve": HORSE_CURVE, "branches": BRANCHES, "autofix": "add"})
+    plan = build(EXAMPLES / "horse.stl", "curve", {**HORSE, "curve": HORSE_CURVE, "branches": BRANCHES + [HEAD], "autofix": "add"})
     assert plan["counts"]["errors"] == 0, [(s["label"], s["errors"]) for s in plan["slices"] if s["errors"]] + plan["errors"]
     assert plan["coverage"] >= 0.9
     spines = [(np.array(s["M"]), unary_union([Polygon(r[0], r[1:]) for pc in s["pieces"] for r in pc["kerfed"]]))
@@ -562,7 +561,7 @@ def test_curve_branches_hold_every_leg_of_the_horse():
             held |= (np.abs(L[:, 2]) < 6) & np.array([g.distance(Point(x)) < 2 for x in L[:, :2]])
         assert held.mean() >= 0.95, f"leg {i}: {held.mean():.0%} of it in a branch spine"
         assert len([s for s in plan["slices"] if s["label"].startswith(f"R{i}-")]) >= 5
-    assert len(plan["axes3d"]) == 4 and {b["label"] for b in plan["bounds3d"]} >= {"J-1", "J-2", "J-3", "J-4"}
+    assert len(plan["axes3d"]) == 5 and {b["label"] for b in plan["bounds3d"]} >= {"J-1", "J-2", "J-3", "J-4", "J-5"}
 
 
 def test_curve_head_turned_aside_is_a_branch_of_its_own(tmp_path):
@@ -603,7 +602,7 @@ def test_curve_branch_follows_its_joint_and_either_end_can_come_first():
     tongue on its own with every rib floating — and a branch typed hoof first is the same branch, not a joint at the
     hoof that hands the whole body to the leg."""
     plan = build(EXAMPLES / "horse.stl", "curve", {**HORSE, "curve": HORSE_CURVE, "autofix": "off", "offset": {"J-1": 15},
-                                                    "branches": [BRANCHES[0][::-1]] + BRANCHES[1:]})
+                                                    "branches": [BRANCHES[0][::-1]] + BRANCHES[1:] + [HEAD]})
     assert plan["counts"]["errors"] == 0, [(s["label"], s["errors"]) for s in plan["slices"] if s["errors"]] + plan["errors"]
     assert plan["coverage"] >= 0.9
     assert len([s for s in plan["slices"] if s["label"].startswith("R1-")]) >= 5
@@ -634,6 +633,30 @@ def test_curve_branch_takes_its_limb_and_no_more(tmp_path):
     assert sum(x.startswith("R-") for x in by["K1"]["engages"]) >= 2 and sum(x.startswith("R-") for x in by["K2"]["engages"]) >= 2
     K = np.array(by["K-1"]["M"]); side = (world_pts(by["K2"]) - K[:3, 3]) @ K[:3, 2]      # K2's outline against K-1's plane
     assert (side > 3).all() or (side < -3).all(), (side.min(), side.max())
+
+
+def slim_neck(tmp_path):
+    """A deep block (120 mm), a slim bar (30 mm) out of it along y, and the bar turning 60° up at its far end: a neck
+    that bends a long way from the chest. Model-centred, and the curve through its middle."""
+    import trimesh
+    riser = trimesh.creation.box([40, 30, 110])
+    riser.apply_transform(trimesh.transformations.rotation_matrix(np.radians(-30), [1, 0, 0])).apply_translation([0, 97.5, 47.6])
+    T = trimesh.util.concatenate([trimesh.creation.box([40, 100, 120]).apply_translation([0, -100, 0]), trimesh.creation.box([40, 140, 30]), riser])
+    sh = -T.bounds.mean(0); T.apply_translation(sh); T.export(tmp_path / "neck.stl")
+    return tmp_path / "neck.stl", [[y + sh[1], z + sh[2]] for y, z in [[-140, 0], [-60, 0], [40, 0], [70, 5], [97, 48], [122, 92]]]
+
+
+def test_curve_ribs_turn_with_a_slim_neck_however_deep_the_chest(tmp_path):
+    """Two neighbouring ribs meet on the inside of a bend, so how far they may turn depends on how far the material
+    reaches there. One reach for the whole model let the 120 mm block hold back the ribs of the 30 mm bar bending
+    far from it: on the riser they stood at 4° to 47°, never square to its 60°. Measured where the ribs meet, the
+    riser's ribs stand square to it, and still nothing collides."""
+    model, curve = slim_neck(tmp_path)
+    plan = build(model, "curve", {"plane": "yz", "count": 22, "spines": 1, "thickness": 3, "curve": curve, "autofix": "off", "shrinkwrap": 2})
+    assert plan["counts"]["errors"] == 0, [(s["label"], s["errors"]) for s in plan["slices"] if s["errors"]] + plan["errors"]
+    normals = [np.array(s["M"])[:3, 2] for s in plan["slices"] if s["label"].startswith("R-")]
+    riser = [np.degrees(np.arctan2(n[2], n[1])) for n in normals[-5:]]     # the rib normal's angle in the y-z plane
+    assert np.allclose(riser, 60, atol=3), riser
 
 
 def test_a_turned_interlocked_grid_reaches_the_corners():
