@@ -24,10 +24,10 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
 
   ![The head's rings cut into pieces of 150 mm at most, nested on one sheet](web/static/news/0.4.0-max-length.jpg)
 
-- **See it as a lamp.** Tick *lamp* over the 3D view. A bulb lights the model from inside, and the floor catches
-  the shadows of the parts.
+- **See it as a lamp.** Tick *lamp* over the 3D view: a bulb inside the model throws its pattern of light and soft
+  shadows on a room's walls. Three sliders move the bulb, and *bulb* picks LED or frosted.
 
-  ![The lamp tick over the 3D view, and the shadows on the floor](web/static/news/0.4.0-lamp.jpg)
+  ![The lamp tick over the 3D view: the bulb's light and soft shadows in the room](web/static/news/0.4.0-lamp.jpg)
 
 - **Make a mask from a model.** In Folded Panels, use the *select faces* tool: click, drag, *grow* or *connected*,
   then *remove*. Only what is left is cut, even when you change the face size. Try it on the new *lion_head*.
@@ -53,14 +53,19 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
   ![The cow as a plaque: the low rail goes in first, then the ribs slide onto it](web/static/news/0.4.0-first.jpg)
 
 - **A warning for weak fingers.** Many crossing slices close together turn a slice into a comb. A finger between two
-  slots that is thinner than the sheet now gets a warning with its width.
+  slots that is thinner than your material can take now gets a warning with its width.
 
   ![The egg's spine is a comb of thin fingers: the warning gives their width](web/static/news/0.4.0-fingers.jpg)
 
+- **The checks know your material.** The material you pick on the Sheet & fit tab now sets two checks: how wide a
+  finger between slots must be, and how much material a slice can get past. The messages name the material.
+
+  ![In acrylic, which cracks, a finger must be 1.5 times the sheet: the warning says so](web/static/news/0.4.0-material.jpg)
+
 ### Changed
 
-- **Settings that are easy to read.** Full names, sections that fold, a ↺ sign to undo a change, and a box over
-  the tabs that finds a setting.
+- **Settings that are easy to read.** Full names, sections that fold, a ↺ sign to undo a change, a box over the
+  tabs that finds a setting, and help that opens under a setting's name when you click it.
 
   ![The Technique tab: full names, folding sections and the search box](web/static/news/0.4.0-settings.jpg)
 
@@ -68,10 +73,6 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
   same.
 
   ![The basic / all switch under the search box](web/static/news/0.4.0-basic.jpg)
-
-- **Help opens in place.** Click the name of a setting and its explanation opens under it.
-
-  ![The help of a setting, open under its name](web/static/news/0.4.0-help.jpg)
 
 - **The spacing graph, under its tick.** Start the curve from a shape, add or move points with buttons, and see
   every slice under the curve.
@@ -109,10 +110,13 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
 - **Small changes to folded panels.** The printed-fold settings show only on a print job. A fin thinner than two
   sheets gets a warning. A print set says which parts lost their grooves.
 
-- **A better head on the horse.** The horse example's head is now a branch: a spine down its middle and ribs across
-  it, where it was one flat slab. A turned head on your model can have a branch too.
+- **A better horse.** Its head is a branch: a spine with ribs across it, not a flat slab. In Curve, ribs stay square
+  to a slim neck on any model. A turned head can have a branch too.
 
   ![The horse's head in 0.3.3, one flat slab, beside 0.4.0, a spine with ribs across it](web/static/news/0.4.0-horse-head.jpg)
+
+- **Clean tops on stacked models.** A layer's name, arrows and dowel numbers now go only where the layer above
+  covers them. The top layer stays clean: its name is beside it on the sheet. *Hide engravings* turns this off.
 
 ### Fixed
 
@@ -122,8 +126,8 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
   version.
 - **Every dowel is cut.** Where a layer narrows, two dowels could land on each other and both were left out with
   a warning. The vase example now opens with no warning.
-- **Examples open without warnings.** The blob, berry, head_igea, hook, horse, pyramid, ripple, snowman, torus and
-  twisted examples open clean, ready to cut.
+- **Examples open without warnings.** The blob, berry, figure, head_igea, hook, horse, pyramid, ripple, snowman,
+  tall_bar, torus and twisted examples open clean, ready to cut.
 
 ## 0.3.3
 

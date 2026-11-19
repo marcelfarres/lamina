@@ -282,8 +282,20 @@ def test_fingers_between_slots_thinner_than_the_material_are_a_warning(ball):
     finger = lambda plan: [w for w in by_group(plan, "Y")[0]["warnings"] if "finger" in w]   # noqa: E731
     close, apart = build(ball, "plaque", {**p, "nx": 20}), build(ball, "plaque", {**p, "nx": 10})
     (w,) = finger(close)
-    assert "thinner than the material" in w and "< 3 mm" in w
+    assert "thinner than the material can take" in w and "< 3 mm = the sheet's thickness" in w
     assert not finger(apart)
+
+
+@pytest.mark.parametrize("material, warns", [("plywood", False), ("acrylic", True), ("cardboard", True)])
+def test_the_material_sets_the_thinnest_finger(ball, material, warns):
+    """14 ribs leave 4.1 mm fingers in the 3 mm spine: plywood takes that, brittle acrylic wants 1.5 × the sheet
+    (4.5 mm) and soft cardboard 2 × (6 mm) — the material picked on the Sheet tab decides."""
+    plan = build(ball, "plaque", {**BASE, "layout": "crossed", "nx": 14, "ny": 1, "sink": 50, "plate": "circle", "first": "y",
+                                  "material_kind": material})
+    w = [e for e in by_group(plan, "Y")[0]["warnings"] if "finger" in e]
+    assert bool(w) == warns
+    if warns:
+        assert f"thinner than {material} can take" in w[0] and "× the 3 mm sheet" in w[0]
 
 
 def test_two_slots_of_one_crossing_slice_end_to_end_are_no_finger():

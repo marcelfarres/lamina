@@ -374,13 +374,27 @@ def test_a_connector_left_out_is_counted_and_the_export_text_opens_on_a_click(pa
 
 
 def test_the_lamp_lights_the_model_from_inside_and_leaves_the_view_as_it_was(page):
-    """The lamp tick turns on a bulb, the shadow pass and the bulb-height slider; a re-slice keeps it on; off, the
-    view has no shadow pass and the slider is gone. The 3D bar holds its controls on the vase without a page error."""
+    """The lamp tick turns on a bulb, the shadow pass, the tone mapping and the bulb's controls: each slider moves the
+    bulb along its own axis, and a frosted bulb is the bigger one; a re-slice keeps it on; off, the view has no shadow
+    pass, no tone mapping and the controls are gone. The bulb's shadows are the soft ones:
+    three.js's point-shadow code was replaced (a three.js update that changes it fails here, not silently). The 3D bar
+    holds its controls on the vase without a page error."""
     use(page, "vase", "stacked"); errs = []; page.on("pageerror", lambda e: errs.append(str(e)))
     shadows = lambda: page.evaluate("() => window.__t.lamp()")   # noqa: E731
-    assert not shadows() and not page.is_visible("#lampl")
-    page.check("#lamp"); assert shadows() and page.is_visible("#lampl")
-    page.eval_on_selector("#lampz", "e => { e.value = 0.9; e.dispatchEvent(new Event('input')) }")
+    look = lambda: page.evaluate("async () => {const m = await import(location.origin + '/static/js/scene.js'),"   # noqa: E731
+                                 " T = await import('three'); return [m.renderer.toneMapping === T.AgXToneMapping,"
+                                 " T.ShaderChunk.shadowmap_pars_fragment.includes('pen = max(')]}")
+    assert not shadows() and not page.is_visible("#lampl") and look() == [False, True]
+    page.check("#lamp"); assert shadows() and look() == [True, True]
+    assert all(page.is_visible(s) for s in ("#lampx", "#lampy", "#lampz", "#lampb"))
+    bulb = lambda: page.evaluate("async () => {const m = await import(location.origin + '/static/js/scene.js'),"   # noqa: E731
+                                 " l = m.scene.getObjectsByProperty('isPointLight', true)[0];"
+                                 " return [l.position.x, l.position.y, l.position.z, l.shadow.radius]}")
+    x, y, z, led = bulb()
+    for sel, v in (("#lampx", 0.2), ("#lampy", 0.8), ("#lampz", 0.9)):   # each slider moves the bulb along its own axis only
+        page.eval_on_selector(sel, "(e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }", v)
+    x2, y2, z2, _ = bulb(); assert x2 < x and y2 > y and z2 > z, (x, y, z, x2, y2, z2)
+    page.select_option("#lampb", "frosted"); assert bulb()[3] == pytest.approx(led * 2.5)
     set_fields(page, [["p_count", 12]]); settle(page); assert shadows() and plan(page)["counts"]["slices"] == 12
-    page.uncheck("#lamp"); assert not shadows() and not page.is_visible("#lampl") and not errs, errs
+    page.uncheck("#lamp"); assert not shadows() and not page.is_visible("#lampl") and look() == [False, True] and not errs, errs
 

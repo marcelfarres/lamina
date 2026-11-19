@@ -4,12 +4,16 @@ import math
 import numpy as np
 import shapely
 import shapely.affinity
+from shapely.geometry import MultiPolygon
 from shapely.ops import unary_union
 from . import MAX_SLICES, Mode, Param, register, spacing_params
-from .connectors import Connectors, Layer
+from .connectors import Connectors, Layer, hole_mark, hole_of
 from ..geometry import as_multi, as_lines, section_polygons, into
+from ..labels import mark_box, mark_rot
 from ..ring import collared, ring as ring_of
 from ..ringcut import Ring, shorten
+
+HIDE = 1.0      # mm an engraving keeps in from the edge of the layer above: a glue-up a little off still hides it
 
 CONNECT_HELP = ("dowel = round/square rods through holes (drawn in the 3D view), the default: glue alone leaves every layer free to "
                 "slide while it dries, and two dowels through a piece hold it where it belongs · tab = flat pieces cut from the sheet: "
@@ -30,6 +34,10 @@ class Stacked(Mode):
         Param("space", "number", 0.0, "Empty space between consecutive slices (mm); spacers keep it", 0, 500, 0.5, unit="mm", label="gap between layers"),
         Param("shift", "number", 0.0, "Move every slice plane along the axis by this much (mm, + towards the top), so one slice lands on a feature of the model — a rim, a shoulder, the middle of a hole: read the slice's height off the 3D view and shift by the difference. With `distance` the stack is laid out again from the shifted start, one slice after another over the model, so only the remainder at its ends is uncovered; with `count` or a spacing curve a slice moved past an end of the model is left out and the notes say so. The slices are named by their place in the stack once moved, so a setting made for one by name (a thickness, an offset) may need its name updated", -500, 500, 0.1, unit="mm", label="shift stack"),
         Param("surface", "choice", "mid", "Outline of each slice: mid = section at the middle; outer = union of the sections through the slice thickness (sand down to shape, Slicer's 3D Slices); inner = intersection (never protrudes)", choices=["mid", "outer", "inner"], label="slice outline"),
+        Param("hide_marks", "bool", True, "Engrave each layer's label, orientation arrows and dowel numbers only where the layer glued on top "
+              "hides them, so the assembled model shows none: the top layer, which nothing covers, stays clean and its label goes beside "
+              "it on the sheet; a label with no room under the layer above goes beside its part too. The dowel holes stay where they are. "
+              "Off = anywhere on the part", label="hide engravings"),
         Param("ring_slices", "bool", False, "Ring slices: keep only a wall `wall` wide inside each slice's outline and cut the middle away, so "
               "the stack is a shell of rings instead of solid discs. The wall is measured in the slice's own plane, the same all the way "
               "round (Modify form's `hollow` shells the 3D model instead, which leaves gently sloping layers wide and the ends solid). "
@@ -66,7 +74,9 @@ class Stacked(Mode):
               "Z-3a = dowel a between Z-3 and Z-4 — a connector is named after the lower of the two slices it joins and a letter, "
               "and the mark 3a is engraved beside its hole on both slices, so a hole marked with a number lower than the slice's "
               "own takes the rod from below, one with its own number the rod going up · a straight rod through several slices "
-              "keeps the name of the slice it starts from · with tab connectors Z-3a is the peg or spacer itself, a part of its own")
+              "keeps the name of the slice it starts from · with tab connectors Z-3a is the peg or spacer itself, a part of its own · "
+              "with `hide engravings` every layer's engravings sit under the layer above it, and the top layer has none: its name is "
+              "beside it on the sheet")
 
     def build(self, ctx):
         p = ctx.p
@@ -86,7 +96,23 @@ class Stacked(Mode):
             ctx.errors.append(f"space = {p['space']:g} mm between slices but no connectors — the slices would float: set connect to tab (spacers) or dowel, or set space to 0")
         extra = conn.run() if conn else []
         self.ring_down(ctx, slices)
+        if p["hide_marks"]:
+            self.hide(ctx, slices)
         return self.in_order(slices, extra) if conn else slices
+
+    @staticmethod
+    def hide(ctx, slices):
+        """Where each layer's engravings go (`cover`): under the layer glued on top of it, HIDE mm in from that layer's
+        edge, so the assembled stack shows none. The label and the arrows are placed in it later (nest, plan.build); a
+        dowel number already placed outside it moves in now, or goes, the assembly key still naming its hole. The top
+        layer has nothing over it and stays clean. Taken from the layers as built here, the rings cut back: a sliver
+        shed from the layer above later is not known yet, and HIDE takes in one thinner than itself."""
+        font = ctx.p["font"]
+        for a, b in zip(slices, [*slices[1:], None]):
+            a.cover = MultiPolygon() if b is None else as_multi(a.raw.intersection(into(a.M, b.M, b.raw).buffer(-HIDE)))
+            for m in [m for m in a.marks if not a.cover.covers(mark_box(*m[:3], font, mark_rot(m)))]:
+                a.marks.remove(m)
+                hole_mark(a, hole_of(a, m[2]), m[2], font)
 
     def cut(self, ctx, sl):
         """plan.build's hook: a ring slice longer than `max_length`, or too big for the sheet, cut across its wall into

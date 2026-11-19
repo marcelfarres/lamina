@@ -131,14 +131,16 @@ COMMON: list[Param] = [
       "labels, and assembly-key.txt in the export maps code → part. Leave that file out of the zip and the puzzle stays a puzzle",
       choices=["position", "code"], group="sheet", show_if=("labels", True), label="label style"),
     P("label_place", "choice", "part", "Where each label is engraved. part = on the part itself where the whole label fits on "
-      "its material (inside the outline of the next layer where the technique marks one, so the layer glued on top hides it), "
+      "its material (a stacked layer with `hide engravings`: only where the layer glued on top hides it), "
       "beside it with a line pointing at it where it does not · beside = always beside the part, on the waste, so nothing is "
       "engraved on the parts · on = always on the part, on its widest spot, past its outline when it must: trim those in your "
-      "laser software. However placed, no part comes out without its label", choices=["part", "beside", "on"], group="sheet",
+      "laser software (a stacked top layer, which nothing covers, still beside). However placed, no part comes out without its "
+      "label", choices=["part", "beside", "on"], group="sheet",
       show_if=("labels", True), label="labels go"),
     P("orient_mark", "bool", False, "Engrave two small arrows at the middle of every part (LABEL layer, with the labels): a long one up the "
       "part's frame and a short one to its right, the same two directions on every part of the model, so a part turned on the sheet "
-      "or laid face down is seen at once — the engraved face is the front. Labels keep clear of them", group="sheet", label="orientation arrows"),
+      "or laid face down is seen at once — the engraved face is the front. Labels keep clear of them. A stacked layer with "
+      "`hide engravings` gets them under the layer above, the top layer none", group="sheet", label="orientation arrows"),
     P("font", "number", 4.0, "Height of a capital letter in the engraved labels (mm). Single-stroke lettering: the laser draws each letter as one line, not the two edges of a filled one", 1, 30, 0.5, group="sheet", unit="mm", label="label letter height"),
     # -- fit: three things that are easy to take for one. Only the kerf is switched by `compensate`; the slot fit and the
     # corners always apply, and the form says so in each section's line (reported: "if compensate is off, it feels like

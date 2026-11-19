@@ -189,7 +189,8 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     pieces = [pc for sl in slices for pc in sl.pieces]
     if p["orient_mark"]:                               # the same two directions on every part: which way is up, which face is the front
         for pc in pieces:                               # placed after the dowel and seam marks, in the room they leave
-            pc.lines = pc.lines + orient_arrows(pc.geom, keep=[mark_box(*m[:3], p["font"], mark_rot(m)) for m in pc.marks])
+            room = pc.geom if pc.parent.cover is None else pc.geom.intersection(pc.parent.cover)   # a stacked layer: under the one above
+            pc.lines = pc.lines + orient_arrows(room, keep=[mark_box(*m[:3], p["font"], mark_rot(m)) for m in pc.marks])
     kerf = p["kerf"] if p["compensate"] else 0.0       # off by default: many machines compensate their own kerf
     tag = label_tag(p, model_path)                     # the model's name, engraved before every label: nested with room for it
     n_sheets = nest(pieces, p["sheet"], p["gap"], p["sheet_margin"], kerf, p["labels"], p["font"], tag, p["label_place"], p["grain"])
@@ -333,6 +334,7 @@ def _slice_json(sl):
                     "marks": [[round(m[0], 3), round(m[1], 3), m[2], round(mark_rot(m), 2)] for m in pc.placed_marks],
                     "kerfed_marks": [[round(m[0], 3), round(m[1], 3), m[2], round(mark_rot(m), 2)] for m in pc.marks],
                     "label_pos": pc.label_pos, "label_size": pc.label_size, "label_short": pc.label_short, "leader": pc.leader, "same": pc.same, "flipped": pc.flipped,
+                    **({} if sl.cover is None else {"cover": poly_coords(as_multi(sl.cover.intersection(pc.geom)))}),   # local: where a printed label may go
                     **sl.piece_extra(pc),
                     "area": round(float(pc.geom.area), 3),   # net of holes and slots: × its slice's thickness × density = its weight
                     } for pc in sl.pieces],
