@@ -99,6 +99,8 @@ What changed in each release. The GitHub release for a version is this section, 
   to a slim neck on any model. A turned head can have a branch too.
 
   ![The horse's head in 0.3.3, one flat slab, beside 0.4.0, a spine with ribs across it](web/static/news/0.4.0-horse-head.jpg)
+- **Clean tops on stacked models.** A layer's name, arrows and dowel numbers now go only where the layer above
+  covers them. The top layer stays clean: its name is beside it on the sheet. *Hide engravings* turns this off.
 
 ### Fixed
 

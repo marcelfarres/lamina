@@ -93,6 +93,7 @@ def _put(p):
     pc, T = p.pc, lambda g: _move(g, p.rot, p.dx, p.dy)
     geom = as_multi(T(pc.kerfed))
     pc.placed, pc.placed_lines, pc.placed_marks = geom, [(s, T(l)) for s, l in pc.lines], [(*T(Point(m[0], m[1])).coords[0], m[2], mark_rot(m)) for m in pc.marks]
+    pc.placed_cover = None if pc.parent.cover is None else as_multi(T(pc.parent.cover))
     pc.place = (p.sheet, *(p.at or geom.bounds[:2]), p.rot)
 
 
@@ -186,7 +187,7 @@ def _nest(pieces, job):
             # reserve is only ever a hole the nester keeps; the part's own outline is what is cut and labelled.
             w, h = label_box(pc.label, job.font * 0.65)                       # the least the part could carry
             keep = [mark_box(*m[:3], job.font, mark_rot(m)) for m in pc.marks] + [ln.buffer(0.8) for s, ln in pc.lines if s == "orient"]
-            if fit_on_part(pc.kerfed, [ln for s, ln in pc.lines if s == "guide"], w, h, keep, label_angles(pc.kerfed), room=min(2.0, 0.3 * job.font * 0.65)) is None:
+            if fit_on_part(pc.kerfed, pc.parent.cover, w, h, keep, label_angles(pc.kerfed), room=min(2.0, 0.3 * job.font * 0.65)) is None:
                 x0, y0, x1, y1 = pc.kerfed.bounds; cx = (x0 + x1) / 2
                 pc.nest_shape = as_multi(unary_union([pc.kerfed, box(cx - w / 2, y1 + 1.0, cx + w / 2, y1 + 1.0 + h)]))
         prepared.append((pc, 0.0 if job.grain else min_rect_angle(pc.nest_shape)))
