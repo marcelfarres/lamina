@@ -471,6 +471,18 @@ def test_folded_cut_back_never_makes_a_panel_too_small(joint):
     assert any("press up to" in w for sl in plan["slices"] for w in sl["warnings"])
 
 
+def test_folded_net_keeps_room_for_its_tabs():
+    """Bug 045: the cow example opened with 40 of its 217 seams reduced to a plain seam. The net was grown with no
+    room for the glue flaps, so a tab landed on its own panel from either side. It also had a "joints made smaller"
+    line on every panel, for a hole and an inset a tab does not have. Each free edge now keeps its flap's room while
+    the net grows, and only the sizes a joint uses count as made smaller."""
+    plan = build(EXAMPLES / "cow.stl", "folded", {"rotate": [90, 0, 0], "joint": "tab", "facet": 15, "strategy": "area", "thickness": 1})
+    warns = [w for sl in plan["slices"] for w in sl["warnings"]]
+    assert sum("reduced to a plain seam" in w for w in warns) <= 5
+    assert not any("made smaller than asked" in w for w in warns)
+    assert plan["counts"]["errors"] == 0
+
+
 def test_folded_merges_only_the_faces_too_small_for_the_sheet():
     """Asked for: a fix for faces too small to cut back that does not coarsen the whole model. `min_face` closes up the
     faces under that height and leaves the rest: on the cow, no face is left under it, most of the model's faces

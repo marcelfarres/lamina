@@ -54,6 +54,9 @@ def closes_at(wide, depth):
 
 THIN_TABS = ("tab", "multitab", "diamond", "ticked", "gear")   # glue tabs a printed panel carries as thin flaps of its skin
 FOLDED_JOINTS = ("tab", "multitab", "diamond", "ticked", "gear", "tongue", "puzzle", "strip")   # a flap or bridge that bends
+TABBED = ("tab", "multitab", "diamond", "ticked", "gear", "tongue", "puzzle")   # folded.tabs: a flap out from the edge
+# the joint sizes fit_sizes shrinks that each joint really uses: i = inset, h = hole, r = rib width
+USES = {"rivet": "ih", "laced": "ih", "strip": "ih", "loops": "h", "rib": "ir", "tongue": "i", "puzzle": "i"}
 FLAT = math.radians(1)                # two faces closer to one plane than this are one flat piece: no score between them
 MAX_HOLES = 60                       # holes along one seam (rivet / laced / strip)
 MAX_FACES = 4000                      # triangles this can unfold and lay out in a usable time
@@ -297,7 +300,8 @@ class Folded(Mode):
         chosen, lost = (set(), 0) if p["separate"] else edges_at(mesh, p["seams"])     # every face its own panel: every edge is a seam already
         if lost and gone.any():                               # a seam on the rim or among the removed faces went with them: only one that is nowhere on the model is said
             lost = edges_at(whole, p["seams"])[1]
-        frames, local, panels, seams = unfold(mesh, p["separate"], p["max_faces"], self.usable_sheet(p), p["strategy"], chosen)
+        flap = p["tab_h"] if p["joint"] in TABBED else 0.0     # a joint that puts a flap out from the edge needs room for it
+        frames, local, panels, seams = unfold(mesh, p["separate"], p["max_faces"], self.usable_sheet(p), p["strategy"], chosen, flap)
         self.frames, self.local = frames, local
         convex = mesh.face_adjacency_convex
         slices, owner = [], {}
@@ -757,7 +761,10 @@ class Folded(Mode):
             inset, hole, rib = min(p["inset"], 0.1 * h), p["hole_d"], min(p["rib_w"], max(0.22 * h, 2 * self.t))
         else:
             inset, hole, rib = min(p["inset"], 0.2 * h), min(p["hole_d"], 0.3 * h), p["rib_w"]
-        if inset < p["inset"] - 1e-9 or hole < p["hole_d"] - 1e-9 or (p["joint"] == "rib" and rib < p["rib_w"] - 1e-9):
+        # counted only for the sizes this joint uses: a tab has neither a hole nor an inset, and was counted as made
+        # smaller whenever its triangle was too small for the hole it does not have (the cow: one line per panel)
+        uses = USES.get(p["joint"], "")
+        if ("i" in uses and inset < p["inset"] - 1e-9) or ("h" in uses and hole < p["hole_d"] - 1e-9) or ("r" in uses and rib < p["rib_w"] - 1e-9):
             for s in sides:
                 s.sl.reduced += 1
         return inset, hole, rib
@@ -933,13 +940,14 @@ class Folded(Mode):
         sl.marks.append((float(L * 0.5), float(t / 2 + w * 0.5), str(j)))
         return [sl]
 
-    def tabs(self, j, sides, jt, convex, swapped=False):
+    def tabs(self, j, sides, jt, convex, swapped=False, scale=1.0):
         """Tabs on side a of seam j, glued to side b. A tab that would land on its own panel (a concave net) is tried
-        from the other side first — the seam then has its tab on panel b, folded onto a — and only when neither
-        side has room is the seam left plain, with a warning."""
+        from the other side first — the seam then has its tab on panel b, folded onto a — then, for a joint that cuts
+        nothing into b, at half the height on both sides again, down to a glue flap twice the min feature (papercraft
+        shortens a flap that meets the net). Only when none of those has room is the seam left plain, with a warning."""
         p = self.p; t = self.t; a, b = sides
         inset, _, _ = self.fit_sizes(sides)
-        L = a.L; h = min(p["tab_h"], L * 0.6, b.h * 0.6); A, d, n = a.A, a.d, a.n
+        L = a.L; h = min(p["tab_h"], L * 0.6, b.h * 0.6) * scale; A, d, n = a.A, a.d, a.n
         out = -n                                        # tabs protrude away from the panel
         tan = math.tan(math.radians(p["tab_angle"]))
 
@@ -989,7 +997,9 @@ class Folded(Mode):
         for poly in polys:
             if poly.intersection(sl.raw).area > 0.02 * poly.area or poly.buffer(0.3).intersection(sl.taken).difference(base).area > 0.05:
                 if not swapped:
-                    return self.tabs(j, [b, a], jt, convex, swapped=True)
+                    return self.tabs(j, [b, a], jt, convex, swapped=True, scale=scale)
+                if jt not in ("tongue", "puzzle") and h / 2 >= 2 * p["min_feature"]:   # those two cut b before this check
+                    return self.tabs(j, [b, a], jt, convex, scale=scale / 2)        # [b, a] is the first order again
                 a.sl.warnings.append(f"seam {j}: tab would overlap or touch the panel on either side — reduced to a plain seam (lower tab_h)")
                 break
         else:

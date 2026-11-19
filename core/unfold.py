@@ -1,8 +1,8 @@
 """Mesh unfolding for Folded Panels.
 
 Panels are grown greedily from a seed face over the dual graph: the neighbour across the best remaining edge is laid
-flat next to the panel unless it would overlap it (or push the panel past the sheet size) — then that edge becomes
-a seam. Which edge is "best" is the strategy:
+flat next to the panel unless it would overlap it, lie in the room a glue flap needs (tab joints), or push the panel
+past the sheet size — then that edge becomes a seam. Which edge is "best" is the strategy:
   flat   flattest dihedral first (Pepakura / Blender-style minimum-angle spanning tree)
   strip  edges most perpendicular to the model's main axis first → long strips that bend gently
          (Mitani & Suzuki 2004 strip idea; Schlickenrieder's steepest-edge cut)
@@ -89,8 +89,26 @@ def contact(tri, fat, corners):
     return near.length
 
 
-def unfold_once(mesh, split, max_faces, max_dims, weights, local, chosen=frozenset()):
-    """`chosen`: the adjacency indices of the seams the user chose. No panel grows across one."""
+TAN_FLAP = math.tan(math.radians(30))
+
+
+def flap_zone(tri, i, flap):
+    """The room a glue flap takes outside edge i → i+1 of a laid-out triangle: the trapezoid folded.tabs draws there
+    (from 8 % to 92 % of the edge, sides at 30°), `flap` high but no more than 0.6 of the edge."""
+    A, B, C = (np.asarray(tri[(i + k) % 3], float) for k in range(3))
+    L = float(np.linalg.norm(B - A)); d = (B - A) / L; n = np.array([-d[1], d[0]])
+    if np.dot(C - A, n) > 0:
+        n = -n                                          # away from the triangle
+    h = min(flap, 0.6 * L); ti = min(h * TAN_FLAP, 0.84 * L * 0.4)
+    x0, x1 = A + d * 0.08 * L, A + d * 0.92 * L
+    return Polygon([x0, x1, x1 - d * ti + n * h, x0 + d * ti + n * h])
+
+
+def unfold_once(mesh, split, max_faces, max_dims, weights, local, chosen=frozenset(), flap=0.0):
+    """`chosen`: the adjacency indices of the seams the user chose. No panel grows across one. `flap` (mm): a joint
+    with a glue flap needs room for it outside the edge, on one panel or the other: every free edge of a panel keeps
+    that room clear, so no face is laid where a flap must go and no face is laid whose own free edges have no room
+    (a cow grown without it had 40 of its 217 seams with no room for a tab on either side). 0 = no flaps."""
     adj, aedges = mesh.face_adjacency, mesh.face_adjacency_edges
     nb = defaultdict(list)
     for k, (a, b) in enumerate(adj):
@@ -111,6 +129,8 @@ def unfold_once(mesh, split, max_faces, max_dims, weights, local, chosen=frozens
         tris = [Polygon(pn.tri[seed])]
         boxes = np.array([tris[0].bounds])
         pts = [pn.tri[seed]]
+        fs = faces[seed]                                    # the flap room of each free edge: (face, its two vertices) → zone
+        zones = {(seed, frozenset((fs[i], fs[(i + 1) % 3]))): flap_zone(pn.tri[seed], i, flap) for i in range(3)} if flap else {}
         heap = [] if split else [(a, seed, f, k) for a, f, k in nb[seed]]
         heapq.heapify(heap)
         while heap and (not max_faces or len(pn.faces) < max_faces):
@@ -141,6 +161,15 @@ def unfold_once(mesh, split, max_faces, max_dims, weights, local, chosen=frozens
             fat = poly.buffer(0.01)                              # two edges meet only to rounding: within a hair of each other
             if any(pn.faces[i] not in mates and contact(tris[i], fat, [tri[fb.index(v)] for v in fb if v in faces[pn.faces[i]]]) > 1.0 for i in touch):
                 continue                                    # → seam
+            if flap:
+                joined = (fr, frozenset((va, vb)))          # this edge becomes a fold: its flap room is no longer needed
+                if any(key != joined and shapely.intersects(z, poly) and poly.intersection(z).area > 0.02 * z.area for key, z in zones.items()):
+                    continue                                # it would lie where another edge's flap goes → seam
+                mine = {(to, frozenset((fb[i], fb[(i + 1) % 3]))): flap_zone(tri, i, flap) for i in range(3) if {fb[i], fb[(i + 1) % 3]} != {va, vb}}
+                if any(z.intersection(tris[i]).area > 0.02 * z.area for z in mine.values()
+                       for i in np.nonzero((boxes[:, 0] < z.bounds[2]) & (boxes[:, 2] > z.bounds[0]) & (boxes[:, 1] < z.bounds[3]) & (boxes[:, 3] > z.bounds[1]))[0]):
+                    continue                                # its own free edges would have no room for a flap → seam
+                del zones[joined]; zones.update(mine)
             if max_dims:
                 # a panel whose axis-aligned box fits the sheet certainly fits; only when it does not is the
                 # minimum rotated rectangle worth computing (it may still fit at an angle)
@@ -176,10 +205,11 @@ def unfold_once(mesh, split, max_faces, max_dims, weights, local, chosen=frozens
     return panels, seams
 
 
-def unfold(mesh, split=False, max_faces=0, max_dims=None, strategy="flat", chosen=frozenset()):
+def unfold(mesh, split=False, max_faces=0, max_dims=None, strategy="flat", chosen=frozenset(), flap=0.0):
     """→ (frames, local, panels, seams). seams = adjacency indices that are NOT folds (need a joint).
     chosen: adjacency indices that must be seams (the user's choice): the panels are laid out round them.
-    strategy: flat | strip | area | auto (best of all, plus two randomised runs; only for ≤ 800 faces)."""
+    strategy: flat | strip | area | auto (best of all, plus two randomised runs; only for ≤ 800 faces).
+    flap: room (mm) a glue flap needs outside every free edge, see unfold_once."""
     frames, local = face_frames(mesh)
     if split:
         panels, seams = unfold_once(mesh, True, max_faces, max_dims, edge_weights(mesh, "flat"), local)
@@ -188,7 +218,7 @@ def unfold(mesh, split=False, max_faces=0, max_dims=None, strategy="flat", chose
     best = None
     for strat, seed in runs:
         w = edge_weights(mesh, strat, np.random.default_rng(seed) if seed else None)
-        panels, seams = unfold_once(mesh, False, max_faces, max_dims, w, local, chosen)
+        panels, seams = unfold_once(mesh, False, max_faces, max_dims, w, local, chosen, flap)
         # fewest panels, then most compact (union area / bounding-rectangle area, summed)
         compact = sum(pn.union.area / max(np.prod(min_dims(pn.union)), 1e-9) for pn in panels) / len(panels)
         score = (len(panels), -compact)
