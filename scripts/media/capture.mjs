@@ -184,13 +184,14 @@ S.curve = async () => {       // the horse is long along y; the curve follows th
     // where the flat body spine does not reach; the curve ends going up at the poll, so the head's spine lies in the
     // head's profile. Points in mm for the horse 300 mm long, as in examples/presets.json
     await params({ plane: "yz", count: 20, spines: 1, round: 2, size: [0, 300, 0], thicken: 1 });
-    const CURVE = [[-119, 11], [-89, 18], [-59, 23], [-14, 10], [16, 13], [50, 22], [76, 47], [86, 68], [94, 92], [97, 108]];
+    const CURVE = [[-119, 18], [-89, 19], [-59, 19], [-14, 14], [16, 14], [50, 22], [76, 47], [86, 68], [94, 92], [97, 108]];
     const BRANCHES = [[[-2, 46.6, -33], [-5.2, 64.5, -128]], [[40.5, 36.8, -33], [49, 25.8, -125]],
         [[-2.8, -100.1, -11], [-5, -134.2, -125]], [[52, -83.1, -15], [54.9, -101, -125]], [[2, 106, 94], [-68, 142, 62]]];
     await fix({ curve: CURVE, branches: BRANCHES }); await heal();
-    await view(-70, 16, 0.9, 1.0); await project("curve");
-    // 13 ribs put a hind leg's spine in R-3's slot path: 8, 10 and 20 come out clean
-    await techClip("curve", -70, 16, 0.9, [["8 ribs", () => set("count", 8)], ["10 ribs", () => set("count", 10)], ["20 ribs", () => set("count", 20)]]);
+    // from the right front, turning toward the head's profile (it faces about 60°): from behind the head was hidden
+    await view(30, 16, 0.9, 1.0); await project("curve");
+    // 10 ribs put a front leg's spine in R-5's slot path: 8, 13 and 20 come out clean
+    await techClip("curve", 30, 16, 0.9, [["8 ribs", () => set("count", 8)], ["13 ribs", () => set("count", 13)], ["20 ribs", () => set("count", 20)]]);
 };
 S.folded = async () => {      // the cow mesh is y-up: rotate x 90° stands it up
     await example("cow"); await mode("folded"); await tab("technique");
