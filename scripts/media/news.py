@@ -359,6 +359,40 @@ def n040_lamp_example(app):
     app.shot("0.4.0-lamp-example", VIEW, [])
 
 
+def crossed_side(app, example, sink, settings):   # a side relief, crossed: one Y spine goes in first, X ribs onto it
+    app.example(example, "plaque")
+    for k, v in (("back", "-y"), ("sink", sink), ("layout", "crossed"), ("ny", 1), ("first", "y"), *settings):
+        app.set(k, v)
+
+
+def plaque_back(app):                         # the plaque settings as the example opens them, for the next picture
+    for k, v in (("first", "x"), ("first_height", 100), ("layout", "parallel"), ("back", "-z"), ("sink", 0)):
+        app.set(k, v)
+
+
+def n040_first(app):
+    crossed_side(app, "cow", 50, (("nx", 20), ("first_height", 35)))   # the rail at 35 %: it keeps the cow's outline
+    app.view(65, 30, 0.75)
+    app.p.evaluate("() => {const s = document.querySelector('#steps'); s.value = 8;"   # the plate, the rail, 6 ribs
+                   " s.dispatchEvent(new Event('input'))}")
+    app.p.wait_for_timeout(1200)
+    app.shot("0.4.0-first", VIEW, [("label:has(#steps)", "the rail goes in first")])
+    app.p.evaluate("() => {const s = document.querySelector('#steps'); s.value = s.max; s.dispatchEvent(new Event('input'))}")
+    plaque_back(app)
+
+
+def n040_fingers(app):
+    sheet = app.p.input_value("#p_thickness")                         # the sheet as it was, for the pictures after this one
+    crossed_side(app, "egg", 60, (("thickness", 3), ("nx", 32)))      # 32 ribs: 2.5 mm fingers in the 3 mm spine
+    app.view(65, 20, 0.9, only3d=False)
+    x0, y0, x1, _ = app.box(VIEW)
+    row = "#msgs :text('finger')"
+    app.shot("0.4.0-fingers", (x0, y0, x1, app.box(row)[3]), [(row, "")])
+    plaque_back(app)
+    app.set("thickness", sheet)
+    assert app.p.input_value("#p_thickness") == sheet
+
+
 # ---- 0.3.3 -----------------------------------------------------------------------------------------------------
 
 

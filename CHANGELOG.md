@@ -47,6 +47,16 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
 - **Close up only the small faces.** The folded setting *smallest face* merges the faces under the size you give
   and keeps the rest of the model as it is.
 
+- **Choose which slices go in first.** *Into the plate first* picks the X or Y slices of a crossed plaque. The
+  others slide onto them one by one. *First family height* makes them a low rail. Their teeth are full width.
+
+  ![The cow as a plaque: the low rail goes in first, then the ribs slide onto it](web/static/news/0.4.0-first.jpg)
+
+- **A warning for weak fingers.** Many crossing slices close together turn a slice into a comb. A finger between two
+  slots that is thinner than the sheet now gets a warning with its width.
+
+  ![The egg's spine is a comb of thin fingers: the warning gives their width](web/static/news/0.4.0-fingers.jpg)
+
 ### Changed
 
 - **Settings that are easy to read.** Full names, sections that fold, a ↺ sign to undo a change, and a box over
@@ -112,7 +122,8 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
   version.
 - **Every dowel is cut.** Where a layer narrows, two dowels could land on each other and both were left out with
   a warning. The vase example now opens with no warning.
-- **Examples open without warnings.** The blob example opens clean, ready to cut.
+- **Examples open without warnings.** The blob, berry, head_igea, hook, horse, pyramid, ripple, snowman, torus and
+  twisted examples open clean, ready to cut.
 
 ## 0.3.3
 
