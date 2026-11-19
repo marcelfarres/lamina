@@ -51,8 +51,9 @@ class Curve(Mode):
     description = ("Slices perpendicular to a curve, like the ribs of a hull or the vertebrae of an animal: the ribs turn with the "
                    "model's bend instead of staying parallel. The default curve follows the middle of the model; alt-click on the "
                    "model in the 3D view to add or remove control points (orange line, blue dots). Spine slices in the curve plane "
-                   "lock the ribs together. A leg, arm or tail takes a branch: ribs square to it and a spine of its own that "
-                   "reaches back into the body and slots into the body's ribs (shift+alt-click its tip to add one).")
+                   "lock the ribs together. A leg, arm, tail or a head turned to one side takes a branch: ribs square to it and "
+                   "a spine of its own that reaches back into the body and slots into the body's ribs (shift+alt-click its tip "
+                   "to add one).")
 
     @staticmethod
     def fit(p):
@@ -187,7 +188,7 @@ class Curve(Mode):
     params = [
         Param("plane", "choice", "xz", "Plane that contains the curve (first letter = along, second = up)", choices=["xz", "yz", "xy"], label="curve plane", section="Curve — where the ribs follow the model"),
         Param("curve", "points", [], "Control points [[u,v],...] in the plane (model centred at 0); fewer than two = a curve through the middle along the plane's first axis", unit="mm", label="curve points"),
-        Param("branches", "lines3", [], "One line per leg, arm or tail: start where it leaves the body → its tip (mm from the model's centre). "
+        Param("branches", "lines3", [], "One line per leg, arm, tail or turned head: start where it leaves the body → its tip (mm from the model's centre). "
                                         "Each gets ribs square to it and its own spine, which reaches back into the body and slots into the "
                                         "body ribs. Empty = none", unit="mm"),
         Param("distribution", "choice", "count", "count = N ribs; distance = one rib every `spacing` of curve length", choices=["count", "distance"], section="Slices — the ribs along the curve"),

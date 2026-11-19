@@ -78,6 +78,20 @@ def check_slice(sl, p):
             if sl.raw.contains(c) and not inner.contains(c):
                 sl.warnings.append(Issue(f"a hole sits closer than {mf} mm to the outline (thin wall may tear) — move the connection point inward, use a smaller dowel, or accept", "hole-wall"))
                 break
+    # fingers: the material left between the slots of two crossing slices side by side. Narrower than the sheet is
+    # thick, a finger bends and snaps when the crossing slice is pushed in, though it is wider than min_feature. Two
+    # slots of one crossing slice end to end (its line passes the model twice) leave no finger: that is not one
+    owner = {id(c): lab for lab, c, _ in sl.links}                  # each slot's crossing slice
+    if sl.group in ("X", "Y", "Z") and len(sl.cuts) > 1:
+        a, b = STRtree(sl.cuts).query(sl.cuts, predicate="dwithin", distance=sl.thickness - 1e-6)
+        two = lambda i, j: {owner.get(id(sl.cuts[i])), owner.get(id(sl.cuts[j]))}   # noqa: E731
+        widths = [d for i, j in zip(a, b) if i < j and len(two(i, j) - {None}) == 2
+                  and (d := sl.cuts[i].distance(sl.cuts[j])) > 1e-6
+                  and sl.raw.contains(shapely.shortest_line(sl.cuts[i], sl.cuts[j]).interpolate(0.5, normalized=True))]
+        if widths:
+            sl.warnings.append(Issue(f"{len(widths)} finger(s) between slots are thinner than the material ({min(widths):.1f} mm < "
+                                     f"{sl.thickness:g} mm) and may break when the crossing slices go in: put the crossing slices "
+                                     f"farther apart (fewer of them, or a bigger gap), or use thinner material"))
     # Slicer's "multiple / overlapping notches on one part": two cuts crossing each other inside the material
     inside = [c for c in sl.cuts if sl.raw.intersects(c)]
     if len(inside) > 1:
@@ -133,12 +147,20 @@ def check_insertion(slices, p):
     in the path (the second wall of a hollow section the line crosses twice, a concave outline that closes over the
     mouth) makes the assembly physically impossible, however good the slots look on paper."""
     by = {s.label: s for s in slices}
+    step = {s.label: i for i, s in enumerate(slices)}               # the build order: the steps the 3D view plays
     for a in slices:
         if a.profile is None or a.profile.is_empty:
             continue
         for lb, o in a.slot_dirs.items():
             b = by.get(lb)
             if b is None or b.profile is None or b.profile.is_empty:
+                continue
+            # b goes in after a, along the one way it can move (a plaque's slice: toward the plate): it enters a's slot
+            # through the mouth, so that slot must open toward where b comes from
+            if b.travel is not None and step[lb] > step[a.label] and np.dot(o, b.travel) > -0.5:
+                b.errors.append(Issue(f"{b.label} cannot be put in: it goes in after {a.label}, but the slot in {a.label} opens away "
+                                      f"from where {b.label} comes from — the slices that go in first need their slots open toward the "
+                                      f"ones that come after them"))
                 continue
             ln = plane_plane_line(a.M, b.M)
             if ln is None:

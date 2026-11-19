@@ -177,21 +177,20 @@ S.lobes = async () => {       // the plane between two lobes is a part: select i
     });
     await js("window.__t.deselect()"); await fix({ offset: { "B-1-2": 0 }, tilt: { "B-1-2": 0 } });
 };
-S.curve = async () => {       // the horse is long along y; the curve follows the back and climbs the neck to the head
+S.curve = async () => {       // the horse is long along y; the curve follows the back and climbs the neck to the poll
     await example("horse"); await mode("curve"); await tab("technique");
-    // 20 ribs on one body spine, and a branch down each leg: ribs square to the leg and a spine of its own that slots
-    // into the body ribs, so no body rib cuts across a leg. Points in mm for the horse 300 mm long, as on the landing
-    // settings. The head goes up, not down: down, the head ribs cross (the legs no longer hold back the turn limit)
+    // 20 ribs on one body spine, and a branch down each leg and one for the head: ribs square to it and a spine of its
+    // own that slots into the body ribs, so no body rib cuts across a leg or the head. The head is turned to one side,
+    // where the flat body spine does not reach; the curve ends going up at the poll, so the head's spine lies in the
+    // head's profile. Points in mm for the horse 300 mm long, as in examples/presets.json
     await params({ plane: "yz", count: 20, spines: 1, round: 2, size: [0, 300, 0], thicken: 1 });
-    const CURVE = [[-119, 11], [-89, 18], [-59, 23], [-14, 10], [16, 13], [50, 22], [76, 47], [91, 76], [106, 89], [136, 83]];
+    const CURVE = [[-119, 11], [-89, 18], [-59, 23], [-14, 10], [16, 13], [50, 22], [76, 47], [86, 68], [94, 92], [97, 108]];
     const BRANCHES = [[[-2, 46.6, -33], [-5.2, 64.5, -128]], [[40.5, 36.8, -33], [49, 25.8, -125]],
-        [[-2.8, -100.1, -11], [-5, -134.2, -125]], [[52, -83.1, -15], [54.9, -101, -125]]];
+        [[-2.8, -100.1, -11], [-5, -134.2, -125]], [[52, -83.1, -15], [54.9, -101, -125]], [[2, 106, 94], [-68, 142, 62]]];
     await fix({ curve: CURVE, branches: BRANCHES }); await heal();
     await view(-70, 16, 0.9, 1.0); await project("curve");
-    // 12 ribs leave a rib floating and the head point at 136 puts the spine's material in a rib's slot path: 13 and
-    // 130 are the neighbours that come out clean on the exact remesh
-    await techClip("curve", -70, 16, 0.9, [["8 ribs", () => set("count", 8)], ["13 ribs", () => set("count", 13)], ["20 ribs", () => set("count", 20)],
-        ["head point up", () => fix({ curve: [...CURVE.slice(0, -1), [130, 92]] })], ["head point back", () => fix({ curve: CURVE })]]);
+    // 13 ribs put a hind leg's spine in R-3's slot path: 8, 10 and 20 come out clean
+    await techClip("curve", -70, 16, 0.9, [["8 ribs", () => set("count", 8)], ["10 ribs", () => set("count", 10)], ["20 ribs", () => set("count", 20)]]);
 };
 S.folded = async () => {      // the cow mesh is y-up: rotate x 90° stands it up
     await example("cow"); await mode("folded"); await tab("technique");
@@ -381,7 +380,7 @@ S.rings = async () => {
     await set("ring_slices", false); await settle();
 };
 // the band lattice on the sphere, the shape it suits: rings across x, y and z, half-lapped where they cross. In 3 mm
-// stock 4 x 4 x 4, 4 x 4 x 3 and 2 x 2 x 2 have every piece with a way in; the defaults (5 x 5 x 4) lock two. No
+// stock 4 x 4 x 4 (the default), 4 x 4 x 3 and 2 x 2 x 2 have every piece with a way in; 5 x 5 x 4 locks two. No
 // heal(): its grown outlines stay on the bands as the counts change. The technique card orbits 4 x 4 x 4 and changes
 // the counts; the second clip builds it up in the order its pieces go in, the first family whole and every later
 // piece slid in along its slots, then pulls it apart
@@ -403,23 +402,31 @@ S.bands = async () => {
     await set("explode", 1); await set("steps", nparts);
     await set("viewmode", "both"); await sleep(500);
 };
-// a mask from a model: the lion head in Folded Panels, a seam round its face, the back selected with one click and
+// a mask from a model: the lion head in Folded Panels, a seam round the back of its head, the back selected with one click and
 // "connected", removed (its faces as dashed outlines), then turned to the front: only the mask is cut, and the
 // outlines behind it show what went. Real clicks
 // on the 3D view; the page says where a face is on the screen (__t.faces().under)
-const LION_LOOP = `(() => { const F = window.__t.plan().faces3d, y = f => (F.v[f[0]][1] + F.v[f[1]][1] + F.v[f[2]][1]) / 3;
-  return F.adj.filter(([a, b]) => (y(F.f[a]) < 0) !== (y(F.f[b]) < 0)).map(([a, b]) => F.f[a].filter(i => F.f[b].includes(i)).map(i => F.v[i])) })()`;
+// the back of the lion: the largest joined area of faces that face backward; a seam round it keeps the whole front mane
+const LION_BACK = `(() => { const F = window.__t.plan().faces3d, V = F.v, sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const ny = F.f.map(([a, b, c]) => { const u = sub(V[b], V[a]), w = sub(V[c], V[a]), n = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]]; return n[1] / Math.hypot(...n) });
+  const my = F.f.map(f => (V[f[0]][1] + V[f[1]][1] + V[f[2]][1]) / 3), nb = F.f.map(() => []); F.adj.forEach(([a, b]) => { nb[a].push(b); nb[b].push(a) });
+  const ok = F.f.map((_, i) => ny[i] > 0.3 && my[i] > 0), seen = new Set(); let best = [];
+  for (let i = 0; i < F.f.length; i++) { if (!ok[i] || seen.has(i)) continue; const part = [i]; seen.add(i);
+    for (let k = 0; k < part.length; k++) for (const j of nb[part[k]]) if (ok[j] && !seen.has(j)) { seen.add(j); part.push(j) }
+    if (part.length > best.length) best = part }
+  const back = new Set(best);
+  return {back: [...back], loop: F.adj.filter(([a, b]) => back.has(a) !== back.has(b)).map(([a, b]) => F.f[a].filter(i => F.f[b].includes(i)).map(i => V[i]))} })()`;
 const press = async (x, y) => { await mouse("mousePressed", x, y, { clickCount: 1 }); await mouse("mouseReleased", x, y, { clickCount: 1, buttons: 0 }); };
 S.mask = async () => {
     await example("lion_head"); await tab("technique");    // opens in Folded Panels; the Model tab would draw the rotate rings
     await until("window.__t.plan()?.faces3d"); await settle();
-    await fix({ seams: await js(LION_LOOP) });
+    await fix({ seams: (await js(LION_BACK)).loop });
     await js("document.querySelector('#tools [data-tool=seam]').click()"); await sleep(400);
     await fit(); const d = (await js("window.__t.camera.position.distanceTo(window.__t.target())")) * 0.88;
     let az = 75; await cam(az, 12, d); await sleep(300);
-    const back = () => js(`(()=>{const F=window.__t.plan().faces3d,r=window.__t.canvas().getBoundingClientRect(),f=window.__t.faces();let best=null;
-        for(let x=r.left+80;x<r.right-80;x+=10)for(let y=r.top+100;y<r.bottom-120;y+=10){const u=f.under(x,y);if(u?.face===undefined)continue;
-          const t=F.f[u.face],my=(F.v[t[0]][1]+F.v[t[1]][1]+F.v[t[2]][1])/3,dd=Math.hypot(x-r.left-r.width/2,y-r.top-r.height/2);if(my>15&&(!best||dd<best.dd))best={x,y,dd}}
+    const back = () => js(`(()=>{const back=new Set(${LION_BACK}.back),r=window.__t.canvas().getBoundingClientRect(),f=window.__t.faces();let best=null;
+        for(let x=r.left+80;x<r.right-80;x+=10)for(let y=r.top+100;y<r.bottom-120;y+=10){const u=f.under(x,y);if(u?.face===undefined||!back.has(u.face))continue;
+          const dd=Math.hypot(x-r.left-r.width/2,y-r.top-r.height/2);if(!best||dd<best.dd)best={x,y,dd}}
         return best})()`);
     await clip("mask", 120, async i => {
         // 0–15 the seam loop · 16 select faces, one click · 26 grow · 36 connected · 48 remove · 60–105 turning to the front

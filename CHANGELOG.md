@@ -24,12 +24,12 @@ What changed in each release. The GitHub release for a version is this section, 
 - **Make a mask from a model.** In Folded Panels, use the *select faces* tool: click, drag, *grow* or *connected*,
   then *remove*. Only what is left is cut, even when you change the face size. Try it on the new *lion_head*.
 
-  [![A lion head made into a mask: the back removed, shown as dashed outlines ▶](web/static/news/0.4.0-mask.jpg)](https://marcelfarres.github.io/lamina/media/mask.mp4)
+  [![A lion head made into a mask: the face and the whole mane kept, the back removed ▶](web/static/news/0.4.0-mask.jpg)](https://marcelfarres.github.io/lamina/media/mask.mp4)
 
 - **Put the seams where you want.** Use the *put a seam* tool of the 3D view: click an edge, or drag along edges.
   The sheet is cut apart there, and the panels are laid out round your seams.
 
-  ![The put a seam tool: your seams as thick lines round the lion's face](web/static/news/0.4.0-seams.jpg)
+  ![The put a seam tool: your seams as a thick line round the back of the lion's head](web/static/news/0.4.0-seams.jpg)
 
 - **Two more folded examples.** *fold_box* is a six-sided box with a turned lid, printed flat in PETG and folded up:
   every fold has its own angle. *fold_lantern* is the lamp shade at 420 mm for 3 mm plywood: 72 separate pieces,
@@ -37,6 +37,16 @@ What changed in each release. The GitHub release for a version is this section, 
 - **Merge only the faces that are too small.** A new folded setting, *smallest face*, closes up the faces
   lower than the size you give and leaves the rest of the model as it is. The warning about panels of stiff sheet
   that press into each other now offers it as a fix, beside bigger triangles, which make the whole model coarser.
+
+- **Choose which slices go in first.** *Into the plate first* picks the X or Y slices of a crossed plaque. The
+  others slide onto them one by one. *First family height* makes them a low rail. Their teeth are full width.
+
+  ![The cow as a plaque: the low rail goes in first, then the ribs slide onto it](web/static/news/0.4.0-first.jpg)
+
+- **A warning for weak fingers.** Many crossing slices close together turn a slice into a comb. A finger between two
+  slots that is thinner than the sheet now gets a warning with its width.
+
+  ![The egg's spine is a comb of thin fingers: the warning gives their width](web/static/news/0.4.0-fingers.jpg)
 
 ### Changed
 
@@ -85,11 +95,17 @@ What changed in each release. The GitHub release for a version is this section, 
   thickness found.
 - **A print set says when it could not cut the grooves.** A build that cannot cut solids (the one in the browser)
   now writes into the set's README which parts were exported without their fold grooves or labels.
+- **A better head on the horse.** The horse example's head is now a branch: a spine down its middle and ribs across
+  it, where it was one flat slab. A turned head on your model can have a branch too.
+
+  ![The horse's head in 0.3.3, one flat slab, beside 0.4.0, a spine with ribs across it](web/static/news/0.4.0-horse-head.jpg)
 - **Clean tops on stacked models.** A layer's name, arrows and dowel numbers now go only where the layer above
   covers them. The top layer stays clean: its name is beside it on the sheet. *Hide engravings* turns this off.
 
 ### Fixed
 
+- **Every dowel a stack asks for is cut.** Where a layer narrows, two dowels could land on top of each other and
+  both were left out with a warning. The vase example now opens with no warning.
 - **Cutting stiff sheet back at the seams no longer makes a small panel too small.** A panel that the cut-back would
   take under the minimum part or feature size keeps its edges and warns how far it presses into the next panel.
 - **No more specks beside a folded panel in stiff sheet.** Trimming a corner against the next panel could leave a
@@ -97,6 +113,8 @@ What changed in each release. The GitHub release for a version is this section, 
 - **A project file from a download zip opens at its own size.** The project file inside a downloaded zip was marked
   as made by an older Lamina, so opening it worked the model's size out again, as for an old file. It is now marked
   with the current version, like a project you save yourself.
+- **Examples open without warnings.** The blob, berry, head_igea, hook, horse, pyramid, ripple, snowman, torus and twisted
+  examples open clean, ready to cut.
 
 ## 0.3.3
 

@@ -80,6 +80,7 @@ class Slice:
     links: list = field(default_factory=list)     # (other label, cut polygon, world point) — a physical connection through that cut
     engages: list = field(default_factory=list)   # labels of slices this one is slotted onto
     slot_dirs: dict = field(default_factory=dict)  # other label → world direction its slot opens toward (the way it slides in)
+    travel: tuple | None = None         # world direction the part moves to go into place, where the technique fixes it (a plaque's slice: toward the plate)
     raw: MultiPolygon | None = None     # section ∩ clip, before cuts. Modes may set it directly (synthetic parts)
     profile: MultiPolygon | None = None # raw − cuts (what gets cut out), before kerf
     lines: list = field(default_factory=list)     # [(style, LineString)] score / fold lines (local): "mountain" | "valley"
