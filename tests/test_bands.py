@@ -77,6 +77,11 @@ def later_pieces(plan):
     ("sphere.stl", {"nx": 4, "ny": 4, "nz": 4}),
     # the head locked 7 pieces where its lines ran along the walls of the bands they cross, until those moved (nudge)
     ("head_igea.stl", {}),
+    # the head as the app opens it (its preset: standing, 3 mm stock, rounded and smoothed) still locks two, a finding
+    # held strict: Z-4-2 and X-2-1, each at a corner where three bands' sheets meet at the edge of a wall — Y-1, Z-4
+    # and X-3 at the surface, and Y-1 and Z-1 1.4 mm outside X-2's wall — so a sheet passes a wall that has no slot
+    pytest.param("head_igea.stl", {"thickness": 3, "rotate": [90, 0, 0], "round": 3, "smooth": 6},
+                 marks=pytest.mark.xfail(strict=True, reason="two three-band corners at the edge of a wall lock pieces")),
 ])
 def test_every_piece_slides_in_past_the_ones_already_there(model, prm):
     plan = build(EXAMPLES / model, "bands", prm)
