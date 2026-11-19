@@ -81,10 +81,19 @@ class Connectors:
             pts = self.points_for_pair(a, b, i, taken) if self.typed else []
             placed = [self.place(a, b, i, j, x, y) for j, (x, y) in enumerate(pts)]
             got = [q for q in placed if q]
-            self.skipped += len(pts) - len(got)
-            ctx.view["left_out"] += [[round(float(v), 3) for v in (a.M @ np.array([x, y, 0, 1]))[:3]] for (x, y), q in zip(pts, placed) if not q]
-            for isl in self.islands_of(a, b):
+            missed = [(x, y) for (x, y), q in zip(pts, placed) if not q]
+            isls = list(self.islands_of(a, b))
+            for isl in isls:
                 got += self.hold(a, b, i, isl, got)
+            # A point the placer could not put down is left out only where its piece of the pair still has fewer
+            # connectors than it asks for: hold() tops every piece up from its exact free room. The placer works on
+            # the overlap shrunk by the wall, which splits a hollow model's thin ring into pieces and asks for points
+            # in each: 24 were "left out" of a bunny whose every ring had its two dowels (bug 045).
+            left = [q for q in missed if not any(isl.contains(Point(q)) for isl in isls)]   # lines: nothing tops them up
+            for isl in isls:
+                left += [q for q in missed if isl.contains(Point(q))][:max(0, self._need(isl) - sum(isl.contains(Point(q)) for q in got))]
+            self.skipped += len(left)
+            ctx.view["left_out"] += [[round(float(v), 3) for v in (a.M @ np.array([x, y, 0, 1]))[:3]] for x, y in left]
             if not got:      # nothing this size fits here: remember the biggest hole these two layers would take
                 self.bare += 1
                 both = a.raw.intersection(b.raw)
@@ -202,6 +211,11 @@ class Connectors:
             return self.islands(a, b)
         return [] if self.p["placement"] == "lines" else as_multi(a.raw.intersection(b.raw)).geoms
 
+    def _need(self, isl):
+        """How many connectors island `isl` of a pair asks for: n_points, and with aligned dowels the ones typed into it on top."""
+        p = self.p
+        return max(1, p["n_points"]) + (sum(isl.contains(Point(q)) for q in p["dowels"]) if p["placement"] == "aligned" else 0)
+
     @staticmethod
     def _cuts_in(a, piece):
         """The centres of a's cuts that lie in `piece`."""
@@ -230,7 +244,7 @@ class Connectors:
         # held and the next spot holds it better (at most as many again): a dowel typed into a bunny's ear
         # made the count, and the ear's tip lost the dowel the count used to bring it — 1.37 for 0.9 promised.
         piece = max(as_multi(a.raw).geoms, key=lambda g: g.intersection(isl).area)
-        need = want + (sum(isl.contains(Point(q)) for q in p["dowels"]) if p["placement"] == "aligned" else 0)
+        need = self._need(isl)
         if len(have) >= need and not self._loose(a, piece):
             return []
         q = self.spots(a, b, isl, have)

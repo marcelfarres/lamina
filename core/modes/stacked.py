@@ -44,7 +44,7 @@ class Stacked(Mode):
               "its wall into pieces no longer, spread evenly, clear of the dowel holes, each with a puzzle tab. 0 = no limit. A ring "
               "too big for the sheet is always cut this way", 0, 10000, 5, unit="mm", show_if=("ring_slices", True), label="max piece length"),
         Param("wall", "map", {}, "Per-slice ring wall (mm), when ring slices are on", group="slices", unit="mm", label="own walls"),
-        Param("next_outline", "bool", False, "Engrave the outline of the next layer onto each slice (GUIDE, orange): a light line showing where the layer stacked on top sits, so the stack lines up as it is glued. Drawn only where it lands on the slice's own material — a wider layer above stops at this layer's edge. Engrave, not cut; off by default", label="next layer outline"),
+        Param("next_outline", "bool", False, "Engrave the outline of the next layer onto each slice (GUIDE, orange): a light line showing where the layer stacked on top sits, so the stack lines up as it is glued, and an island with no dowel through it (an ear, a hoof) has its place marked. Drawn only where it lands on the slice's own material — a wider layer above stops at this layer's edge. Engrave, not cut; off by default", label="next layer outline"),
         Param("next_outline_offset", "number", 0.0, "Move the engraved outline in (−) or out (+) from the next layer's true edge (mm). A little negative — −0.25 or so — tucks the line under the layer above, so a glue-up a hair off still hides it; positive marks an overhang where the next layer is wider", -5, 5, 0.05, unit="mm", show_if=("next_outline", True), label="outline offset"),
         Param("connect", "choice", "dowel", CONNECT_HELP, choices=["none", "dowel", "tab"], label="connect with", section="Joining — what holds the layers together"),
         Param("dowel_d", "number", 6.0, "Dowel diameter / peg & spacer width (mm)", 0.5, 100, 0.5, unit="mm", show_if=("connect", ["dowel", "tab"]), label="dowel diameter"),
@@ -279,3 +279,5 @@ class Stacked(Mode):
                         for ln in as_lines(merged).geoms:
                             if ln.length > 1e-6:
                                 a.lines.append(("guide", ln))
+                                if not b.outlined or b.outlined[-1] is not poly:
+                                    b.outlined.append(poly)       # where an island of b with no dowel through it goes
