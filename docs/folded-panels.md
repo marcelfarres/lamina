@@ -136,21 +136,26 @@ between two posts is printed as a bridge and bends along its lines. It is the on
 rigid.
 
 How the bar is sized: lifted by the tooth's height in its middle, a beam held at both ends is stretched by
-12 · lift · thickness / length², where the length is the span less the ridge that lifts it. The bar is as thick as
-`bar thickness` asks (1.2 mm). With `bar support` at 0 the two limits below make it thinner where needed. Where that would stretch it past `CLICK_STRAIN` (8 % for PETG, 3 % for PLA), it
-is thinner, in steps of 0.2 mm down to `CLICK_THIN` (1.2 mm). PETG yields at about 5 % and breaks far later. In
-the prints a bar of 0.8 mm that stayed under 5 % broke in the hand: a bar that yields a little, once, is the stronger. Its span is as long as the seam allows, 16 to
-24 mm. It is also no thicker than a hand can press shut: the force to lift a beam held at both ends by the tooth's height
-is 192 · E · I · lift / length³, and the bar stays under `CLICK_PRESS` (80 N, about 8 kg). With a tooth 1 mm high
-in PETG, a 16 mm bar is 1.2 mm thick and a 24 mm bar 2 mm. Across the seam the bar
-is `bar depth` deep (2.4 mm). The depth, not the thickness, keeps the bar straight when the seam is pulled. The
-ridge of the tooth is `CLICK_RIDGE` long, in the middle: a ridge as wide as the tooth would hold the bar flat over
-that width and bend the rest of it far too much.
+12 · lift · thickness / length², where the length is the part of the bar free to bend: its span less the ridge,
+the fillets and the support. The bar is never stretched past `CLICK_STRAIN` (6 % for PETG, 3 % for PLA). In his
+eighth print the bars stretched 6.4 % held, and one broke where they reached 8.6 and 12 %. Its span is as long as
+the seam allows, 16 to 24 mm. The bar is as thick as `bar thickness` asks (1.2 mm, never under `CLICK_THIN`: a bar
+of 0.8 mm broke in the hand). Where even a bar with nothing under it would stretch too far, the tooth is made lower,
+a layer (0.2 mm) at a time, down to `CLICK_LOW` (0.6 mm), and only then the bar thinner; the plan names the seams
+whose tooth is lower. With a tooth 1 mm high in PETG, a 24 mm bar keeps the full tooth and a 16 mm bar gets a
+0.6 mm one. A free bar is also no thicker than a hand can press shut: the force to lift a beam held at both ends is
+192 · E · I · lift / length³, under `CLICK_PRESS` (80 N, about 8 kg). Across the seam the bar is `bar depth` deep
+(2.4 mm). The depth, not the thickness, keeps the bar straight when the seam is pulled: a 2.0 mm deep bar broke in
+the eighth print. The ridge of the tooth is `CLICK_RIDGE` long, in the middle: a ridge as wide as the tooth would
+hold the bar flat over that width and bend the rest of it far too much.
 
-`bar support` (0.5) grows the two posts in under the bar, as far as the tooth at 1. Only the bar between them is then
-free to bend, so the bar is much stronger and much stiffer. It is as thick as `bar thickness` asks, and the plan
-warns when the tooth would stretch it past `CLICK_STRAIN` or it takes more than `CLICK_PRESS` to press shut, with
-both numbers: the seam must then give somewhere else to shut, or needs a lower tooth or a thinner bar.
+What the bar can still stretch goes first to a fillet at each end (`CLICK_FILLET`, 0.9 mm): three blocks under the
+bar, 0.2 mm deeper each nearer its support, fused to it. The bar thickens from 1.2 to 1.8 mm into its support
+instead of meeting it at a sharp step, which is where the bar broke. Each step reaches 0.3 mm further along the
+seam than the one below, about 55° from upright, so it prints as a ledge on the post. What is left goes to `bar
+support` (0.5 at most): the two posts grow in under the bar, which makes it stronger and stiffer. On a 24 mm bar that
+is 2.6 mm a side; a 16 mm bar gets 0.4 mm. The plan still warns when a click takes more than `CLICK_HARD` to press
+shut, with the kilos.
 
 `click size` scales the whole joint: every size in this section is for size 1. A small model takes 0.7, so that
 its short seams have room for a click. A big model takes 1.5 or 2: its seams carry more and have the room.

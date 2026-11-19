@@ -41,9 +41,11 @@ def test_the_seams_of_the_box_click_with_no_part_of_their_own_and_nothing_on_the
     said = [w for s in plan["slices"] for w in s["warnings"]]
     assert plan["counts"]["errors"] == 0 and all("without a click joint" in w for w in said)     # a small box: some seams are too short for a bar
     assert {s["group"] for s in plan["slices"]} == {"F"}              # panels only: no clip, nothing loose
-    bars = [r for r in walls if min(z for _, z in r["profile"]) > 2.5]            # the bars: off the panel, between their posts
+    aloft = [r for r in walls if min(z for _, z in r["profile"]) > 2.5]           # off the panel: the bars, and the fillets under their ends
+    bars = [r for r in aloft if math.dist(r["a"], r["b"]) > 10]; fillets = [r for r in aloft if math.dist(r["a"], r["b"]) < 2]
     located = int(next(n for n in plan["notes"] if "locator" in n).split(" seam(s) close")[0].split()[-1])
-    assert len(bars) >= 7 and len(walls) == 8 * len(bars) - located   # a click: a wall, the tooth and its ridge; a bar, two posts, two blocks. A locator: no ridge
+    assert len(bars) >= 7 and len(fillets) == 6 * len(bars) and len(walls) == 14 * len(bars) - located
+    # a click: a wall, the tooth and its ridge; a bar, two posts, two blocks, and a fillet of three steps at each end. A locator: no ridge
     assert all(F.CLICK_SPAN[0] + 1 - 1e-3 <= math.dist(r["a"], r["b"]) <= F.CLICK_SPAN[1] + 1 + 1e-3 for r in bars)
     assert outline(box(joint="seam")).symmetric_difference(outline(plan)).area < 1e-6
     feet = [(F.Rail(r["a"], r["b"], r["into"], r["profile"]).foot(), tuple(round(x, 3) for x in r["into"])) for r in walls]
@@ -69,10 +71,13 @@ def test_the_tooth_goes_under_the_bar_and_stands_up_behind_it_and_everything_pri
         past = tooth.intersection(Polygon([(0.05, -20), (20, -20), (20, 20), (0.05, 20)]))      # what of it is through the plane
         assert past.area > 2 and past.distance(sheet) > 0.25                    # … and stays clear of its inside face
         ridges.append(max(y for x, y in tooth.exterior.coords if x > bar.bounds[2]) - bar.bounds[1])   # how far it stands up behind the bar
-    assert ridges[0] == pytest.approx(f.p["click_bite"], abs=1e-6)              # in the middle: it cannot pull out
+    assert ridges[0] == pytest.approx(c.bite, abs=1e-6) and F.CLICK_LOW <= c.bite <= f.p["click_bite"]   # in the middle: it cannot pull out
     assert ridges[1] < 0 and c.teeth[0][1] == F.CLICK_RIDGE / 2 < c.teeth[1][1]  # the ridge is in the middle only: beside it the tooth is under the bar's level
-    assert F.CLICK_THIN <= c.thick <= f.p["click_bar"] and c.strain <= F.CLICK_STRAIN["PETG"]   # the bar is stretched no more than PETG takes letting the tooth past
-    assert c.strain == pytest.approx(12 * f.p["click_bite"] * c.thick / (F.CLICK_SPAN[0] - F.CLICK_RIDGE) ** 2)
+    assert F.CLICK_THIN <= c.thick <= f.p["click_bar"] and c.strain <= F.CLICK_STRAIN["PETG"] + 1e-9   # the bar is stretched no more than PETG takes letting the tooth past
+    free = F.CLICK_SPAN[0] - F.CLICK_RIDGE - (c.fillet[-1][0] if c.fillet else 0) - 2 * c.support
+    assert c.strain == pytest.approx(12 * c.bite * c.thick / free ** 2)
+    runs = [length for length, _ in c.fillet]; deep = [max(z for _, z in prof) - min(z for _, z in prof) for _, prof in c.fillet]
+    assert len(runs) == 3 and all(b - a <= 0.3 + 1e-9 for a, b in zip([0, *runs], runs)) and deep == sorted(deep, reverse=True)   # a fillet that prints: 0.3 mm a step
     assert all(len(p) <= 5 for p in (c.wall, c.post, c.guide)) and c.reach < 12.5 and f.click_parts(b, outward, room=4.0).reach <= max(3.2, f.click_parts(b, outward, room=0).reach) + 1e-6      # the ramp stays 0.8 mm inside a narrow frame
     for profile, lean in [*((p, F.CLICK_LEAN) for _, _, p in c.teeth), *((p, F.SNAP_LEAN) for p in (c.wall, c.post, c.guide))]:   # as printed: no underside steeper than prints
         ring = list(orient(Polygon(profile).buffer(0)).exterior.coords)
@@ -86,22 +91,24 @@ def test_a_longer_seam_gets_a_longer_and_thicker_bar_at_no_more_strain():
     assert long.thick > short.thick and max(short.strain, long.strain) <= F.CLICK_STRAIN["PETG"]
 
 
-def test_a_stiffer_material_or_a_higher_tooth_gets_a_thinner_bar_and_one_that_cannot_bend_that_far_is_said():
-    b = math.radians(40); thick = lambda **more: joint(**more).click_parts(b, True, span=F.CLICK_SPAN[1]).thick   # noqa: E731
-    assert thick(material_kind="PLA", click_bite=0.6, click_bar=3.0) < thick(click_bite=0.6, click_bar=3.0)
-    assert thick(click_bite=1.4, click_bar=3.0) < thick(click_bar=3.0) and thick(click_bar=1.2) == 1.2
-    assert "lower `tooth height`" in joint(click_bite=2.0).click_parts(b, True)
+def test_a_short_bar_keeps_its_thickness_and_gets_a_lower_tooth_and_one_that_cannot_bend_even_that_far_is_said():
+    b = math.radians(40); at = lambda span, **more: joint(click_bar=1.2, **more).click_parts(b, True, span=span)   # noqa: E731
+    long, short = at(F.CLICK_SPAN[1]), at(F.CLICK_SPAN[0])
+    assert long.thick == short.thick == 1.2 and long.bite == 1.0 and short.bite == F.CLICK_LOW   # his round 8 bar broke: a lower tooth, not a stretched bar
+    assert at(F.CLICK_SPAN[1], material_kind="PLA").bite < long.bite                # a stiffer material: a lower tooth too
+    assert joint(click_bar=3.0).click_parts(b, True).thick < 3.0                    # a bar too thick for even the lowest tooth is made thinner
+    assert "cannot bend far enough" in at(F.CLICK_SPAN[0], material_kind="PLA")
 
 
-def test_a_supported_bar_keeps_its_thickness_and_a_short_free_length_and_the_plan_says_when_that_is_too_stiff():
-    b = math.radians(40); free, held = joint().click_parts(b, True), joint(click_solid=1.0).click_parts(b, True)
-    assert free.thick == 1.2 and held.thick == 1.6 and held.strain > 3 * free.strain       # only the bar over the tooth is left to bend
-    plain, solid = box(joint="click", click_solid=0.0), box(joint="click", click_solid=1.0, click_bar=2.0)
+def test_bar_support_takes_only_what_the_bar_can_still_stretch_and_the_fillet_comes_first():
+    b = math.radians(40); at = lambda solid: joint(click_bar=1.2, click_solid=solid).click_parts(b, True, span=F.CLICK_SPAN[1])   # noqa: E731
+    free, held, most = at(0.0), at(0.5), at(1.0)
+    assert free.support == 0 and 0 < held.support <= most.support < (F.CLICK_SPAN[1] - F.CLICK_NOSE - F.CLICK_GAP) / 2   # never as far as asked: the bar would stretch too far
+    assert all(c.fillet and c.fillet[-1][0] == pytest.approx(F.CLICK_FILLET) for c in (free, held, most))
+    assert max(c.strain for c in (free, held, most)) <= F.CLICK_STRAIN["PETG"] + 1e-9 and held.press > free.press > 0
+    plain, solid = box(joint="click", click_solid=0.0), box(joint="click", click_solid=1.0)
     posts = lambda plan: sum(math.dist(r["a"], r["b"]) * Polygon(r["profile"]).area for s in plan["slices"] for pc in s["pieces"] for r in pc["rails"])   # noqa: E731
-    assert posts(solid) > 1.15 * posts(plain) and solid["counts"]["errors"] == 0            # the posts have grown in under the bar
-    said = lambda plan: [w for s in plan["slices"] for w in s["warnings"] if "kg to press one shut" in w]   # noqa: E731
-    assert said(solid) and "`bar support`" in said(solid)[0] and not said(plain)
-    assert held.press > 5 * free.press > 0 and free.press <= F.CLICK_PRESS      # a free bar is one a hand can press shut
+    assert posts(solid) > posts(plain) and solid["counts"]["errors"] == 0           # the posts have grown in under the bar, as far as it lets them
 
 
 def test_the_whole_click_goes_with_its_size_and_the_posts_with_theirs():
@@ -142,8 +149,8 @@ def test_a_click_beside_a_fold_that_would_close_onto_it_takes_a_shorter_bar():
     # bar their end posts stood in its way and the fold stopped short (his print, 2026-11-17)
     plan = build(ROOT / "examples" / "fold_test.stl", "folded", {**PRESET, "material_kind": "PETG", "autofix": "off", "joint": "click"})
     rails = [r for s in plan["slices"] for pc in s["pieces"] for r in pc["rails"]]
-    bars = sorted(round(math.dist(r["a"], r["b"]) - 1) for r in rails if len(r["profile"]) == 4 and min(z for _, z in r["profile"]) > 2.5)
-    assert bars == [16, 16, 16, 24] and len(rails) == 32
+    bars = sorted(round(math.dist(r["a"], r["b"]) - 1) for r in rails if len(r["profile"]) == 4 and min(z for _, z in r["profile"]) > 2.5 and math.dist(r["a"], r["b"]) > 10)
+    assert bars == [16, 16, 16, 24] and len(rails) == 14 * 4 - sum(" locator" in n for n in plan["notes"])   # no seam of the test piece closes with another
 
 
 def test_a_piece_on_no_fold_gets_two_clicks_so_it_cannot_swing_out_and_the_rule_can_be_turned_off(monkeypatch):

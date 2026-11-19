@@ -65,12 +65,15 @@ SNAP_LEAN = math.radians(50)          # a wall leans by half the seam's bend: pa
 # Printed flat, a part that stands on a panel is weak where it is pulled or bent across its layers, so: the one part
 # that bends is the bar, a bridge, which bends along its lines; everything else is a block on a wide foot.
 CLICK_SPAN, CLICK_POST = (16.0, 24.0), 3.0   # the bar's free length between its posts, least and most; a post's length along the seam
-CLICK_STRAIN = {"PETG": 0.08, "PLA": 0.03}    # the most the bar is stretched letting the tooth past, once. PETG yields at about 0.05 and stretches
+CLICK_STRAIN = {"PETG": 0.06, "PLA": 0.03}    # the most the bar is stretched letting the tooth past, once. PETG yields at about 0.05. His
+                                      # round 8 print: bars at 6.4 % held, one broke where they reached 8.6 and 12 %
+CLICK_FILLET = 0.9                    # each end of the bar thickens into its support over this length, three steps of 0.2 mm deeper
+                                      # each: 0.3 mm a layer, a ledge from the post along the seam that prints at about 55°
+CLICK_LOW = 0.6                       # the lowest a tooth is made where its bar cannot stretch to the tooth height asked
 CLICK_STIFF = {"PETG": 2000, "PLA": 3300}     # how stiff each is (MPa): what the force to press a click shut is reckoned from
 CLICK_PRESS = 80                      # a free bar is no thicker than one that takes this to press shut (N, about 8 kg)
 CLICK_HARD = 150                      # a click reckoned to take more than this is said. Reckoned with the bar as the only part that
                                       # gives: the panels and posts give too, so a click somewhat over CLICK_PRESS still goes in
-                                      # far beyond before it breaks: a bar that yields a little once is stronger than a thin one that does not
 CLICK_THIN = 1.2                      # the thinnest bar: six layers. In his prints a bar of 0.8 mm broke in the hand
 CLICK_NOSE, CLICK_LAND = 10.0, 1.2    # the tooth's width along the seam, and the flat top of its ridge across it: three lines of a 0.4 mm nozzle
 CLICK_GAP = 0.7                       # a fully supported bar: the room the posts leave round the tooth, both sides together
@@ -139,6 +142,9 @@ class Click(NamedTuple):
     thick: float          # the bar's thickness, the way it bends
     strain: float         # how far the bar is stretched letting the tooth past
     press: float = 0.0    # the force to press the tooth past the bar (N), the bar reckoned as a beam held at both ends
+    support: float = 0.0  # how far each post stands in under the bar
+    fillet: tuple = ()    # [(length, cross-section)] under each end of the bar, from the post's end towards the tooth
+    bite: float = 0.0     # how far the tooth stands up behind the bar
 
 
 class Rail(NamedTuple):
@@ -290,8 +296,8 @@ class Folded(Mode):
               "Comes apart: higher. The bar turns white or breaks when the seam is pressed shut: lower. A higher tooth lifts the bar "
               "further, so a short bar is then made thinner", 0.4, 2, 0.2, unit="mm", show_if=("joint", ["click"]), label="tooth height"),
         Param("click_bar", "number", 1.2, "Click joint: the bar's thickness, the way it bends when the tooth goes under it (mm). A stiff "
-              "filament (PLA): thinner. A soft one, or bars that break: thicker. With `bar support` at 0, a bar too short to bend that "
-              "far at this thickness is made thinner, down to 1.2 mm", 1.2, 3, 0.2, unit="mm", show_if=("joint", ["click"]), label="bar thickness"),
+              "filament (PLA): thinner. A soft one, or bars that break: thicker. Where a bar is too short to bend that far, its tooth "
+              "is made lower, down to 0.6 mm, before the bar is made thinner", 1.2, 3, 0.2, unit="mm", show_if=("joint", ["click"]), label="bar thickness"),
         Param("click_deep", "number", 2.4, "Click joint: the bar's depth across the seam (mm): what keeps it straight when the seam is "
               "pulled. The bar bows out and lets the tooth go: deeper. A deeper bar needs a wider frame beside a window", 1.2, 5, 0.2,
               unit="mm", show_if=("joint", ["click"]), label="bar depth"),
@@ -467,7 +473,7 @@ class Folded(Mode):
             self.closers = {}                                 # panel → the edges another face folds or closes over it at
             self.tight = {}                                   # panel → (it, the seams whose bar is stretched past its material's limit, how far)
             self.together = self.closing(slices, seams) if p["click_together"] else {}   # seam → the part that closes it with other seams
-            self.clicked, self.located = Counter(), []        # part → the clicks it has; the seams given a locator
+            self.clicked, self.located, self.lowered = Counter(), [], []   # part → the clicks it has; the seams given a locator; given a lower tooth
             for k in [k for sl in slices for k in self.creases(sl.pn)] + list(seams):
                 if convex[k]:
                     va, vb = mesh.face_adjacency_edges[k]; a, b = (self.side(owner[int(f)], int(f), va, vb) for f in mesh.face_adjacency[k])
@@ -481,6 +487,10 @@ class Folded(Mode):
             phi = self.interior_angle(k)
             extra += self.joint(j, k, sides, phi, convex[k])
         # additions (tabs) → raw; facets for the 3D view: the profile of every face in its own frame (+ folded tabs)
+        if p["joint"] == "click" and self.lowered:
+            ctx.notes_extra = " · ".join(x for x in [ctx.notes_extra, f"{len(self.lowered)} click joint(s) on short seams have a lower tooth, "
+                                       f"so their bar is not stretched past what {p.get('material_kind') or p.get('material')} takes: they "
+                                       f"hold less (seams {', '.join(map(str, sorted(self.lowered)))})"] if x)
         if p["joint"] == "click" and self.located:
             ctx.notes_extra = " · ".join(x for x in [ctx.notes_extra, f"{len(self.located)} seam(s) close in the same motion as one "
                                        "with a click: they have a locator, the tooth without its ridge, so only one click goes in at "
@@ -1142,17 +1152,31 @@ class Folded(Mode):
         d1 = c + D + fit; d2 = d1 + (CLICK_LAND + CLICK_LEAD) * k   # the back of the bar, where the ridge stands up; the tooth's tip
         neck = max(low(0) + CLICK_NECK * k, low(d1) + CLICK_NECK * k, low(d2) + (CLICK_TIP + 0.3) * k)   # the top of the tooth's neck
         sb = neck + fit + 0.05                              # the bar's underside
-        solid = self.p["click_solid"]
-        free = span - solid * (span - (CLICK_NOSE + CLICK_GAP) * k) - CLICK_RIDGE * k     # the length the bar bends over: between its posts, less what of them is under it
-        most = self.click_cap * free ** 2 / (12 * bite)
-        high = lambda x: at[1] + up[1] * (sb + max(x, bite)) - t   # noqa: E731  how far a bar this thick, or the tooth's wall, stands over the panel
-        press = lambda x: 16 * CLICK_STIFF.get(self.p.get("material_kind") or self.p.get("material"), 2500) * D * x ** 3 * bite / free ** 3   # noqa: E731  192 E I lift / length³, I = depth · thickness³ / 12
-        thick = [x for x in np.round(np.arange(self.p["click_bar"] * k, CLICK_THIN * k - 0.01, -0.2), 2) if solid or (x <= most + 1e-9 and press(x) <= CLICK_PRESS * k * k)]    # in layers. A supported bar is as thick as asked
-        if not thick:
-            return f"a tooth {bite:g} mm high would stretch a bar {span:g} mm long too far: lower `tooth height`"
-        tb = next((float(x) for x in thick if high(x) <= self.p["snap_h"]), None)
+        # The bar is never stretched past its material's limit: strain = 12 · lift · thickness / free length², with the
+        # free length the span less the ridge, the fillets and the support. It keeps the thickness asked; where even a
+        # bar with no support would stretch too far, the tooth is made lower, a layer at a time, down to `CLICK_LOW`,
+        # and only then the bar thinner. What the bar can give besides goes to a fillet at each end, where it meets its
+        # support, and then to the support, up to `bar support`
+        solid, cap, cost = self.p["click_solid"], self.click_cap, CLICK_STIFF.get(self.p.get("material_kind") or self.p.get("material"), 2500)
+        whole = span - CLICK_RIDGE * k                       # the length a bar with nothing under it bends over
+        side = (span - (CLICK_NOSE + CLICK_GAP) * k) / 2     # from a post to the tooth, each side
+        high = lambda x, b: at[1] + up[1] * (sb + max(x, b)) - t   # noqa: E731  how far a bar this thick, or the tooth's wall, stands over the panel
+        fits = []
+        for x in np.round(np.arange(self.p["click_bar"] * k, CLICK_THIN * k - 0.01, -0.2), 2):     # in layers
+            b = round(min(bite, math.floor(cap * whole ** 2 / (12 * x) / (0.2 * k) + 1e-6) * 0.2 * k), 4)
+            if b < CLICK_LOW * k - 1e-9:
+                continue
+            spare = whole - math.sqrt(12 * b * x / cap)       # what the bar can give to fillets and support
+            fl = min(CLICK_FILLET * k, side, spare); sup = max(0.0, min(solid * side, side - fl, (spare - fl) / 2))
+            free = whole - fl - 2 * sup
+            press = 16 * cost * D * x ** 3 * b / free ** 3   # 192 E I lift / length³, I = depth · thickness³ / 12
+            if solid or press <= CLICK_PRESS * k * k:        # a free bar is no thicker than a hand presses shut
+                fits.append((float(x), b, fl, sup, free, press))
+        if not fits:
+            return f"a bar {span:g} mm long cannot bend far enough for a tooth even {CLICK_LOW * k:g} mm high: a longer seam, or a smaller `click size`"
+        tb, bite, fl, sup, free, force = next((f for f in fits if high(f[0], f[1]) <= self.p["snap_h"]), (None,) * 6)
         if tb is None:
-            return f"the tooth needs walls {high(thick[-1]):.1f} mm high: raise `snap wall`"
+            return f"the tooth needs walls {high(*fits[-1][:2]):.1f} mm high: raise `snap wall`"
         top = sb + tb; under = [q(low(d), -d) for d in np.linspace(-c, d2, 9)]
 
         def tooth(ridge):                                     # the wall with the tooth on it, its ridge this far up behind the bar
@@ -1164,8 +1188,12 @@ class Folded(Mode):
         post = self.braced(sw(top, D), room, foot)
         guide = self.braced(sw(max(sb - 1.2, 0.9), D), room, foot)
         bar = [q(sb, c), q(top, c), q(top, c + D), q(sb, c + D)]
+        # the fillet: three blocks under each end of the bar, a layer deeper each nearer the post, fused to the bar, so it
+        # thickens into its support instead of meeting it at a sharp step, where his round 8 bar broke
+        fillet = tuple((fl * j / 3, [q(sb - 0.2 * k * (4 - j), c), q(sb + 0.05, c), q(sb + 0.05, c + D), q(sb - 0.2 * k * (4 - j), c + D)])
+                       for j in (1, 2, 3)) if fl > 0.1 else ()
         reach = max(u for prof in (wall, post) for u, z in prof if z < t + 0.1)
-        return Click(wall, teeth, post, bar, guide, reach, tb, 12 * bite * tb / free ** 2, press(tb))
+        return Click(wall, teeth, post, bar, guide, reach, tb, 12 * bite * tb / free ** 2, force, sup, fillet, bite)
 
     def braced(self, wall, room, reach=CLICK_FOOT):
         """A wall (its cross-section as snap_wall draws it, without a groove) as a plain wedge: its front, a flat top,
@@ -1244,7 +1272,8 @@ class Folded(Mode):
                 out = [(a, c - tooth - 3 * size, c + tooth + 3 * size, parts.wall), (b, c - half - 0.5, c + half + 0.5, parts.bar)]   # the bar: half a millimetre into each post
                 out += [(a, c - x1, c + x1, prof) for _, x1, prof in parts.teeth[1 if locate else 0:]]
                 for sign in (-1, 1):
-                    out.append((b, *sorted((c + sign * (half - p["click_solid"] * (half - tooth - CLICK_GAP * size / 2)), c + sign * (half + post))), parts.post))   # the post, and what of it is under the bar
+                    out.append((b, *sorted((c + sign * (half - parts.support), c + sign * (half + post))), parts.post))   # the post, and what of it is under the bar
+                    out += [(b, *sorted((c + sign * (half - parts.support - length), c + sign * (half - parts.support + 0.3))), prof) for length, prof in parts.fillet]   # 0.3 into the post: two faces on one plane leave the solid open
                     out.append((b, *sorted((c + sign * (tooth + 0.25), c + sign * (half + 0.5))), parts.guide))     # a block from the tooth to the post, under the bar
                 return out
             for i in range(n):
@@ -1256,6 +1285,8 @@ class Folded(Mode):
                         placed += 1
                         if locate:
                             self.located.append(j)
+                        elif parts.bite < p["click_bite"] * size - 1e-6:
+                            self.lowered.append(j)
                         elif group is not None:
                             self.clicked[group] += 1
                         if not locate and parts.press > CLICK_HARD * size * size:
