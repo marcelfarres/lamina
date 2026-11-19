@@ -2,7 +2,9 @@
 
 Each band is a section with only a wall left inside its outline (core/ring.py). Where two bands cross, the line their
 planes meet on runs through both walls in short stretches — usually two per pair, one on each side of the model —
-and each stretch is one joint: a slot in each band, from opposite ends, meeting in the middle (`notch_ratio`).
+and each stretch is one joint: a slot in each band, from opposite ends, meeting in the middle (`notch_ratio`). Where
+the line runs along a wall instead of through it, the slot would split that wall lengthwise: such a band is first
+moved a little along its normal, off it (nudge).
 
 Assembly is family by family, in `order`. The first family stays whole. A band of a later family slides onto the
 bands already in place along the crossing line of each joint, inward from the surface; a band whose joints ask for
@@ -23,6 +25,7 @@ the tongues, and checks the order once more on the pieces as cut — a piece tha
 from __future__ import annotations
 import itertools
 from dataclasses import dataclass
+from types import SimpleNamespace
 
 import numpy as np
 from shapely.geometry import LineString, Point
@@ -40,6 +43,17 @@ FAMS = "xyz"
 ORDERS = ["auto"] + ["".join(o) for o in itertools.permutations(FAMS)]
 SQUARE = np.cos(np.radians(45))      # a tongue only where the later piece slides into the cut within 45° of square to it
 ALONG = 0.1                          # and a piece slides along a cut it meets up to 6° the wrong way: the kerf is its room
+# A crossing band's sheet runs along a band's wall where it touches the wall — grown by half the sheet, the growth taken
+# off the length again — for more than this many walls on their line (nudge): the slot follows the line through that
+# wall and splits it lengthwise, or, with the line just off the wall, the sheet goes through the wall with no slot at
+# all; the pieces beside it have no way in. Measured with 2 to 4 bands per family: the sphere's and the cube's walls,
+# met straight or slanting, at most 2.8 walls long (3.1 in 3 mm stock, at the end bands of 2); along the head's flat
+# sides 3 to 10, and each piece the head locked at its defaults was beside one. The sphere's end bands of 3 run inside
+# its shell right across it (7.5 walls): moved, the sphere loses the loose regions their slots cut
+GRAZE = 3.25
+STEPS = 6                            # places tried each way, evenly up to REACH of the spacing: on the head 4 left graze, 6 none
+REACH = 0.25                         # of the spacing to the next band: a band never passes its neighbour or leaves the model
+NUDGE_BANDS = 40                     # more bands than this: no search for grazing joints (each try re-finds a band's joints)
 
 
 @dataclass
@@ -86,13 +100,14 @@ class Bands(Mode):
     description = ("Rings (bands) cut along any of x, y and z — only a wall left inside each section — half-lapped where two "
                    "bands cross. The first family stays whole; a band that cannot slide in whole is cut into pieces, each cut "
                    "rejoined by a straight tongue the later piece slides onto, and every piece is checked to get past the "
-                   "ones already in. It suits simple round or boxy shapes (a sphere, an egg, a box); on a shape with necks or long "
-                   "flat sides some pieces may have no way in, and the Checks tab names each one.")
+                   "ones already in. It suits simple round or boxy shapes (a sphere, an egg, a box). On a shape with long flat "
+                   "sides, a band whose crossing line runs along a wall is moved a little off it; some pieces may still have no "
+                   "way in, and the Checks tab names each one.")
     legend = ("X-2 = the 2nd band across x, Y-4 the 4th across y, Z-1 the 1st across z, each counted from the low end · "
               "X-2-1, X-2-2 = the pieces a band is cut into, each cut a straight tongue the later piece slides onto (a puzzle "
               "tab in the first family) · assembly: the first family's bands go in whole, then the other pieces one at a time, "
               "each slid in along its slots from outside the model; a small corner cut off between two slots has no joint and "
-              "is glued in last")
+              "is glued in last · a band moved off a grazing joint keeps its label: the notes say how far")
     params = [
         Param("x", "bool", True, "Bands across x (planes square to x)", label="x bands", section="Families — which bands, and how many"),
         Param("y", "bool", True, "Bands across y (planes square to y)", label="y bands"),
@@ -117,6 +132,12 @@ class Bands(Mode):
               "in, or glued where none fits. Where two joints are too close for a cut between them, the cut goes along one of "
               "them, or the corner between their slots is cut off and glued in last. Off = such a band is an error",
               label="cut locked bands"),
+        Param("nudge", "bool", True, "Move a band a little along its normal where the sheet of a band it crosses runs along "
+              f"its wall, or along the other band's wall, for more than {GRAZE:g} walls: the slot cut along that line would split "
+              "the wall lengthwise, and the pieces beside it could not slide in. A band moves at most a quarter of the way to "
+              "its neighbour, and the notes name each band moved, how far and why. A band you moved yourself (offset, tilt, "
+              f"roll) stays where you put it. Up to {NUDGE_BANDS} bands. Off = every band stays where the count or spacing "
+              "puts it", label="move grazing bands"),
         Param("max_length", "number", 0.0, "Longest piece (mm), measured along the band: a longer one is cut again, the cuts spread "
               "evenly between the joints, clear of the slots, each with a tongue (a puzzle tab in the first family). 0 = no "
               "limit. A piece too big for the sheet is always cut", 0, 10000, 5, unit="mm", label="max piece length"),
@@ -127,7 +148,7 @@ class Bands(Mode):
     def build(self, ctx):
         p = ctx.p
         on = [f for f in FAMS if p[f]]
-        self.joints, self.first, self.order, self.corners = [], None, [], {}
+        self.joints, self.first, self.order, self.corners, self.pitch, self.moved = [], None, [], {}, {}, {}
         if len(on) < 2:
             e = "band lattice: turn on at least two of x, y and z bands — one family alone has nothing to cross"
             ctx.errors.append(e)
@@ -141,6 +162,8 @@ class Bands(Mode):
         fams = {f: self.family(ctx, f) for f in on}
         fams = {f: v for f, v in fams.items() if v}
         joints = self.find_joints(ctx, fams)
+        if p["nudge"]:
+            joints = self.nudge(ctx, fams, joints)
         order = self.pick_order(p["order"], list(fams), joints)
         rank = {f: i for i, f in enumerate(order)}
         # a joint's `a` is the band placed first
@@ -168,32 +191,127 @@ class Bands(Mode):
         v = (ctx.mesh.vertices - ctx.mid) @ e
         L = float(np.ptp(v)); c = float(v.min() + v.max()) / 2
         n = p["n" + f] if p["distribution"] == "count" else max(1, int(L // p["spacing_" + f]))
+        self.pitch[f] = L / n
         out = []
         for j, s in enumerate(ctx.positions(L, [p["thickness"]] * n)):
             lab = f"{f.upper()}-{j + 1}"
             out.append(Band(lab, f.upper(), ctx.frame(lab, ctx.mid + e * (c + s), e, up_hint=up), ctx.thickness_of(lab)))
         out = ctx.keep(out)
         for b in out:
-            b.raw = ring_of(section_polygons(ctx.mesh, b.M), ctx.override("wall", b.label, p["ring_wall"]), p["min_feature"])
-            b.clip = b.raw
+            self.ring(ctx, b)
         return [b for b in out if not b.raw.is_empty]
 
     @staticmethod
-    def find_joints(ctx, fams):
-        """Every stretch where two bands' walls overlap on their crossing line, with the way out to the surface."""
-        pairs = [(a, b) for f, g in itertools.combinations(list(fams), 2) for a in fams[f] for b in fams[g]]
+    def ring(ctx, b):
+        b.raw = b.clip = ring_of(section_polygons(ctx.mesh, b.M), ctx.override("wall", b.label, ctx.p["ring_wall"]), ctx.p["min_feature"])
+        return b
+
+    @staticmethod
+    def find_joints(ctx, fams, only=None, grow=0.0):
+        """Every stretch where two bands' walls overlap on their crossing line, with the way out to the surface, and how
+        far each band's own wall runs along the line there (`along`: the length its slot follows); with `only`, the
+        joints of that band alone. `grow`: each wall grown by that much all round first — where a crossing band's sheet,
+        not only its plane, touches the wall (nudge)."""
+        def wall(b):
+            return Bands.grown(b, grow) if grow else b
+        pairs = [(a, b) for f, g in itertools.combinations(list(fams), 2) for a in fams[f] for b in fams[g] if only is None or only is a or only is b]
         lines = crossings(ctx.mesh, ctx.span, [(a.M, b.M) for a, b in pairs])
         out = []
         for (a, b), cr in zip(pairs, lines):
             if cr is None:
                 continue
             p0, d, segs = cr
-            for lo, hi in _clip_segments(segs, p0, d, (a, b)):
+            for (s0, s1), (t0, t1) in itertools.product(_clip_segments(segs, p0, d, (wall(a),)), _clip_segments(segs, p0, d, (wall(b),))):
+                lo, hi = max(s0, t0), min(s1, t1)
+                if hi - lo <= 0.3:
+                    continue
                 seg = min(segs, key=lambda m: 0.0 if m[0] - 1e-6 <= (lo + hi) / 2 <= m[1] + 1e-6 else min(abs(lo - m[0]), abs(hi - m[1])))
                 to_hi, to_lo = seg[1] - hi, lo - seg[0]
                 o = 0 if max(to_hi, to_lo) < 0.5 else (1 if to_hi <= to_lo else -1)
                 out.append(Joint(a, b, p0, d, lo, hi, o))
+                out[-1].along = ((a, s1 - s0), (b, t1 - t0))
         return out
+
+    @staticmethod
+    def grown(b, g):
+        """Band b's wall grown by g all round, as _clip_segments takes a band: where a crossing band's sheet touches it."""
+        if getattr(b, "_grown", (None,))[0] != g:
+            b._grown = (g, SimpleNamespace(M=b.M, clip=b.clip.buffer(g)))
+        return b._grown[1]
+
+    def nudge(self, ctx, fams, joints):
+        """Bands moved off grazing joints (GRAZE): each band in one is moved along its normal, as a hand `offset` moves
+        it, to the nearest of STEPS places each way where its joints graze least, and not where it would stop crossing
+        a band it crosses. The bands of one family share no joint, so each goes to its own best place; family by
+        family, twice over, as moving one family moves the others' lines. A step is at most REACH of the spacing, so a
+        band never passes its neighbour (each moves a quarter of the way at most) or leaves the model (the end bands
+        sit half a spacing in). Measured on the walls grown by half the thickest sheet (`grown`), so a line just off a
+        wall still grazes it. A band moved, tilted or rolled by hand stays. `fams` takes the moved bands → the joints
+        as they are now; self.moved: {label: (mm, why)}."""
+        p = ctx.p
+        if sum(map(len, fams.values())) > NUDGE_BANDS:
+            return joints
+        hand = {lab for k in ("offset", "tilt", "roll") for lab, v in dict(p[k]).items() if v}
+        wall = lambda b: ctx.override("wall", b.label, p["ring_wall"])   # noqa: E731
+        grow = max(b.thickness for v in fams.values() for b in v) / 2
+        base, exact = {b.label: b for v in fams.values() for b in v}, joints
+        tried = {(lab, 0.0): (b, {}) for lab, b in base.items()}   # (label, mm) → (the band there, {other label: (it, joints)})
+        joints = self.find_joints(ctx, fams, grow=grow)
+
+        def graze(j):                                      # (the band whose wall j's line runs along, how far: mm)
+            b, r = max(j.along, key=lambda t: t[1] / wall(t[0]))
+            return b, r - 2 * grow
+
+        def score(js):                                     # how many walls past GRAZE, all told
+            return sum(max(0.0, graze(j)[1] / wall(graze(j)[0]) - GRAZE) for j in js)
+
+        def trial(f, b, o):                                # band b moved o mm, and its joints: only those with a band
+            if (b.label, o) not in tried:                  # moved since the last look are found again
+                M = b.M.copy(); M[:3, 3] += M[:3, 2] * o                # as ctx.frame applies a hand `offset`
+                tried[b.label, o] = (self.ring(ctx, Band(b.label, b.group, M, b.thickness)), {})
+            nb, per = tried[b.label, o]
+            stale = {g: [c for c in v if per.get(c.label, (None,))[0] is not c] for g, v in fams.items() if g != f}
+            if not nb.raw.is_empty and any(stale.values()):
+                near = self.find_joints(ctx, {g: [nb] if g == f else stale[g] for g in fams}, only=nb, grow=grow)
+                for c in itertools.chain(*stale.values()):
+                    per[c.label] = (c, [j for j in near if j.a is c or j.b is c])
+            return nb, [j for _, js in per.values() for j in js]
+
+        for _ in range(2):
+            for f, v in fams.items():
+                steps = [0.0] + [s * k * REACH * self.pitch[f] / STEPS for k in range(1, STEPS + 1) for s in (1, -1)]
+                for i, b in enumerate(v):
+                    mine = [j for j in joints if j.a is b or j.b is b]
+                    now = score(mine)
+                    if b.label in hand or now < 1e-6:
+                        continue
+                    crossed = {(j.b if j.a is b else j.a).label for j in mine}
+                    best = None
+                    for o in steps:                        # nearest first: a farther place has to be better
+                        nb, js = trial(f, base[b.label], o)
+                        if nb.raw.is_empty or crossed - {(j.b if j.a is nb else j.a).label for j in js}:
+                            continue
+                        n = score(js)
+                        if n < now - 1e-6 and (best is None or n < best[0]):
+                            best = (n, nb, o, js)
+                        if n < 1e-6:                      # no graze left: no farther place can do better
+                            break
+                    if best is None:
+                        continue
+                    _, nb, o, js = best
+                    if b.label not in self.moved:          # why: its longest graze where the count put it
+                        j = max(mine, key=lambda j: graze(j)[1] / wall(graze(j)[0]))
+                        why = f"its line with {(j.b if j.a is b else j.a).label} ran {graze(j)[1]:.0f} mm along {graze(j)[0].label}'s wall"
+                        self.moved[b.label] = (o, why)
+                    self.moved[b.label] = (o, self.moved[b.label][1])
+                    v[i], joints = nb, [j for j in joints if j.a is not b and j.b is not b] + js
+        self.moved = {k: m for k, m in self.moved.items() if m[0]}
+        for v in fams.values():                            # a band back where it started is that band again
+            v[:] = [b if b.label in self.moved else base[b.label] for b in v]
+            for b in v:
+                if b.label in self.moved:
+                    b.note = f"moved {self.moved[b.label][0]:+.1f} mm off a grazing joint"
+        return self.find_joints(ctx, fams) if self.moved else exact
 
     # ---------------------------------------------------------------- order and cuts
     @staticmethod
@@ -459,7 +577,9 @@ class Bands(Mode):
         ctx.notes_extra = (f"assembly: {' → '.join(f.upper() for f in self.order)} — the {self.first.upper()} bands go in whole, then the "
                            f"other {n} pieces one at a time, each slid in along its slots, in an order worked out piece by piece; "
                            f"{cuts} cut(s) let the locked bands in" + ("" if p["band_cuts"] else " (cutting is off)")
-                           + (f"; {corners} corner(s) between two slots cut off, glued in last" if corners else ""))
+                           + (f"; {corners} corner(s) between two slots cut off, glued in last" if corners else "")
+                           + ("" if not self.moved else " · moved off a grazing joint (`move grazing bands`): "
+                              + "; ".join(f"{lab} {o:+.1f} mm, {why}" for lab, (o, why) in self.moved.items())))
 
     def parts(self, bands):
         """Every band's pieces as core/slidein.py takes them, labelled as plan.build will label them, each with the ways
