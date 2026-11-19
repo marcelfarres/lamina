@@ -111,8 +111,10 @@ What changed in each release. The GitHub release for a version is this section, 
 - **A project file from a download zip opens at its own size.** The project file inside a downloaded zip was marked
   as made by an older Lamina, so opening it worked the model's size out again, as for an old file. It is now marked
   with the current version, like a project you save yourself.
-- **Examples open without warnings.** The blob, berry, figure, head_igea, hook, horse, pyramid, ripple, snowman, tall_bar,
-  torus and twisted examples open clean, ready to cut.
+- **Examples open without warnings.** The blob, berry, bunny, cow_spot, figure, head_igea, hook, horse, pyramid, ripple,
+  snowman, tall_bar, torus and twisted examples open clean, ready to cut.
+- **Fewer false warnings on stacked models.** An island with no dowel no longer warns when the next layer outline is
+  engraved, since the line shows where it goes. "Connectors left out" counts only pieces that miss dowels.
 
 ## 0.3.3
 
