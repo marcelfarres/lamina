@@ -663,7 +663,9 @@ def test_connectors_are_named_after_their_lower_slice_and_marked_beside_their_ho
     tab connectors the peg is the connector and carries the name as its part label. The assembly key lists every
     rod with its two ends."""
     from core.export import key_text
-    plan = build(EXAMPLES / "egg.stl", "stacked", {"distribution": "count", "count": 5, "placement": "random", "n_points": 2, "autofix": "off"})
+    plan = build(EXAMPLES / "egg.stl", "stacked", {"distribution": "count", "count": 5, "placement": "random", "n_points": 2, "autofix": "off",
+                                                   "hide_marks": False})   # every mark: where hiding leaves them is the next test's
+
     assert [r[5] for r in plan["rods"]] == ["Z-1a", "Z-1b", "Z-2a", "Z-2b", "Z-3a", "Z-3b", "Z-4a", "Z-4b"]
     by = {sl["label"]: sl for sl in plan["slices"]}
     marks = lambda sl: [m[2] for pc in sl["pieces"] for m in pc["marks"]]
@@ -678,7 +680,8 @@ def test_connectors_are_named_after_their_lower_slice_and_marked_beside_their_ho
 
     plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 4, "autofix": "off"})   # aligned: two rods, the whole stack
     assert {r[5] for r in plan["rods"]} == {"Z-1a", "Z-1b"}
-    assert all(marks(sl) == ["1a", "1b"] for sl in plan["slices"])
+    *lower, top = plan["slices"]
+    assert all(marks(sl) == ["1a", "1b"] for sl in lower) and marks(top) == []   # the top layer is clean (hide_marks)
     assert "Z-1a      Z-1       Z-4" in key_text(plan)
 
     plan = build(EXAMPLES / "egg.stl", "stacked", {"distribution": "count", "count": 4, "connect": "tab", "space": 4, "dowel_d": 6, "autofix": "off"})
@@ -738,7 +741,7 @@ def test_a_dense_net_numbers_its_seams_in_seconds_not_minutes():
 
 def test_orientation_arrows_are_two_lines_inside_every_part_clear_of_its_marks():
     """`orient_mark` engraves two arrows at the middle of each part, the same two directions on every part, inside the
-    material and touching no dowel number; off, a part carries none."""
+    material and touching no dowel number — but on the stack's top layer, which nothing covers; off, a part carries none."""
     from shapely.geometry import LineString, MultiPolygon, Polygon
     from core.labels import mark_box
     params = {"distribution": "count", "count": 3, "autofix": "off", "connect": "dowel"}
@@ -750,10 +753,54 @@ def test_orientation_arrows_are_two_lines_inside_every_part_clear_of_its_marks()
         for pc in sl["pieces"]:
             geom = MultiPolygon([Polygon(r[0], r[1:]) for r in pc["placed"]])
             arrows = [LineString(pts) for s, pts in pc["lines"] if s == "orient"]
-            assert len(arrows) == 4, sl["label"]                      # two arrows: a shaft and a head each
+            assert len(arrows) == (0 if sl is on["slices"][-1] else 4), sl["label"]   # two arrows: a shaft and a head each
             for a in arrows:
                 assert geom.buffer(-0.3).covers(a)
                 assert all(not a.intersects(mark_box(x, y, t, font, rot)) for x, y, t, rot in pc["marks"])
+
+
+def test_a_stack_hides_every_engraving_under_the_layer_above():
+    """`hide_marks`, on by default: everything engraved on a stacked layer — its label, its orientation arrows, its dowel
+    numbers — lies under the outline of the layer glued on top of it, so the glued pyramid shows none of it, and the
+    top layer is clean: its label beside it on the sheet, no groove in its print. Off, the top layer is engraved."""
+    from shapely import affinity
+    from shapely.geometry import LineString, Polygon
+    from shapely.ops import unary_union
+    from core.export import label_on_part
+    from core.labels import label_box, label_rect, mark_box
+    from core.solid import has_boolean, proto_part
+    params = {"distribution": "count", "count": 6, "autofix": "off", "orient_mark": True}
+    plan = build(EXAMPLES / "pyramid.stl", "stacked", params)
+    layers = [sl for sl in plan["slices"] if sl["group"] == "S"]
+    font, tag = plan["params"]["font"], plan["label_tag"]
+    world = lambda sl, g: affinity.affine_transform(g, [*np.array(sl["M"])[:2, :2].ravel(), *np.array(sl["M"])[:2, 3]])  # noqa: E731
+    on_parts = 0
+    for a, b in zip(layers, [*layers[1:], None]):
+        above = None if b is None else unary_union([world(b, Polygon(poly[0])) for pc in b["pieces"] for poly in pc["kerfed"]])  # rods fill its holes
+        for pc in a["pieces"]:
+            text = pc["label"] if pc["label_short"] or not tag else f"{tag} {pc['label']}"
+            label = label_on_part(pc)
+            engraved = [LineString(pts) for s, pts in pc["kerfed_lines"] if s == "orient"] \
+                + [mark_box(x, y, t, font, r) for x, y, t, r in pc["kerfed_marks"]] \
+                + ([label_rect(*label, *label_box(text, pc["label_size"]))] if label else [])
+            if above is None:
+                assert not engraved and pc["leader"], pc["label"]         # the top layer: nothing on it, its name beside it
+            else:
+                assert all(above.covers(world(a, g)) for g in engraved), pc["label"]
+                on_parts += label is not None
+    assert on_parts >= 3                                                  # the lower layers still carry their names
+
+    top, low = layers[-1]["pieces"][0], layers[0]["pieces"][0]
+    for pc, sl, grooved in ((top, layers[-1], False), (low, layers[0], True)):
+        mesh, labeled = proto_part(pc, sl["thickness"], 1.0, "groove", 5.0, 1.2)
+        solid = sum(Polygon(r[0], r[1:]).area for r in pc["kerfed"]) * sl["thickness"]
+        assert labeled, pc["label"]                                        # the clean top layer is not "a label that did not fit"
+        if has_boolean():
+            assert (mesh.volume < solid - 1) == grooved, pc["label"]
+
+    off = build(EXAMPLES / "cube.stl", "stacked", {**params, "count": 3, "hide_marks": False})   # a top big enough to hold them
+    top = off["slices"][-1]["pieces"][0]
+    assert [s for s, _ in top["kerfed_lines"] if s == "orient"] and top["kerfed_marks"] and top["leader"] is None
 
 
 def test_stacked_shift_moves_every_slice_plane_and_keeps_the_model_covered():

@@ -85,6 +85,8 @@ What changed in each release. The GitHub release for a version is this section, 
   thickness found.
 - **A print set says when it could not cut the grooves.** A build that cannot cut solids (the one in the browser)
   now writes into the set's README which parts were exported without their fold grooves or labels.
+- **Clean tops on stacked models.** A layer's name, arrows and dowel numbers now go only where the layer above
+  covers them. The top layer stays clean: its name is beside it on the sheet. *Hide engravings* turns this off.
 
 ### Fixed
 

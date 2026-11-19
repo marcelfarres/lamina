@@ -315,8 +315,10 @@ does not slip through. It carries the most signal for stacked and folded work; d
   [![The spacing graph, step by step: the box ticked, a starting shape picked, a point dragged, the curve drawn from the model](docs/media/spacing_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#spacing)
 
   [Watch the walk-through](https://marcelfarres.github.io/lamina/?ref=github-readme#spacing).
-- **Labels** go on the part itself wherever the whole label fits on its material — inside the next layer's outline
-  where the technique marks one (stacked, `next_outline`), so the layer glued on top hides it, upright or turned along
+- **Labels** go on the part itself wherever the whole label fits on its material — on a stacked layer only where the
+  layer glued on top hides it (`hide_marks`, on by default; the arrows of `orient_mark`, the dowel numbers and the
+  label of a 3D-printed part keep to the same area, 1 mm in from the edge of the layer above, so the stack's top layer
+  carries nothing), upright or turned along
   the part, clear of its holes and marks — and otherwise beside the part with a leader line, in free space inside the
   sheet margin that no part, label or leader crosses. `label_place` switches that to always beside (nothing engraved
   on the parts) or always on the part (past its outline when it must, for you to trim in the laser software). Every

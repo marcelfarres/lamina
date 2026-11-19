@@ -84,6 +84,7 @@ class Slice:
     profile: MultiPolygon | None = None # raw − cuts (what gets cut out), before kerf
     lines: list = field(default_factory=list)     # [(style, LineString)] score / fold lines (local): "mountain" | "valley"
     marks: list = field(default_factory=list)     # [(x, y, text) or (x, y, text, rot)] small engraved marks (local): seam and dowel numbers, rot = turned to read along an edge
+    cover: MultiPolygon | None = None   # local: where an engraving is hidden once assembled (stacked: under the layer above; empty: nowhere, the top layer). None = anywhere
     facets: list | None = None          # [(M, MultiPolygon)] for the 3D view when the part is not one flat slice (folded panels)
     pieces: list = field(default_factory=list)    # Piece objects when split
     warnings: list = field(default_factory=list)
@@ -117,6 +118,7 @@ class Piece:
     placed: MultiPolygon | None = None      # kerf-compensated, on the sheet
     placed_lines: list = field(default_factory=list)
     placed_marks: list = field(default_factory=list)
+    placed_cover: MultiPolygon | None = None  # its slice's `cover`, on the sheet
     label_pos: tuple | None = None          # (x, y, rotation) of the label text on the sheet
     label_size: float | None = None         # the label's capital height: the job's font, or smaller where that was all that fit
     label_short: bool = False               # the label engraved without the model's short name: all a small part had room for

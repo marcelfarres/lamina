@@ -29,13 +29,13 @@ class Layer(Slice):
 
 def hole_mark(sl, hole, text, font):
     """The dowel's mark engraved beside its hole (or a tab's slot): a box of `text` at 0.6 of the font, in the first of
-    eight directions round the hole — above first — where the whole mark lies on the slice's material, clear of the
-    outline, every cut in the slice and every mark already there. A hole with no room round it (a small island) gets
-    none: the assembly key still names it."""
+    eight directions round the hole — above first — where the whole mark lies on the slice's material (only its `cover`
+    when it has one: under the layer above), clear of the outline, every cut in the slice and every mark already there.
+    A hole with no room round it (a small island, the top layer) gets none: the assembly key still names it."""
     w, h = (lambda b: (b[2] - b[0], b[3] - b[1]))(mark_box(0, 0, text, font).bounds)
     cx, cy = hole.centroid.coords[0]
     reach = max(math.hypot(x - cx, y - cy) for x, y in hole.exterior.coords)
-    room = sl.raw.buffer(-0.3)
+    room = (sl.raw if sl.cover is None else sl.cover).buffer(-0.3)
     cuts = [c.buffer(0.3) for c in sl.cuts]
     taken = [mark_box(*m[:3], font, mark_rot(m)) for m in sl.marks]
     for ang in (90, 270, 0, 180, 45, 135, 225, 315):
@@ -46,6 +46,11 @@ def hole_mark(sl, hole, text, font):
         if room.covers(b) and all(b.disjoint(c) for c in cuts) and all(b.disjoint(m) for m in taken):
             sl.marks.append((x, y, text))
             return
+
+
+def hole_of(sl, text):
+    """The hole (or slot) in `sl` that the dowel mark `text` names: 3a names the cut of Z-3a."""
+    return next(c for k, c in sl.cutkeys.items() if sl.cutnames[k].split("-", 1)[1] == text)
 
 
 class Connectors:
@@ -127,7 +132,7 @@ class Connectors:
             # a hole that lands on a mark engraved before it wins: the mark moves (a hole holds the model, a mark only names it)
             for m in [m for m in sl.marks if mark_box(*m[:3], font, mark_rot(m)).distance(geom) < 0.3]:
                 sl.marks.remove(m)
-                hole_mark(sl, next(c for k2, c in sl.cutkeys.items() if sl.cutnames[k2].split("-", 1)[1] == m[2]), m[2], font)
+                hole_mark(sl, hole_of(sl, m[2]), m[2], font)
             hole_mark(sl, geom, name.split("-", 1)[1], font)      # Z-3a is marked 3a: every slice of a stack shares the axis
         sl.links.append((other, geom, pt))
 

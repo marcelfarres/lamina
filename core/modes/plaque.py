@@ -10,7 +10,7 @@ from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
 from . import Param, register
-from .connectors import ABC_LOWER, Connectors, Layer, hole_mark
+from .connectors import ABC_LOWER, Connectors, Layer, hole_mark, hole_of
 from .stacked import Stacked
 from ..model import Slice
 from ..geometry import as_lines, as_multi, frame, frame_xy, rot_about, to_local, to_world
@@ -475,7 +475,7 @@ class Plaque(Stacked):
                         s.cutkeys[key] = g; s.cutnames[key] = name
                         for m in [m for m in s.marks if mark_box(*m[:3], p["font"], mark_rot(m)).distance(g) < 0.3]:   # a slot that lands on a mark moves the mark
                             s.marks.remove(m)
-                            hole_mark(s, next(c for k2, c in s.cutkeys.items() if s.cutnames[k2].split("-", 1)[1] == m[2]), m[2], p["font"])
+                            hole_mark(s, hole_of(s, m[2]), m[2], p["font"])
                         hole_mark(s, g, name.split("-", 1)[1], p["font"])
                     sp = Layer(name, "P", frame_xy(mid, a.M[:3, 1], pb - pa), t)    # x along the plate's normal, y along the chord: square to the plate
                     L = body + 2 * tabs
