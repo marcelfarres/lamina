@@ -332,9 +332,11 @@ def test_a_tool_in_the_3d_view_does_what_the_key_does(page):
 
 
 def test_a_connector_left_out_is_counted_and_the_export_text_opens_on_a_click(page):
-    """The vase leaves dowels out: that is a warning the count shows, with a ring in the 3D view for each place. On
-    the Export tab the text about a file is behind its own line, and the parts table opens on its heading."""
-    use(page, "vase", "stacked"); pl = plan(page)
+    """Two dowel points typed 3 mm apart cannot both be cut: the dowels left out are a warning the count shows, with a
+    ring in the 3D view for each place. (The vase example itself cuts every dowel since bug 046.) On the Export tab the
+    text about a file is behind its own line, and the parts table opens on its heading."""
+    use(page, "vase", "stacked")
+    page.evaluate("() => window.__t.applyFix({dowels: [[0, 0], [3, 0]]})"); settle(page); pl = plan(page)
     assert pl["warnings"] and "left out" in pl["warnings"][0], (pl["warnings"], pl["notes"])
     assert pl["counts"]["warnings"] >= 1 and len(pl["left_out"]) == int(pl["warnings"][0].split("connector")[0])
     assert page.locator("#msgs .msg.warn").first.inner_text().startswith("⚠ WARNING")
