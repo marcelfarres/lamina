@@ -143,6 +143,34 @@ def test_the_notes_keep_their_lists_from_a_windows_checkout(page, server):
             page.click("#news_go")                       # left open, it takes every later test's clicks
 
 
+def test_the_notes_show_their_pictures(page, server):
+    """Each change you can see has a picture under it in CHANGELOG.md, by its repo path (web/static/news/…) so that
+    GitHub shows it too. The dialog shows it from static/news/ beside the page, a clip's picture opens its video,
+    and a link can only be http(s) or a path: the notes become HTML."""
+    pic = "web/static/news/0.4.0-lamp.jpg"
+    text = ("# Changelog\n\n## 9.9.9\n\n### Added\n\n"
+            "- **A picture.** Under its entry.\n\n"
+            f"  ![The lamp tick]({pic})\n\n"
+            "- **A clip.** Its picture opens the video.\n\n"
+            f"  [![The fold ▶]({pic})](https://marcelfarres.github.io/lamina/media/fold.mp4)\n\n"
+            "- **A link.** [r/Lamina3D](https://www.reddit.com/r/Lamina3D) and [no](javascript:alert(1)).\n\n"
+            "## 9.9.8\n\n- An older note.\n")
+    page.route("**/changelog.md", lambda r: r.fulfill(body=text, content_type="text/markdown"))
+    try:
+        page.evaluate("v => localStorage.setItem('slicer_seen_version', JSON.stringify(v))", "9.9.8")
+        page.goto(server + "/"); settle(page); page.wait_for_timeout(600)
+        page.wait_for_function("[...document.querySelectorAll('#news_body img')].every(i => i.complete)")
+        imgs = page.eval_on_selector_all("#news_body img", "els => els.map(i => [i.getAttribute('src'), i.alt, i.naturalWidth])")
+        assert imgs == [["static/news/0.4.0-lamp.jpg", "The lamp tick", 900], ["static/news/0.4.0-lamp.jpg", "The fold ▶", 900]], imgs
+        links = page.eval_on_selector_all("#news_body a", "els => els.map(a => [a.getAttribute('href'), a.textContent])")
+        assert links == [["https://marcelfarres.github.io/lamina/media/fold.mp4", ""],
+                         ["https://www.reddit.com/r/Lamina3D", "r/Lamina3D"], ["#", "no"]], links
+    finally:
+        page.unroute("**/changelog.md")
+        if page.locator("#newsdlg[open]").count():
+            page.click("#news_go")
+
+
 def test_the_wheel_zooms_back_out(page, server):
     """Wheel in, wheel out the same notches: the camera is back where it was. At a pixel ratio under 1 (a browser
     zoomed out) one notch put the camera on the point it turns about and zooming out made it NaN; a fast flick sent
