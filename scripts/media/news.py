@@ -403,6 +403,29 @@ def n040_material(app):
     assert (app.p.input_value("#material"), app.p.input_value("#p_thickness")) == (stock, sheet)
 
 
+def n040_clean_tops(app):
+    app.example("egg", "stacked")
+    app.set("distribution", "count")
+    app.set("count", 6)
+    tick = lambda n, on: (app.p.evaluate("([n, on]) => {const s = document.querySelector('#p_' + n); s.checked = on;"   # noqa: E731
+                                         " for (const e of ['input', 'change']) s.dispatchEvent(new Event(e, {bubbles: true}))}",
+                                         [n, on]), app.idle())
+    tick("orient_mark", True)                         # the arrows show what used to be engraved on top
+    app.p.select_option("#viewmode", "only2d")
+    app.p.wait_for_timeout(800)
+    top = '#sheets path[data-label="Z-6"]'            # the egg's top layer
+    shots = []
+    for on, name in ((False, "before: on the top layer"), (True, "now: the top layer is clean")):
+        tick("hide_marks", on)
+        x0, y0, x1, y1 = app.box(top)
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        shots.append(caption(app.grab((cx - 220, cy - 190, cx + 220, cy + 150), [(top, "")]), name))
+    save("0.4.0-clean-tops", side_by_side(*shots))
+    tick("hide_marks", True)
+    tick("orient_mark", False)
+    app.p.select_option("#viewmode", "both")
+
+
 # ---- 0.3.3 -----------------------------------------------------------------------------------------------------
 
 

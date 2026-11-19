@@ -310,6 +310,19 @@ def test_the_vase_example_opens_with_every_dowel_it_asks_for():
         assert all(g >= d + wall - 0.01 for g in gaps), f"holes {min(gaps):.1f} mm apart at z={z}"
 
 
+@pytest.mark.timeout(600)   # the remeshed bunny: about a minute alone
+def test_a_point_whose_piece_got_its_dowels_anyway_is_not_left_out():
+    """Bug 045: the bunny as it shipped in 0.3.3 opened with "24 connector(s) left out". The random placer works on
+    the overlap shrunk by the wall, which splits the hollow bunny's rings into pieces, and asks for two points in each;
+    24 of them found no room, but the topping-up gave every ring the two dowels it asks for. Nothing was left out, and
+    no dowel is lost for saying so."""
+    plan = build(EXAMPLES / "bunny.stl", "stacked", {"slot_offset": 0.1, "kerf": 0.15, "thickness": 3, "rotate": [90, 0, 0], "axis": "z",
+                                                     "connect": "dowel", "dowel_d": 4, "placement": "random", "n_points": 2,
+                                                     "round": 2, "thicken": 2, "margin": 4})
+    assert not any("left out" in w for w in plan["warnings"]), plan["warnings"]
+    assert plan["left_out"] == [] and len(plan["rods"]) == 733
+
+
 def test_a_stack_with_nothing_joining_its_layers_keeps_every_layer():
     """Reported as "the model loses some layers when lines is selected". With a gap between layers and no line
     through them nothing joins the layers; autofix took each unheld island away, and a layer that is all islands (the

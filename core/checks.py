@@ -80,8 +80,9 @@ def check_slice(sl, p):
                 sl.errors.append(Issue(f"{tag} floats — no slot or dowel holds it: add a crossing slice through it, move this slice, or delete it", "floats", region=i))
             elif not held and p.get("space", 0) > 0:     # stacked with a gap: nothing touches, so an island without a connector hangs in the air
                 sl.errors.append(Issue(f"{tag} floats — nothing holds it across the gap: add a connection point inside it (alt-click), use a smaller dowel, or set the gap to 0 and glue it", "gap", region=i))
-            elif not held:
-                sl.warnings.append(Issue(f"{tag} is a separate island — glued to its neighbours only (no dowel / peg through it); add a connection point inside it if it must be rigid", "island"))
+            elif not held and not _outlined(sl, reg):
+                sl.warnings.append(Issue(f"{tag} is a separate island — glued to its neighbours only, with no dowel / peg through it and nothing that "
+                                         f"shows where it goes: engrave the next layer outline, or add a connection point inside it", "island"))
         if sl.group == "S" and p.get("connect") == "dowel":
             _spread_warning(sl, reg, tag, p)
     if sl.group in ("X", "Y", "Z") and not sl.engages:
@@ -119,6 +120,12 @@ def check_slice(sl, p):
             if any(j > i and a.intersection(inside[j]).intersection(sl.raw).area > 0.25 for j in tree.query(a)):
                 sl.warnings.append("two slots / holes overlap each other (the connection is weakened) — fewer connection points, move the slice (offset), change the angle, or delete one slice")
                 break
+
+
+def _outlined(sl, reg):
+    """A stacked island with no dowel through it is still put in place when the next layer outline is engraved: its own
+    outline on the layer below, or the outline of the layer above on it. Glue then holds it, as it holds every layer."""
+    return any(reg.intersects(q) for q in sl.outlined) or any(st == "guide" and reg.intersects(ln) for st, ln in sl.lines)
 
 
 def _spread_warning(sl, reg, tag, p):
@@ -377,7 +384,7 @@ def suggest_fixes(slices, p, ctx, mode):
                 opts = [fix("trim thin spots off every part", trim_thin=True), grow,
                         fix(f"move {sl.label} {step:.0f} mm toward the centre", offset={sl.label: round(off + toward * step, 1)})]
             elif kind == "island":
-                opts = [rnd(3, "merges it into the body")]
+                opts = [fix("engrave the next layer outline", next_outline=True), rnd(3, "merges it into the body")]
                 if mode.name == "stacked" and p.get("connect") == "none":
                     opts.append(fix("hold the stack with pegs", connect="tab"))
             elif kind == "hole-wall":

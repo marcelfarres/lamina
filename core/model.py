@@ -84,6 +84,7 @@ class Slice:
     raw: MultiPolygon | None = None     # section ∩ clip, before cuts. Modes may set it directly (synthetic parts)
     profile: MultiPolygon | None = None # raw − cuts (what gets cut out), before kerf
     lines: list = field(default_factory=list)     # [(style, LineString)] score / fold lines (local): "mountain" | "valley"
+    outlined: list = field(default_factory=list)  # stacked: this layer's polygons (local) whose outline is engraved on the layer below (GUIDE)
     marks: list = field(default_factory=list)     # [(x, y, text) or (x, y, text, rot)] small engraved marks (local): seam and dowel numbers, rot = turned to read along an edge
     cover: MultiPolygon | None = None   # local: where an engraving is hidden once assembled (stacked: under the layer above; empty: nowhere, the top layer). None = anywhere
     facets: list | None = None          # [(M, MultiPolygon)] for the 3D view when the part is not one flat slice (folded panels)

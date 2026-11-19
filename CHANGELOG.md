@@ -118,6 +118,8 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
 - **Clean tops on stacked models.** A layer's name, arrows and dowel numbers now go only where the layer above
   covers them. The top layer stays clean: its name is beside it on the sheet. *Hide engravings* turns this off.
 
+  ![The egg's top layer on the sheet: before, its name, arrow and dowel numbers on it; now clean, its name beside it](web/static/news/0.4.0-clean-tops.jpg)
+
 ### Fixed
 
 - **Cleaner seams in stiff sheet.** A small panel is no longer cut too small at a seam, and no specks are left
@@ -126,8 +128,10 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
   version.
 - **Every dowel is cut.** Where a layer narrows, two dowels could land on each other and both were left out with
   a warning. The vase example now opens with no warning.
-- **Examples open without warnings.** The blob, berry, figure, head_igea, hook, horse, pyramid, ripple, snowman,
-  tall_bar, torus and twisted examples open clean, ready to cut.
+- **Examples open without warnings.** The blob, berry, bunny, cow_spot, figure, head_igea, hook, horse, pyramid,
+  ripple, snowman, tall_bar, torus and twisted examples open clean, ready to cut.
+- **Fewer false warnings on stacked models.** An island with no dowel no longer warns when the next layer outline is
+  engraved, since the line shows where it goes. "Connectors left out" counts only pieces that miss dowels.
 
 ## 0.3.3
 

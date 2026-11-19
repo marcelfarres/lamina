@@ -70,14 +70,18 @@ def later_pieces(plan):
     return {pc["label"]: s for s in plan["slices"] if not s["label"].startswith(first) for pc in s["pieces"]}
 
 
-# The head at its defaults still has pieces that cannot get in, a finding held strict: lines of X-5, Y-5 and X-2 run
-# along a wall of a band they cross (a grazing joint), so the slot lies along that wall and no cut across it clears it.
 @pytest.mark.parametrize("model, prm", [
     ("cube.stl", {}),
     ("sphere.stl", {"thickness": 3}),       # the defaults in the sphere example's own 3 mm stock: 5 x 5 x 4 locked two
     ("sphere.stl", {"nx": 3, "ny": 3, "nz": 3}),
     ("sphere.stl", {"nx": 4, "ny": 4, "nz": 4}),
-    pytest.param("head_igea.stl", {}, marks=pytest.mark.xfail(strict=True, reason="grazing joints lock pieces")),
+    # the head locked 7 pieces where its lines ran along the walls of the bands they cross, until those moved (nudge)
+    ("head_igea.stl", {}),
+    # the head as the app opens it (its preset: standing, 3 mm stock, rounded and smoothed) still locks two, a finding
+    # held strict: Z-4-2 and X-2-1, each at a corner where three bands' sheets meet at the edge of a wall — Y-1, Z-4
+    # and X-3 at the surface, and Y-1 and Z-1 1.4 mm outside X-2's wall — so a sheet passes a wall that has no slot
+    pytest.param("head_igea.stl", {"thickness": 3, "rotate": [90, 0, 0], "round": 3, "smooth": 6},
+                 marks=pytest.mark.xfail(strict=True, reason="two three-band corners at the edge of a wall lock pieces")),
 ])
 def test_every_piece_slides_in_past_the_ones_already_there(model, prm):
     plan = build(EXAMPLES / model, "bands", prm)
@@ -87,6 +91,36 @@ def test_every_piece_slides_in_past_the_ones_already_there(model, prm):
         assert any(e.startswith(f"{lab} cannot slide in: ") for e in later[lab]["errors"])
     assert not any(e.startswith(f"{lab} cannot") for s in plan["slices"] for e in s["errors"] for lab in plan["steps"])
     assert not locked, sorted(locked)
+
+
+# 12 x bands in the 180 mm cube put the end ones at ±82.5 mm, inside the side walls (8 mm: 82 to 90): their lines with
+# every y and z band run along a wall from end to end, the slots along it
+GRAZING = {"autofix": "off", "nx": 12, "ny": 2, "nz": 2}
+
+
+def x_of(plan, label):
+    return shape(plan, label)[1]["M"][0][3]
+
+
+def test_a_band_whose_line_runs_along_a_wall_is_moved_off_it():
+    on, off = (build(CUBE, "bands", {**GRAZING, "nudge": n}) for n in (True, False))
+    assert x_of(off, "X-12") == 82.5 and x_of(off, "X-1") == -82.5                  # off: where the count puts them
+    assert not any("grazing" in n for n in off["notes"]) and not shape(off, "X-12")[1]["note"]
+    # on: moved in until its sheet (1.5 mm) is off the wall, at most a quarter of the way to the next band (15 mm)
+    assert 82.5 - 15 / 4 <= x_of(on, "X-12") <= 82 - 0.75 + 1e-6 and abs(x_of(on, "X-1") + x_of(on, "X-12")) < 1e-6
+    note = next(n for n in on["notes"] if n.startswith("assembly"))
+    moved = note.split("moved off a grazing joint (`move grazing bands`): ")[1]
+    assert re.search(r"X-12 -\d+\.\d mm, its line with \w-\d ran 1\d\d mm along \w-\d's wall", moved), moved
+    assert set(re.findall(r"(\w-\d+) [+-]\d", moved)) == {"X-1", "X-12"}             # nothing else grazes
+    assert shape(on, "X-12")[1]["note"].startswith("moved -")
+    assert not set(later_pieces(on)) - set(on["steps"])                              # every piece slides in
+
+
+def test_a_band_moved_by_hand_stays_where_it_is_put():
+    plan = build(CUBE, "bands", {**GRAZING, "offset": {"X-12": 0.5}})
+    assert x_of(plan, "X-12") == 83.0 and x_of(plan, "X-1") > -82.5               # its mirror image is moved
+    note = next(n for n in plan["notes"] if n.startswith("assembly"))
+    assert "X-1 +" in note and "X-12 " not in note and not shape(plan, "X-12")[1]["note"]
 
 
 def test_a_corner_boxed_in_by_two_bands_is_cut_off_and_glued_in_last():
