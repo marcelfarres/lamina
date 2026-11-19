@@ -95,14 +95,10 @@ What changed in each release. The GitHub release for a version is this section, 
   thickness found.
 - **A print set says when it could not cut the grooves.** A build that cannot cut solids (the one in the browser)
   now writes into the set's README which parts were exported without their fold grooves or labels.
-- **A better head on the horse.** The horse example's head is now a branch: a spine down its middle and ribs across
-  it, where it was one flat slab. A turned head on your model can have a branch too.
+- **A better horse.** Its head is a branch: a spine with ribs across it, not a flat slab. In Curve, ribs stay square
+  to a slim neck on any model. A turned head can have a branch too.
 
   ![The horse's head in 0.3.3, one flat slab, beside 0.4.0, a spine with ribs across it](web/static/news/0.4.0-horse-head.jpg)
-- **Ribs follow a slim neck.** In Curve, ribs now stay square to the curve where the model is slim, like the horse's
-  neck. Where it is deep they still turn less, so they never meet inside it.
-
-  ![The horse from its side: the neck's ribs square to the neck](web/static/news/0.4.0-curve-neck.jpg)
 
 ### Fixed
 
