@@ -18,9 +18,8 @@ What changed in each release. The GitHub release for a version is this section, 
   you give, joined by tabs, so they fit a small sheet. Thanks to @DaveLauber: adapted from his fork.
 
   ![The head's rings cut into pieces of 150 mm at most, nested on one sheet](web/static/news/0.4.0-max-length.jpg)
-- **See it as a lamp.** Tick *lamp* over the 3D view and a bulb lights the model from inside. A floor and a wall
-  catch the shadows that the parts throw, so you see the pattern before you cut. *Bulb height* moves the bulb from
-  the bottom to the top. Untick it and the view is as before.
+- **See it as a lamp.** Tick *lamp* over the 3D view: a bulb inside the model throws its pattern of light and soft
+  shadows on a room's walls. Three sliders move the bulb, and *bulb* picks LED or frosted.
 - **Make a mask from a model.** In Folded Panels, use the *select faces* tool: click, drag, *grow* or *connected*,
   then *remove*. Only what is left is cut, even when you change the face size. Try it on the new *lion_head*.
 
