@@ -47,11 +47,13 @@ def _strips(profile, axis, room, tab_w, sl):
     x0, y0, x1, y1 = profile.bounds
     w, h = x1 - x0, y1 - y0
     usable = room - 2 * tab_w
-    n = max(2, math.ceil((w if axis == 0 else h) / usable))
+    # A room no wider than the tab width kept free at each end holds no strip at any count (the slider's 10 mm sheet
+    # with its 5 mm margin): one try at two strips, not every count to MAX_PIECES for every strip of every pass.
+    n = max(2, math.ceil((w if axis == 0 else h) / usable)) if usable > 0 else 2
     if n > MAX_PIECES:                                    # a part many sheets long is a wrong setting, not a puzzle
         sl.errors.append(f"{w:.0f}×{h:.0f} mm is {n} sheets long: use a bigger sheet or `one_sheet`, a smaller model, or a technique with smaller parts")
         return [profile]
-    for k in range(n, MAX_PIECES + 1):
+    for k in range(n, MAX_PIECES + 1 if usable > 0 else n + 1):
         pieces, cuts, errors, warnings = _strips_of(profile, axis, k, usable, tab_w)
         if all(g.bounds[2 + axis] - g.bounds[axis] <= room + 1e-6 for g in pieces):
             break
@@ -188,10 +190,11 @@ def split_slice(sl, sheet, margin, tab_w, grain=False):
     said = lambda: (list(getattr(sl, "errors", [])), list(sl.warnings))   # noqa: E731
     before = said()
     geoms = passes(False)
-    if not grain and not all(fits_rotated(g, sheet, margin) for g in geoms):
+    if not grain and sheet[0] != sheet[1] and not all(fits_rotated(g, sheet, margin) for g in geoms):
         # Both ways cut to the sheet's long side can leave a near-square piece too big for the sheet either way, once
         # its tabs stick out (a bowl's rings on 200 × 150, bug 048). The part is planned again with the second way cut
-        # to the short side, and that plan is kept when every piece fits; the first one's messages go with it.
+        # to the short side, and that plan is kept when every piece fits; the first one's messages go with it. A
+        # square sheet has no short side: the second plan would be the first again.
         first, first_said, first_cuts = geoms, said(), getattr(sl, "split_cuts", None)
         if hasattr(sl, "errors"):
             sl.errors[:] = before[0]

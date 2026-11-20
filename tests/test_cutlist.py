@@ -191,6 +191,18 @@ def test_split_tabs_interlock_on_a_bar_split_across_its_height():
     assert a.intersection(b).area < 1e-6 and abs(a.area + b.area - profile.area) < 1e-6
 
 
+def test_a_sheet_with_no_room_inside_its_margin_is_not_searched_to_the_piece_limit():
+    """The slider's smallest sheet, 10 × 10 mm with its 5 mm margin, has no room for a strip at all. The search for a
+    strip count that fits (bug 048) tried every count to MAX_PIECES for every strip of every pass, and the tiny-sheet
+    cases of test_params ran past their 600 s. Nothing can fit, so each pass cuts once, as before. A room of exactly
+    the two free tab widths (26 mm less the margins, 8 mm tabs) divided by zero."""
+    for sheet in ((10, 10), (26, 26)):
+        sl = types.SimpleNamespace(label="B-1", profile=as_multi(box(0, 0, 180, 180)), lines=[], marks=[], warnings=[],
+                                   errors=[], pieces=None, facets=None)
+        split_slice(sl, sheet, 5, 8)
+        assert len(sl.pieces) <= 2 ** 4                               # four passes, each cut in two
+
+
 def test_a_split_never_leaves_a_loose_piece():
     """The tall bar, interlocked and too tall for the sheet, is split into strips; the cut used to be free to fall
     where the other family's slots end, and the lower half came apart into three pieces, one a small triangle held by
