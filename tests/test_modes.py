@@ -495,15 +495,18 @@ def test_folded_coverage_is_the_same_in_any_sheet():
 def test_folded_merges_only_the_faces_too_small_for_the_sheet():
     """Asked for: a fix for faces too small to cut back that does not coarsen the whole model. `min_face` closes up the
     faces under that height and leaves the rest: on the cow, no face is left under it, most of the model's faces
-    stay, and the press warning offers it."""
-    from core.mesh import merge_small, simplify
+    stay, and the press warning offers it. Bug 045: a sharp face over that height passed and ended a panel in a thin
+    tip (the lion head's last four warnings); a face with a corner under 28° is closed up too, up to twice the height.
+    The decimated cow is full of such slivers, so about half its faces go (only the small ones went, 60 % stayed)."""
+    from core.mesh import SHARP, SHARP_HEIGHT, merge_small, simplify
     from core.modes.folded import target_faces
     mesh = trimesh.load(COW, force="mesh")
     coarse = simplify(mesh, target_faces(mesh, 15))
     height = lambda m: 2 * m.area_faces / np.linalg.norm(m.triangles - np.roll(m.triangles, -1, axis=1), axis=2).max(1)   # noqa: E731
-    assert (height(coarse) < 4).any()
+    sharp = lambda m: (m.face_angles.min(1) < SHARP) & (height(m) < SHARP_HEIGHT * 4)   # noqa: E731
+    assert (height(coarse) < 4).any() and (sharp(coarse) & (height(coarse) >= 4)).any()   # sharp faces the height lets through
     merged = merge_small(coarse, 4)
-    assert not (height(merged) < 4).any() and len(merged.faces) > 0.6 * len(coarse.faces)
+    assert not (height(merged) < 4).any() and not sharp(merged).any() and len(merged.faces) > 0.45 * len(coarse.faces)
     job = {"rotate": [90, 0, 0], "joint": "laced", "facet": 15, "strategy": "area", "thickness": 1, "material": "steel", "material_kind": "steel"}
     plan = build(COW, "folded", job)
     offers = [o for sl in plan["slices"] for f in sl["fixes"] if "press up to" in f["error"] for o in f["options"]]

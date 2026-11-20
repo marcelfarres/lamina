@@ -197,8 +197,9 @@ class Folded(Mode):
     params = [
         Param("facet", "number", 15, "Detail: average triangle edge after simplification (mm). Bigger = fewer, simpler panels; joints need triangles a few times bigger than the joint. 0 = keep every triangle of the model", 0, 200, 1, unit="mm", label="face size", section="Faces — how the model is cut into flat faces"),
         Param("min_face", "number", 0.0, "Merge the faces too small to work with into their neighbours: a face whose least height is "
-              "under this (mm) is closed up along its shortest edge, and the rest of the model stays as it is. 0 = keep every "
-              "face. For a model where a few small faces carry warnings and a bigger facet size would lose detail everywhere", 0, 100, 0.5, unit="mm", label="smallest face"),
+              "under this (mm), or a sharp one (a corner under 28°, which ends a panel in a thin tip) under twice it, is closed up "
+              "along its shortest edge, and the rest of the model stays as it is. 0 = keep every face. For a model where a few "
+              "small faces carry warnings and a bigger facet size would lose detail everywhere", 0, 100, 0.5, unit="mm", label="smallest face"),
         Param("separate", "bool", False, "Every face is its own panel (no folds): each triangle is cut alone and joined to its neighbours along every edge", label="every face separate"),
         Param("strategy", "choice", "auto", "How panels grow: flat = flattest fold first; strip = long strips along the model's axis; area = big faces first; auto = try all and keep the fewest, most compact panels (≤ 800 faces)", choices=["auto", "flat", "strip", "area"], show_if=("separate", False), label="panel strategy"),
         Param("seams", "edges", [], "The seams you chose: the sheet is cut apart at each of these edges and never folded there, and the "
