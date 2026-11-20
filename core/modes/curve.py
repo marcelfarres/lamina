@@ -2,7 +2,7 @@
 that lie in the curve's plane."""
 import math
 import numpy as np
-from shapely.geometry import LineString, Point, Polygon
+from shapely.geometry import LineString, Point
 from shapely.ops import unary_union
 from . import Mode, Param, register, spacing_params
 from .radial import Radial
@@ -24,6 +24,21 @@ def part(ctx, lab, group, M, isl):
     sl = Slice(lab, group, M, ctx.thickness_of(lab), clip=as_multi(isl.buffer(0.01)))   # the clip keeps slots to it
     sl.raw = as_multi(isl)
     return sl
+
+
+def _tongue_end(a, e, ribs, x):
+    """Where a branch's tongue ends, about `x` from its joint `a` along `e`: on the far face of the body rib nearest
+    there, so no wall is left past its last slot. A fixed end fell wherever the ribs left it: a 1.5 mm bridge past a
+    leaning rib's slot on an old horse, a loose piece past a slot through a shallow belly (bug 049). It moves half a
+    pitch (x / 3) at most: a branch past the body's ribs is not reached for. As (point, normal into the tongue)."""
+    s = math.copysign(1, x)
+    at = [((r.M[:3, 3] - a) @ r.M[:3, 2] / (e @ r.M[:3, 2]), r) for r in ribs if abs(e @ r.M[:3, 2]) > 0.3]
+    at = [q for q in at if abs(q[0] - x) <= abs(x) / 3]
+    if not at:                                       # no rib there: the end stays where it is
+        return a + e * x, -s * e
+    _, r = min(at, key=lambda q: abs(q[0] - x))
+    n = r.M[:3, 2] * s * np.sign(e @ r.M[:3, 2])     # away from the joint
+    return r.M[:3, 3] + n * r.thickness / 2, -n
 
 
 def resample(pts, n_dense=400):
@@ -169,11 +184,13 @@ class Curve(Mode):
                 off = np.mean([(M[:3, :2] @ isl.centroid.coords[0] + M[:3, 3] - a) @ ns for _, M, isl in isles[len(isles) // 2:]])
                 a, b = a + ns * off, b + ns * off
             lab = f"K{i + 1}"; Mk = ctx.frame(lab, (a + b) / 2, ns, up_hint=d)
-            e = np.cross(ns, d) * 1.5 * pitch; down = d * max(2 * pitch, 4 * ctx.p["thickness"])
+            e = np.cross(ns, d); down = d * max(2 * pitch, 4 * ctx.p["thickness"])
             # the tongue stops short of each body spine: a branch at a slant would cross it in the body, unslotted
             h = [(s.thickness + ctx.thickness_of(lab)) / 2 + 1 for s in spines]
             bands = [Radial._owned(Mk, [(s.M[:3, 3] + s.M[:3, 2] * w, -s.M[:3, 2]), (s.M[:3, 3] - s.M[:3, 2] * w, s.M[:3, 2])], big) for s, w in zip(spines, h)]
-            tongue = Polygon(to_local(Mk, [a + e + d * pitch, a - e + d * pitch, a - e - down, a + e - down])).difference(unary_union(bands))
+            k = int(np.argmin([np.linalg.norm(r.M[:3, 3] - a) for r in ribs])) if ribs else 0
+            ends = [_tongue_end(a, e, ribs[max(k - 4, 0):k + 5], x * 1.5 * pitch) for x in (1, -1)]
+            tongue = Radial._owned(Mk, [(a + d * pitch, -d), (a - down, d), *ends], big).difference(unary_union(bands))
             others = unary_union([Radial._owned(Mk, c2, big) for *_, c2, _ in br if c2 is not cell])
             isl = island(Mk, section_polygons(ctx.mesh, Mk).intersection(unary_union([Radial._owned(Mk, cell, big), tongue]).difference(others)), a + d * pitch)
             ks = ctx.keep([part(ctx, lab, "Y", Mk, isl)] if isl is not None else [])
