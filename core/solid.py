@@ -52,8 +52,74 @@ def piece_mesh(pc, thickness) -> trimesh.Trimesh:
     return trimesh.util.concatenate(parts) if parts else trimesh.Trimesh()
 
 
+def standoff_kinds(plan):
+    """The printed standoffs of a plan by size, biggest count first: [(S1, gap, its two ends, its items)], an end a
+    (pin length, whether it is a flush pin). Two that differ only in which end is up are one part turned over."""
+    kinds = {}
+    for e in (plan.get("standoffs") or {}).get("items", []):
+        kinds.setdefault((e["gap"], *sorted(zip(e["pins"], e["flush"]), reverse=True)), []).append(e)
+    ranked = sorted(kinds.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+    return [(f"S{n + 1}", gap, ends, items) for n, ((gap, *ends), items) in enumerate(ranked)]
+
+
+def standoff_mesh(plan, gap, ends) -> trimesh.Trimesh:
+    """One standoff along z from z = 0: a pin, the body over the gap, a pin. `ends` gives each pin's (length, flush),
+    and a pin has the section of the hole it goes into. One solid where solids can be joined here."""
+    so = plan["standoffs"]
+    (p0, f0), (p1, f1) = ends
+    pin = lambda flush, h, z: extrude(Polygon(so["flush" if flush else "pin"]), h).apply_translation([0, 0, z])   # noqa: E731
+    parts = [pin(f0, p0, 0), pin(f1, p1, p0 + gap)]
+    if gap > 0:
+        parts.insert(1, extrude(Polygon(so["body"]), gap).apply_translation([0, 0, p0]))
+    if has_boolean():
+        return trimesh.boolean.union(parts, engine="manifold")
+    return trimesh.util.concatenate(parts)                             # shells that touch: a slicer joins them
+
+
+def standoff_text(plan, f=1.0, u="mm") -> list:
+    """What to print and where each size goes, as lines: for the note beside the print file and for the assembly key."""
+    shape = plan["params"]["dowel_shape"]
+    out = ["3D PRINT — the standoffs, in the file named 3D-PRINT."
+           + ("" if plan["params"].get("printed") else " The sheet files are for the cutter."),
+           "A standoff's body keeps two layers apart. A pin at each end goes into a hole:",
+           f"  {shape} pin, short  -> a {shape} hole. Two standoffs share it, one from each side.",
+           "  pentagon pin, long  -> a pentagon hole. The pin goes through and ends flush.",
+           "Print them as they lie in the file, on their flat side. No supports.", "",
+           f"{'size':<6}{'qty':<6}{'gap':<8}{'pins':<34}between"]
+    end = lambda e: f"{e[0] * f:.3g} {'pentagon' if e[1] else shape}"   # noqa: E731
+    for tag, gap, ends, items in standoff_kinds(plan):
+        where = [f"{e['lo']} / {e['hi']}" for e in items]
+        where = sorted(set(where), key=where.index)
+        out.append(f"{tag:<6}{len(items):<6}{gap * f:<8.3g}{f'{end(ends[0])} + {end(ends[1])} {u}':<34}"
+                   + ", ".join(where[:8]) + (f" and {len(where) - 8} more pair(s)" if len(where) > 8 else ""))
+    return out
+
+
+def standoff_files(plan, out_dir, design, scale=1.0) -> list:
+    """The print file for the standoffs, named so nobody sends it to the cutter: one 3MF, every standoff an object of
+    its own named by its size (S1, S2 …), a row per size, each lying on the flat of its body and pins: the layers
+    run along the pins, and nothing overhangs. Beside it a note that says what it is."""
+    scene = trimesh.Scene(); y = 0.0
+    lie = trimesh.transformations.rotation_matrix(np.pi / 2, [1, 0, 0])     # the section's -y, its flat, goes down
+    for tag, gap, ends, items in standoff_kinds(plan):
+        m = standoff_mesh(plan, gap, ends).apply_scale(scale).apply_transform(lie)
+        m.apply_translation(-m.bounds[0])
+        dx, dy = m.extents[:2] + 3
+        for n in range(len(items)):
+            scene.add_geometry(m.copy().apply_translation([n % 12 * dx, y + n // 12 * dy, 0]), node_name=f"{tag} {n + 1}", geom_name=f"{tag} {n + 1}")
+        y += ((len(items) - 1) // 12 + 1) * dy + 3
+    stem = f"{design} 3D-PRINT standoffs x{len(scene.geometry)}"
+    f = pathlib.Path(out_dir) / f"{stem}.3mf"; f.write_bytes(scene.export(file_type="3mf"))
+    note = pathlib.Path(out_dir) / f"{stem}.txt"; note.write_text("\n".join(standoff_text(plan)) + "\n", encoding="utf-8")
+    return [f, note]
+
+
 def assembled(plan, part=None) -> trimesh.Trimesh:
     ms = [piece_mesh(pc, sl["thickness"]) for sl in plan["slices"] for pc in sl["pieces"] if part is None or pc["label"] == part]
+    for e in (plan.get("standoffs") or {}).get("items", []) if part is None else []:
+        x, z = np.array(e["x"]), np.array(e["z"])
+        M = np.eye(4); M[:3, :3] = np.c_[x, np.cross(z, x), z]; M[:3, 3] = np.array(e["at"]) - z * e["pins"][0]
+        ms.append(standoff_mesh(plan, e["gap"], list(zip(e["pins"], e["flush"]))).apply_transform(M))
     return trimesh.util.concatenate(ms) if ms else trimesh.Trimesh()
 
 
@@ -257,8 +323,10 @@ def proto_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2
             f = out_dir / f"{name}.3mf"
             f.write_bytes(sc.export(file_type="3mf"))
             files.append(f)
+    if plan.get("standoffs"):                              # the connectors of the printed layers: a file of their own
+        files += standoff_files(plan, out_dir, design_name(plan), scale)
     lines = [note] if note else []
-    if plain:                                              # said, not hidden: a folded panel without its grooves does not fold
+    if plain:                                             # said, not hidden: a folded panel without its grooves does not fold
         lines.append(f"this build cannot cut solids (no manifold3d, as in the browser): the parts were exported WITHOUT their {' and '.join(sorted(plain))}. "
                      "Printed folded panels need the grooves to fold: export them from the installed app")
     if unlabeled:

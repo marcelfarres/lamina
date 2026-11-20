@@ -18,7 +18,9 @@ HIDE = 1.0      # mm an engraving keeps in from the edge of the layer above: a g
 CONNECT_HELP = ("dowel = round/square rods through holes (drawn in the 3D view), the default: glue alone leaves every layer free to "
                 "slide while it dries, and two dowels through a piece hold it where it belongs · tab = flat pieces cut from the sheet: "
                 "a peg between touching slices, or a spacer (body + tabs into slots) when `space` > 0 — keeps the distance and the "
-                "orientation · none = glue only, for a stack you are happy to line up by eye")
+                "orientation · standoff = 3D-printed posts for a stack with a gap: a pin at each end goes into the layers' holes, the body "
+                "keeps them apart. A hole two standoffs share has the dowel hole shape and takes two short pins; a hole one "
+                "standoff uses is a pentagon and its pin ends flush. The print file comes in the zip, named 3D-PRINT · none = glue only, for a stack you are happy to line up by eye")
 
 
 @register
@@ -54,10 +56,11 @@ class Stacked(Mode):
         Param("wall", "map", {}, "Per-slice ring wall (mm), when ring slices are on", group="slices", unit="mm", label="own walls"),
         Param("next_outline", "bool", False, "Engrave the outline of the next layer onto each slice (GUIDE, orange): a light line showing where the layer stacked on top sits, so the stack lines up as it is glued, and an island with no dowel through it (an ear, a hoof) has its place marked. Drawn only where it lands on the slice's own material — a wider layer above stops at this layer's edge. Engrave, not cut; off by default", label="next layer outline"),
         Param("next_outline_offset", "number", 0.0, "Move the engraved outline in (−) or out (+) from the next layer's true edge (mm). A little negative — −0.25 or so — tucks the line under the layer above, so a glue-up a hair off still hides it; positive marks an overhang where the next layer is wider", -5, 5, 0.05, unit="mm", show_if=("next_outline", True), label="outline offset"),
-        Param("connect", "choice", "dowel", CONNECT_HELP, choices=["none", "dowel", "tab"], label="connect with", section="Joining — what holds the layers together"),
-        Param("dowel_d", "number", 6.0, "Dowel diameter / peg & spacer width (mm)", 0.5, 100, 0.5, unit="mm", show_if=("connect", ["dowel", "tab"]), label="dowel diameter"),
-        Param("dowel_shape", "choice", "round", "Dowel hole shape (round, square, pencil = hexagon, cross, horizontal / vertical slot)", choices=["round", "square", "pencil", "cross", "hslot", "vslot"], show_if=("connect", "dowel"), label="dowel hole shape"),
-        Param("placement", "choice", "aligned", "aligned = the same points through the whole stack, so each dowel is one straight rod (every island that persists gets its own); to move one or add your own, alt-click a slice in the 3D view or type it under dowels · random = new points for every pair of slices, spread as far apart as that pair allows, so no two layers share a hole · lines = straight dowels you draw yourself, start → end, holes wherever they cross between two slices", choices=["aligned", "random", "lines"], show_if=("connect", ["dowel", "tab"]), label="dowel placement"),
+        Param("connect", "choice", "dowel", CONNECT_HELP, choices=["none", "dowel", "tab", "standoff"], label="connect with",
+              choice_labels={"standoff": "standoff (3D printed)"}, section="Joining — what holds the layers together"),
+        Param("dowel_d", "number", 6.0, "Dowel diameter / peg & spacer width / standoff pin diameter (mm)", 0.5, 100, 0.5, unit="mm", show_if=("connect", ["dowel", "tab", "standoff"]), label="dowel diameter"),
+        Param("dowel_shape", "choice", "round", "Dowel hole shape (round, square, pencil = hexagon, cross, horizontal / vertical slot)", choices=["round", "square", "pencil", "cross", "hslot", "vslot"], show_if=("connect", ["dowel", "standoff"]), label="dowel hole shape"),
+        Param("placement", "choice", "aligned", "aligned = the same points through the whole stack, so each dowel is one straight rod (every island that persists gets its own); to move one or add your own, alt-click a slice in the 3D view or type it under dowels · random = new points for every pair of slices, spread as far apart as that pair allows, so no two layers share a hole · lines = straight dowels you draw yourself, start → end, holes wherever they cross between two slices", choices=["aligned", "random", "lines"], show_if=("connect", ["dowel", "tab", "standoff"]), label="dowel placement"),
         Param("n_points", "int", 2, "Connection points per pair of slices (per island)", 1, 20, 1, show_if=("placement", ["aligned", "random"]), label="dowels per layer"),
         Param("hide_dowels", "bool", False, "Put each dowel only where the layer below and the layer above both cover its hole, "
               "so the glued model shows no open holes on its steps. Inside that covered area the dowels still sit as far apart as "
@@ -72,6 +75,11 @@ class Stacked(Mode):
               "gets a hole where it crosses between them, so a slanted line steps across the layers. + line draws one up "
               "the middle to start from, alt-click the model for one up through that point (again on it to remove it); "
               "two lines hold every layer, one lets it turn", unit="mm", show_if=("placement", "lines"), label="your own dowel lines"),
+        Param("shoulder", "number", 2.0, "How much wider than its pin the standoff's body is, all round (mm): the ledge a layer rests on. "
+              "A wider shoulder needs more room in each layer", 0.5, 20, 0.5,
+              unit="mm", show_if=("connect", "standoff"), label="standoff shoulder"),
+        Param("pin_fit", "number", 0.1, "The standoff's pins are printed this much thinner than the dowel diameter (mm). Pins too tight: "
+              "raise it. Too loose: lower it, below 0 for a press fit", -1, 1, 0.05, unit="mm", show_if=("connect", "standoff"), label="standoff pin fit"),
         Param("spacer_dir", "choice", "alternate", "Orientation of pegs / spacers in the slice plane", choices=["x", "y", "alternate"], show_if=("connect", "tab"), label="spacer direction"),
         *spacing_params("slices", [("spacing_curve", "slice spacing", [[0, 10], [0.5, 10], [1, 10]])], 3, 30),
     ]
@@ -82,6 +90,8 @@ class Stacked(Mode):
               "and the mark 3a is engraved beside its hole on both slices, so a hole marked with a number lower than the slice's "
               "own takes the rod from below, one with its own number the rod going up · a straight rod through several slices "
               "keeps the name of the slice it starts from · with tab connectors Z-3a is the peg or spacer itself, a part of its own · "
+              "a printed standoff is named like a dowel, and the ones in line through the stack share a name: the assembly key says "
+              "which size goes between which two layers · "
               "with `hide engravings` every layer's engravings sit under the layer above it, and the top layer has none: its name is "
               "beside it on the sheet")
 

@@ -212,7 +212,7 @@ ALL_ONLY = {k: v.split() for k, v in {
     "common": "shrinkwrap thicken round smooth scale_check sheet_margin gap grain one_sheet mirror_ok split tab "
               "label_model short_name label_style label_place orient_mark font notch_factor notch_angle "
               "margin center min_part trim_thin",
-    "stacked": "shift surface next_outline next_outline_offset dowel_shape spacer_dir spacing_fix",
+    "stacked": "shift surface next_outline next_outline_offset dowel_shape spacer_dir pin_fit spacing_fix",
     "radial": "axes angle spine spacing_fix",
     "curve": "branches spacing_fix",
     "interlocked": "rotate_grid extra_x extra_y spacing_fix",
@@ -298,6 +298,7 @@ def view_defaults():
     return {
         "left_out": [],           # where a connector that was asked for found no room: [x,y,z] each, marked in the 3D view
         "rods": [],               # dowel rods for the 3D view and the key: [[x0,y0,z0],[x1,y1,z1],d,section [[x,y]…] in the slice's x/y,slice x axis,name (Z-3a),from slice,to slice]
+        "standoffs": None,        # stacked: the printed standoffs, {pin, flush, body: sections [[x,y]…], items: [{name, lo, hi, gap, pins [into lo, into hi], flush [is its lo pin, its hi pin a flush one], at (the foot, on lo's top face), x, z}]}
         "curve3d": None,          # curve: the spine, for the 3D view
         "curve_pts": None,        # curve: its control points with the third coordinate, drawn and dragged in 3D
         "axes3d": None,           # radial's fan axes, curve's branches: drawn and dragged in 3D

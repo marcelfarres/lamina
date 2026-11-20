@@ -76,9 +76,13 @@ function renderAxes(){ // world axes at the model's corner with X/Y/Z labels + d
   for(const [i,col,name] of [[0,0xff5c5c,'X'],[1,0x5cff7a,'Y'],[2,0x5c9cff,'Z']]){const dir=new THREE.Vector3(i===0?1:0,i===1?1:0,i===2?1:0);
     axes.add(new THREE.ArrowHelper(dir,o,L,col,L*.12,L*.06));const s=label3d(name,'#'+col.toString(16).padStart(6,'0'));s.position.copy(o).addScaledVector(dir,L*1.12);s.scale.set(L*.16,L*.08,1);axes.add(s)}
   // a rod is its hole's own section (round, square, hexagon, cross, slot) swept from end to end, turned as its slice is
-  for(const [a,b,,sec,xa] of ST.plan.rods||[]){const A=V3(a),z=V3(b).sub(A),len=z.length(),x=V3(xa);z.normalize();
-    const m=new THREE.Mesh(new THREE.ExtrudeGeometry(new THREE.Shape(sec.map(([u,v])=>new THREE.Vector2(u,v))),{depth:len,bevelEnabled:false}),new THREE.MeshStandardMaterial({color:0xc8b48a,roughness:.6}));
-    m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x,z.clone().cross(x),z));m.position.copy(A);axes.add(m)}
+  const rod=(A,z,x,sec,len,color)=>{const m=new THREE.Mesh(new THREE.ExtrudeGeometry(new THREE.Shape(sec.map(([u,v])=>new THREE.Vector2(u,v))),{depth:len,bevelEnabled:false}),new THREE.MeshStandardMaterial({color,roughness:.6}));
+    m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x,z.clone().cross(x),z));m.position.copy(A);axes.add(m)};
+  for(const [a,b,,sec,xa] of ST.plan.rods||[]){const A=V3(a),z=V3(b).sub(A),len=z.length();rod(A,z.normalize(),V3(xa),sec,len,0xc8b48a)}
+  // a printed standoff: a pin into each layer (a flush one where the hole is its own), and the body that keeps the two apart
+  const so=ST.plan.standoffs, pin=f=>f?so.flush:so.pin;
+  for(const e of so?.items||[]){const A=V3(e.at),z=V3(e.z),x=V3(e.x),at=d=>A.clone().addScaledVector(z,d);
+    rod(at(-e.pins[0]),z,x,pin(e.flush[0]),e.pins[0],0xe8e8ee); rod(at(e.gap),z,x,pin(e.flush[1]),e.pins[1],0xe8e8ee); if(e.gap>0)rod(A,z,x,so.body,e.gap,0xe8e8ee)}
   // where a connector that was asked for found no room (the warning says how many): a crossed ring, seen through the parts
   for(const q of ST.plan.left_out||[]){const s=label3d('⊗','#f5b642',true);s.position.copy(V3(q));s.scale.set(L*.2,L*.1,1);s.renderOrder=10;axes.add(s)}
   renderRings();

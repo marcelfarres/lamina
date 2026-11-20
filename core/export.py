@@ -462,6 +462,9 @@ def key_text(plan):
         for name, e in rods.items():
             length = max(math.dist(a, b) for a in e["pts"] for b in e["pts"])   # the ends along one line: the two farthest apart
             out.append(f"{name:<10}{e['lo']:<10}{e['hi']:<10}{length * f:<12.3g}{e['d'] * f:.3g} {u}")
+    if plan.get("standoffs"):
+        from .solid import standoff_text                # here, not at the top: core.solid imports this module
+        out += ["", *standoff_text(plan, f, u)]
     return "\n".join(out) + "\n"
 
 
@@ -522,6 +525,9 @@ def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, bor
             f = out_dir / f"{design} sheets.pdf"; pdf_doc(f, pages, labels, border, font); written.append(f)
     if key:
         f = out_dir / f"{design} assembly-key.txt"; f.write_text(key_text(plan), encoding="utf-8"); written.append(f)
+    if plan.get("standoffs"):                       # the printed connectors travel with the cut files
+        from .solid import standoff_files
+        written += standoff_files(plan, out_dir, design)
     return written
 
 

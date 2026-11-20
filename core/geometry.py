@@ -225,6 +225,9 @@ def dowel(c, d, shape="round") -> Polygon:
         return Polygon([(x - r, y - r), (x + r, y - r), (x + r, y + r), (x - r, y + r)])
     if shape == "pencil":
         return Polygon([(x + r * math.cos(a), y + r * math.sin(a)) for a in np.arange(6) * math.pi / 3])
+    if shape == "pentagon":         # d across: from a flat (at the bottom) to the middle is d / 2, as a square's
+        R = r / math.cos(math.pi / 5)
+        return Polygon([(x + R * math.cos(a), y + R * math.sin(a)) for a in math.pi / 2 + np.arange(5) * 2 * math.pi / 5])
     if shape == "cross":
         w = d / 3
         return unary_union([rect_along((x - r, y), (x + r, y), w), rect_along((x, y - r), (x, y + r), w)])
