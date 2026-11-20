@@ -18,6 +18,8 @@ export function zip(files){
     lv.setUint32(0,0x04034b50,true);head(new DataView(loc.buffer,4),name,data,crc);loc.set(name,30);
     cv.setUint32(0,0x02014b50,true);cv.setUint16(4,20,true);head(new DataView(c.buffer,6),name,data,crc);cv.setUint32(42,off,true);c.set(name,46);
     parts.push(loc,data);cd.push(c);off+=loc.length+data.length;
+    // a plain zip keeps every offset and size in 32 bits: past them it would wrap round into a broken file (Zip64 has more)
+    if(off>0xffffffff)throw new Error('Export all is too big for one zip (over 4 GB). Export the projects one by one.');
   }
   const size=cd.reduce((s,c)=>s+c.length,0), end=new DataView(new ArrayBuffer(22));
   end.setUint32(0,0x06054b50,true);end.setUint16(8,files.length,true);end.setUint16(10,files.length,true);end.setUint32(12,size,true);end.setUint32(16,off,true);

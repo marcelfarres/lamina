@@ -112,9 +112,11 @@ function renderGuides(){
 // Diagonal stripes on the second family of a technique (STRIPED): two families differ by pattern, not only by colour
 // (the owner is colour-blind, and the old red rings between green half-slices were one colour to him). On the faces'
 // own mm coordinates, about 20 stripes across the model whatever its size, so they read at the library's 320 × 240
-// too. sRGB, so the band is the dark it is drawn as (read as linear it came out a light grey)
-const STRIPES=(()=>{const c=document.createElement('canvas');c.width=c.height=16;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,16,16);g.fillStyle='#555';g.fillRect(0,0,16,8);
-  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.rotation=Math.PI/4;return t})();
+// too. sRGB, so the band is the dark it is drawn as (read as linear it came out a light grey). The band lattice has a
+// third family (Z): its stripes run the other way, as X and Z differ by hue only (and not at all under a material look)
+const stripes=turn=>{const c=document.createElement('canvas');c.width=c.height=16;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,16,16);g.fillStyle='#555';g.fillRect(0,0,16,8);
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.rotation=turn;return t};
+const STRIPES=stripes(Math.PI/4), ACROSS=stripes(-Math.PI/4), stripesOf=g=>g==='Z'?ACROSS:STRIPED.includes(g)?STRIPES:null;
 // Lamp: a bulb inside the model, in a room whose floor, walls and ceiling catch its light and the shadows the parts
 // throw — as a camera sees a lamp in a dark room. The light falls off with the square of the distance, the picture is
 // tone-mapped (AgX) so the bright inside of the shade does not clip to flat colour, and the room gives a little of the
@@ -185,7 +187,7 @@ export function applyLamp(){const on=$('#lamp').checked; $('#lampl').hidden=!on;
   ST.dirty=true}
 $('#lamp').onchange=$('#lampb').onchange=$('#lampx').oninput=$('#lampy').oninput=$('#lampz').oninput=applyLamp;
 export function render3D(modelUrl){
-  parts.clear(); let i=0; STRIPES.repeat.setScalar(20/Math.max(...ST.plan.bbox));
+  parts.clear(); let i=0; for(const t of [STRIPES,ACROSS])t.repeat.setScalar(20/Math.max(...ST.plan.bbox));
   for(const s of ST.plan.slices)for(const pc of s.pieces){
     const geos=[],own=[];   // own: the facet each solid was extruded from, for the fold slider
     pc.facets.forEach((fc,fi)=>{for(const r of fc.rings){
@@ -196,7 +198,7 @@ export function render3D(modelUrl){
         if(ext.length<3)continue;
         const g=new THREE.ExtrudeGeometry(shape([ext,...r.slice(1)]),{depth:t/n,bevelEnabled:false});g.translate(0,0,-t/2+j*t/n);g.applyMatrix4(mat4(fc.M));geos.push(g);own.push(fi)}}});
     if(!geos.length)continue;
-    const m=new THREE.Mesh(mergeGeos(geos),new THREE.MeshStandardMaterial({color:COLORS[s.group]||0xaaaaaa,roughness:.7,metalness:.05,map:STRIPED.includes(s.group)?STRIPES:null}));
+    const m=new THREE.Mesh(mergeGeos(geos),new THREE.MeshStandardMaterial({color:COLORS[s.group]||0xaaaaaa,roughness:.7,metalness:.05,map:stripesOf(s.group)}));
     m.userData={slice:s.label,piece:pc.label,group:s.group,i:i++,origin:new THREE.Vector3(s.M[0][3],s.M[1][3],s.M[2][3]),normal:new THREE.Vector3(s.M[0][2],s.M[1][2],s.M[2][2]),bad:s.errors.length>0};
     // a part with errors is red and netted with dark lines (the ✗ of the results list): red alone is lost on a colour-blind
     // eye. The net shares the part's geometry, so it folds with it; it takes no clicks, the part does; the faces sit a
@@ -293,20 +295,23 @@ function fitView(){const p=fitPose();if(!p)return;const {c,s,eye}=p;controls.tar
 // and folded up, no highlight, no lobe planes (a guide, not material), the see-through model only while there are no
 // parts. The dowel rods stay: they are the axes group's meshes, its arrows and letters are the helper. The renderer
 // keeps no picture between frames, so it is read in the same task it is drawn, and the view is drawn again at its own
-// size before the task ends: the page never shows the small frame. '' when there is nothing to show.
+// size before the task ends: the page never shows the small frame. '' when there is nothing to show. The lamp is off
+// for it too (its dark room is a way to look at the model, not the model), and on again after.
 export function snapshot(w=320,h=240){
-  const P=parts.children,fold=$('#fold'),fv=fold.value,
+  const P=parts.children,fold=$('#fold'),fv=fold.value,lampBox=$('#lamp'),lit=lampBox.checked,
     flags=[...[rings,gizmo,guides,banner,...axes.children.filter(o=>!o.isMesh)].map(o=>[o,false]),[ghost,!P.length],...P.map(m=>[m,m.userData.group!=='B'])],
     was=flags.map(([o])=>o.visible),pos=P.map(m=>m.position.clone()),glow=P.map(m=>m.material.emissive.getHex()),
     size=renderer.getSize(new THREE.Vector2()),pr=renderer.getPixelRatio(),dirty=ST.dirty;
   let url='';
-  try{fold.value=1;applyFold(); flags.forEach(([o,v])=>o.visible=v); P.forEach(m=>{m.position.set(0,0,0);m.material.emissive.set(0)});
+  try{if(lit){lampBox.checked=false;applyLamp()}
+    fold.value=1;applyFold(); flags.forEach(([o,v])=>o.visible=v); P.forEach(m=>{m.position.set(0,0,0);m.material.emissive.set(0)});
     const p=fitPose(); if(!p)return url;
     const cam=new THREE.PerspectiveCamera(camera.fov,w/h,p.s/200,p.s*20); cam.up.set(0,0,1); cam.position.copy(p.eye); cam.lookAt(p.c);
     renderer.setPixelRatio(1); renderer.setSize(w,h,false); renderer.render(scene,cam);
     url=renderer.domElement.toDataURL('image/webp',.8);   // a browser without WebP gives PNG
   }finally{fold.value=fv;applyFold(); flags.forEach(([o],i)=>o.visible=was[i]); P.forEach((m,i)=>{m.position.copy(pos[i]);m.material.emissive.setHex(glow[i])});
-    renderer.setPixelRatio(pr); renderer.setSize(size.x,size.y,false); renderer.render(scene,camera); drawCube(); ST.dirty=dirty}
+    if(lit){lampBox.checked=true;applyLamp()}   // after the parts are back: the room is fitted to them
+    renderer.setPixelRatio(pr); renderer.setSize(size.x,size.y,false); renderer.render(scene,camera); drawCube(); ST.dirty=dirty||lit}   // lit: its shadows drawn again
   return url}
 // The name of the part going in, at the top centre of the 3D view while the steps slider is short of the end: drawn
 // into the canvas itself (a sprite riding with the camera), so the recorded video carries it — the video is the

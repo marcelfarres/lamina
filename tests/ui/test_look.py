@@ -1,6 +1,7 @@
 """The 3D view tells its parts apart by more than colour (the owner is colour-blind): the second family of a
 two-family technique (a radial job's ring slices, an interlocked job's Y slices) carries a stripe pattern the first
-does not, under every look, and a part with errors carries a net of dark lines on top of its red."""
+does not, under every look, the band lattice's third family stripes the other way, and a part with errors carries a
+net of dark lines on top of its red. The library's picture of the model does not change with the lamp."""
 from .helpers import ON_PART, settle, use
 
 KINDS = """() => window.__t.parts().filter(m => m.userData.group !== 'B').map(m => ({group: m.userData.group,
@@ -49,3 +50,35 @@ def test_a_part_with_errors_carries_a_net(page):
     xy = page.evaluate(ON_PART, label)
     assert xy, f"{label} not on screen"
     assert page.evaluate("([x, y]) => window.__t.pickAt(x, y)", xy) == label
+
+
+def test_the_band_lattice_tells_its_three_families_apart_by_pattern(page):
+    """X plain, Y striped, Z striped the other way: X and Z differ by hue only, and under a material look not at all.
+    Under a material look Y and Z are also set apart from X in lightness."""
+    use(page, "cube", "bands")
+    for look in ("group", "cardboard"):
+        page.select_option("#look", look)
+        assert kinds(page, group="X") and not any(k["striped"] for k in kinds(page, group="X")), look
+        assert kinds(page, group="Z") and all(k["striped"] for k in kinds(page, group="Y") + kinds(page, group="Z")), look
+    turn = page.evaluate("""() => Object.fromEntries(['Y', 'Z'].map(g => [g, [...new Set(window.__t.parts()
+        .filter(m => m.userData.group === g).map(m => m.material.map.uuid + ' ' + m.material.map.rotation))]]))""")
+    (y,), (z,) = turn["Y"], turn["Z"]                                          # one texture a family, made once
+    assert y.split()[0] != z.split()[0] and float(y.split()[1]) == -float(z.split()[1]) != 0    # the other diagonal
+    luma = [page.evaluate(LUMA, g) for g in "XZ"]                               # under cardboard, the last look
+    assert abs(luma[0] - luma[1]) >= 40, luma
+    page.select_option("#look", "group")
+
+
+LAMP = "on => { const b = document.querySelector('#lamp'); b.checked = on; b.dispatchEvent(new Event('change')) }"
+
+
+def test_the_library_picture_does_not_depend_on_the_lamp(page):
+    """A save made with the lamp ticked gets the picture of one made without: the lamp's dark room is a way to look at
+    the model, not the model. The lamp is on again after the picture."""
+    off = page.evaluate("() => window.__t.snapshot()")
+    page.evaluate(LAMP, True)
+    try:
+        assert page.evaluate("() => window.__t.snapshot()") == off
+        assert page.evaluate("() => [document.querySelector('#lamp').checked, window.__t.lamp(), !document.querySelector('#lampl').hidden]") == [True, True, True]
+    finally:
+        page.evaluate(LAMP, False)

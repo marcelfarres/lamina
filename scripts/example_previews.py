@@ -1,7 +1,8 @@
 """Take the library's preview picture of every bundled example, as the page itself takes a project's: open the example,
 wait for its slice, and write __t.snapshot() to web/static/examples/<name>.webp.
 
-    uv run python scripts/example_previews.py
+    uv run python scripts/example_previews.py              # every example
+    uv run python scripts/example_previews.py lion_head    # only these (a new example, or one whose preset changed)
 
 The picture is 320 × 240 because snapshot() (web/static/js/scene.js) draws it at that size; the library's page test
 of the Examples section checks it (every card's picture is 320 pixels wide). Run it again after an example or its
@@ -27,7 +28,7 @@ def main():
     bad = []
     with serve_app() as url, sync_playwright() as p:
         browser = p.chromium.launch()
-        for name in sorted(f.stem for f in (ROOT / "examples").glob("*.stl")):
+        for name in sys.argv[1:] or sorted(f.stem for f in (ROOT / "examples").glob("*.stl")):
             # a fresh page for each: in one page an example that names no material kept the one before it's, and with
             # it the look (head_igea came out in fold_test's plastic). A new context also starts with empty storage
             ctx = browser.new_context(viewport={"width": 1500, "height": 950})

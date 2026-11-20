@@ -25,3 +25,21 @@ folder, a save fails with a message that says why and how to fix it. It does not
   page can read, change and delete the projects. The README and the compose file say so.
 - The page has a third store with the shape of the other two. `restoreStore()` picks it; the other rules do not change.
 - The folder is flat, as a linked folder is: one `<name>_v<rev>.lamina.json` file per revision.
+- Every browser writes into the one folder. So a write and a delete are conditional: the page sends what it found
+  when it listed the folder (no file, or a file of this size and time), and the server checks it under its lock.
+  If the file changed, the server answers 412, and the page lists the folder again and asks the person again.
+
+## Only on the server's own names
+
+A web page on another site can point its own domain name at the address of this server (DNS rebinding). The
+browser of a person who opens that page then sends requests to this server, and the page can read the answers. It
+could read and delete the whole library. So `/api/library` answers only when the request's `Host` is a name of
+this server:
+
+- an IP address (IPv4 or IPv6, with or without a port),
+- a name without a dot (`localhost`, or a computer name on the local network),
+- a name that ends in `.local`, `.lan` or `.home.arpa`,
+- a name in the setting `LAMINA_HOSTS` (names separated by commas), for example the domain of a reverse proxy.
+
+Other names get 403, with a message that names `LAMINA_HOSTS`. The rest of the app does not check the name: a page
+on another site cannot name the jobs of a tab, because each tab has a random id.

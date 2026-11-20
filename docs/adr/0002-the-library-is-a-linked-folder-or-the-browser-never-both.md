@@ -2,6 +2,8 @@
 
 Date: 2026-11-16
 
+Partly amended by ADR 0003: a server with `LAMINA_LIBRARY` set keeps the library in its own folder.
+
 ## Context
 
 Projects were saved as a download and opened through a file dialog. The library keeps them in the app, with a

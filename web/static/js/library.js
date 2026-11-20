@@ -11,14 +11,16 @@ export {nextFree};
 
 const EXT='.lamina.json';
 // Windows refuses these in a file name; the name inside the file is the project's, the file name is only where it lives.
-// No dot first (a hidden file) and no two dots running: a server folder takes no such name (web/app.py, lib_path)
-const legal=s=>String(s).replace(/[\\/:*?"<>|\x00-\x1f]/g,'_').replace(/^\.|\.(?=\.)/g,'_');
+// No dot first (a hidden file), none last (x_v2. + .lamina.json is two running) and no two dots running: a server
+// folder takes no such name (web/app.py, lib_path)
+const legal=s=>String(s).replace(/[\\/:*?"<>|\x00-\x1f]/g,'_').replace(/^\.|\.(?=\.)|\.$/g,'_');
 export const fileName=(name,rev)=>`${legal(name)}_v${legal(rev)}${EXT}`;
 // a file named by hand can lack the _v: its stem is then the whole name, and its revision empty
 const cut=file=>file.lastIndexOf('_v'), stemOf=file=>cut(file)<0?file.slice(0,-EXT.length):file.slice(0,cut(file)),
   revOf=file=>cut(file)<0?'':file.slice(cut(file)+2,-EXT.length);
-// a folder on Windows or macOS does not tell Lamp_v1.0 from lamp_v1.0, so file names are compared the way it does
-const lc=s=>s.toLowerCase();
+// a folder on Windows or macOS does not tell Lamp_v1.0 from lamp_v1.0, nor (macOS) an é typed as one character from
+// one typed as e and its accent, so file names are compared the way it does
+const lc=s=>s.normalize('NFC').toLowerCase();
 const num=r=>String(r).split('.').map(x=>+x||0);
 const byRev=(a,b)=>{const [x,y]=num(a.rev),[u,v]=num(b.rev);return u-x||v-y};   // newest first
 
@@ -45,13 +47,17 @@ async function readEntry(s,f){
   catch(e){return {...at,name:f.file,rev:'',bad:true}}   // listed by its file name; Lamina never writes onto it or deletes it
 }
 const group=()=>{const by=new Map();
-  for(const r of rows){if(!by.has(r.name))by.set(r.name,[]);by.get(r.name).push({rev:r.rev,file:r.file,saved:r.saved,preview:r.preview,bad:!!r.bad})}
+  // size and mtime: the file as listed, which a delete from this card expects to find
+  for(const r of rows){if(!by.has(r.name))by.set(r.name,[]);by.get(r.name).push({rev:r.rev,file:r.file,size:r.size,mtime:r.mtime,saved:r.saved,preview:r.preview,bad:!!r.bad})}
   const newest=p=>p.revs.reduce((m,r)=>r.saved>m?r.saved:m,'');
   return last=[...by].map(([name,revs])=>({name,revs:revs.sort(byRev)})).sort((a,b)=>newest(b).localeCompare(newest(a)))};
-// The folder's index is kept with the folder's handle: the entries of a folder linked before are never trusted for this one
-async function idxOf(s){const v=await idxGet(s.kind);if(s.kind!=='folder')return v;
+// The folder's index is kept with the folder's handle: the entries of a folder linked before are never trusted for this one.
+// For a folder and the server's folder the index is only a cache (the files are elsewhere): a browser that refuses its
+// database lists and saves them all the same. For this browser's store it is the same database as the revisions
+const cache=(s,p)=>s.kind==='browser'?p:p.catch(()=>undefined);
+async function idxOf(s){const v=await cache(s,idxGet(s.kind));if(s.kind!=='folder')return v??[];
   return v?.dir&&kept&&await v.dir.isSameEntry(kept).catch(()=>false)?v.entries:[]}
-const idxPut=(s,e)=>idxSet(s.kind,s.kind==='folder'?{dir:kept,entries:e}:e);
+const idxPut=(s,e)=>cache(s,idxSet(s.kind,s.kind==='folder'?{dir:kept,entries:e}:e));
 export async function entries(){
   await ready;const s=store, idx=new Map((await idxOf(s)).map(e=>[e.file,e])), files=await s.list();
   let changed=files.length!==idx.size;
@@ -130,11 +136,12 @@ function fixed(ask){
   return ()=>save(ask,obj,st,me,model,preview);
 }
 // The listing, the checks and the write follow with no wait between them but the question, and after an answer the
-// library is listed and checked again
+// library is listed and checked again. The write expects what the listing showed (the store checks it as it writes:
+// another browser can save between the two); when that no longer holds, it is listed and asked again
 async function save(ask,obj,st,me,model,preview){
   const proj=await obj;
   proj.state=st;proj.memo=me;if(preview)proj.preview=preview;
-  const name=proj.name;let consented='';
+  const name=proj.name;let consent=null;   // the file the person said to replace, as listed when they were asked
   for(;;){
     await entries();
     const {file,hit,taken}=place(name,proj.rev,ST.saved?.file&&ST.saved.name===name&&sameStore()&&ST.saved.file);   // the file in hand first
@@ -142,20 +149,23 @@ async function save(ask,obj,st,me,model,preview){
     // without asking only onto the file this tab opened or last saved, in this store, as it was then: another tab, or a
     // hand in the linked folder, can have changed it since (the index is no help here: listing just rebuilt it)
     const s=ST.saved, now=seen.get(lc(file)), mine=!!s?.file&&lc(s.file)===lc(file)&&sameStore()&&now?.mtime===s.mtime&&now.size===s.size;
-    if(!hit||mine||lc(file)===consented)return write(hit?.file||file,proj,model);
+    const expect=!hit?'absent':mine?now:consent?.file===lc(file)?consent.at:null;
+    if(expect)try{return await write(hit?.file||file,proj,model,expect)}catch(e){if(!e.stale)throw e;consent=null;continue}
     const next=nextFree(taken,proj.rev,false), c=await ask({name,rev:proj.rev,next});
-    if(c==='replace')consented=lc(file);
+    if(c==='replace')consent={file:lc(file),at:now};
     else if(c==='keep'){proj.rev=proj.state.rev=state.rev=next;syncProject();schedule()}
     else return null;
   }
 }
-async function write(file,proj,model){
+async function write(file,proj,model,expect){
   const {name,rev}=proj;proj.saved=new Date().toISOString();
   // so a full disk does not evict the library: asked once, never waited for, its answer changes nothing here
   if(store.kind==='browser'&&!persisted){persisted=true;Promise.resolve().then(()=>navigator.storage?.persist?.()).catch(()=>{})}
   let w;
-  try{w=await store.write(file,JSON.stringify(proj))}
-  catch(e){throw new Error(`${name} v${rev} could not be written in ${store.label} (${e.message||e.name}). Nothing in the library changed; use export to keep a copy of this project.`)}
+  try{w=await store.write(file,JSON.stringify(proj),expect)}
+  catch(e){if(e.stale)throw e;   // save() lists again and asks
+    // a server not heard can have swapped the file in before the connection broke: only a refusal it answered is sure
+    throw new Error(`${name} v${rev} could not be written in ${store.label} (${e.message||e.name}). ${e.unanswered?'It may not have been written':'Nothing in the library changed'}; use export to keep a copy of this project.`)}
   setSaved({name,rev,snap:snapOf(proj,model),file,store:here(),mtime:w.mtime,size:w.size});   // the snap of what the file holds
   // the file is written: an index that cannot follow is said as such (`saved`: the page does not call it unsaved). A new
   // file has no entry and is read at the next listing; an overwritten one keeps its old card until Task 7's size and
@@ -173,18 +183,27 @@ export const openRevision=file=>one(async()=>{
 });
 
 const unreadable=file=>new Error(`${file} cannot be read, and Lamina does not delete a file it cannot read. Delete it in ${store.label} yourself if you do not need it.`);
-async function drop(file){
-  await store.remove(file);await reindex(file,null);
+const newer=files=>new Error(`${files.join(', ')} changed in ${store.label} after the library was listed (another tab or browser saved it again), so Lamina did not delete ${files.length===1?'it':'them'}. Look at the library again, then delete.`);
+// A delete removes the file only as it was listed when the person chose it (`at`: its size and mtime): a revision that
+// another tab or browser saved since stays. False when it stayed
+async function drop(file,at){
+  if(!await store.removeIf(file,at))return false;
+  await reindex(file,null);
   if(ST.saved?.file&&lc(ST.saved.file)===lc(file)&&sameStore())setSaved(null);   // the revision in hand is no longer saved
+  return true;
 }
-export const removeRevision=file=>one(async()=>{
-  await entries();if(rows.find(r=>r.file===file)?.bad)throw unreadable(file);
-  await drop(file);
+// at: the card's {size, mtime}; a call without it deletes the file as listed here
+export const removeRevision=(file,at)=>one(async()=>{
+  await entries();const r=rows.find(r=>r.file===file);if(r?.bad)throw unreadable(file);
+  if((at||r)&&!await drop(file,at||r))throw newer([file]);
 });
-export const removeProject=name=>one(async()=>{
+// revs: the card's revisions, each with its size and mtime; without them, those listed here. A revision of the
+// project saved after the card was drawn is not among them, and stays
+export const removeProject=(name,revs)=>one(async()=>{
   const p=(await entries()).find(p=>p.name===name);if(!p)return;
   const bad=p.revs.find(r=>r.bad);if(bad)throw unreadable(bad.file);
-  for(const r of p.revs)await drop(r.file);   // listed once, above
+  const stayed=[];for(const r of revs||p.revs)if(!await drop(r.file,r))stayed.push(r.file);   // listed once, above
+  if(stayed.length)throw newer(stayed);
 });
 
 // ---------------------------------------------------------------- export and import
@@ -219,19 +238,20 @@ export const importFiles=(files,ask)=>one(async()=>{
   }
   let rest;
   // k: this file's line in `kept`, one per file, naming where it landed in the end
-  try{for(const [i,{p,text,name,rev:r0}] of todo.entries()){let rev=r0, out=text, consented='', k=null;
+  try{for(const [i,{p,text,name,rev:r0}] of todo.entries()){let rev=r0, out=text, consent=null, k=null;
     for(;;){
       // listed before each file and after each question, with no wait but the question before the write: another tab
-      // can save a revision of this name meanwhile.
+      // can save a revision of this name meanwhile. The write expects what the listing showed, as a save's does.
       // ponytail: a listing reads no text now, but each file still reads and writes the whole cached index (its
-      // pictures too); one listing per import, with a check on write, if imports of hundreds of files get slow
-      await entries();const {file,hit,taken}=place(name,rev);
-      if(!hit||!hit.bad&&lc(file)===consented){const dest=hit?.file||file, w=await store.write(dest,out??JSON.stringify(p));
+      // pictures too); one listing per import if imports of hundreds of files get slow: the checked write covers it
+      await entries();const {file,hit,taken}=place(name,rev), now=seen.get(lc(file)), expect=!hit?'absent':!hit.bad&&consent?.file===lc(file)?consent.at:null;
+      if(expect){const dest=hit?.file||file;let w;
+        try{w=await store.write(dest,out??JSON.stringify(p),expect)}catch(e){if(!e.stale)throw e;consent=null;continue}
         imported.push(dest);await reindex(dest,entryOf({file:dest,size:w.size,mtime:w.mtime,saved:p.saved},p));break}
       const next=nextFree([...taken,...todo.slice(i+1).filter(q=>q.name===name).map(q=>q.rev)],rev,false);
       let a=rest;if(a===undefined){const r=await ask({name,rev,next});a=typeof r==='object'&&r?r.answer:r;if(r?.rest)rest=a}
       const twice=imported.some(f=>lc(f)===lc(hit.file));
-      if(a==='replace'&&!hit.bad&&!twice)consented=lc(file);
+      if(a==='replace'&&!hit.bad&&!twice)consent={file:lc(file),at:now};
       else if(a==='replace'||a==='keep'){if(k)k.as=next;else if(a==='replace')both.push(k={rev:`${name} v${r0}`,as:next,why:twice?'twice':'unreadable'});
         rev=p.rev=next;if(p.state&&typeof p.state==='object')p.state.rev=next;out=null}
       else{skipped.push(`${name} v${rev}`);break}
@@ -245,7 +265,7 @@ export const importFiles=(files,ask)=>one(async()=>{
 // While a folder is linked it is the library; the browser store is the library only when none is. A linked folder that
 // cannot be reached is not swapped for the browser store (the library would split in two): every call on it rejects
 const LOST='The linked folder cannot be reached. Reconnect it in the library, or export the project.';
-const lost=dir=>{const no=()=>Promise.reject(new Error(LOST));return {kind:'folder',label:dir.name,list:no,read:no,write:no,remove:no}};
+const lost=dir=>{const no=()=>Promise.reject(new Error(LOST));return {kind:'folder',label:dir.name,list:no,read:no,write:no,removeIf:no}};
 // kept: the linked folder's handle; reach: the folder line's state ('server' while the server keeps the library);
 // left: the folder an unlink or a change of folder left the files in; inBrowser: the revisions still in the browser
 // while a folder (linked, or the server's) is the library, which nothing would show otherwise
@@ -258,7 +278,7 @@ export const storeState=()=>({kind:store.kind,label:store.label,state:reach,file
 const countBrowser=()=>browserStore().list().then(l=>{inBrowser=l.length},()=>{});
 // permission taken away during a session (site settings) answers NotAllowedError: from then on the folder is not reachable
 function guarded(s,dir){const g={...s};
-  for(const k of ['list','read','write','remove'])g[k]=(...a)=>s[k](...a).catch(e=>{if(e?.name!=='NotAllowedError')throw e;if(store===g)linked(dir,false);throw new Error(LOST)});
+  for(const k of ['list','read','write','removeIf'])g[k]=(...a)=>s[k](...a).catch(e=>{if(e?.name!=='NotAllowedError')throw e;if(store===g)linked(dir,false);throw new Error(LOST)});
   return g}
 function linked(dir,ok){kept=dir;reach=!dir?'browser':ok?'folder':'needs-permission';useStore(!dir?browserStore():ok?guarded(folderStore(dir),dir):lost(dir));return reach}
 // the private file system (the tests) has no permission calls: there, absent means granted. A folder deleted or moved
@@ -271,8 +291,11 @@ const reachable=(dir,asked)=>asked.then(ok=>ok&&dir.entries().next().then(()=>tr
 // is blocked): not taken for "this browser", or a save would land there while the projects are elsewhere. Every call
 // rejects, with the reason, until a reload reads it
 const shut=e=>{const why=`The library could not be opened (${e?.message||e?.name||e}). Reload the page.`, no=()=>Promise.reject(new Error(why));
-  kept=null;reach='unknown';useStore({kind:'unknown',label:'the library',problem:why,list:no,read:no,write:no,remove:no});return reach};
-const served=info=>{kept=null;reach='server';useStore(serverStore(info));return countBrowser().then(()=>reach)};
+  kept=null;reach='unknown';useStore({kind:'unknown',label:'the library',problem:why,list:no,read:no,write:no,removeIf:no});return reach};
+// a folder linked here before is no longer the library: its files stay in it, and the folder line says so (as unlink
+// does). A browser that refuses its database has none to tell
+const served=async info=>{kept=null;reach='server';useStore(serverStore(info));
+  left=(await kvGet('folder').catch(()=>null))?.name||'';await countBrowser();return reach};
 export function restoreStore(){left='';
   const p=fetch('api/project').then(r=>r.ok?r.json():Promise.reject(new Error(`the server answered ${r.status}`)))
     .then(({library})=>library?served(library):kvGet('folder').then(async dir=>{
@@ -301,31 +324,39 @@ async function link(dir,ask){
 }
 // Every browser revision moves into the store `to`: written, read back and compared, and only then removed from the
 // browser, so a failure half-way leaves each one in at least one of the two places. The bytes move as they are: a file
-// that cannot be read goes too, unchanged. A clash asks as an import does; {answer, rest:true} answers the rest of them
+// that cannot be read goes too, unchanged. A clash asks as an import does; {answer, rest:true} answers the rest of them.
+// `to` is listed once, and each write expects what that listing showed (the server's folder has other writers: every
+// other browser). When it no longer holds, `to` is listed again and that revision decided again, its question too
 async function moveInto(to,ask){
-  // skipped: left in the browser; changed: those of them another tab saved again while they were being moved
+  // skipped: left in the browser; changed: those of them another tab saved again while they were being moved;
+  // refused: those of them the target would not take, with its reason ({file, why}: a name or a size it refuses)
   // both: those a replace moved in as a new revision, as the folder's file cannot be read (said, as an import does)
-  const from=browserStore(), moved=[], skipped=[], changed=[], both=[];
-  const there=new Map((await to.list()).map(f=>[lc(f.file),f.file])), files=await from.list();
-  let rest;
+  const from=browserStore(), moved=[], skipped=[], changed=[], both=[], refused=[];
+  let there, rest;const look=async()=>{there=new Map((await to.list()).map(f=>[lc(f.file),f]))};   // lower-cased name → {file, size, mtime}
+  await look();const files=await from.list();
   try{for(const f of files){
     // read with its own time and size: another tab can have saved it since the listing, and those bytes are the ones that move
-    const {file}=f, got=await from.record(file);let text=got.text, dest=file;
-    if(there.has(lc(file))){
-      const stem=stemOf(file), rev=revOf(file);
-      let p=null;try{p=parse(text)}catch(e){}
-      // a kept revision lands on no revision of this name: those in the folder, nor those still to come from the browser
-      const next=nextFree([...there.values(),...files.map(g=>g.file)].filter(g=>lc(stemOf(g))===lc(stem)).map(revOf),rev||'1.0',false);
-      let a=rest;if(a===undefined){const r=await ask({name:p?.name||file,rev,next});a=typeof r==='object'&&r?r.answer:r;if(r?.rest)rest=a}
-      // a file in the folder that cannot be read is never written onto: replace keeps both instead
-      if(a==='replace'&&await to.read(there.get(lc(file))).then(parse).then(()=>false,()=>true)){a='keep';both.push({rev:`${p?nameOf(p):stem} v${rev}`,as:next,why:'unreadable'})}
-      if(a==='replace')dest=there.get(lc(file));   // the folder's own spelling of the name
-      else if(a==='keep'){dest=`${stem}_v${next}${EXT}`;if(p){p.rev=next;if(p.state)p.state.rev=next;text=JSON.stringify(p)}}
-      else{skipped.push(file);continue}   // left in the browser, where unlink finds it again
+    const {file}=f, got=await from.record(file);let text, dest, w=null, k=null;
+    for(;;){text=got.text;dest=file;k=null;let expect='absent';const old=there.get(lc(file));
+      if(old){
+        const stem=stemOf(file), rev=revOf(file);
+        let p=null;try{p=parse(text)}catch(e){}
+        // a kept revision lands on no revision of this name: those in the folder, nor those still to come from the browser
+        const next=nextFree([...there.values(),...files].map(g=>g.file).filter(g=>lc(stemOf(g))===lc(stem)).map(revOf),rev||'1.0',false);
+        let a=rest;if(a===undefined){const r=await ask({name:p?.name||file,rev,next});a=typeof r==='object'&&r?r.answer:r;if(r?.rest)rest=a}
+        // a file in the folder that cannot be read is never written onto: replace keeps both instead
+        if(a==='replace'&&await to.read(old.file).then(parse).then(()=>false,()=>true)){a='keep';k={rev:`${p?nameOf(p):stem} v${rev}`,as:next,why:'unreadable'}}
+        if(a==='replace'){dest=old.file;expect=old}   // the folder's own spelling of the name, as it was listed
+        else if(a==='keep'){dest=`${stem}_v${next}${EXT}`;if(p){p.rev=next;if(p.state)p.state.rev=next;text=JSON.stringify(p)}}
+        else break;   // left in the browser, where unlink finds it again
+      }
+      try{w=await to.write(dest,text,expect);break}
+      catch(e){if(e.stale){await look();continue}if(!e.refused)throw e;refused.push({file,why:e.message});break}
     }
-    const w=await to.write(dest,text);
+    if(!w){skipped.push(file);continue}
+    if(k)both.push(k);
     if(await to.read(dest)!==text)throw new Error(`${dest} did not read back as it was written`);
-    there.set(lc(dest),dest);
+    there.set(lc(dest),{file:dest,...w});
     // the browser copy goes only if it is still the one that was read: a newer save (another tab, during the question)
     // stays in the browser, and the folder holds the copy from before under `dest`
     if(!await from.removeIf(file,got)){skipped.push(file);changed.push(file);continue}
@@ -334,5 +365,5 @@ async function moveInto(to,ask){
     const s=ST.saved;
     if(s?.file===file&&dest===file&&s.store?.kind==='browser'&&s.mtime===got.mtime&&s.size===got.size)setSaved({...s,store:{kind:to.kind,label:to.label},mtime:w.mtime,size:w.size});
   }}catch(e){throw new Error(`The move into ${to.label} stopped (${e.message||e.name}). ${moved.length} revisions were moved into ${to.label}; the others are still in this browser.`)}
-  return {moved,skipped,changed,kept:both};
+  return {moved,skipped,changed,kept:both,refused};
 }

@@ -53,7 +53,7 @@ function where(){const s=lib.storeState(), b=(id,t)=>`<button class="small" id="
     have=s.browser?` ${plural(s.browser,'revision')} ${s.browser===1?'is':'are'} still in this browser`:'',
     still=have&&`${have}: unlink to see ${it}, or press ${s.state==='folder'?'change folder':'pick another folder'} and pick <b>${esc(s.label)}</b> to move ${it}.`;
   const [line,buttons]=s.problem?[`⚠ ${esc(s.problem)}`,'']
-    :s.state==='server'?[`📁 kept in the folder <b>${esc(s.label)}</b> on the server · ${plural(s.files,'file')}.${have&&have+'.'}`,s.browser?b('libtoserver',`move ${it} to the server folder`):'']
+    :s.state==='server'?[`📁 kept in the folder <b>${esc(s.label)}</b> on the server · ${plural(s.files,'file')}.${have&&have+'.'}${stayed}`,s.browser?b('libtoserver',`move ${it} to the server folder`):'']
     :s.state==='folder'?[`📁 kept in the folder <b>${esc(s.label)}</b> · ${plural(s.files,'file')}.${still}${stayed}`,b('libchange','change folder')+b('libunlink','unlink')]
     :s.state==='needs-permission'?[`⚠ The linked folder <b>${esc(s.label)}</b> cannot be reached.${still}`,b('libreconnect',rec?'reconnecting…':'reconnect folder')+b('libchange','pick another folder')+b('libunlink','unlink')]
     :['💾 kept in this browser only. Clearing the site data deletes them: use <b>export all</b> for a backup.'+stayed,
@@ -73,12 +73,13 @@ function reconnect(){const {label}=lib.storeState(), p=lib.reconnect();rec=true;
 const named=f=>{const m=/^(.*)_v(.+)\.lamina\.json$/.exec(f);return m?`${m[1]} v${m[2]}`:f};
 // what a move did (a link, or the move into the server's folder): how many moved, and each revision that stayed in
 // this browser, that it is safe, why, and what to do. `did` names the move; again(it) says how to move the rest
-function told(did,{moved,skipped,changed,kept},again){const asked=skipped.filter(f=>!changed.includes(f)), it=skipped.length===1?'it':'them',
-    out=[`${did}${skipped.length?', not all moved':''}: ${plural(moved.length,'revision')} moved into it.`];
+function told(did,{moved,skipped,changed,kept,refused},again){const no=refused.map(r=>r.file), asked=skipped.filter(f=>!changed.includes(f)&&!no.includes(f)),
+    left=skipped.length-no.length, it=left===1?'it':'them', out=[`${did}${skipped.length?', not all moved':''}: ${plural(moved.length,'revision')} moved into it.`];
   if(kept.length)out.push(`${few(kept.map(k=>`${k.rev} as v${k.as}`))} moved in as a new revision instead of replacing, as the folder's file cannot be read.`);
   if(asked.length)out.push(`${few(asked.map(named))} stayed in this browser, safe: the folder already had that revision and the question was cancelled.`);
   if(changed.length)out.push(`${few(changed.map(named))} stayed in this browser, safe: another tab saved ${changed.length===1?'it':'them'} again during the move (the folder has the copy from before).`);
-  if(skipped.length)out.push(again(it));
+  if(refused.length)out.push(`${few(refused.map(r=>`${named(r.file)} (${r.why})`))} stayed in this browser, safe: the folder did not take ${refused.length===1?'it':'them'}. Export ${refused.length===1?'it':'them'} to keep a copy.`);
+  if(left)out.push(again(it));
   return out.join(' ')}
 async function pick(){let dir;
   try{dir=await window.showDirectoryPicker({mode:'readwrite'})}catch(e){if(e.name!=='AbortError')tell(`Not linked: ${e.message}`,'err');return}   // closed: nothing to do
@@ -120,8 +121,9 @@ async function onCard(e){const c=e.target.closest('.card');if(!c||c.classList.co
   if(!p)return;
   if(b?.matches('.more')){opened.has(name)?opened.delete(name):opened.add(name);return render()}
   if(b?.matches('.open'))return open(file);
-  if(b?.matches('.delete')){const v=p.revs.find(v=>v.file===file);if(confirm(`Delete ${name} v${v.rev}? It cannot be undone.`))act(()=>lib.removeRevision(file));return}
-  if(b?.matches('.deleteproject')){if(confirm(`Delete the project ${name} and its ${plural(p.revs.length,'revision')}? It cannot be undone.`))act(()=>lib.removeProject(name));return}
+  // a delete removes what this card shows: a revision saved again since (another browser) stays
+  if(b?.matches('.delete')){const v=p.revs.find(v=>v.file===file);if(confirm(`Delete ${name} v${v.rev}? It cannot be undone.`))act(()=>lib.removeRevision(file,v));return}
+  if(b?.matches('.deleteproject')){if(confirm(`Delete the project ${name} and its ${plural(p.revs.length,'revision')}? It cannot be undone.`))act(()=>lib.removeProject(name,p.revs));return}
   if(b?.matches('.export'))return down(()=>lib.exportRevision(file));
   if(b?.matches('.exportproject'))return down(()=>lib.exportProject(name));
   if(b||e.target.closest('.revs'))return;   // the space between the rows
@@ -168,7 +170,10 @@ export function initLibraryPage(o){ex=o;
     // with the folder out of reach the prompt is asked for first and the save started at once after it, both inside the
     // click: the save is fixed at the press (not when the prompt is answered) and waits in the queue behind the reconnect
     saving=true;const r=lib.storeState().state==='needs-permission'?reconnect():null;
-    try{const ok=await hold(()=>lib.saveCurrent(askClash));await r;if(ok)status(`saved ${state.project} v${state.rev}`)}
+    // a save to the server's folder sends the whole project, model and all: the line says it is under way, and a
+    // cancelled question puts the line back as it was
+    const was=[$('#status').textContent,$('#dot').className], far=lib.storeState().kind==='server';if(far)status('saving…','busy');
+    try{const ok=await hold(()=>lib.saveCurrent(askClash));await r;if(ok)status(`saved ${state.project} v${state.rev}`);else if(far)status(...was)}
     catch(e){await r;status(e.saved?e.message:`Not saved: ${e.message}`,'err')}finally{saving=false}};   // the failure first: the line is cut
   for(const a of ['replace','keep','cancel'])$('#libask_'+a).onclick=()=>$('#libask').close(a==='cancel'?'':a);
   addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#library').hidden&&!document.querySelector('dialog[open]'))hideLibrary()});

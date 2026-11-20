@@ -18,7 +18,7 @@ def wipe(page):
     store itself: the library refuses to delete one it cannot read, and some tests leave one. The store tests below
     delete the database instead; both leave it empty, and the library opens it again on its next call."""
     page.evaluate("""async () => { const S = await import('/static/js/store.js'), b = S.browserStore();
-        for (const f of await b.list()) await b.remove(f.file); await S.idxSet('browser', []);
+        for (const f of await b.list()) await b.removeIf(f.file, f); await S.idxSet('browser', []);
         const root = await navigator.storage.getDirectory();
         for (const d of ['lib', 'lib2']) await root.removeEntry(d, {recursive: true}).catch(() => {});
         const st = __t.lib.storeState();
@@ -153,11 +153,20 @@ def test_store_write_list_read_remove(page, kind):
             const w = await (await d.getFileHandle('notes.json', {{create: true}})).createWritable(); await w.write('{{}}'); await w.close();
             await d.getDirectoryHandle('sub.lamina.json', {{create: true}}) }}
         out.list = await s.list(); out.text = await s.read('x_v1.0.lamina.json');
-        await s.remove('x_v1.0.lamina.json'); out.after = await s.list(); return out }}""", kind)
+        // a write and a delete expect what the listing showed: the file absent, or exactly as listed
+        const no = p => p.then(() => 'written', e => e.stale ? 'stale' : e.message), x = 'x_v1.0.lamina.json', w = out.w;
+        out.cond = [await no(s.write(x, 'b', 'absent')), await no(s.write(x, 'b', {{size: w.size + 1, mtime: w.mtime}})),
+            await no(s.write(x, 'b', {{size: w.size, mtime: w.mtime - 1}})), await no(s.write('y_v1.0.lamina.json', 'b', w)),
+            await s.read(x)];
+        await new Promise(ok => setTimeout(ok, 5));                          // a new mtime for the next write
+        out.w2 = await s.write(x, '{{"a":22}}', w); out.stale = await s.removeIf(x, w);
+        out.gone = await s.removeIf(x, out.w2); out.again = await s.removeIf(x, out.w2);
+        out.after = await s.list(); return out }}""", kind)
     assert (r["kind"], r["label"]) == (kind, "lib-test" if kind == "folder" else "this browser")
     assert r["w"]["size"] == 7 and r["w"]["mtime"] > 0
     assert [(e["file"], e["size"]) for e in r["list"]] == [("x_v1.0.lamina.json", 7)] and r["list"][0]["mtime"] > 0
-    assert r["text"] == '{"a":1}' and r["after"] == []
+    assert r["text"] == '{"a":1}' and r["cond"] == ["stale", "stale", "stale", "stale", '{"a":1}']
+    assert r["w2"]["size"] == 8 and (r["stale"], r["gone"], r["again"]) == (False, True, True) and r["after"] == []
 
 
 def test_folder_write_swaps_the_file_in_whole(page):
@@ -242,6 +251,7 @@ def test_file_name_is_legal_and_two_names_do_not_collide(page):
     assert page.evaluate("s => __t.lib.fileName(s, '2.0')", 'x\\/:*?"<>|\x01\x1f') == "x" + "_" * 11 + "_v2.0.lamina.json"
     # no dot first and no two dots running: a name a server folder takes too (web/app.py, lib_path)
     assert page.evaluate("__t.lib.fileName('.x..y...z', '1..0')") == "_x_.y__.z_v1_.0.lamina.json"
+    assert page.evaluate("__t.lib.fileName('x.', '2.')") == "x__v2_.lamina.json"   # none last: v2. + .lamina.json is two running
     name(page, "a/b"); first, _ = save(page)
     name(page, "a_b"); second, asked = save(page)
     assert (first["file"], second["file"], asked) == ("a_b_v1.0.lamina.json", "a_b~2_v1.0.lamina.json", [])
@@ -1766,7 +1776,7 @@ def test_the_note_clears_after_a_good_listing_and_names_five(page):
 def test_progress_and_delete_errors_are_said_on_the_page(page):
     put(page, "lamp_v1.0.lamina.json", project("lamp"))
     page.evaluate("""() => import('/static/js/store.js').then(S => { const b = S.browserStore();
-        __t.lib.useStore({...b, remove: () => Promise.reject(new Error('the disk said no'))}) })""")
+        __t.lib.useStore({...b, removeIf: () => Promise.reject(new Error('the disk said no'))}) })""")
     try:
         library(page)
         with page.expect_file_chooser() as fc:
@@ -1783,3 +1793,68 @@ def test_progress_and_delete_errors_are_said_on_the_page(page):
         assert note(page) == "⚠ Not deleted: the disk said no"
     finally:
         page.evaluate("import('/static/js/store.js').then(S => __t.lib.useStore(S.browserStore()))")
+
+
+# --- the final review's fixes ---
+OTHER = """async ([kind, t]) => { if (kind === 'browser') return (await import('/static/js/store.js')).browserStore().write('lamp_v1.0.lamina.json', t);
+    const w = await (await (await navigator.storage.getDirectory()).getDirectoryHandle('lib')).getFileHandle('lamp_v1.0.lamina.json', {create: true});
+    const s = await w.createWritable(); await s.write(t); await s.close() }"""
+
+
+@pytest.mark.parametrize("kind", ["browser", "folder"])
+def test_a_replace_is_asked_again_when_the_file_changed_after_the_question(page, kind):
+    """The person said replace to the file as it was when asked; another tab saved it again before the write. The write
+    finds it changed, and the library is listed and asked again: a cancel then keeps the other tab's save."""
+    if kind == "folder":
+        folder(page)
+    page.evaluate(OTHER, [kind, project("lamp")])                              # not this tab's
+    name(page, "lamp")
+    theirs = project("lamp") + "  "
+    r = page.evaluate(f"""async t => {{ const asked = [];
+        const r = await __t.lib.saveCurrent(async c => {{ asked.push(c); if (asked.length > 1) return null;
+            await ({OTHER})(['{kind}', t]); return 'replace' }});
+        return [r, asked.length] }}""", theirs)
+    assert r == [None, 2]
+    assert (read_text(page, "lamp_v1.0.lamina.json") if kind == "browser" else on_disk(page)["lamp_v1.0.lamina.json"]) == theirs
+
+
+def test_an_import_asks_again_when_the_file_changed_after_the_question(page):
+    put(page, "lamp_v1.0.lamina.json", project("lamp"))
+    theirs = project("lamp") + "  "
+    r = page.evaluate(f"""async t => {{ const asked = [], f = new File([{json.dumps(project("lamp"))}], 'lamp.lamina.json');
+        const r = await __t.lib.importFiles([f], async c => {{ asked.push(c); if (asked.length > 1) return null;
+            await ({OTHER})(['browser', t]); return 'replace' }});
+        return [r.imported, r.skipped, asked.length] }}""", theirs)
+    assert r == [[], ["lamp v1.0"], 2] and read_text(page, "lamp_v1.0.lamina.json") == theirs
+
+
+def test_names_in_two_unicode_forms_are_one_file_name(page):
+    """macOS takes é typed as one character (NFC) and as e and its accent (NFD) for one file name: a new project whose
+    name differs from another's only so gets a file name of its own."""
+    put(page, "café_v1.0.lamina.json", project("café"))
+    name(page, "café")
+    assert save(page) == [{"file": "café~2_v1.0.lamina.json"}, []]
+
+
+def test_export_all_past_4_gb_says_so(page):
+    """A plain zip keeps its offsets in 32 bits: past 4 GB they wrap round into a broken file. A fake length stands in
+    for the gigabytes."""
+    err = page.evaluate("""async () => { const {zip} = await import('/static/js/zip.js'), P = TextEncoder.prototype, e = P.encode;
+        P.encode = function (s) { const u = e.call(this, s); if (s === 'big') Object.defineProperty(u, 'length', {value: 2 ** 31}); return u };
+        try { zip([{name: 'a', text: 'big'}, {name: 'b', text: 'big'}]); return null } catch (x) { return x.message } finally { P.encode = e } }""")
+    assert err == "Export all is too big for one zip (over 4 GB). Export the projects one by one."
+
+
+def test_the_index_is_only_a_cache_for_a_folder(page):
+    """A linked folder's files are the library; their index in the browser's database only saves reading them again.
+    A database that refuses the index lists and saves the folder all the same."""
+    folder(page); drop(page, "egg_v1.0.lamina.json", project("egg"))
+    page.evaluate("""() => { const P = IDBDatabase.prototype; window.__tx = P.transaction;
+        P.transaction = function (n, ...a) { if (n === 'index') throw new DOMException('refused', 'UnknownError'); return __tx.call(this, n, ...a) } }""")
+    try:
+        assert lib(page) == [("egg", ["1.0"])]
+        name(page, "lamp")
+        assert save(page) == [{"file": "lamp_v1.0.lamina.json"}, []]
+        assert sorted(on_disk(page)) == ["egg_v1.0.lamina.json", "lamp_v1.0.lamina.json"]
+    finally:
+        page.evaluate("() => { IDBDatabase.prototype.transaction = __tx }")

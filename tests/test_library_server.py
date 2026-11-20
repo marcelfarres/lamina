@@ -3,6 +3,7 @@ browser reads and writes through api/library, with no name that leads out of it 
 import os
 import subprocess
 import sys
+import time
 import urllib.parse
 
 import pytest
@@ -40,6 +41,7 @@ def test_off_when_unset(api, monkeypatch):
     assert api.get(URL).status_code == 404
     assert api.put(URL, content="{}").status_code == 404
     assert api.delete(URL).status_code == 404
+    assert api.get("/api/library", headers={"host": "evil.example"}).status_code == 404   # off, whatever the name
     assert api.get("/api/project").json() == {"version": webapp.PROJECT_VERSION}       # as before the setting existed
 
 
@@ -62,7 +64,7 @@ def test_write_list_read_remove(api, lib):
     (lib / "notes.json").write_text("{}")
     (lib / "sub.lamina.json").mkdir()                                     # a folder with the ending is no project file
     assert api.get("/api/library").json() == {"name": "projects", "problem": "", "files": [{"file": FILE, **w}]}
-    assert api.get(URL).json() == {"text": '{"a":1}', **w}
+    assert api.get(URL).text == '{"a":1}'                                 # the file as it is, streamed
     assert api.delete(URL).json() == {"removed": True}
     assert projects(lib) == ["notes.json", "sub.lamina.json"]
     assert api.get(URL).status_code == 404
@@ -82,6 +84,80 @@ def test_conditional_remove_only_while_unchanged(api, lib):
     assert (lib / FILE).read_text() == '{"a":1}'                           # another save since: it stays
     assert api.delete(URL, params=w).json() == {"removed": True} and projects(lib) == []
     assert api.delete(URL, params=w).json() == {"removed": True}          # gone already counts as gone
+
+
+def test_a_conditional_write_lands_only_on_what_the_page_compared(api, lib):
+    """expect=absent: the file must not be there; size and mtime: it must still be exactly that. Checked under the
+    lock as the file is swapped in; else 412, and the file and the folder stay as they were."""
+    assert api.put(URL, content="one", params={"expect": "absent"}).status_code == 200
+    r = api.put(URL, content="two", params={"expect": "absent"})            # another browser saved it first
+    assert r.status_code == 412 and r.json()["detail"] == f"{FILE} changed in projects since the page listed it."
+    (w,) = api.get("/api/library").json()["files"]
+    for stale in ({"size": w["size"] + 1, "mtime": w["mtime"]}, {"size": w["size"], "mtime": w["mtime"] - 1}):
+        assert api.put(URL, content="two", params=stale).status_code == 412
+    assert (lib / FILE).read_text() == "one" and projects(lib) == [FILE]  # no side file left behind
+    assert api.put(URL, content="two", params={"size": w["size"], "mtime": w["mtime"]}).status_code == 200
+    assert (lib / FILE).read_text() == "two"
+    assert api.put("/api/library/new_v1.0.lamina.json", content="x", params=w).status_code == 412   # gone is not "this"
+    assert api.put(URL, content="three").status_code == 200              # no condition: as before
+
+
+def test_a_folder_in_the_files_place_is_no_endless_question(api, lib):
+    """The listing shows no folder, so the page expects the name free: the write then fails (503), not 412, or the
+    page would list, expect free and be told "changed" for ever."""
+    (lib / FILE).mkdir()
+    assert api.put(URL, content="{}", params={"expect": "absent"}).status_code == 503
+
+
+OWN = ["127.0.0.1", "127.0.0.1:8000", "192.168.1.20:8000", "[::1]", "[::1]:8000", "[fe80::1]:8000", "localhost",
+       "localhost:8000", "nas", "NAS:8000", "nas.local", "nas.local:8000", "box.lan", "box.home.arpa:8000",
+       "lamina.example.org", "lamina.example.org:443"]
+STRANGE = ["evil.example", "evil.example:8000", "127.0.0.1.evil.example", "localhost.evil.example",
+           "nas.local.evil.example", "lamina.example.org.evil", "::1", "[::1", "a b", "nas:80:80", "x.lamina"]
+
+
+@pytest.mark.parametrize("host", OWN)
+def test_the_library_answers_on_its_own_addresses(api, lib, monkeypatch, host):
+    monkeypatch.setattr(webapp, "HOSTS", {"lamina.example.org"})              # LAMINA_HOSTS=lamina.example.org
+    assert api.get("/api/library", headers={"host": host}).status_code == 200
+
+
+@pytest.mark.parametrize("host", STRANGE)
+def test_a_page_on_another_name_cannot_reach_the_library(api, lib, monkeypatch, host):
+    """DNS rebinding: a page on evil.example points its name at this server, and the browser sends Host: evil.example."""
+    monkeypatch.setattr(webapp, "HOSTS", {"lamina.example.org"})
+    (lib / FILE).write_text("{}")
+    h = {"host": host}
+    for r in (api.get("/api/library", headers=h), api.get(URL, headers=h), api.put(URL, content="x", headers=h),
+              api.delete(URL, headers=h)):
+        assert r.status_code == 403 and "LAMINA_HOSTS" in r.json()["detail"], r.text
+    assert (lib / FILE).read_text() == "{}"
+    assert api.get("/api/project", headers=h).status_code == 200            # the rest of the app is not the library's
+
+
+def test_lamina_hosts_is_read_from_the_setting():
+    r = subprocess.run([sys.executable, "-c", "import web.app as a; print(sorted(a.HOSTS))"], cwd=webapp.HERE.parent,
+                       capture_output=True, text=True, env={**os.environ, "LAMINA_HOSTS": " Lamina.Example.org, b.example ,"},
+                       timeout=120)
+    assert r.stdout.strip() == "['b.example', 'lamina.example.org']", r.stderr
+
+
+def test_only_the_library_is_left_to_its_own_cap(api, monkeypatch):
+    monkeypatch.setattr(webapp, "MAX_UPLOAD", 3)
+    assert api.post("/jobs/api/library/x", content=b"x" * 1_000_010).status_code == 413
+
+
+def test_side_files_a_dead_write_left_are_swept_at_start(lib):
+    """A write or the write probe killed half way leaves its dot-file: the server removes those an hour old as it starts."""
+    old = time.time() - 7200
+    for n in (".a1b2.tmp", ".c3d4.probe", FILE, ".own-notes"):
+        (lib / n).write_text("x")
+        os.utime(lib / n, (old, old))
+    (lib / ".e5f6.tmp").write_text("x")                                    # a write under way: fresh
+    r = subprocess.run([sys.executable, "-c", "import web.app"], cwd=webapp.HERE.parent, capture_output=True, text=True,
+                       env={**os.environ, "LAMINA_LIBRARY": str(lib)}, timeout=120)
+    assert r.returncode == 0, r.stderr
+    assert projects(lib) == [".e5f6.tmp", ".own-notes", FILE]
 
 
 def test_a_failed_write_leaves_the_old_file(api, lib, monkeypatch):
@@ -141,6 +217,9 @@ def test_a_link_out_of_the_folder_is_not_followed(api, lib, tmp_path):
     for r in (api.get(url), api.put(url, content="changed"), api.delete(url)):
         assert r.status_code == 400
     assert secret.read_text() == "secret" and (lib / "link.lamina.json").is_symlink()
+    (lib / FILE).write_text("{}")
+    (lib / "twin.lamina.json").symlink_to(lib / FILE)                     # a link inside to inside is no project file either
+    assert api.put("/api/library/twin.lamina.json", content="x").status_code == 400 and (lib / FILE).read_text() == "{}"
 
 
 def test_the_size_cap_follows_the_upload_cap(api, lib, monkeypatch):

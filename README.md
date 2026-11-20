@@ -221,6 +221,10 @@ Firefox and Safari too, and each project is a file that you can copy. Docker run
    docker compose up -d
    ```
 
+   Every device on your network (the same Wi-Fi) can open the page and change your projects. To allow only this
+   computer, write `127.0.0.1:8000:8000` in place of `8000:8000` in `docker-compose.yml`, then run
+   `docker compose up -d` again.
+
 7. Open <http://localhost:8000>. Press **library** in the top bar: the line at the top of the library reads
    "📁 kept in the folder library on the server".
 
@@ -255,6 +259,12 @@ sudo chown -R 1000 lamina-projects
 
 **Who can see your projects.** There is no login. Anyone who can open the page can read, change and delete these
 projects. Run it only where only you, or people that you trust, can reach the page.
+
+**Open it by a domain name.** The library answers only on the addresses of the computer and on local names
+(`localhost`, a name without a dot, or a name that ends in `.local`, `.lan` or `.home.arpa`). This stops a web
+page on another site from reading your projects through your browser. If you open Lamina by a domain name of your
+own (for example through a reverse proxy), add that name to `LAMINA_HOSTS` in `docker-compose.yml`. Without it,
+the library says "The library does not answer on the name …".
 
 The same without the compose file, in one command. `-v` connects a folder on your computer to a folder in the
 container, and `-e` gives Lamina a setting. Run it in the folder where `lamina-projects` must go:

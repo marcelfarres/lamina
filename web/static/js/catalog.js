@@ -100,8 +100,8 @@ export const SHEETS={
 // Z: the band lattice's third family, Okabe-Ito reddish purple; its label (Z-1) tells it apart as X-1 and Y-1 do
 export const COLORS={X:0xd9a760,Y:0x7fb0d9,Z:0xcc79a7,S:0xd9c080,R:0x8fd08f,C:0x0072b2,F:0xc9a0e0,J:0xf0c060,P:0x9a9a9a,B:0x4fd1ff,W:0x0072b2};
 // the second family of a two-family technique (radial's rings, interlocked's, curve's and a plaque's Y, folded's joint
-// parts): striped, and under a material look set apart in lightness, so the two never differ by hue alone (the owner
-// is colour-blind)
-export const STRIPED='CYJ';
+// parts), and the band lattice's Y and Z (Z's stripes run the other way: scene.js): striped, and under a material look
+// set apart in lightness, so the families never differ by hue alone (the owner is colour-blind)
+export const STRIPED='CYJZ';
 export const LOOKS={cardboard:[0xb98a5a,.9,0],paper:[0xf2f0e6,.95,0],plywood:[0xd9b98a,.7,0],steel:[0xaab2bb,.35,.8],plastic:[0x6fb7e8,.25,.05],brass:[0xc9a44c,.3,.85],copper:[0xc27a52,.3,.85],foam:[0x45484f,.95,0]};
 export const PLANE_IDX={xz:[0,2],yz:[1,2],xy:[0,1]};
