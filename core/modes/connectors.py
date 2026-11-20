@@ -80,6 +80,7 @@ class Connectors:
     def run(self):
         """Place the connectors pair by pair, say what went short, and give back the slices of the pegs and spacers."""
         p, ctx = self.p, self.ctx
+        typed = {tuple(q) for q in p["dowels"]} if p["placement"] == "aligned" else set()   # only aligned placement uses them
         for i, (a, b) in enumerate(zip(self.slices, self.slices[1:])):
             # what slice a already carries, for every placement: an aligned point repeats exactly and is kept
             taken = [(x, y) for x, y, *_ in a.cutkeys]
@@ -93,10 +94,11 @@ class Connectors:
             # A point the placer could not put down is left out only where its piece of the pair still has fewer
             # connectors than it asks for: hold() tops every piece up from its exact free room. The placer works on
             # the overlap shrunk by the wall, which splits a hollow model's thin ring into pieces and asks for points
-            # in each: 24 were "left out" of a bunny whose every ring had its two dowels (bug 045).
-            left = [q for q in missed if not any(isl.contains(Point(q)) for isl in isls)]   # lines: nothing tops them up
+            # in each: 24 were "left out" of a bunny whose every ring had its two dowels (bug 045). A point typed in is
+            # always left out when it is not cut: a dowel put somewhere else is not the one asked for there (bug 050).
+            left = [q for q in missed if q in typed or not any(isl.contains(Point(q)) for isl in isls)]   # lines: nothing tops them up
             for isl in isls:
-                left += [q for q in missed if isl.contains(Point(q))][:max(0, self._need(isl) - sum(isl.contains(Point(q)) for q in got))]
+                left += [q for q in missed if q not in typed and isl.contains(Point(q))][:max(0, self._need(isl) - sum(isl.contains(Point(q)) for q in got))]
             self.skipped += len(left)
             ctx.view["left_out"] += [[round(float(v), 3) for v in (a.M @ np.array([x, y, 0, 1]))[:3]] for x, y in left]
             if not got:      # nothing this size fits here: remember the biggest hole these two layers would take
