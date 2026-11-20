@@ -12,6 +12,8 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
 - **Your projects in a library.** *library* in the top bar holds your projects and the examples, with every
   revision; *export all* backs them up. In Chrome or Edge link a folder, or use Docker, to keep them as files.
 
+  ![The library page: a project's revisions, each with open, export and delete](web/static/news/0.4.0-library.jpg)
+
 - **Band lattice.** A new technique: rings across x, y and z that slot together, best on round or boxy shapes.
   Lamina names any piece that cannot slide in. Thanks to @DaveLauber: adapted from his fork.
 
@@ -96,13 +98,10 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
 
   ![The help menu open, and the technique cards](web/static/news/0.4.0-cards.jpg)
 
-- **Clear warnings.** A warning starts with ⚠ WARNING and an error with ✖ ERROR. A dowel with no room is now a
-  counted warning, with a ring where it is.
+- **Clear warnings, not only colour.** A warning starts with ⚠ WARNING, an error with ✖ ERROR. A dowel with no room
+  is a counted warning. Parts with errors carry a net, and crossing slices are striped.
 
   ![A dowel warning, and the rings in the 3D view where the dowels found no room](web/static/news/0.4.0-warnings.jpg)
-
-- **Stripes, not only colour.** In the 3D view the second kind of slice has stripes and a part with errors a net.
-  *fit view* shows a plaque from its slices.
 
 - **Watch it fold up.** On a folded job, the steps slider ends by folding the panels from flat to the model.
 
