@@ -42,7 +42,7 @@
       Start from a shape or press <b>follow the model</b>, drag the points, or select one and type its numbers.</li></ul>
   <h4>In the 3D view</h4>
   <ul><li>drag = orbit · wheel = zoom · right-drag = pan · click the corner cube = flat view</li>
-    <li><b>lamp</b> over the view puts a bulb inside the model and shows the shadows it throws; <b>bulb height</b> moves it.</li>
+    <li><b>lamp</b> over the view puts a bulb inside the model and shows the shadows it throws; <b>bulb height</b>, <b>left–right</b> and <b>front–back</b> move it, and <b>bulb</b> picks a small LED (sharp pattern) or a frosted bulb (soft).</li>
     <li>the <b>tools</b> at the left of the view do what a key does: pick one, then click or drag the model. Esc goes back to turning the view.</li>
     <li>drag a coloured ring on the model = turn the whole model · click a part = select it</li>
     <li>a selected part gets its own handles, on the part itself: the <b>yellow arrow</b> slides it along its normal,
@@ -189,18 +189,20 @@
 </aside>
 <section class="view" id="view">
   <div id="v3d">
-    <div class="bar"><label><input type="checkbox" id="ghost" checked> model</label><label>explode <input type="range" id="explode" min="1" max="3" step="0.05" value="1"></label><label>steps <input type="range" id="steps" min="0" max="1" step="1" value="1"><span id="steps_val" class="stepsval" title="step shown of the build order">1 / 1</span></label><label id="foldl" hidden title="folded panels from flat (0 %) to folded (100 %): every face turns about its own fold line. The last steps of the steps slider do the same">fold <input type="range" id="fold" min="0" max="1" step="0.01" value="1"><span id="fold_val" class="stepsval">100 %</span></label><label>look <select id="look"><option value="group">by family</option><option>cardboard</option><option>paper</option><option>plywood</option><option>steel</option><option>brass</option><option>copper</option><option>plastic</option><option>foam</option></select></label><label title="transparency of folded panels, to see the connectors inside">panels <input type="range" id="opacity" min="0.1" max="1" step="0.05" value="1"></label><label title="a lamp: a bulb inside the model, with a floor and a wall that catch the shadows the parts throw. Off, the view is as before"><input type="checkbox" id="lamp"> 💡 lamp</label><label id="lampl" hidden title="how high the bulb sits in the model: bottom to top">bulb height <input type="range" id="lampz" min="0" max="1" step="0.02" value="0.5"></label><button id="fit">fit view</button></div>
+    <div class="bar"><label><input type="checkbox" id="ghost" checked> model</label><label>explode <input type="range" id="explode" min="1" max="3" step="0.05" value="1"></label><label>steps <input type="range" id="steps" min="0" max="1" step="1" value="1"><span id="steps_val" class="stepsval" title="step shown of the build order">1 / 1</span></label><label id="foldl" hidden title="folded panels from flat (0 %) to folded (100 %): every face turns about its own fold line. The last steps of the steps slider do the same">fold <input type="range" id="fold" min="0" max="1" step="0.01" value="1"><span id="fold_val" class="stepsval">100 %</span></label><label>look <select id="look"><option value="group">by family</option><option>cardboard</option><option>paper</option><option>plywood</option><option>steel</option><option>brass</option><option>copper</option><option>plastic</option><option>foam</option></select></label><label title="transparency of folded panels, to see the connectors inside">panels <input type="range" id="opacity" min="0.1" max="1" step="0.05" value="1"></label><label title="a lamp: a bulb inside the model, in a room whose floor and walls catch its light and the shadows of the parts. Off, the view is as before"><input type="checkbox" id="lamp"> 💡 lamp</label><span id="lampl" hidden><label title="how high the bulb sits in the model: bottom to top">bulb height <input type="range" id="lampz" min="0" max="1" step="0.02" value="0.5"></label><label title="where the bulb sits across the model, seen from the front: left to right">left–right <input type="range" id="lampx" min="0" max="1" step="0.02" value="0.5"></label><label title="where the bulb sits through the model, seen from the front: front to back">front–back <input type="range" id="lampy" min="0" max="1" step="0.02" value="0.5"></label><label title="the light inside: a small LED throws a sharp pattern, a frosted bulb a soft one">bulb <select id="lampb"><option value="led">small LED</option><option value="frosted">frosted</option></select></label></span><button id="fit">fit view</button></div>
     <div id="tools" role="toolbar" aria-label="what a click or a drag on the model does">
       <button data-tool="" title="drag turns the view · a click selects a part (Esc comes back here)">✥ turn the view</button>
       <button data-tool="alt" title="click the model where you want one · click one to remove it (the same as alt-click)">＋／－ <span></span></button>
       <button data-tool="branch" title="click a hoof, a hand or a tail tip: a branch goes out to it (the same as shift+alt-click)">⑂ add a branch</button>
       <button data-tool="tilt" title="click a slice, then drag it sideways: it tilts (the same as shift-drag)">⟲ tilt a slice</button>
       <button data-tool="roll" title="click a slice, then drag it sideways: it rolls (the same as ctrl-drag)">↻ roll a slice</button>
+      <button data-tool="seam" title="click an edge, or drag along edges: the sheet is cut apart there · click a seam of yours to give it back · right-drag turns the view">✂ put a seam</button>
+      <button data-tool="face" title="click or drag on the model to select faces, then remove them: only what is left is cut (a mask from a head) · click a removed face to put it back · right-drag turns the view">◩ select faces</button>
     </div>
     <div id="sel" hidden></div>
     <div id="seampanel" hidden>
-      <div class="t"><b>✂ choosing seams</b><button class="small" data-seams="mode">✓ done choosing</button></div>
-      <p><b>Click an edge</b>, on the model or on a sheet: the sheet is cut apart there.<br><b>Click a seam of yours again</b>: the program decides that edge again.</p>
+      <div class="t"><b>✂ putting seams</b><button class="small" data-seams="mode">✓ done</button></div>
+      <p><b>Click an edge</b>, on the model or on a sheet, or <b>drag along edges</b> of the model: the sheet is cut apart there.<br><b>Click a seam of yours again</b>: the program decides that edge again.<br>Right-drag turns the view, the middle button moves it.</p>
       <div class="lg"><svg width="34" height="10"><line x1="1" y1="5" x2="33" y2="5" stroke="#c9cad0" stroke-width="1"/></svg>thin · fold <small id="sl_fold"></small></div>
       <div class="lg"><svg width="34" height="10"><line x1="1" y1="5" x2="33" y2="5" stroke="#E69F00" stroke-width="2.5" stroke-dasharray="6 4"/></svg>dashed · seam the program chose <small id="sl_seam"></small></div>
       <div class="lg"><svg width="34" height="10"><line x1="2" y1="5" x2="32" y2="5" stroke="#56B4E9" stroke-width="5" stroke-linecap="round"/></svg>thick · seam you chose <small id="sl_chosen"></small></div>
@@ -208,6 +210,11 @@
       <div class="r" id="seam_off" hidden><span class="hint">the edges show on the folded model</span><button class="small" data-seams="fold">show it folded</button></div>
     </div>
     <div id="seamtip" hidden></div>
+    <div id="facebar" hidden>
+      <div class="r"><b id="face_sel">0 faces selected</b><button class="small" data-faces="grow" title="add the faces next to the selected ones, one ring each press">＋ grow</button><button class="small" data-faces="connected" title="add every face joined to the selected ones, up to a seam of yours, a removed face or the rim">⛶ connected</button><button class="small" data-faces="remove" title="take the selected faces off the model: they are not cut">✕ remove</button><i></i><span class="face_gone"></span><button class="small" data-faces="back" title="every removed face comes back">↺ put all back</button></div>
+      <div class="r lg"><svg width="26" height="12"><rect x="1" y="1" width="24" height="10" fill="#F0E442" fill-opacity=".3" stroke="#F0E442"/><path d="M4 11l8-10M11 11l8-10M18 11l7-9" stroke="#F0E442" stroke-width="2"/></svg>hatched · selected<svg width="26" height="12"><rect x="1" y="1" width="24" height="10" fill="none" stroke="#E69F00" stroke-dasharray="4 3"/></svg>dashed · removed, click one to put it back<span class="hint">click or drag = select · right-drag turns the view</span></div>
+      <div class="r" id="face_off" hidden><span class="hint">the faces show on the folded model</span><button class="small" data-faces="fold">show it folded</button></div>
+    </div>
     <div id="busy" hidden><span id="busy_txt">slicing…</span><div class="bar"><i></i></div><ol id="busy_steps"></ol><span id="busy_note"></span></div>
     <details id="hint"><summary>drag = orbit · wheel = zoom · right-drag = pan · <span>all controls</span></summary><dl>
       <dt>view</dt><dd>click the corner cube = flat view · fit view = frame the model again</dd>
@@ -217,7 +224,8 @@
       <dt>curve</dt><dd>drag a blue dot = move that point · shift+alt-click a hoof, hand or tail tip = a branch out to it;
         drag its ends to move it, alt-click it to remove it · click a J or B plane = move or tilt it like a slice</dd>
       <dt>radial</dt><dd>drag the axis or its end = move it · click the plane between two lobes = move or tilt it like a slice</dd>
-      <dt>folded</dt><dd>choose seams (Technique tab), then click an edge on the model or on a sheet = cut the sheet apart there · click a seam of yours = give it back</dd>
+      <dt>folded</dt><dd>✂ put a seam, then click an edge on the model or on a sheet, or drag along edges = cut the sheet apart there · click a seam of yours = give it back</dd>
+      <dt></dt><dd>◩ select faces, then click or drag on the model; grow / connected add to the selection (they stop at your seams); remove takes the faces off, so only a part of the model is cut · click a removed face = put it back</dd>
     </dl></details>
   </div>
   <div id="lower"><div id="stats"></div><div id="msgs"></div><div class="sheets" id="sheets"></div></div>

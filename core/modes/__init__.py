@@ -25,7 +25,8 @@ MAX_SLICES = 500                      # the count slider's ceiling, and the ceil
 #   chips         list of numbers or labels                   value: [v, …]
 #   edges         edges of the model, picked in the 3D view or on a sheet   value: [[[x,y,z],[x,y,z]], …] the two ends of each
 #   curve         the spacing curve, drawn in the graph under its tick     value: [[t, s], …] t 0..1, s mm or deg
-LIST_TYPES = ("vec2", "vec3", "points", "lines3", "map", "labels", "chips", "curve", "edges")
+#   faces         faces of the model, picked in the 3D view         value: [[[x,y,z],[x,y,z],[x,y,z]], …] each one's triangle, in the model file's coordinates
+LIST_TYPES = ("vec2", "vec3", "points", "lines3", "map", "labels", "chips", "curve", "edges", "faces")
 
 
 @dataclass
@@ -130,14 +131,16 @@ COMMON: list[Param] = [
       "labels, and assembly-key.txt in the export maps code → part. Leave that file out of the zip and the puzzle stays a puzzle",
       choices=["position", "code"], group="sheet", show_if=("labels", True), label="label style"),
     P("label_place", "choice", "part", "Where each label is engraved. part = on the part itself where the whole label fits on "
-      "its material (inside the outline of the next layer where the technique marks one, so the layer glued on top hides it), "
+      "its material (a stacked layer with `hide engravings`: only where the layer glued on top hides it), "
       "beside it with a line pointing at it where it does not · beside = always beside the part, on the waste, so nothing is "
       "engraved on the parts · on = always on the part, on its widest spot, past its outline when it must: trim those in your "
-      "laser software. However placed, no part comes out without its label", choices=["part", "beside", "on"], group="sheet",
+      "laser software (a stacked top layer, which nothing covers, still beside). However placed, no part comes out without its "
+      "label", choices=["part", "beside", "on"], group="sheet",
       show_if=("labels", True), label="labels go"),
     P("orient_mark", "bool", False, "Engrave two small arrows at the middle of every part (LABEL layer, with the labels): a long one up the "
       "part's frame and a short one to its right, the same two directions on every part of the model, so a part turned on the sheet "
-      "or laid face down is seen at once — the engraved face is the front. Labels keep clear of them", group="sheet", label="orientation arrows"),
+      "or laid face down is seen at once — the engraved face is the front. Labels keep clear of them. A stacked layer with "
+      "`hide engravings` gets them under the layer above, the top layer none", group="sheet", label="orientation arrows"),
     P("font", "number", 4.0, "Height of a capital letter in the engraved labels (mm). Single-stroke lettering: the laser draws each letter as one line, not the two edges of a filled one", 1, 30, 0.5, group="sheet", unit="mm", label="label letter height"),
     # -- fit: three things that are easy to take for one. Only the kerf is switched by `compensate`; the slot fit and the
     # corners always apply, and the form says so in each section's line (reported: "if compensate is off, it feels like
@@ -213,6 +216,7 @@ ALL_ONLY = {k: v.split() for k, v in {
     "radial": "axes angle spine spacing_fix",
     "curve": "branches spacing_fix",
     "interlocked": "rotate_grid extra_x extra_y spacing_fix",
+    "bands": "order band_cuts nudge",
     "folded": "min_face separate strategy max_faces inset spacing tab_h tab_angle rib_w rib_thick edge_fit score_side",   # the hinge settings show only on a printed job, and there they are needed
     "plaque": "sink plate_size plate_offset plate_scale plate_mirror plate_rotation angle radius shift surface teeth "
               "tooth_width tooth_spacing dowel_d spacing_fix",
@@ -229,6 +233,7 @@ class Mode:
     params: list[Param] = []           # assembly-key.txt beside the cut files, and the only key in puzzle mode
     hidden_common: tuple = ()          # common params that make no sense for this mode
     surface: bool = False              # cut from the model's surface, not its volume: an open edge is the input, not a defect
+    rank: int = 0                      # where the page lists it: higher goes later
 
     def build(self, ctx) -> list:
         raise NotImplementedError
@@ -245,6 +250,11 @@ class Mode:
     def guide_outlines(self, ctx, slices):
         """Optional: lines the technique engraves once the outlines are final — grown, slivers shed, slots and holes
         taken out of `profile` — such as stacked's next-layer guide. `slices` are the kept ones, in order."""
+        return None
+
+    def cut(self, ctx, sl):
+        """Optional: the pieces `sl` is cut into before nesting (a band lattice's locked bands, rejoined by
+        tongues) → a list of polygons, or None for the usual: split when it does not fit the sheet, else one per island."""
         return None
 
     @staticmethod
@@ -275,6 +285,9 @@ def register(cls):
 def load_all():
     for m in pkgutil.iter_modules(__path__):
         importlib.import_module(f"{__name__}.{m.name}")
+    # the page lists the techniques in this order: by `rank`, then as imported
+    for name in sorted(REGISTRY, key=lambda n: REGISTRY[n].rank):
+        REGISTRY[name] = REGISTRY.pop(name)
     return REGISTRY
 
 
@@ -291,7 +304,10 @@ def view_defaults():
         "bounds3d": [],           # the planes between lobes or at a branch's joint, moved and tilted like slices
         "core_d_min": None,       # radial: the smallest core the half-slices allow
         "spacing": [],            # the drawn spacing curves' outcome, for the graph: [{param, positions, length, unit, scale}]
+        "steps": None,            # band lattice: the step each piece that slides in goes in at, {label: n}; a locked piece has none
         "edges3d": None,          # folded: [k, fold | seam | chosen, end, end, way out] per edge, drawn and picked to choose the seams
+        "faces3d": None,          # folded: {v: corners, f: [a, b, c] per face, adj: [face, face] per edge (numbered as edges3d), removed: how many faces are off}, selected and removed in the 3D view
+        "frame": None,            # folded: the 4 × 4 from the model file's coordinates to the plan's mm; the removed faces are kept in the file's
         "clip": None,             # plaque: [point, normal] of the plate's front face — the 3D view shows the model in front of it only, and coverage is measured on that
     }
 
@@ -312,7 +328,8 @@ class Ctx:
         self.warnings = []        # what the technique left out that was asked for (a note is for what needs no action)
         self.notes_extra = ""     # what the technique wants said in the plan's notes
         self.cover_r = None       # how far across its plane a part counts as covering the surface (plan.coverage); None = a default
-        self.view = view_defaults()   # what the technique hands the 3D view, merged into the plan as is: set ctx.view[key]
+        self.cover_skip = None    # triangles (n × 3 × 3, mm) where the parts are not meant to cover the model (folded: the removed faces)
+        self.view = view_defaults()  # what the technique hands the 3D view, merged into the plan as is: set ctx.view[key]
 
     def override(self, key, label, default=0.0):
         return float(dict(self.p[key]).get(label, default))

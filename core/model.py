@@ -80,10 +80,13 @@ class Slice:
     links: list = field(default_factory=list)     # (other label, cut polygon, world point) — a physical connection through that cut
     engages: list = field(default_factory=list)   # labels of slices this one is slotted onto
     slot_dirs: dict = field(default_factory=dict)  # other label → world direction its slot opens toward (the way it slides in)
+    travel: tuple | None = None         # world direction the part moves to go into place, where the technique fixes it (a plaque's slice: toward the plate)
     raw: MultiPolygon | None = None     # section ∩ clip, before cuts. Modes may set it directly (synthetic parts)
     profile: MultiPolygon | None = None # raw − cuts (what gets cut out), before kerf
     lines: list = field(default_factory=list)     # [(style, LineString)] score / fold lines (local): "mountain" | "valley"
+    outlined: list = field(default_factory=list)  # stacked: this layer's polygons (local) whose outline is engraved on the layer below (GUIDE)
     marks: list = field(default_factory=list)     # [(x, y, text) or (x, y, text, rot)] small engraved marks (local): seam and dowel numbers, rot = turned to read along an edge
+    cover: MultiPolygon | None = None   # local: where an engraving is hidden once assembled (stacked: under the layer above; empty: nowhere, the top layer). None = anywhere
     facets: list | None = None          # [(M, MultiPolygon)] for the 3D view when the part is not one flat slice (folded panels)
     pieces: list = field(default_factory=list)    # Piece objects when split
     warnings: list = field(default_factory=list)
@@ -117,6 +120,7 @@ class Piece:
     placed: MultiPolygon | None = None      # kerf-compensated, on the sheet
     placed_lines: list = field(default_factory=list)
     placed_marks: list = field(default_factory=list)
+    placed_cover: MultiPolygon | None = None  # its slice's `cover`, on the sheet
     label_pos: tuple | None = None          # (x, y, rotation) of the label text on the sheet
     label_size: float | None = None         # the label's capital height: the job's font, or smaller where that was all that fit
     label_short: bool = False               # the label engraved without the model's short name: all a small part had room for

@@ -143,6 +143,34 @@ def test_the_notes_keep_their_lists_from_a_windows_checkout(page, server):
             page.click("#news_go")                       # left open, it takes every later test's clicks
 
 
+def test_the_notes_show_their_pictures(page, server):
+    """Each change you can see has a picture under it in CHANGELOG.md, by its repo path (web/static/news/…) so that
+    GitHub shows it too. The dialog shows it from static/news/ beside the page, a clip's picture opens its video,
+    and a link can only be http(s) or a path: the notes become HTML."""
+    pic = "web/static/news/0.4.0-lamp.jpg"
+    text = ("# Changelog\n\n## 9.9.9\n\n### Added\n\n"
+            "- **A picture.** Under its entry.\n\n"
+            f"  ![The lamp tick]({pic})\n\n"
+            "- **A clip.** Its picture opens the video.\n\n"
+            f"  [![The fold ▶]({pic})](https://marcelfarres.github.io/lamina/media/fold.mp4)\n\n"
+            "- **A link.** [r/Lamina3D](https://www.reddit.com/r/Lamina3D) and [no](javascript:alert(1)).\n\n"
+            "## 9.9.8\n\n- An older note.\n")
+    page.route("**/changelog.md", lambda r: r.fulfill(body=text, content_type="text/markdown"))
+    try:
+        page.evaluate("v => localStorage.setItem('slicer_seen_version', JSON.stringify(v))", "9.9.8")
+        page.goto(server + "/"); settle(page); page.wait_for_timeout(600)
+        page.wait_for_function("[...document.querySelectorAll('#news_body img')].every(i => i.complete)")
+        imgs = page.eval_on_selector_all("#news_body img", "els => els.map(i => [i.getAttribute('src'), i.alt, i.naturalWidth])")
+        assert imgs == [["static/news/0.4.0-lamp.jpg", "The lamp tick", 900], ["static/news/0.4.0-lamp.jpg", "The fold ▶", 900]], imgs
+        links = page.eval_on_selector_all("#news_body a", "els => els.map(a => [a.getAttribute('href'), a.textContent])")
+        assert links == [["https://marcelfarres.github.io/lamina/media/fold.mp4", ""],
+                         ["https://www.reddit.com/r/Lamina3D", "r/Lamina3D"], ["#", "no"]], links
+    finally:
+        page.unroute("**/changelog.md")
+        if page.locator("#newsdlg[open]").count():
+            page.click("#news_go")
+
+
 def test_the_wheel_zooms_back_out(page, server):
     """Wheel in, wheel out the same notches: the camera is back where it was. At a pixel ratio under 1 (a browser
     zoomed out) one notch put the camera on the point it turns about and zooming out made it NaN; a fast flick sent
@@ -327,13 +355,15 @@ def test_a_tool_in_the_3d_view_does_what_the_key_does(page):
     tilt = state(page)["tilt"]; assert len(tilt) == 1 and list(tilt.values())[0], tilt
     page.keyboard.press("Escape"); assert page.get_attribute('#tools button[data-tool=""]', "aria-pressed") == "true"
     use(page, mode="curve"); assert tools() == ["", "alt", "branch", "tilt", "roll"]
-    use(page, mode="folded"); assert not page.is_visible("#tools")     # nothing but turning the view: no column
+    use(page, mode="folded"); assert tools() == ["", "seam", "face"] and page.is_visible("#tools")   # its own two: seams and faces
 
 
 def test_a_connector_left_out_is_counted_and_the_export_text_opens_on_a_click(page):
-    """The vase leaves dowels out: that is a warning the count shows, with a ring in the 3D view for each place. On
-    the Export tab the text about a file is behind its own line, and the parts table opens on its heading."""
-    use(page, "vase", "stacked"); pl = plan(page)
+    """Two dowel points typed 3 mm apart cannot both be cut: the dowels left out are a warning the count shows, with a
+    ring in the 3D view for each place. (The vase example itself cuts every dowel since bug 046.) On the Export tab the
+    text about a file is behind its own line, and the parts table opens on its heading."""
+    use(page, "vase", "stacked")
+    page.evaluate("() => window.__t.applyFix({dowels: [[0, 0], [3, 0]]})"); settle(page); pl = plan(page)
     assert pl["warnings"] and "left out" in pl["warnings"][0], (pl["warnings"], pl["notes"])
     assert pl["counts"]["warnings"] >= 1 and len(pl["left_out"]) == int(pl["warnings"][0].split("connector")[0])
     assert page.locator("#msgs .msg.warn").first.inner_text().startswith("⚠ WARNING")
@@ -343,13 +373,27 @@ def test_a_connector_left_out_is_counted_and_the_export_text_opens_on_a_click(pa
 
 
 def test_the_lamp_lights_the_model_from_inside_and_leaves_the_view_as_it_was(page):
-    """The lamp tick turns on a bulb, the shadow pass and the bulb-height slider; a re-slice keeps it on; off, the
-    view has no shadow pass and the slider is gone. The 3D bar holds its controls on the vase without a page error."""
+    """The lamp tick turns on a bulb, the shadow pass, the tone mapping and the bulb's controls: each slider moves the
+    bulb along its own axis, and a frosted bulb is the bigger one; a re-slice keeps it on; off, the view has no shadow
+    pass, no tone mapping and the controls are gone. The bulb's shadows are the soft ones:
+    three.js's point-shadow code was replaced (a three.js update that changes it fails here, not silently). The 3D bar
+    holds its controls on the vase without a page error."""
     use(page, "vase", "stacked"); errs = []; page.on("pageerror", lambda e: errs.append(str(e)))
     shadows = lambda: page.evaluate("() => window.__t.lamp()")   # noqa: E731
-    assert not shadows() and not page.is_visible("#lampl")
-    page.check("#lamp"); assert shadows() and page.is_visible("#lampl")
-    page.eval_on_selector("#lampz", "e => { e.value = 0.9; e.dispatchEvent(new Event('input')) }")
+    look = lambda: page.evaluate("async () => {const m = await import(location.origin + '/static/js/scene.js'),"   # noqa: E731
+                                 " T = await import('three'); return [m.renderer.toneMapping === T.AgXToneMapping,"
+                                 " T.ShaderChunk.shadowmap_pars_fragment.includes('pen = max(')]}")
+    assert not shadows() and not page.is_visible("#lampl") and look() == [False, True]
+    page.check("#lamp"); assert shadows() and look() == [True, True]
+    assert all(page.is_visible(s) for s in ("#lampx", "#lampy", "#lampz", "#lampb"))
+    bulb = lambda: page.evaluate("async () => {const m = await import(location.origin + '/static/js/scene.js'),"   # noqa: E731
+                                 " l = m.scene.getObjectsByProperty('isPointLight', true)[0];"
+                                 " return [l.position.x, l.position.y, l.position.z, l.shadow.radius]}")
+    x, y, z, led = bulb()
+    for sel, v in (("#lampx", 0.2), ("#lampy", 0.8), ("#lampz", 0.9)):   # each slider moves the bulb along its own axis only
+        page.eval_on_selector(sel, "(e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }", v)
+    x2, y2, z2, _ = bulb(); assert x2 < x and y2 > y and z2 > z, (x, y, z, x2, y2, z2)
+    page.select_option("#lampb", "frosted"); assert bulb()[3] == pytest.approx(led * 2.5)
     set_fields(page, [["p_count", 12]]); settle(page); assert shadows() and plan(page)["counts"]["slices"] == 12
-    page.uncheck("#lamp"); assert not shadows() and not page.is_visible("#lampl") and not errs, errs
+    page.uncheck("#lamp"); assert not shadows() and not page.is_visible("#lampl") and look() == [False, True] and not errs, errs
 

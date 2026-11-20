@@ -15,7 +15,7 @@ import tempfile
 import time
 
 LOCK = pathlib.Path(tempfile.gettempdir()) / "lamina-test-turn.lock"
-GIVE_UP = 20 * 60          # s: a run that holds the turn this long is hung or huge; the next goes ahead beside it
+GIVE_UP = 60 * 60          # s: longer than the longest run (the page suite, 31 min alone, 47 min on a full machine on 2026-11-18); a run that holds the turn this long is hung, and the next goes ahead beside it
 
 
 def _lock(f):
@@ -31,25 +31,26 @@ def _lock(f):
 
 def take(say=print, give_up=GIVE_UP, path=LOCK):
     """Waits until this process has the turn and returns the open file: keep it, the turn goes back when it is closed
-    or the process ends. Says once who it waits for. After `give_up` seconds it returns None and the run goes ahead
-    without the turn, as every run did before."""
+    or the process ends. Says who it waits for, each time the turn changes hands. When the run that has the turn has
+    had it `give_up` seconds, it returns None and this run goes ahead without the turn, as every run did before. The
+    clock is the run ahead's, not this one's: the last of five in the queue waits for all four."""
     who = path.with_suffix(".who")              # the lock file itself cannot be read on Windows while it is held
     f = open(path, "a+")                        # noqa: SIM115  kept open: the open file is the turn
-    start = time.monotonic()
-    told = False
+    holder = None
     while True:
         try:
             _lock(f)
             break
         except OSError:
-            if not told:
-                say(f"waiting for the test run that has this machine ({who.read_text() if who.exists() else 'unknown'})")
-                told = True
-            if time.monotonic() - start > give_up:
-                say(f"it still runs after {give_up // 60} min: going ahead beside it")
+            now = who.read_text() if who.exists() else "unknown"
+            if now != holder:                   # the turn changed hands: its clock starts
+                say(f"waiting for the test run that has this machine ({now})")
+                holder, since = now, time.monotonic()
+            if time.monotonic() - since > give_up:
+                say(f"it has had the machine for {give_up // 60} min: going ahead beside it")
                 f.close()
                 return None
-            time.sleep(2)
+            time.sleep(2)                       # ponytail: whoever looks first when the turn comes back gets it, not the longest waiter; a ticket queue if the order matters
     who.write_text(f"{os.getcwd()}, since {time.strftime('%H:%M')}, pid {os.getpid()}")
     return f
 

@@ -24,17 +24,18 @@ class Layer(Slice):
     cutnames: dict = field(default_factory=dict)  # stacked: the same key → its dowel's name (Z-3a), so a rod carried up keeps its name
     inner: MultiPolygon | None = None   # stacked: raw eroded by min_feature, where a cut keeps a full wall (cached)
     dowel_room: list = field(default_factory=list)  # stacked: where a rod through this slice and a neighbour can go (checks)
+    ring: tuple | None = None           # stacked ring slices: (its section, the ring it is cut back to once the connectors are in)
 
 
 def hole_mark(sl, hole, text, font):
     """The dowel's mark engraved beside its hole (or a tab's slot): a box of `text` at 0.6 of the font, in the first of
-    eight directions round the hole — above first — where the whole mark lies on the slice's material, clear of the
-    outline, every cut in the slice and every mark already there. A hole with no room round it (a small island) gets
-    none: the assembly key still names it."""
+    eight directions round the hole — above first — where the whole mark lies on the slice's material (only its `cover`
+    when it has one: under the layer above), clear of the outline, every cut in the slice and every mark already there.
+    A hole with no room round it (a small island, the top layer) gets none: the assembly key still names it."""
     w, h = (lambda b: (b[2] - b[0], b[3] - b[1]))(mark_box(0, 0, text, font).bounds)
     cx, cy = hole.centroid.coords[0]
     reach = max(math.hypot(x - cx, y - cy) for x, y in hole.exterior.coords)
-    room = sl.raw.buffer(-0.3)
+    room = (sl.raw if sl.cover is None else sl.cover).buffer(-0.3)
     cuts = [c.buffer(0.3) for c in sl.cuts]
     taken = [mark_box(*m[:3], font, mark_rot(m)) for m in sl.marks]
     for ang in (90, 270, 0, 180, 45, 135, 225, 315):
@@ -45,6 +46,11 @@ def hole_mark(sl, hole, text, font):
         if room.covers(b) and all(b.disjoint(c) for c in cuts) and all(b.disjoint(m) for m in taken):
             sl.marks.append((x, y, text))
             return
+
+
+def hole_of(sl, text):
+    """The hole (or slot) in `sl` that the dowel mark `text` names: 3a names the cut of Z-3a."""
+    return next(c for k, c in sl.cutkeys.items() if sl.cutnames[k].split("-", 1)[1] == text)
 
 
 class Connectors:
@@ -80,10 +86,19 @@ class Connectors:
             pts = self.points_for_pair(a, b, i, taken) if self.typed else []
             placed = [self.place(a, b, i, j, x, y) for j, (x, y) in enumerate(pts)]
             got = [q for q in placed if q]
-            self.skipped += len(pts) - len(got)
-            ctx.view["left_out"] += [[round(float(v), 3) for v in (a.M @ np.array([x, y, 0, 1]))[:3]] for (x, y), q in zip(pts, placed) if not q]
-            for isl in self.islands_of(a, b):
+            missed = [(x, y) for (x, y), q in zip(pts, placed) if not q]
+            isls = list(self.islands_of(a, b))
+            for isl in isls:
                 got += self.hold(a, b, i, isl, got)
+            # A point the placer could not put down is left out only where its piece of the pair still has fewer
+            # connectors than it asks for: hold() tops every piece up from its exact free room. The placer works on
+            # the overlap shrunk by the wall, which splits a hollow model's thin ring into pieces and asks for points
+            # in each: 24 were "left out" of a bunny whose every ring had its two dowels (bug 045).
+            left = [q for q in missed if not any(isl.contains(Point(q)) for isl in isls)]   # lines: nothing tops them up
+            for isl in isls:
+                left += [q for q in missed if isl.contains(Point(q))][:max(0, self._need(isl) - sum(isl.contains(Point(q)) for q in got))]
+            self.skipped += len(left)
+            ctx.view["left_out"] += [[round(float(v), 3) for v in (a.M @ np.array([x, y, 0, 1]))[:3]] for x, y in left]
             if not got:      # nothing this size fits here: remember the biggest hole these two layers would take
                 self.bare += 1
                 both = a.raw.intersection(b.raw)
@@ -126,7 +141,7 @@ class Connectors:
             # a hole that lands on a mark engraved before it wins: the mark moves (a hole holds the model, a mark only names it)
             for m in [m for m in sl.marks if mark_box(*m[:3], font, mark_rot(m)).distance(geom) < 0.3]:
                 sl.marks.remove(m)
-                hole_mark(sl, next(c for k2, c in sl.cutkeys.items() if sl.cutnames[k2].split("-", 1)[1] == m[2]), m[2], font)
+                hole_mark(sl, hole_of(sl, m[2]), m[2], font)
             hole_mark(sl, geom, name.split("-", 1)[1], font)      # Z-3a is marked 3a: every slice of a stack shares the axis
         sl.links.append((other, geom, pt))
 
@@ -201,6 +216,11 @@ class Connectors:
             return self.islands(a, b)
         return [] if self.p["placement"] == "lines" else as_multi(a.raw.intersection(b.raw)).geoms
 
+    def _need(self, isl):
+        """How many connectors island `isl` of a pair asks for: n_points, and with aligned dowels the ones typed into it on top."""
+        p = self.p
+        return max(1, p["n_points"]) + (sum(isl.contains(Point(q)) for q in p["dowels"]) if p["placement"] == "aligned" else 0)
+
     @staticmethod
     def _cuts_in(a, piece):
         """The centres of a's cuts that lie in `piece`."""
@@ -229,7 +249,7 @@ class Connectors:
         # held and the next spot holds it better (at most as many again): a dowel typed into a bunny's ear
         # made the count, and the ear's tip lost the dowel the count used to bring it — 1.37 for 0.9 promised.
         piece = max(as_multi(a.raw).geoms, key=lambda g: g.intersection(isl).area)
-        need = want + (sum(isl.contains(Point(q)) for q in p["dowels"]) if p["placement"] == "aligned" else 0)
+        need = self._need(isl)
         if len(have) >= need and not self._loose(a, piece):
             return []
         q = self.spots(a, b, isl, have)
@@ -367,7 +387,11 @@ class Connectors:
             # ear stood in for one of its two and the ear came out held 1.56 where the check promised 1.2
             need = want + sum(isl.contains(Point(q)) for q in p["dowels"])
             held = lambda pts, need=need, lev=lev: len(pts) >= need and lev(pts) <= LEVERAGE_OK   # noqa: E731
-            mine = [q for q in fixed if isl.contains(Point(q))]
+            # A shared point is a rod through every layer, but a layer can already hold a rod carried up from wider
+            # layers below, beside where the shared point falls: the vase's waist had them 3.8 mm apart, the two
+            # holes overlapped, and `fits` left four dowels out. A shared point keeps a wall from every hole the
+            # layer already has, or is that hole (a hole's key is rounded to 0.01 mm: within that it is the same rod).
+            mine = [q for q in fixed if isl.contains(Point(q)) and all(_dist(q, t) < 0.01 or _dist(q, t) > clearance for t in taken)]
             # One point is a hinge: a piece pinned once still turns about it, which is exactly what a glued stack
             # does while it dries. Two locate it. An island the common points miss (an ear) gets its own, and one
             # they touch only once is topped up from its own spread, clear of the point already there.

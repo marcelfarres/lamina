@@ -193,3 +193,19 @@ def test_a_finding_carries_its_kind_and_what_it_is_about_and_its_fix_does_not_re
     first, again = seen[1], seen[2]
     assert any("trim thin spots off every part" in t for ts in first.values() for t in ts)
     assert list(again.values()) == list(first.values()) and "something else entirely" in again
+
+
+def test_an_island_whose_place_is_engraved_is_not_a_loose_island():
+    """Bug 045: a stacked island with no dowel through it was warned about on every example (cow_spot, horse_statue,
+    bunny) whether or not anything showed where it goes. With the next layer outline engraved, its place is marked (its
+    own outline on the layer below, or the layer above's on it) and glue holds it like every other layer: no warning.
+    Without the engraving it is still warned about, and the warning offers the engraving."""
+    prm = {"axis": "x", "distribution": "count", "count": 6, "connect": "none", "autofix": "off"}   # the torus lying flat: two rings
+    islands = lambda plan: [w for sl in plan["slices"] for w in sl["warnings"] if "separate island" in w]   # noqa: E731
+    off = build(EXAMPLES / "torus.stl", "stacked", prm)
+    assert len(islands(off)) == 8, islands(off)
+    assert all(any(o["set"] == {"next_outline": True} for f in sl["fixes"] for o in f["options"])
+               for sl in off["slices"] if any("separate island" in w for w in sl["warnings"]))
+    on = build(EXAMPLES / "torus.stl", "stacked", {**prm, "next_outline": True})
+    assert islands(on) == [] and on["counts"]["warnings"] == 0
+    assert all(any(style == "guide" for pc in sl["pieces"] for style, _ in pc["lines"]) for sl in on["slices"][:-1])   # the marks that place them

@@ -4,10 +4,16 @@ import math
 import numpy as np
 import shapely
 import shapely.affinity
+from shapely.geometry import MultiPolygon
 from shapely.ops import unary_union
 from . import MAX_SLICES, Mode, Param, register, spacing_params
-from .connectors import Connectors, Layer
+from .connectors import Connectors, Layer, hole_mark, hole_of
 from ..geometry import as_multi, as_lines, section_polygons, into
+from ..labels import mark_box, mark_rot
+from ..ring import collared, ring as ring_of
+from ..ringcut import Ring, shorten
+
+HIDE = 1.0      # mm an engraving keeps in from the edge of the layer above: a glue-up a little off still hides it
 
 CONNECT_HELP = ("dowel = round/square rods through holes (drawn in the 3D view), the default: glue alone leaves every layer free to "
                 "slide while it dries, and two dowels through a piece hold it where it belongs · tab = flat pieces cut from the sheet: "
@@ -28,7 +34,25 @@ class Stacked(Mode):
         Param("space", "number", 0.0, "Empty space between consecutive slices (mm); spacers keep it", 0, 500, 0.5, unit="mm", label="gap between layers"),
         Param("shift", "number", 0.0, "Move every slice plane along the axis by this much (mm, + towards the top), so one slice lands on a feature of the model — a rim, a shoulder, the middle of a hole: read the slice's height off the 3D view and shift by the difference. With `distance` the stack is laid out again from the shifted start, one slice after another over the model, so only the remainder at its ends is uncovered; with `count` or a spacing curve a slice moved past an end of the model is left out and the notes say so. The slices are named by their place in the stack once moved, so a setting made for one by name (a thickness, an offset) may need its name updated", -500, 500, 0.1, unit="mm", label="shift stack"),
         Param("surface", "choice", "mid", "Outline of each slice: mid = section at the middle; outer = union of the sections through the slice thickness (sand down to shape, Slicer's 3D Slices); inner = intersection (never protrudes)", choices=["mid", "outer", "inner"], label="slice outline"),
-        Param("next_outline", "bool", False, "Engrave the outline of the next layer onto each slice (GUIDE, orange): a light line showing where the layer stacked on top sits, so the stack lines up as it is glued. Drawn only where it lands on the slice's own material — a wider layer above stops at this layer's edge. Engrave, not cut; off by default", label="next layer outline"),
+        Param("hide_marks", "bool", True, "Engrave each layer's label, orientation arrows and dowel numbers only where the layer glued on top "
+              "hides them, so the assembled model shows none: the top layer, which nothing covers, stays clean and its label goes beside "
+              "it on the sheet; a label with no room under the layer above goes beside its part too. The dowel holes stay where they are. "
+              "Off = anywhere on the part", label="hide engravings"),
+        Param("ring_slices", "bool", False, "Ring slices: keep only a wall `wall` wide inside each slice's outline and cut the middle away, so "
+              "the stack is a shell of rings instead of solid discs. The wall is measured in the slice's own plane, the same all the way "
+              "round (Modify form's `hollow` shells the 3D model instead, which leaves gently sloping layers wide and the ends solid). "
+              "Every island and every hole gets its own wall; where a slice is narrower than twice the wall it stays solid. Dowels and "
+              "spacers sit in the wall, which grows locally round each one that needs more room", label="ring slices",
+              section="Ring slices — a wall instead of a solid slice"),
+        Param("ring_wall", "number", 8.0, "How wide the wall of a ring slice is (mm), measured in the slice's plane from its outline in. "
+              "A slice can have its own: select it in the 3D view", 0.5, 500, 0.5, unit="mm", show_if=("ring_slices", True), label="wall"),
+        Param("ring_caps", "bool", False, "Keep the first and last slice solid, so the stack is closed at both ends. Off = they are rings too",
+              show_if=("ring_slices", True), label="solid ends"),
+        Param("max_length", "number", 0.0, "Longest piece of a ring slice (mm), measured along the ring: a longer ring is cut across "
+              "its wall into pieces no longer, spread evenly, clear of the dowel holes, each with a puzzle tab. 0 = no limit. A ring "
+              "too big for the sheet is always cut this way", 0, 10000, 5, unit="mm", show_if=("ring_slices", True), label="max piece length"),
+        Param("wall", "map", {}, "Per-slice ring wall (mm), when ring slices are on", group="slices", unit="mm", label="own walls"),
+        Param("next_outline", "bool", False, "Engrave the outline of the next layer onto each slice (GUIDE, orange): a light line showing where the layer stacked on top sits, so the stack lines up as it is glued, and an island with no dowel through it (an ear, a hoof) has its place marked. Drawn only where it lands on the slice's own material — a wider layer above stops at this layer's edge. Engrave, not cut; off by default", label="next layer outline"),
         Param("next_outline_offset", "number", 0.0, "Move the engraved outline in (−) or out (+) from the next layer's true edge (mm). A little negative — −0.25 or so — tucks the line under the layer above, so a glue-up a hair off still hides it; positive marks an overhang where the next layer is wider", -5, 5, 0.05, unit="mm", show_if=("next_outline", True), label="outline offset"),
         Param("connect", "choice", "dowel", CONNECT_HELP, choices=["none", "dowel", "tab"], label="connect with", section="Joining — what holds the layers together"),
         Param("dowel_d", "number", 6.0, "Dowel diameter / peg & spacer width (mm)", 0.5, 100, 0.5, unit="mm", show_if=("connect", ["dowel", "tab"]), label="dowel diameter"),
@@ -50,7 +74,9 @@ class Stacked(Mode):
               "Z-3a = dowel a between Z-3 and Z-4 — a connector is named after the lower of the two slices it joins and a letter, "
               "and the mark 3a is engraved beside its hole on both slices, so a hole marked with a number lower than the slice's "
               "own takes the rod from below, one with its own number the rod going up · a straight rod through several slices "
-              "keeps the name of the slice it starts from · with tab connectors Z-3a is the peg or spacer itself, a part of its own")
+              "keeps the name of the slice it starts from · with tab connectors Z-3a is the peg or spacer itself, a part of its own · "
+              "with `hide engravings` every layer's engravings sit under the layer above it, and the top layer has none: its name is "
+              "beside it on the sheet")
 
     def build(self, ctx):
         p = ctx.p
@@ -61,13 +87,93 @@ class Stacked(Mode):
                            for lab, z, tk in zip(labels, pos, th)])
         self.profiles(ctx, slices)
         slices = [s for s in slices if not s.raw.is_empty]
+        conn = None if p["connect"] == "none" or len(slices) < 2 else Connectors(ctx, slices)
+        if p["ring_slices"]:
+            self.ring_up(ctx, slices, conn)
         ctx.view["rods"] = []
         ctx.cover_r = self.cover_r(ctx, pos, drawn, length, len(slices))
         if p["space"] > 0 and p["connect"] == "none":
             ctx.errors.append(f"space = {p['space']:g} mm between slices but no connectors — the slices would float: set connect to tab (spacers) or dowel, or set space to 0")
-        if p["connect"] == "none" or len(slices) < 2:
-            return slices
-        return self.in_order(slices, Connectors(ctx, slices).run())
+        extra = conn.run() if conn else []
+        self.ring_down(ctx, slices)
+        if p["hide_marks"]:
+            self.hide(ctx, slices)
+        return self.in_order(slices, extra) if conn else slices
+
+    @staticmethod
+    def hide(ctx, slices):
+        """Where each layer's engravings go (`cover`): under the layer glued on top of it, HIDE mm in from that layer's
+        edge, so the assembled stack shows none. The label and the arrows are placed in it later (nest, plan.build); a
+        dowel number already placed outside it moves in now, or goes, the assembly key still naming its hole. The top
+        layer has nothing over it and stays clean. Taken from the layers as built here, the rings cut back: a sliver
+        shed from the layer above later is not known yet, and HIDE takes in one thinner than itself."""
+        font = ctx.p["font"]
+        for a, b in zip(slices, [*slices[1:], None]):
+            a.cover = MultiPolygon() if b is None else as_multi(a.raw.intersection(into(a.M, b.M, b.raw).buffer(-HIDE)))
+            for m in [m for m in a.marks if not a.cover.covers(mark_box(*m[:3], font, mark_rot(m)))]:
+                a.marks.remove(m)
+                hole_mark(a, hole_of(a, m[2]), m[2], font)
+
+    def cut(self, ctx, sl):
+        """plan.build's hook: a ring slice longer than `max_length`, or too big for the sheet, cut across its wall into
+        pieces (core/ringcut.py) — or None for the usual splitting."""
+        if getattr(sl, "ring", None) is None:           # a solid slice, a peg or spacer, a plaque's plate
+            return None
+        geom, made, plain, stuck = shorten(sl, ctx.p, ctx.p["max_length"], [Ring(c) for c in sl.raw.geoms], sl.profile)
+        if stuck:
+            sl.warnings.append(f"{stuck} piece(s) longer than `max_length` or too big for the sheet found no clean place to be cut "
+                               "(dowel holes close together all along): cut by hand, or move the dowels")
+        if plain:
+            sl.warnings.append(f"{plain} of its {made} cut(s) have no room for a puzzle tab (a narrow wall): glue those")
+        return list(as_multi(geom).geoms) if made else None
+
+    @staticmethod
+    def ring_up(ctx, slices, conn):
+        """Ring slices, first half: each slice keeps its section and the ring it will be cut as (`ring`), and `raw` is
+        set to a ring wide enough for one connector to sit in it with a full wall all round, which the connectors
+        are placed in. Where that ring does not reach a neighbour's — a small ring inside the hole of the one beside
+        it, near the pole of a round model or on a steep flare — it also takes connectors where the neighbour passes
+        over its own section: `collared` then leaves a lug from the wall to each."""
+        p = ctx.p; mf = p["min_feature"]
+        room = 2 * (conn.reach + conn.mf) + 0.5 if conn else 0.0      # a connector's reach and a wall, either side
+        wide = {}
+        for i, sl in enumerate(slices):
+            if p["ring_caps"] and i in (0, len(slices) - 1):
+                continue
+            w = ctx.override("wall", sl.label, p["ring_wall"])
+            sl.ring = (sl.raw, ring_of(sl.raw, w, mf))
+            wide[i] = ring_of(sl.raw, room, mf) if room > w else sl.ring[1]
+            sl.inner = None
+        solid = {i: sl.raw for i, sl in enumerate(slices) if i not in wide}
+        for i, sl in enumerate(slices):
+            if i not in wide:
+                continue
+            reach = [wide[i]]
+            for k in (i - 1, i + 1):
+                if conn and 0 <= k < len(slices):
+                    there = into(slices[k].M, sl.M, wide.get(k, solid.get(k)))
+                    if wide[i].intersection(there).buffer(-room / 2).is_empty:      # no room for a connector where the two walls meet
+                        reach.append(sl.ring[0].intersection(there))
+            sl.raw = as_multi(unary_union(reach))
+
+    @staticmethod
+    def ring_down(ctx, slices):
+        """Ring slices, second half: each slice cut back to its own wall, with a collar left round every connector."""
+        mf = ctx.p["min_feature"]
+        for sl in slices:
+            if sl.ring is not None:
+                section, wall = sl.ring
+                sl.raw = collared(section, wall, sl.cuts, mf)
+                sl.inner = None
+        # a small slice next to a ring can drop through its hole: near the pole of a round model the end slice is
+        # narrower than the middle of the one beside it, and nothing holds it — say why, and what closes it
+        loose = [b.label for a, b, c in zip([None, *slices], slices, [*slices[1:], None])
+                 if b.ring is not None and not any(n is not None and not into(n.M, b.M, n.raw).intersection(b.raw).is_empty for n in (a, c))]
+        if loose:
+            ends = {slices[0].label, slices[-1].label}
+            what = ("turn on `solid ends`, or a narrower wall" if set(loose) & ends and not ctx.p["ring_caps"] else "a narrower wall, or fewer slices")
+            ctx.notes_extra = " · ".join(x for x in [ctx.notes_extra, f"ring slices: {', '.join(loose[:6])}{'…' if len(loose) > 6 else ''} "
+                                                     f"touch(es) no neighbour — each sits inside the hole of the ring next to it: {what}"] if x)
 
     @staticmethod
     def cover_r(ctx, pos, drawn, length, n):
@@ -199,3 +305,5 @@ class Stacked(Mode):
                         for ln in as_lines(merged).geoms:
                             if ln.length > 1e-6:
                                 a.lines.append(("guide", ln))
+                                if not b.outlined or b.outlined[-1] is not poly:
+                                    b.outlined.append(poly)       # where an island of b with no dowel through it goes
