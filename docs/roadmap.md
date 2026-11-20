@@ -7,7 +7,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Original | Status | Notes |
 |---|---|---|
 | STL / OBJ import | ✅ | anything trimesh loads (STL, OBJ, 3MF, PLY, OFF, GLB); broken meshes are auto-shrinkwrapped |
-| `.3dmk` project files | ✅ | own format: **project save / open** (`.slicer.json`: technique, every parameter, and the uploaded model embedded) |
+| `.3dmk` project files | ✅ | own format: **save** into the library and open from it, or export and import (`.lamina.json`: technique, every parameter, and the uploaded model embedded) |
 | Fusion Team cloud open / save | — | not applicable (local tool) |
 | Up-axis correction | ✅ | `up_axis` |
 | CAD import (extra) | ✅ | STEP / BREP through CadQuery (`uv sync --extra cad`); IGES not supported (export STEP) |
@@ -82,6 +82,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | One-sheet strip | ✅ | `one_sheet`: everything on one sheet as wide as the stock and as long as it needs |
 | View cube | ✅ | click a face of the cube in the 3D view for a flat view |
 | Session kept by the server | ✅ | refresh, a new tab or another browser resumes the last slice |
+| Project library | ✅ | **library** opens a page of your projects, a preview picture each, and the examples (read-only, with their own pictures; **pick an example…** on the Model tab opens them); **save** writes the project you are working on into it, with "● unsaved changes" beside the button until then; every revision is kept (**N revisions ▾** on a card), a bump takes the next free number, and a save onto another revision that is already there asks (replace, keep both, Cancel); kept in the browser (IndexedDB), or in Chrome and Edge in a folder you link (**link a folder**, **change folder**, **unlink**, **reconnect folder**), which then is the library (files dropped in appear) and whose name the folder line shows; **export all (.zip)** makes one zip, **import files…** takes project files and such zips; nothing goes to a server, and **Clear my data…** keeps it; a server started with `LAMINA_LIBRARY` (on in `docker-compose.yml`) keeps the library in its own folder instead, the same in every browser, and **move them to the server folder** moves the browser's projects in |
 | Identical pieces counted once | ✅ | the plan decides which pieces are the same part (same outline, any quarter turn, same stock): the Parts table lists each once with a quantity and its twins, the per-piece export writes one file named part, material, thickness, quantity (`Z-1 plywood x4`), quantity last and `x1` included, plus `cut-list.txt` with each part's width × height |
 | Mirror images counted once | ✅ | `mirror_ok` (off by default): a part and its mirror image share one file, cut twice and one turned over — only for stock that is the same both sides; the cut list and the table (⇄) name the ones to turn over |
 | Undo / redo | ✅ | Ctrl+Z / Ctrl+Y (or the ↶ ↷ buttons): one step per change that reaches the slicer, technique included; the model itself is not on the stack |
@@ -89,7 +90,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Kerf compensation toggle | ✅ | `compensate`, off by default: machines that compensate their own kerf must not be compensated twice |
 | Solid output (STL of assembled model / single part) | ✅ | pure trimesh |
 | Solid output as STEP (true solids for CAD, flat faces) | ✅ | `core/step.py` writes the text itself, no CAD kernel, so the browser build has it too |
-| Test set | ✅ | 17 synthetic shapes (the dumbbell — two spheres on a neck — is the case for an axis per lobe) + 5 scanned (a head, three animals, the bunny); regression matrix; unfold and pipeline tests |
+| Test set | ✅ | 35 examples: 29 synthetic shapes (the dumbbell — two spheres on a neck — is the case for an axis per lobe) + 6 scanned (a head, a horse statue, three animals, the bunny); regression matrix; unfold and pipeline tests |
 
 ## §4 Get Plans / export
 | Original | Status |

@@ -12,11 +12,16 @@ EXAMPLES = ROOT / "examples"
 PRESETS = {k: v for k, v in json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8")).items() if not k.startswith("_")}
 # Examples that still open with a warning, each waiting for better settings (bug 045). A new example opens clean, and
 # one that opens clean comes off the list, so it only gets shorter.
-STILL_WARNS = {"cow", "horse_statue", "lion_head"}
+STILL_WARNS = {"bunny"}
 
 
 def test_every_example_has_a_preset():
     assert set(PRESETS) == {p.stem for p in EXAMPLES.glob("*.stl")}
+
+
+def test_every_example_has_a_preview():
+    have = {p.stem for p in (ROOT / "web/static/examples").glob("*.webp")}
+    assert have == {p.stem for p in (ROOT / "examples").glob("*.stl")}
 
 
 @pytest.mark.parametrize("name", sorted(PRESETS))

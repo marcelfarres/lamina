@@ -33,6 +33,11 @@ def mark_rot(m):
     return float(m[3]) if len(m) > 3 else 0.0
 
 
+def mark_size(m, font):
+    """A mark's own font size: a seam number shrunk to fit a short edge carries it as a fifth value; `font` else."""
+    return float(m[4]) if len(m) > 4 else font
+
+
 def label_rect(x, y, rot, w, h):
     """A w × h label's box, centred on (x, y) and turned `rot` degrees, as the sheet carries it."""
     return shapely.affinity.rotate(box(x - w / 2, y - h / 2, x + w / 2, y + h / 2), rot, origin=(x, y))
@@ -152,7 +157,7 @@ def place_labels(sh, font, tag="", place="part"):
     tree = STRtree(sh.placed)
     taken = []
     for k, pc in enumerate(sh.pieces):
-        keep = [mark_box(x, y, t, font, rot + pc.place[3]) for x, y, t, rot in pc.placed_marks] \
+        keep = [mark_box(*m[:3], mark_size(m, font), mark_rot(m) + pc.place[3]) for m in pc.placed_marks] \
             + [ln.buffer(0.8) for s, ln in pc.placed_lines if s == "orient"]
         angles = label_angles(pc.placed) if place != "beside" else ()
         pc.crowded = False

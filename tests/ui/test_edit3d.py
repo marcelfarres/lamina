@@ -204,7 +204,7 @@ def test_a_drag_while_a_slice_runs_turns_the_view_not_the_model(page):
     use(page, "head_igea")
     box = page.locator("#v3d canvas").first.bounding_box()
     cx, cy = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
-    page.select_option("#example", "horse_statue")
+    page.evaluate("__t.openExample('horse_statue')")
     drags = 0
     for _ in range(6):                                   # across the middle, where the red ring runs edge-on
         page.wait_for_timeout(250)
@@ -271,7 +271,7 @@ def test_the_cube_snaps_on_a_click_and_a_drag_turns_the_view_not_the_model(page)
 def test_a_ring_slice_takes_its_own_wall_from_the_selection_panel(page):
     """Ring slices on stacked: the wall box shows when ring slices are on, and a slice selected in the 3D view takes its
     own wall from the selection panel, which reaches the slicer (`wall`) and leaves that slice's ring wider."""
-    use(page, example="cube", mode="stacked")
+    use(page, name="cube", mode="stacked")
     set_fields(page, [("p_distribution", "count"), ("p_count", 4), ("p_connect", "none"), ("p_ring_slices", True), ("p_ring_wall", 10)])
     settle(page)
     area = lambda p, lab: sum(pc["area"] for s in p["slices"] if s["label"] == lab for pc in s["pieces"])   # noqa: E731
@@ -288,7 +288,7 @@ def test_a_ring_slice_takes_its_own_wall_from_the_selection_panel(page):
 
 def test_a_band_takes_its_own_wall_and_cut_shift_from_the_selection_panel(page):
     """Band lattice: a band selected in the 3D view shows its wall and its cut shift, and both reach the slicer."""
-    use(page, example="cube", mode="bands")
+    use(page, name="cube", mode="bands")
     set_fields(page, [("p_nx", 3), ("p_ny", 3), ("p_nz", 3), ("p_ring_wall", 12)])
     settle(page)
     p = plan(page)

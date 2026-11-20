@@ -2,7 +2,7 @@
 and a model squared by its button."""
 import pytest
 
-from .helpers import settle, plan, set_fields, state, use, ROOT
+from .helpers import example, settle, plan, set_fields, state, use, ROOT
 
 
 @pytest.mark.timeout(600)
@@ -32,7 +32,7 @@ def test_the_model_is_on_screen_before_the_slices_are_finished(page):
     and the overlay lists the stages so the wait has a shape."""
     page.click('nav button[data-t="model"]')
     before = page.evaluate("() => [window.__t.ghostUrl(), window.__t.plan().counts.faces]")
-    page.select_option("#example", "head_igea")            # detailed enough that the stages take seconds
+    page.evaluate("__t.openExample('head_igea')")          # detailed enough that the stages take seconds
     page.wait_for_function("old => window.__t.ghostUrl() !== old[0] && window.__t.ghost().length > 0",
                            arg=before, timeout=300_000)
     # the model is up, and the plan it belongs to has not come back yet: that gap is the whole point
@@ -62,8 +62,7 @@ def test_a_new_model_does_not_inherit_the_last_one_s_geometry(page):
     assert len(state(page)["axes"]) == 3
 
     page.click('nav button[data-t="model"]')
-    page.select_option("#example", "torus")                  # opens interlocked: a different technique entirely
-    settle(page)
+    example(page, "torus")                                   # opens interlocked: a different technique entirely
     assert page.evaluate("() => window.__t.state().axes ?? null") == []
     assert page.evaluate("() => window.__t.state().offset ?? null") == {}
 
@@ -84,8 +83,7 @@ def test_a_new_model_does_not_inherit_the_last_one_s_geometry(page):
     assert [round(e) for e in plan(page)["bbox"]] == [180, 180, 180]   # the cube at its own size, not 300
 
     # an example, then the same file again: the box still held it, so choosing it fired nothing and the example stayed
-    page.select_option("#example", "egg")
-    settle(page)
+    example(page, "egg")
     page.set_input_files("#file", str(ROOT / "examples" / "cube.stl"))
     settle(page)
     assert [round(e) for e in plan(page)["bbox"]] == [180, 180, 180], "the same file picked again did not load"

@@ -14,6 +14,7 @@ from shapely.geometry import LineString, Polygon
 from shapely.ops import nearest_points, unary_union
 
 from .geometry import as_multi
+from .labels import mark_box, mark_rot, mark_size
 from .split import MAX_PIECES, fits_rotated, tab
 
 CUT_W = 0.1                       # the width of the line a ring is cut apart along: the puzzle joint's own fit is the kerf's
@@ -32,13 +33,15 @@ def tongue(c, u, a, w):
 
 def cut_line(E, I, p, sl, mf, joint=None):
     """The line a ring is cut along from its outline at E to its inner edge at I, with a puzzle tab halfway, and
-    whether the tab fit — or (None, False) where the cut would run into one of the slice's cuts. With `joint` the tab
+    whether the tab fit — or (None, False) where the cut would run into one of the slice's cuts or marks. With `joint` the tab
     is a straight tongue instead, along the axis joint(e, i) gives for this cut, or none (a butt cut) where it gives
     None; where it gives True a butt cut is all it asks for (whether the tab fit: None, nothing to look further for),
     and where it gives False no cut at all: a band's pieces could not slide in past a cut that way."""
     e, i = np.array([E.x, E.y]), np.array([I.x, I.y]); L = float(np.linalg.norm(i - e)); u = (i - e) / L
     straight = LineString([e - u * 1.0, i + u * 1.0])
-    if any(straight.distance(c) < mf for c in sl.cuts):   # a distance, not a buffer per cut: 200 bands tried 800 000 of them
+    # the slice's holes and its engraved marks (dowel numbers): a cut through a number would split it between pieces
+    cuts = [*sl.cuts, *(mark_box(*m[:3], mark_size(m, p["font"]), mark_rot(m)) for m in sl.marks)]
+    if any(straight.distance(c) < mf for c in cuts):   # a distance, not a buffer per cut: 200 bands tried 800 000 of them
         return None, False
     a = None if joint is None else joint(e, i)           # after: a band's joint sweeps pieces, the dearer test
     if a is False:
@@ -49,7 +52,7 @@ def cut_line(E, I, p, sl, mf, joint=None):
     if w >= 2.0 and (joint is None or a is not None):
         c = (e + i) / 2
         t = tab(c[0], c[1], tuple(u), w, w * 1.2, 1) if joint is None else tongue(c, u, a, w)
-        if sl.profile.contains(t.buffer(w * 0.25)) and not any(t.distance(cc) < mf for cc in sl.cuts):
+        if sl.profile.contains(t.buffer(w * 0.25)) and not any(t.distance(cc) < mf for cc in cuts):
             parts, tabbed = [straight.difference(t), t.exterior.difference(straight.buffer(0.03, cap_style=2))], True
     return unary_union(parts).buffer(CUT_W / 2, cap_style=2), tabbed
 
@@ -164,7 +167,12 @@ def shorten(sl, p, limit, rings, geom, joint=None):
                 # only as wide as the slack in the spread closed to a single point on a band that needs its full count
                 # (2400 mm round at 100 mm: 24 pieces of exactly 100), and one slot there left the band whole
                 target = a + arc / k
-                lo, hi = a + gap, min(b - gap, a + limit) if long else b - gap
+                # room for a tab beside each cut; a stretch too short for that (under 2 × CLEAR tab widths: 48 mm at
+                # the default tab, against a limit of 40) gets a plain cut, which only needs min_feature of room
+                for room in (gap, p["min_feature"]):
+                    lo, hi = a + room, min(b - room, a + limit) if long else b - room
+                    if hi > lo:
+                        break
                 tries = _between(lo, hi, min(1600, int((hi - lo) / STEP) + 1)) if hi > lo else []
                 tries.sort(key=lambda t: abs(t - target))
                 # a tab is worth a little way, not a stub of a piece: near the spread first, tab or not, then the rest
@@ -174,7 +182,8 @@ def shorten(sl, p, limit, rings, geom, joint=None):
             got = got or rg.place(tries, sl, p, joint=joint)
             if got is None and rg.cuts:
                 # nowhere within the limit: anywhere in the stretch, so it is at least shorter, and cut again after
-                wide = _between(a + gap, b - gap, min(1600, int((b - a - 2 * gap) / STEP) + 1)) if b - a > 2 * gap else []
+                room = gap if b - a > 2 * gap else p["min_feature"]
+                wide = _between(a + room, b - room, min(1600, int((b - a - 2 * room) / STEP) + 1)) if b - a > 2 * room else []
                 got = rg.place(sorted(wide, key=lambda t: abs(t - (a + limit if long else (a + b) / 2))), sl, p, joint=joint)
             if got is None:
                 stuck += 1; done.add((round(a, 3), round(b, 3)))

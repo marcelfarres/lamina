@@ -66,3 +66,17 @@ The words Lamina uses for its parts. One word for one thing.
 - **Rim**: the free edge round removed faces, or round an opening the model has itself. It is a plain cut edge: not a
   seam, and it has no joint.
 - **Tab**: a flap on a seam edge that is glued to the next panel. On a printed panel a tab is only as thick as the skin.
+
+## Library
+
+- **Model**: the 3D shape that is uploaded or picked from the examples. Not a *project*.
+- **Project**: a model together with the technique, all settings, a name and a revision. One model can be in many
+  projects.
+- **Revision**: one saved state of a project, numbered `1.0`, `1.1`, `2.0`. A project keeps every revision until it
+  is deleted.
+- **Library**: the page that shows your projects and the examples, each with a preview.
+- **Example**: a model that comes with Lamina. An example is read-only. When you save it, it becomes a project of
+  yours.
+- **Linked folder**: a folder on your computer that holds the library as files, one file for each revision.
+- **Server folder**: a folder that Lamina's server keeps the library in (`LAMINA_LIBRARY`, a Docker volume), one
+  file for each revision, for every browser that opens the page. While there is one, it is the library.

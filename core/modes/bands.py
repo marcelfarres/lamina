@@ -11,9 +11,11 @@ bands already in place along the crossing line of each joint, inward from the su
 different directions — the top and the bottom of a ring, or joints with two families — cannot go in whole, so it is
 cut between them into pieces that each slide one way. So each joint's slot opens outward in the band placed first and
 inward in the band placed after it, and runs through the rest of that band's wall along the line, so nothing of either
-is in the other's way as it slides in. A joint solid right across the model slides the way of its neighbours on its
-line (settle). A cut goes only where each piece, slid in, passes the bands of the joints either side (plain). Where
-two joints are too close for one: if the wall between their slots is boxed in by both earlier bands — their lines
+is in the other's way as it slides in; past the slot's open end, where the line runs clear of the wall but within half
+a sheet of it, the sheet would still brush the wall's edge, and that edge is shaved off (slot_pair's corridor). A joint
+solid right across the model slides the way of its neighbours on its line (settle). A cut goes only where each piece,
+slid in, passes the bands of the joints either side (plain). Where two joints are too close for one: if the wall
+between their slots is boxed in by both earlier bands — their lines
 cross in or near it — that corner is cut off and glued in last, and the wall either side slides either joint's way;
 else the band is cut along one joint's line up to its slot, the earlier band clamped between the two pieces
 (corner_cuts).
@@ -75,6 +77,7 @@ class Joint:
     def __init__(self, a, b, p0, d, lo, hi, out):
         self.a, self.b, self.p0, self.d, self.lo, self.hi, self.out = a, b, p0, d, lo, hi, out
         self.slots, self.ends = {}, {}       # per band label: its slot here, and the slot's closed end (2D, its frame)
+        self.corridors = {}                  # … and the corridor past the slot's open end (slot_pair), or None
         self.free = out == 0                 # solid right across: `out` is settled (Bands.settle), then may turn (slot)
 
     def at(self, s):
@@ -178,6 +181,11 @@ class Bands(Mode):
         for j in self.joints:
             if j.free:
                 self.turn(ctx, j)
+        for j in self.joints:                          # where the line runs clear of a wall past a slot, the sheet on it
+            for band in (j.a, j.b):                    # may still brush the wall's edge: shaved off it (not a cut: cuts
+                corridor = j.corridors[band.label]     # keep clear of cuts)
+                if corridor is not None and corridor.intersects(band.raw):
+                    band.raw = as_multi(band.raw.difference(corridor))
         self.walls = {b.label: as_multi(b.raw.difference(unary_union(b.cuts))) for b in bands}   # the profiles to come
         self.corners = {b.label: self.corner_cuts(ctx, b) for b in later} if p["band_cuts"] else {}
         self.flag(ctx, bands)
@@ -456,8 +464,8 @@ class Bands(Mode):
     def slot(self, ctx, j):
         """The two slots of joint `j`: from the meeting point, outward through the rest of the first band's wall along
         the line, and inward through the rest of the later band's, each past its end so the slot is open."""
-        for band, other, cut, end in self.slot_pair(ctx, j, j.out):
-            j.slots[band.label], j.ends[band.label] = cut, end
+        for band, other, cut, end, corridor in self.slot_pair(ctx, j, j.out):
+            j.slots[band.label], j.ends[band.label], j.corridors[band.label] = cut, end, corridor
             band.cuts.append(cut)
             band.links.append((other.label, cut, tuple(j.mid)))
             if other.label not in band.engages:
@@ -480,12 +488,15 @@ class Bands(Mode):
         swap([(b, cut, n[2], n[3]) for (b, cut, _), n in zip(old, new)])
         if regions() < was:
             j.out = -j.out
+            j.corridors = {n[0].label: n[4] for n in new}
         else:
             swap([(b, n[2], cut, end) for (b, cut, end), n in zip(old, new)])
 
     @staticmethod
     def slot_pair(ctx, j, out):
-        """Joint j's two slots with the surface that way along its line: [(band, other band, slot, its closed end)]."""
+        """Joint j's two slots with the surface that way along its line: [(band, other band, slot, its closed end, the
+        corridor past its open end)]. The other band's sheet, as wide as the slot, sweeps on along the line past the
+        slot's open end as the later piece slides in — up to the band's next stretch on the line, or right across."""
         p = ctx.p; ratio = p["notch_ratio"]
         outer = j.hi if out > 0 else j.lo
         meet = outer - out * ratio * (j.hi - j.lo)              # the first band takes `ratio` of the joint from the surface side
@@ -497,8 +508,10 @@ class Bands(Mode):
             beyond = [m[0] - end for m in mat if m[0] > end + 1e-6] if sign > 0 else [end - m[1] for m in mat if m[1] < end - 1e-6]
             width = other.thickness + p["slot_offset"]
             over = 1.0 + width if not beyond else max(0.2, min(1.0 + width, min(beyond) - p["min_feature"]))
-            a_open, a_end = to_local(band.M, [j.at(end + sign * over), j.at(meet)])
-            made.append((band, other, slot_polygon(a_open[:2], a_end[:2], width, p), a_end[:2]))
+            far = min(beyond) - p["min_feature"] if beyond else ctx.span
+            a_open, a_end, a_far = to_local(band.M, [j.at(end + sign * over), j.at(meet), j.at(end + sign * max(far, over))])
+            corridor = LineString([a_open[:2], a_far[:2]]).buffer(width / 2, cap_style=2) if far > over else None
+            made.append((band, other, slot_polygon(a_open[:2], a_end[:2], width, p), a_end[:2], corridor))
         return made
 
     # ---------------------------------------------------------------- checks of its own

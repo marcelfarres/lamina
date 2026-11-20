@@ -37,6 +37,10 @@ Greedy spanning tree with a priority per edge:
    a seam.
    It is also refused when it would lie edge to edge (within 0.01 mm, for over 1 mm, away from a shared corner)
    against a face that is not its neighbour on the model: the outline would join the two along that line.
+   With a joint that puts a glue flap out from the edge (tab, multitab, diamond, ticked, gear, tongue, puzzle),
+   every free edge of the panel keeps the room of its flap (the trapezoid the tab is drawn as, `tab_h` high, at most
+   0.6 of the edge): the face is refused when it would lie in that room, or when its own free edges would have
+   none. Without it the cow example had 40 of its 217 seams with no room for a tab on either side.
 4. Repeat until nothing can be attached; start the next panel.
 5. `auto` runs flat, strip, area and two randomised flat orders, and keeps the fewest panels / most compact result.
 

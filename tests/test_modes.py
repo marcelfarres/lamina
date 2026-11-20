@@ -15,6 +15,7 @@ from core.plan import build
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 EXAMPLES = ROOT / "examples"
+COW = ROOT / "tests" / "data" / "cow.stl"    # the detailed cow the folded bugs were found on; examples/cow.stl is a low-poly one since bug 045
 
 # (model, mode, params, expected slice count)
 MODE_CASES = [
@@ -454,7 +455,7 @@ def test_folded_soft_sheet_is_not_cut_back_at_its_seams(joint, material):
     """Found by the release's media run: the landing page's cow in 1 mm card, laced, came back with 9 errors where
     0.3.2 had none. Cut back at every seam like stiff sheet, its small panels fell under the minimum part size. Card
     crushes at a seam, so it is cut as before; and a rib too small to handle is left out, not cut as a bad part."""
-    plan = build(EXAMPLES / "cow.stl", "folded", {"rotate": [90, 0, 0], "joint": joint, "facet": 15, "strategy": "area", "thickness": 1, **material})
+    plan = build(COW, "folded", {"rotate": [90, 0, 0], "joint": joint, "facet": 15, "strategy": "area", "thickness": 1, **material})
     errs = [f"{sl['label']}: {e}" for sl in plan["slices"] for e in sl["errors"]] + plan["errors"]
     assert not errs, errs[:3]
 
@@ -464,30 +465,53 @@ def test_folded_cut_back_never_makes_a_panel_too_small(joint):
     """The same cow in 1 mm steel: cut back at its seams, some small panels fell under the minimum part and feature
     sizes (7 errors). The cut-back is never what makes a panel too small: such a panel keeps its edges and warns how
     far it presses into its neighbours."""
-    plan = build(EXAMPLES / "cow.stl", "folded", {"rotate": [90, 0, 0], "joint": joint, "facet": 15, "strategy": "area", "thickness": 1,
+    plan = build(COW, "folded", {"rotate": [90, 0, 0], "joint": joint, "facet": 15, "strategy": "area", "thickness": 1,
                                                  "material": "steel", "material_kind": "steel"})
     errs = [f"{sl['label']}: {e}" for sl in plan["slices"] for e in sl["errors"]] + plan["errors"]
     assert not errs, errs[:3]
     assert any("press up to" in w for sl in plan["slices"] for w in sl["warnings"])
 
 
+def test_folded_net_keeps_room_for_its_tabs():
+    """Bug 045: the cow example opened with 40 of its 217 seams reduced to a plain seam. The net was grown with no
+    room for the glue flaps, so a tab landed on its own panel from either side. It also had a "joints made smaller"
+    line on every panel, for a hole and an inset a tab does not have. Each free edge now keeps its flap's room while
+    the net grows, and only the sizes a joint uses count as made smaller."""
+    plan = build(COW, "folded", {"rotate": [90, 0, 0], "joint": "tab", "facet": 15, "strategy": "area", "thickness": 1})
+    warns = [w for sl in plan["slices"] for w in sl["warnings"]]
+    assert sum("reduced to a plain seam" in w for w in warns) <= 5
+    assert not any("made smaller than asked" in w for w in warns)
+    assert plan["counts"]["errors"] == 0
+
+
+def test_folded_coverage_is_the_same_in_any_sheet():
+    """Bug 045: a surface point counted as covered within one sheet thickness of a panel, so the same 19 panels of the
+    cow read 83 % in 1 mm card and 99 % in 3 mm. A panel is the middle of its sheet, half a sheet in from the
+    surface, and a flat triangle lies off a curve by a share of its edge: that is the reach, whatever the card."""
+    job = {"rotate": [90, 0, 0], "joint": "laced", "facet": 15, "strategy": "area", "material": "cardboard", "material_kind": "cardboard"}
+    thin, thick = (build(COW, "folded", {**job, "thickness": t})["coverage"] for t in (1, 3))
+    assert abs(thin - thick) < 0.02 and thin > 0.95
+
 def test_folded_merges_only_the_faces_too_small_for_the_sheet():
     """Asked for: a fix for faces too small to cut back that does not coarsen the whole model. `min_face` closes up the
     faces under that height and leaves the rest: on the cow, no face is left under it, most of the model's faces
-    stay, and the press warning offers it."""
-    from core.mesh import merge_small, simplify
+    stay, and the press warning offers it. Bug 045: a sharp face over that height passed and ended a panel in a thin
+    tip (the lion head's last four warnings); a face with a corner under 28° is closed up too, up to twice the height.
+    The decimated cow is full of such slivers, so about half its faces go (only the small ones went, 60 % stayed)."""
+    from core.mesh import SHARP, SHARP_HEIGHT, merge_small, simplify
     from core.modes.folded import target_faces
-    mesh = trimesh.load(EXAMPLES / "cow.stl", force="mesh")
+    mesh = trimesh.load(COW, force="mesh")
     coarse = simplify(mesh, target_faces(mesh, 15))
     height = lambda m: 2 * m.area_faces / np.linalg.norm(m.triangles - np.roll(m.triangles, -1, axis=1), axis=2).max(1)   # noqa: E731
-    assert (height(coarse) < 4).any()
+    sharp = lambda m: (m.face_angles.min(1) < SHARP) & (height(m) < SHARP_HEIGHT * 4)   # noqa: E731
+    assert (height(coarse) < 4).any() and (sharp(coarse) & (height(coarse) >= 4)).any()   # sharp faces the height lets through
     merged = merge_small(coarse, 4)
-    assert not (height(merged) < 4).any() and len(merged.faces) > 0.6 * len(coarse.faces)
+    assert not (height(merged) < 4).any() and not sharp(merged).any() and len(merged.faces) > 0.45 * len(coarse.faces)
     job = {"rotate": [90, 0, 0], "joint": "laced", "facet": 15, "strategy": "area", "thickness": 1, "material": "steel", "material_kind": "steel"}
-    plan = build(EXAMPLES / "cow.stl", "folded", job)
+    plan = build(COW, "folded", job)
     offers = [o for sl in plan["slices"] for f in sl["fixes"] if "press up to" in f["error"] for o in f["options"]]
     assert any(o["set"].get("min_face") == 4 for o in offers)
-    fixed = build(EXAMPLES / "cow.stl", "folded", {**job, "min_face": 4})
+    fixed = build(COW, "folded", {**job, "min_face": 4})
     pressed = lambda q: sum(1 for sl in q["slices"] for w in sl["warnings"] if "press up to" in w)   # noqa: E731
     assert fixed["counts"]["errors"] == 0 and pressed(fixed) < pressed(plan)
 
@@ -659,6 +683,17 @@ def test_curve_ribs_turn_with_a_slim_neck_however_deep_the_chest(tmp_path):
     assert np.allclose(riser, 60, atol=3), riser
 
 
+def test_curve_rib_keeps_its_spine_where_the_curve_runs_past_it():
+    """The horse as 0.3.3 shipped it (bug 049): its curve runs on into the head, turned aside where the flat body
+    spine does not reach, and the head has no branch. Square to the curve, the last rib met no spine and floated
+    (3 errors; with auto-fix, 2 blocked slots among the slices it added). The one reach for the whole model had held
+    it back by chance. It turns no further than keeps it on the spine."""
+    curve_033 = [[-119, 11], [-89, 18], [-59, 23], [-14, 10], [16, 13], [50, 22], [76, 47], [91, 76], [106, 89], [136, 83]]
+    plan = build(EXAMPLES / "horse.stl", "curve", {**HORSE, "curve": curve_033, "branches": BRANCHES, "autofix": "off"})
+    assert plan["counts"]["errors"] == 0, [(s["label"], s["errors"]) for s in plan["slices"] if s["errors"]] + plan["errors"]
+    assert "K-1" in [s for s in plan["slices"] if s["label"].startswith("R-")][-1]["engages"]
+
+
 def test_a_turned_interlocked_grid_reaches_the_corners():
     """`rotate_grid` 45 on the cube: along each family's normal the cube is its diagonal long, 1.41 times the box, so
     the outer slices sit out past where the box's length would have put them, and the corners get a slice."""
@@ -691,7 +726,7 @@ def test_autofix_adds_interlocked_slices_a_full_wall_from_the_others(model):
     their slots in every crossing slice. Each added slice now keeps the thickness, the slot offset and the minimum wall
     from every other slice of its family."""
     job = {"thickness": 3, "slot_offset": 0.2, "min_feature": 2.0, "kerf": 0.15}
-    plan = build(EXAMPLES / f"{model}.stl", "interlocked", job)
+    plan = build(COW if model == "cow" else EXAMPLES / f"{model}.stl", "interlocked", job)
     need = job["thickness"] + job["slot_offset"] + job["min_feature"]
     mid, added = np.array(plan["mid"]), 0
     for fam, key in (("X", "extra_x"), ("Y", "extra_y")):
@@ -805,6 +840,20 @@ def test_orientation_arrows_are_two_lines_inside_every_part_clear_of_its_marks()
             for a in arrows:
                 assert geom.buffer(-0.3).covers(a)
                 assert all(not a.intersects(mark_box(x, y, t, font, rot)) for x, y, t, rot in pc["marks"])
+
+
+def test_a_dowel_number_on_a_ring_slice_lies_on_its_wall():
+    """Bug 051: ring slices place their dowels while each slice is still a wide ring, then cut it back to its wall. A
+    dowel number placed in the wide ring hung over the hollow, up to 81 % of it off the part at a 4 mm wall, with
+    `hide_marks` off and on every fit coupon of a ring stack. Every number lies whole on its part."""
+    from shapely.geometry import MultiPolygon, Polygon
+    from core.labels import mark_box
+    plan = build(EXAMPLES / "egg.stl", "stacked", {"ring_slices": True, "ring_wall": 4, "hide_marks": False, "autofix": "off"})
+    font = plan["params"]["font"]
+    numbers = [(pc["label"], MultiPolygon([Polygon(r[0], r[1:]) for r in pc["kerfed"]]).buffer(0.01), mark_box(x, y, t, font, r))
+               for sl in plan["slices"] for pc in sl["pieces"] for x, y, t, r in pc["kerfed_marks"]]
+    assert len(numbers) > 20
+    assert all(part.covers(box) for _, part, box in numbers), [lab for lab, part, box in numbers if not part.covers(box)][:6]
 
 
 def test_a_stack_hides_every_engraving_under_the_layer_above():
