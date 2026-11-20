@@ -1,5 +1,9 @@
-# Paste this into your stack manager. `docker compose pull && docker compose up -d` updates to the newest image;
-# nothing here needs the source, only the published image.
+# Paste this into your stack manager, or save it as docker-compose.yml in a folder of its own and run
+# `docker compose up -d` there (the README's "Keep your projects in a folder (Docker)" goes step by step).
+# `docker compose pull` and then `docker compose up -d` update to the newest image; nothing here needs the source.
+#
+# Anyone who can open the page can read, change and delete the projects in the library folder: there is no login.
+# Run it only where only you, or people you trust, can reach the page.
 services:
   lamina:
     image: ghcr.io/marcelfarres/lamina:latest
@@ -12,8 +16,10 @@ services:
       LAMINA_TTL_HOURS: 0               # delete a tab's models and cut files this many hours after its last slice; 0 = never (only its "clear my data" button does)
       LAMINA_MAX_UPLOAD_MB: 0           # 0 = no cap, for your own machine. On a public address set a number (MB): bigger models are then refused (413)
       WEB_CONCURRENCY: 2                # slices that run at the same time (uvicorn workers): one per core you can spare, ~300 MB each
+      LAMINA_LIBRARY: /library          # the library (your saved projects) is this folder, for every browser. Remove this line to keep the projects in each browser instead
     volumes:
       - lamina-jobs:/app/working-files   # sliced jobs and the session survive a restart
+      - ./lamina-projects:/library       # the library on your computer: the folder lamina-projects next to this file, one .lamina.json file per revision
 
 volumes:
   lamina-jobs:

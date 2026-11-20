@@ -240,6 +240,8 @@ def test_next_free_revision(page):
 def test_file_name_is_legal_and_two_names_do_not_collide(page):
     assert page.evaluate("__t.lib.fileName('a/b:c', '1.0')") == "a_b_c_v1.0.lamina.json"
     assert page.evaluate("s => __t.lib.fileName(s, '2.0')", 'x\\/:*?"<>|\x01\x1f') == "x" + "_" * 11 + "_v2.0.lamina.json"
+    # no dot first and no two dots running: a name a server folder takes too (web/app.py, lib_path)
+    assert page.evaluate("__t.lib.fileName('.x..y...z', '1..0')") == "_x_.y__.z_v1_.0.lamina.json"
     name(page, "a/b"); first, _ = save(page)
     name(page, "a_b"); second, asked = save(page)
     assert (first["file"], second["file"], asked) == ("a_b_v1.0.lamina.json", "a_b~2_v1.0.lamina.json", [])
@@ -569,8 +571,9 @@ def test_save_button_writes_and_clears_unsaved(page):
         __t.lib.useStore({...S.browserStore(), write: () => Promise.reject(new Error('disk full'))}) }""")
     try:
         page.click("#psave2")
-        line = said(page, "lamp v1.0 could not be saved")
+        line = said(page, "Not saved: lamp v1.0 could not be written in this browser")   # the cut line still says it
         assert "disk full" in line and page.get_attribute("#dot", "class") == "err"
+        assert page.get_attribute("#status", "title") == line                  # the whole of it on hover
     finally:
         page.evaluate("import('/static/js/store.js').then(S => __t.lib.useStore(S.browserStore()))")
     assert page.is_visible("#punsaved")
@@ -1415,7 +1418,7 @@ def test_link_from_the_page_names_what_stayed_in_the_browser(page):
     page.wait_for_selector("#libask[open]")
     page.click("#libask_cancel")                                               # a<b stays in the browser
     text = note(page)
-    assert text.startswith("⚠ Linked lib: 1 revision moved into it. a_b v1.0 stayed in this browser, safe:")
+    assert text.startswith("⚠ Linked lib, not all moved: 1 revision moved into it. a_b v1.0 stayed in this browser, safe:")
     assert "already had that revision" in text and "keep both" in text and "unlink" in text and "export" in text
 
 
@@ -1433,7 +1436,7 @@ def test_the_folder_line_when_it_cannot_be_reached(page):
         assert page.inner_text("#libyours") == "Your projects are in lib. Reconnect it to see them here."
         page.evaluate("document.querySelector('#libwhere .note')?.remove()")
         page.click("#libreconnect")
-        assert note(page).startswith("⚠ The linked folder lib cannot be reached")   # not "reconnected"
+        assert note(page).startswith("⚠ Not reconnected: the linked folder lib cannot be reached")
         page.evaluate("window.__answer = 'granted'")
         page.click("#libreconnect")
         page.wait_for_function("() => /kept in the folder lib/.test(document.querySelector('#libwhere').innerText)")
@@ -1450,7 +1453,7 @@ def test_the_folder_buttons_wait_for_a_save(page):
     page.wait_for_selector("#libask[open]")
     assert where(page)[1] == [] and page.get_attribute("#liblink", "disabled") is not None
     page.evaluate("document.querySelector('#psave2').click()")                 # a second press while the first one asks
-    assert "not saved" in page.text_content("#status")
+    assert page.text_content("#status").startswith("Not saved: another save is under way.")
     page.click("#libask_cancel")
     page.wait_for_function("() => !document.querySelector('#liblink').disabled")
     assert not page.text_content("#status").startswith("saved") and page.is_visible("#punsaved")
@@ -1521,7 +1524,7 @@ def test_export_all_names_a_file_it_cannot_read(page):
         with page.expect_download() as d:
             page.click("#libexportall")
         assert zipfile.ZipFile(d.value.path()).namelist() == ["a_v1.0.lamina.json"]
-        assert note(page) == "⚠ lamina-library.zip leaves out 1 file that cannot be read: b_v1.0.lamina.json"
+        assert note(page) == "⚠ Not all exported: lamina-library.zip leaves out 1 file that cannot be read: b_v1.0.lamina.json"
     finally:
         page.evaluate("import('/static/js/store.js').then(S => __t.lib.useStore(S.browserStore()))")
 
@@ -1631,10 +1634,12 @@ def test_a_failed_read_of_the_kept_folder_is_not_no_folder(page):
     try:
         page.evaluate("__t.lib.restoreStore()")
         err = page.evaluate("__t.lib.saveCurrent(() => Promise.resolve(null)).then(() => 'saved', e => e.message)")
-        assert err == "The library could not be opened. Reload the page."
+        assert err == "The library could not be opened (blocked). Reload the page."   # with the reason (N2)
         assert page.evaluate("__t.lib.entries().then(() => 'listed', e => e.message)") == err
         page.click("#popen")
         page.wait_for_function("() => /could not be opened/.test(document.querySelector('#libwhere').innerText)")
+        text, buttons = where(page)
+        assert text.strip() == "⚠ " + err and buttons == []
         assert browser_files(page) == []
     finally:
         page.evaluate("() => { IDBObjectStore.prototype.get = window.__get; return __t.lib.restoreStore() }")
@@ -1747,7 +1752,7 @@ def test_the_note_clears_after_a_good_listing_and_names_five(page):
     page.evaluate("""() => import('/static/js/store.js').then(S => { const b = S.browserStore();
         __t.lib.useStore({...b, list: () => Promise.reject(new Error('the list failed'))}) })""")
     page.click("#popen")
-    assert note(page) == "⚠ the list failed"
+    assert note(page) == "⚠ Library not listed: the list failed"
     page.evaluate("import('/static/js/store.js').then(S => { __t.lib.useStore(S.browserStore()); __t.lib.setSaved(null) })")
     page.wait_for_function("() => document.querySelector('#libyours').dataset.listed && !document.querySelector('#libwhere .note')")
     with page.expect_file_chooser() as fc:
@@ -1775,6 +1780,6 @@ def test_progress_and_delete_errors_are_said_on_the_page(page):
         on_dialog(page, lambda d: d.accept())
         card(page, "lamp").locator(".delete").click()
         page.wait_for_function("() => /disk said no/.test(document.querySelector('#libwhere .note')?.innerText)")
-        assert note(page) == "⚠ the disk said no"
+        assert note(page) == "⚠ Not deleted: the disk said no"
     finally:
         page.evaluate("import('/static/js/store.js').then(S => __t.lib.useStore(S.browserStore()))")

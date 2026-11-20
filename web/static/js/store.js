@@ -1,5 +1,6 @@
-// where the library's revisions live: the browser's own database, or a folder the person linked (Chrome, Edge).
-// Both answer the same four calls, so the library does not care which one it has.
+// where the library's revisions live: the browser's own database, a folder the person linked (Chrome, Edge), or a
+// folder on the server (LAMINA_LIBRARY, every browser). All three answer the same calls, so the library does not care
+// which one it has.
 const EXT='.lamina.json';
 
 // one connection per call, closed when its transaction ends: a long-held one would block a page in another tab
@@ -65,6 +66,25 @@ export function folderStore(dir){
       // tab's own (its next save does not ask); the File System API gives no way to read them in the same step
       const f=await h.getFile();return {size:f.size,mtime:f.lastModified}},
     remove:file=>dir.removeEntry(file)};
+}
+
+// the folder the server keeps (web/app.py's api/library): info is api/project's `library`, {name, problem}. The server
+// swaps a write in whole and checks a removeIf under its lock. `problem` is what the server says is wrong with its
+// folder ('' when nothing), as of the last listing or write, for the folder line; a write it refuses rejects with it
+// (503: the folder, not one file, is the trouble)
+export function serverStore(info){
+  const call=async(file,o,q)=>{const r=await fetch(`api/library${file?'/'+encodeURIComponent(file):''}${q?'?'+new URLSearchParams(q):''}`,o),
+      j=await r.json().catch(()=>({}));
+    if(r.status===503&&(!file||o?.method==='PUT'))s.problem=j.detail||'';
+    if(!r.ok)throw new Error(j.detail||`the server answered ${r.status}`);return j};
+  const s={kind:'server',label:info.name,problem:info.problem||'',
+    list:async()=>{const j=await call('');s.problem=j.problem;return j.files},
+    record:async file=>({file,...await call(file)}),
+    read:async file=>(await call(file)).text,
+    write:async(file,text)=>{const j=await call(file,{method:'PUT',body:text});s.problem='';return j},
+    remove:file=>call(file,{method:'DELETE'}).then(()=>{}),
+    removeIf:(file,{mtime,size})=>call(file,{method:'DELETE'},{size,mtime}).then(j=>j.removed)};
+  return s;
 }
 
 export const kvGet=key=>tx('kv','readonly',s=>s.get(key)), kvSet=(key,value)=>tx('kv','readwrite',s=>s.put(value,key)).then(()=>{}),

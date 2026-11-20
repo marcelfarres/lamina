@@ -8,4 +8,5 @@ export const ls=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch(
 export const nice=n=>n.replace(/_/g,' ');
 // a value from a project file is somebody else's text once a bug report is opened: it goes into the form as text, never as markup
 export const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export function status(s,kind){$('#status').textContent=s;$('#dot').className=kind||''}
+// the line is cut to fit the top bar: the whole of it is on hover
+export function status(s,kind){const el=$('#status');el.textContent=el.title=s;$('#dot').className=kind||''}

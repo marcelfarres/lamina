@@ -1,6 +1,7 @@
 """Start the app on a free port and wait until it answers: the one copy, used by the UI tests (tests/ui/conftest.py)
 and by the landing-page recorder (scripts/media/record.py)."""
 import contextlib
+import os
 import pathlib
 import socket
 import subprocess
@@ -28,11 +29,12 @@ def wait(url, what, tries=120):
 
 
 @contextlib.contextmanager
-def serve_app():
-    """The app's own uvicorn, for as long as the with block lasts. Yields its base URL."""
+def serve_app(env=None):
+    """The app's own uvicorn, for as long as the with block lasts, with `env` added to its environment (a setting
+    such as LAMINA_LIBRARY). Yields its base URL."""
     port = free_port()
     proc = subprocess.Popen([sys.executable, "-m", "uvicorn", "web.app:app", "--port", str(port)], cwd=ROOT,
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            env={**os.environ, **(env or {})}, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     url = f"http://127.0.0.1:{port}"
     try:
         wait(url + "/api/modes", "the server")

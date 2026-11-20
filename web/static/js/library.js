@@ -2,7 +2,7 @@
 // What save, open, bump and delete mean for the projects kept in the library, and when the page has unsaved changes.
 // No page here (librarypage.js draws it): every rule is reachable through window.__t.lib.
 import {state, ST} from './state.js';
-import {browserStore, folderStore, idxGet, idxSet, kvGet, kvSet, kvDel} from './store.js';
+import {browserStore, folderStore, serverStore, idxGet, idxSet, kvGet, kvSet, kvDel} from './store.js';
 import {projectObj, openProjectText, syncProject, nextFree, nameOf, revOf as revText} from './project.js';
 import {snapshot} from './scene.js';
 import {memo, schedule} from './form.js';
@@ -10,8 +10,9 @@ import {zip, unzip} from './zip.js';
 export {nextFree};
 
 const EXT='.lamina.json';
-// Windows refuses these in a file name; the name inside the file is the project's, the file name is only where it lives
-const legal=s=>String(s).replace(/[\\/:*?"<>|\x00-\x1f]/g,'_');
+// Windows refuses these in a file name; the name inside the file is the project's, the file name is only where it lives.
+// No dot first (a hidden file) and no two dots running: a server folder takes no such name (web/app.py, lib_path)
+const legal=s=>String(s).replace(/[\\/:*?"<>|\x00-\x1f]/g,'_').replace(/^\.|\.(?=\.)/g,'_');
 export const fileName=(name,rev)=>`${legal(name)}_v${legal(rev)}${EXT}`;
 // a file named by hand can lack the _v: its stem is then the whole name, and its revision empty
 const cut=file=>file.lastIndexOf('_v'), stemOf=file=>cut(file)<0?file.slice(0,-EXT.length):file.slice(0,cut(file)),
@@ -154,12 +155,13 @@ async function write(file,proj,model){
   if(store.kind==='browser'&&!persisted){persisted=true;Promise.resolve().then(()=>navigator.storage?.persist?.()).catch(()=>{})}
   let w;
   try{w=await store.write(file,JSON.stringify(proj))}
-  catch(e){throw new Error(`${name} v${rev} could not be saved in ${store.label} (${e.message||e.name}). Nothing in the library changed; use export to keep a copy of this project.`)}
+  catch(e){throw new Error(`${name} v${rev} could not be written in ${store.label} (${e.message||e.name}). Nothing in the library changed; use export to keep a copy of this project.`)}
   setSaved({name,rev,snap:snapOf(proj,model),file,store:here(),mtime:w.mtime,size:w.size});   // the snap of what the file holds
-  // the file is written: an index that cannot follow is said as such. A new file has no entry and is read at the next
-  // listing; an overwritten one keeps its old card until Task 7's size and mtime check sees the change
+  // the file is written: an index that cannot follow is said as such (`saved`: the page does not call it unsaved). A new
+  // file has no entry and is read at the next listing; an overwritten one keeps its old card until Task 7's size and
+  // mtime check sees the change
   try{await reindex(file,entryOf({file,size:w.size,mtime:w.mtime,saved:proj.saved},proj))}
-  catch(e){throw new Error(`${name} v${rev} was saved in ${store.label}, but the library's list could not be updated (${e.message||e.name}).`)}
+  catch(e){throw Object.assign(new Error(`Saved, but the library's list could not be updated: ${name} v${rev} is in ${store.label} (${e.message||e.name}).`),{saved:true})}
   return {file};
 }
 
@@ -244,12 +246,15 @@ export const importFiles=(files,ask)=>one(async()=>{
 // cannot be reached is not swapped for the browser store (the library would split in two): every call on it rejects
 const LOST='The linked folder cannot be reached. Reconnect it in the library, or export the project.';
 const lost=dir=>{const no=()=>Promise.reject(new Error(LOST));return {kind:'folder',label:dir.name,list:no,read:no,write:no,remove:no}};
-// kept: the linked folder's handle; reach: the folder line's state; left: the folder an unlink or a change of folder
-// left the files in; inBrowser: the revisions still in the browser while a folder is linked (a link that skipped
-// some), which nothing would show otherwise
+// kept: the linked folder's handle; reach: the folder line's state ('server' while the server keeps the library);
+// left: the folder an unlink or a change of folder left the files in; inBrowser: the revisions still in the browser
+// while a folder (linked, or the server's) is the library, which nothing would show otherwise
 let kept=null, reach='browser', left='', linking=null, inBrowser=0;
 export const canLink=()=>'showDirectoryPicker' in window;
-export const storeState=()=>({kind:store.kind,label:store.label,state:reach,files:rows.length,left,browser:kept?inBrowser:0});
+// problem: what is wrong with the store, in words (the server's folder it cannot write, a start-up that could not read
+// where the library is), present only then
+export const storeState=()=>({kind:store.kind,label:store.label,state:reach,files:rows.length,left,browser:kept||reach==='server'?inBrowser:0,
+  ...store.problem&&{problem:store.problem}});
 const countBrowser=()=>browserStore().list().then(l=>{inBrowser=l.length},()=>{});
 // permission taken away during a session (site settings) answers NotAllowedError: from then on the folder is not reachable
 function guarded(s,dir){const g={...s};
@@ -260,14 +265,19 @@ function linked(dir,ok){kept=dir;reach=!dir?'browser':ok?'folder':'needs-permiss
 // away lists nothing: not reachable either
 const allowed=ask=>{try{return Promise.resolve(ask()).then(p=>p===undefined||p==='granted')}catch(e){return Promise.resolve(false)}};
 const reachable=(dir,asked)=>asked.then(ok=>ok&&dir.entries().next().then(()=>true)).catch(()=>false);
-// at start-up, without a click: only asks whether permission is there. Every library call waits for it (`ready`).
-// Whether a folder is linked cannot be read (the database blocked): not taken for "none", or a save would land in
-// the browser while the projects are in a folder. Every call rejects until a reload reads it
-const SHUT='The library could not be opened. Reload the page.';
-const shut=()=>{const no=()=>Promise.reject(new Error(SHUT));kept=null;reach='unknown';useStore({kind:'unknown',label:'the library',list:no,read:no,write:no,remove:no});return reach};
+// at start-up, without a click. A server that keeps the library (LAMINA_LIBRARY: api/project's `library`) is the
+// library, before anything this browser keeps; else it only asks whether permission to a kept folder is there. Every
+// library call waits for it (`ready`). Where the library is cannot be read (the server does not answer, the database
+// is blocked): not taken for "this browser", or a save would land there while the projects are elsewhere. Every call
+// rejects, with the reason, until a reload reads it
+const shut=e=>{const why=`The library could not be opened (${e?.message||e?.name||e}). Reload the page.`, no=()=>Promise.reject(new Error(why));
+  kept=null;reach='unknown';useStore({kind:'unknown',label:'the library',problem:why,list:no,read:no,write:no,remove:no});return reach};
+const served=info=>{kept=null;reach='server';useStore(serverStore(info));return countBrowser().then(()=>reach)};
 export function restoreStore(){left='';
-  const p=kvGet('folder').then(async dir=>{const r=linked(dir??null,!!dir&&await reachable(dir,allowed(()=>dir.queryPermission?.({mode:'readwrite'}))));
-    if(dir)await countBrowser();return r},shut);
+  const p=fetch('api/project').then(r=>r.ok?r.json():Promise.reject(new Error(`the server answered ${r.status}`)))
+    .then(({library})=>library?served(library):kvGet('folder').then(async dir=>{
+      const r=linked(dir??null,!!dir&&await reachable(dir,allowed(()=>dir.queryPermission?.({mode:'readwrite'}))));if(dir)await countBrowser();return r}))
+    .catch(shut);
   start(p);return ready=p}
 // from a click only. The prompt is asked for here, at once: the click's permission to show it runs out in a few seconds,
 // and a save or a link ahead in the queue can take longer. Only the check and the switch of store wait their turn
@@ -276,15 +286,26 @@ export function reconnect(){const dir=kept;if(!dir)return Promise.resolve(false)
   return one(async()=>{const ok=await reachable(dir,asked)&&kept===dir;if(ok)linked(dir,true);return ok})}
 export const unlink=()=>one(async()=>{left=kept?.name||'';await kvDel('folder');linked(null)});
 
-// Every browser revision moves into the folder: written, read back and compared, and only then removed from the browser,
-// so a failure half-way leaves each one in at least one of the two places. The bytes move as they are: a file that
-// cannot be read goes too, unchanged. A clash asks as an import does; {answer, rest:true} answers the rest of them.
-// One link at a time, and none while a save runs: a second call gets the running one's answer
+// A link moves the browser's revisions into the folder (moveInto), then keeps the folder; with the server keeping the
+// library, moveToServer moves them into its folder the same way. One move at a time, and none while a save runs: a
+// second call gets the running one's answer
 export function linkFolder(dir,ask){return linking??=one(()=>link(dir,ask)).finally(()=>{linking=null})}
+export function moveToServer(ask){return linking??=one(async()=>{const r=await moveInto(store,ask);await countBrowser();return r}).finally(()=>{linking=null})}
 async function link(dir,ask){
+  const r=await moveInto(folderStore(dir),ask);
+  try{await kvSet('folder',dir)}
+  catch(e){throw new Error(`The revisions were moved into ${dir.name}, but the folder could not be linked (${e.message||e.name}): link it again.`)}
+  // another folder picked: the old one keeps its files, and the folder line says where
+  left=kept&&!await kept.isSameEntry(dir).catch(()=>false)?kept.name:'';linked(dir,true);await countBrowser();
+  return r;
+}
+// Every browser revision moves into the store `to`: written, read back and compared, and only then removed from the
+// browser, so a failure half-way leaves each one in at least one of the two places. The bytes move as they are: a file
+// that cannot be read goes too, unchanged. A clash asks as an import does; {answer, rest:true} answers the rest of them
+async function moveInto(to,ask){
   // skipped: left in the browser; changed: those of them another tab saved again while they were being moved
   // both: those a replace moved in as a new revision, as the folder's file cannot be read (said, as an import does)
-  const from=browserStore(), to=folderStore(dir), moved=[], skipped=[], changed=[], both=[];
+  const from=browserStore(), moved=[], skipped=[], changed=[], both=[];
   const there=new Map((await to.list()).map(f=>[lc(f.file),f.file])), files=await from.list();
   let rest;
   try{for(const f of files){
@@ -311,11 +332,7 @@ async function link(dir,ask){
     moved.push(dest);
     // the revision in hand, moved as this tab last saw it (not as another tab saved it since): still this tab's to save without asking
     const s=ST.saved;
-    if(s?.file===file&&dest===file&&s.store?.kind==='browser'&&s.mtime===got.mtime&&s.size===got.size)setSaved({...s,store:{kind:'folder',label:dir.name},mtime:w.mtime,size:w.size});
-  }}catch(e){throw new Error(`Linking ${dir.name} stopped (${e.message||e.name}). ${moved.length} revisions were moved into ${dir.name}; the others are still in this browser.`)}
-  try{await kvSet('folder',dir)}
-  catch(e){throw new Error(`Linking ${dir.name} stopped (${e.message||e.name}). The revisions were moved into ${dir.name}, but the folder is not linked: link it again.`)}
-  // another folder picked: the old one keeps its files, and the folder line says where
-  left=kept&&!await kept.isSameEntry(dir).catch(()=>false)?kept.name:'';linked(dir,true);await countBrowser();
+    if(s?.file===file&&dest===file&&s.store?.kind==='browser'&&s.mtime===got.mtime&&s.size===got.size)setSaved({...s,store:{kind:to.kind,label:to.label},mtime:w.mtime,size:w.size});
+  }}catch(e){throw new Error(`The move into ${to.label} stopped (${e.message||e.name}). ${moved.length} revisions were moved into ${to.label}; the others are still in this browser.`)}
   return {moved,skipped,changed,kept:both};
 }

@@ -34,7 +34,7 @@ const exCard=n=>`<div class="card" data-example="${esc(n)}"><img src="static/exa
 // listed again on every show and change; a listing that finishes after a newer one started is dropped, and one that
 // draws what is there is not drawn again: a slice tells onChange twice, and a re-draw takes the button under the pointer
 async function render(){const k=++listing, ps=await lib.entries().catch(e=>{
-    if(!['needs-permission','unknown'].includes(lib.storeState().state)){tell(e.message,'err');failed=note}return null});   // those two the folder line says
+    const s=lib.storeState();if(s.state!=='needs-permission'&&!s.problem){tell(`Library not listed: ${e.message}`,'err');failed=note}return null});   // those the folder line says
   if(k!==listing)return;
   if(ps&&failed){if(note===failed)note='';failed=''}
   where();
@@ -46,13 +46,16 @@ async function render(){const k=++listing, ps=await lib.entries().catch(e=>{
   if(html!==drawn){y.innerHTML=drawn=html;find()}
   if(toExamples){toExamples=false;$('#libexamples').scrollIntoView()}   // after Yours is drawn: drawing it moves the section
   y.dataset.listed=1}
-// where the library is kept, said in words and an icon (📁, ⚠, 💾), with what can be done about it
+// where the library is kept, said in words and an icon (📁, ⚠, 💾), with what can be done about it. A problem (the
+// server cannot write its folder, start-up could not read where the library is) is the line, with its fix in it
 function where(){const s=lib.storeState(), b=(id,t)=>`<button class="small" id="${id}"${busy?' disabled':''}>${t}</button>`;
   const it=s.browser===1?'it':'them', stayed=s.left?` Your files stayed in <b>${esc(s.left)}</b>.`:'',
-    still=s.browser?` ${plural(s.browser,'revision')} ${s.browser===1?'is':'are'} still in this browser: unlink to see ${it}, or press ${s.state==='folder'?'change folder':'pick another folder'} and pick <b>${esc(s.label)}</b> to move ${it}.`:'';
-  const [line,buttons]=s.state==='folder'?[`📁 kept in the folder <b>${esc(s.label)}</b> · ${plural(s.files,'file')}.${still}${stayed}`,b('libchange','change folder')+b('libunlink','unlink')]
+    have=s.browser?` ${plural(s.browser,'revision')} ${s.browser===1?'is':'are'} still in this browser`:'',
+    still=have&&`${have}: unlink to see ${it}, or press ${s.state==='folder'?'change folder':'pick another folder'} and pick <b>${esc(s.label)}</b> to move ${it}.`;
+  const [line,buttons]=s.problem?[`⚠ ${esc(s.problem)}`,'']
+    :s.state==='server'?[`📁 kept in the folder <b>${esc(s.label)}</b> on the server · ${plural(s.files,'file')}.${have&&have+'.'}`,s.browser?b('libtoserver',`move ${it} to the server folder`):'']
+    :s.state==='folder'?[`📁 kept in the folder <b>${esc(s.label)}</b> · ${plural(s.files,'file')}.${still}${stayed}`,b('libchange','change folder')+b('libunlink','unlink')]
     :s.state==='needs-permission'?[`⚠ The linked folder <b>${esc(s.label)}</b> cannot be reached.${still}`,b('libreconnect',rec?'reconnecting…':'reconnect folder')+b('libchange','pick another folder')+b('libunlink','unlink')]
-    :s.state==='unknown'?['⚠ The library could not be opened. Reload the page.','']
     :['💾 kept in this browser only. Clearing the site data deletes them: use <b>export all</b> for a backup.'+stayed,
       lib.canLink()?b('liblink','link a folder'):'<button class="small" id="liblink" disabled title="needs Chrome or Edge">link a folder (needs Chrome or Edge)</button>'];
   $('#libwhere').innerHTML=`<span>${line}</span><span class="sp"></span>${buttons}${note?`<div class="note">${esc(note)}</div>`:''}`}
@@ -64,46 +67,54 @@ async function hold(f){busy++;where();try{return await f()}finally{busy--;where(
 // The browser's prompt needs the click it came from: lib.reconnect() asks at once, before anything here waits
 function reconnect(){const {label}=lib.storeState(), p=lib.reconnect();rec=true;
   return hold(()=>p).catch(()=>false).then(ok=>{rec=false;
-    tell(ok?`reconnected the folder ${label}`:`The linked folder ${label} cannot be reached. Reconnect it and allow Lamina to use it, pick another folder, or unlink it.`,ok?'':'err');
+    tell(ok?`reconnected the folder ${label}`:`Not reconnected: the linked folder ${label} cannot be reached. Reconnect it and allow Lamina to use it, pick another folder, or unlink it.`,ok?'':'err');
     redraw();return ok})}
 // a revision by its file name, as the person knows it: "bunny plaque v1.0"
 const named=f=>{const m=/^(.*)_v(.+)\.lamina\.json$/.exec(f);return m?`${m[1]} v${m[2]}`:f};
-// what a link did: how many moved, and each revision that stayed in this browser, that it is safe, why, and what to do
-function told(name,{moved,skipped,changed,kept}){const asked=skipped.filter(f=>!changed.includes(f)), it=skipped.length===1?'it':'them',
-    out=[`Linked ${name}: ${plural(moved.length,'revision')} moved into it.`];
+// what a move did (a link, or the move into the server's folder): how many moved, and each revision that stayed in
+// this browser, that it is safe, why, and what to do. `did` names the move; again(it) says how to move the rest
+function told(did,{moved,skipped,changed,kept},again){const asked=skipped.filter(f=>!changed.includes(f)), it=skipped.length===1?'it':'them',
+    out=[`${did}${skipped.length?', not all moved':''}: ${plural(moved.length,'revision')} moved into it.`];
   if(kept.length)out.push(`${few(kept.map(k=>`${k.rev} as v${k.as}`))} moved in as a new revision instead of replacing, as the folder's file cannot be read.`);
   if(asked.length)out.push(`${few(asked.map(named))} stayed in this browser, safe: the folder already had that revision and the question was cancelled.`);
-  if(changed.length)out.push(`${few(changed.map(named))} stayed in this browser, safe: another tab saved ${changed.length===1?'it':'them'} again during the link (the folder has the copy from before).`);
-  if(skipped.length)out.push(`To move ${it}, press change folder, pick ${name} again and choose keep both. To see ${it} or export ${it}, unlink.`);
+  if(changed.length)out.push(`${few(changed.map(named))} stayed in this browser, safe: another tab saved ${changed.length===1?'it':'them'} again during the move (the folder has the copy from before).`);
+  if(skipped.length)out.push(again(it));
   return out.join(' ')}
 async function pick(){let dir;
-  try{dir=await window.showDirectoryPicker({mode:'readwrite'})}catch(e){if(e.name!=='AbortError')tell(e.message,'err');return}   // closed: nothing to do
+  try{dir=await window.showDirectoryPicker({mode:'readwrite'})}catch(e){if(e.name!=='AbortError')tell(`Not linked: ${e.message}`,'err');return}   // closed: nothing to do
   tell(`linking ${dir.name}…`,'busy');
-  try{const r=await hold(()=>lib.linkFolder(dir,c=>askClash(c,true,'link')));tell(told(dir.name,r),r.skipped.length?'err':'')}
-  catch(e){tell(e.message,'err')}
+  try{const r=await hold(()=>lib.linkFolder(dir,c=>askClash(c,true,'link')));
+    tell(told(`Linked ${dir.name}`,r,it=>`To move ${it}, press change folder, pick ${dir.name} again and choose keep both. To see ${it} or export ${it}, unlink.`),r.skipped.length?'err':'')}
+  catch(e){tell(`Not linked: ${e.message}`,'err')}
   redraw()}
-async function unlink(){try{await hold(lib.unlink);note='';status(`unlinked: the library is this browser again. Your files stayed in ${lib.storeState().left}.`)}catch(e){tell(e.message,'err')}redraw()}
+// the browser's revisions into the server's folder, asked about as a link asks
+async function toServer(){const {label}=lib.storeState();tell(`moving the projects into ${label}…`,'busy');
+  try{const r=await hold(()=>lib.moveToServer(c=>askClash(c,true,'link')));
+    tell(told(`Server folder ${label}`,r,it=>`To move ${it}, press move ${it} to the server folder again and choose keep both.`),r.skipped.length?'err':'')}
+  catch(e){tell(`Not moved: ${e.message}`,'err')}
+  redraw()}
+async function unlink(){try{await hold(lib.unlink);note='';status(`unlinked: the library is this browser again. Your files stayed in ${lib.storeState().left}.`)}catch(e){tell(`Not unlinked: ${e.message}`,'err')}redraw()}
 function onWhere(e){const id=e.target.closest('button')?.id;
-  if(id==='libreconnect')reconnect();else if(id==='libunlink')unlink();else if(id==='liblink'||id==='libchange')pick()}
+  if(id==='libreconnect')reconnect();else if(id==='libunlink')unlink();else if(id==='liblink'||id==='libchange')pick();else if(id==='libtoserver')toServer()}
 
 // a download the page's way (scene.js's video): a link to the blob, clicked
 async function down(f){try{const {name,blob}=await f(), a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();
-  setTimeout(()=>URL.revokeObjectURL(a.href),60000)}catch(e){tell(e.message,'err')}}
+  setTimeout(()=>URL.revokeObjectURL(a.href),60000)}catch(e){tell(`Not exported: ${e.message}`,'err')}}
 const WHY={twice:'this import had that revision twice',unreadable:'the file there cannot be read'};
 async function importNow(files){if(!files.length)return;tell(`importing ${plural(files.length,'file')}…`,'busy');
   try{const {imported,bad,skipped,kept}=await hold(()=>lib.importFiles(files,c=>askClash(c,true,'import')));
-    tell([`imported ${plural(imported.length,'file')}`,
+    tell([`imported ${plural(imported.length,'file')}`,   // what was not imported second: the cut status line still says it
+      bad.length&&`Not imported, as they cannot be read: ${few(bad)}`,
       kept.length&&`${kept.length} kept as a new revision instead of replacing: ${few(kept.map(k=>`${k.rev} as v${k.as} (${WHY[k.why]})`))}`,
-      skipped.length&&`${skipped.length} skipped, as you kept what the library had: ${few(skipped)}`,
-      bad.length&&`Not imported, as they cannot be read: ${few(bad)}`].filter(Boolean).join('. '),bad.length?'err':'')}
+      skipped.length&&`${skipped.length} skipped, as you kept what the library had: ${few(skipped)}`].filter(Boolean).join('. '),bad.length?'err':'')}
   catch(e){tell(e.message,'err')}
   redraw()}
 
 function find(){const q=$('#libfind').value.trim().toLowerCase();for(const c of $$('#library .card'))c.hidden=!(c.dataset.name??c.dataset.example).toLowerCase().includes(q)}
 
 const leave=()=>!lib.unsaved()||confirm('This tab has unsaved changes. Open anyway and lose them?');
-async function open(file){if(!leave())return;hideLibrary();try{await lib.openRevision(file)}catch(e){status(e.message,'err')}}
-async function act(f){try{await f()}catch(e){tell(e.message,'err')}render()}
+async function open(file){if(!leave())return;hideLibrary();try{await lib.openRevision(file)}catch(e){status(`Not opened: ${e.message}`,'err')}}
+async function act(f){try{await f()}catch(e){tell(`Not deleted: ${e.message}`,'err')}render()}   // a delete
 async function onCard(e){const c=e.target.closest('.card');if(!c||c.classList.contains('bad'))return;
   const name=c.dataset.name, p=shown.find(p=>p.name===name), b=e.target.closest('button'), file=e.target.closest('.rev')?.dataset.file;
   if(!p)return;
@@ -142,7 +153,7 @@ export function initLibraryPage(o){ex=o;
   $('#libclose').onclick=hideLibrary;$('#libyours').onclick=onCard;$('#libfind').oninput=find;$('#libwhere').onclick=onWhere;
   $('#libimport').onclick=()=>{const i=document.createElement('input');i.type='file';i.multiple=true;i.accept='.json,.zip';i.onchange=()=>importNow([...i.files]);i.click()};
   $('#libexportall').onclick=()=>down(async()=>{const r=await lib.exportAll();
-    if(r.skipped.length)tell(`${r.name} leaves out ${plural(r.skipped.length,'file')} that cannot be read: ${few(r.skipped)}`,'err');return r});
+    if(r.skipped.length)tell(`Not all exported: ${r.name} leaves out ${plural(r.skipped.length,'file')} that cannot be read: ${few(r.skipped)}`,'err');return r});
   // files dropped on the page are imported, not opened by the browser
   $('#library').ondragover=e=>e.preventDefault();$('#library').ondrop=e=>{e.preventDefault();importNow([...e.dataTransfer.files])};
   $('#libexamples').innerHTML=`<h2>Examples · open one, save it, and it becomes a project of yours</h2><div class="grid">${o.examples.map(exCard).join('')}</div>`;
@@ -153,12 +164,12 @@ export function initLibraryPage(o){ex=o;
   // not the library's revision in hand: there is none when the store changed meanwhile
   // A second press while a save runs writes nothing (the library answers it with the first one's result): it says so
   // rather than "saved", and the unsaved marker tells whether changes made since are in the file
-  $('#psave2').onclick=async()=>{if(saving)return status('a save is under way: this press is not saved. Press save again once it is done.');
+  $('#psave2').onclick=async()=>{if(saving)return status('Not saved: another save is under way. Press save again once it is done.');
     // with the folder out of reach the prompt is asked for first and the save started at once after it, both inside the
     // click: the save is fixed at the press (not when the prompt is answered) and waits in the queue behind the reconnect
     saving=true;const r=lib.storeState().state==='needs-permission'?reconnect():null;
     try{const ok=await hold(()=>lib.saveCurrent(askClash));await r;if(ok)status(`saved ${state.project} v${state.rev}`)}
-    catch(e){await r;status(e.message,'err')}finally{saving=false}};
+    catch(e){await r;status(e.saved?e.message:`Not saved: ${e.message}`,'err')}finally{saving=false}};   // the failure first: the line is cut
   for(const a of ['replace','keep','cancel'])$('#libask_'+a).onclick=()=>$('#libask').close(a==='cancel'?'':a);
   addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#library').hidden&&!document.querySelector('dialog[open]'))hideLibrary()});
   // the Model tab's button names the example in hand (a slice tells onChange once its job is back)

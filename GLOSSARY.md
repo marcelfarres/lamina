@@ -61,3 +61,5 @@ The words Lamina uses for its parts. One word for one thing.
 - **Example**: a model that comes with Lamina. An example is read-only. When you save it, it becomes a project of
   yours.
 - **Linked folder**: a folder on your computer that holds the library as files, one file for each revision.
+- **Server folder**: a folder that Lamina's server keeps the library in (`LAMINA_LIBRARY`, a Docker volume), one
+  file for each revision, for every browser that opens the page. While there is one, it is the library.

@@ -22,10 +22,12 @@ What changed in each release. The GitHub release for a version is this section, 
 - **Merge only the faces that are too small.** A new folded setting, *smallest face*, closes up the faces
   lower than the size you give and leaves the rest of the model as it is. The warning about panels of stiff sheet
   that press into each other now offers it as a fix, beside bigger triangles, which make the whole model coarser.
-- **Your projects in a library.** *library* in the top bar shows every saved project with a picture. *save* keeps
-  each revision, and *version ▾* starts the next free one. Open any revision from its card.
+- **Your projects in a library.** *library* in the top bar shows every saved project with a picture, and opens any
+  revision from its card. *save* and *version ▾* beside it keep each revision and start the next free one.
 - **Keep your projects in a folder.** In Chrome and Edge, *link a folder* on the library page keeps every project
   as a file on your computer. Project files you put in that folder show up too.
+- **Keep your projects with Docker.** Start Lamina with its Docker compose file and the library is a folder on your
+  computer, the same in every browser. The top line of the library page says so.
 - **Export all, and import.** *export all (.zip)* on the library page puts every project in one zip, your backup.
   *import files…*, or a drop on the page, brings project files and zips back.
 
@@ -33,8 +35,8 @@ What changed in each release. The GitHub release for a version is this section, 
 
 - **The examples are in the library.** *pick an example…* on the Model tab opens the examples in the library, each
   with a picture. Save one and it becomes a project of yours.
-- **Smaller things you can see.** *fit view* shows a plaque from its slices. The second kind of slice carries
-  stripes, and a part with errors carries a net. *Clear my data…* keeps the library.
+- **Smaller things you can see.** *fit view* shows a plaque's slices, and *Clear my data…* in the help menu keeps
+  the library. In the 3D view the second kind of slice has stripes and a part with errors a net.
 - **The spacing graph is under its tick.** *Vary the spacing* opens the graph right below the box, not under the 3D
   view. Both axes have a title. Every slice is an upright line across the graph, and a strip under it draws the
   model from its slices, so you see where the slices are dense. The graph's settings are on the page once.

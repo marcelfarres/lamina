@@ -40,18 +40,28 @@ def server():
 
 
 @pytest.fixture(scope="session")
-def page(server):
+def browser():
     from playwright.sync_api import sync_playwright
     with sync_playwright() as p:
         name = os.environ.get("LAMINA_BROWSER", "chromium")    # playwright's own, unless a test run asks for another
-        browser = p.firefox.launch() if name == "firefox" else p.chromium.launch(channel=None if name == "chromium" else name)
-        pg = browser.new_page(viewport={"width": 1500, "height": 950})
-        pg.errors = []
-        pg.on("pageerror", lambda e: pg.errors.append(str(e)))
-        pg.goto(server + "/")
-        settle(pg)
-        yield pg
-        browser.close()
+        b = p.firefox.launch() if name == "firefox" else p.chromium.launch(channel=None if name == "chromium" else name)
+        yield b
+        b.close()
+
+
+def new_page(browser, url):
+    """The app at `url` in a tab of its own (with its own storage), settled; an uncaught JavaScript error fails the test."""
+    pg = browser.new_page(viewport={"width": 1500, "height": 950})
+    pg.errors = []
+    pg.on("pageerror", lambda e: pg.errors.append(str(e)))
+    pg.goto(url + "/")
+    settle(pg)
+    return pg
+
+
+@pytest.fixture(scope="session")
+def page(server, browser):
+    return new_page(browser, server)
 
 
 @pytest.fixture(autouse=True)
