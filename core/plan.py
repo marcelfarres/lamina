@@ -173,7 +173,6 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         notes.append(f"{shaved} sliver(s) thinner than {p['min_feature']:g} mm everywhere left out: shavings a slot cuts off its own part, "
                      f"and specks under {p['min_part']:g} mm where a slice only grazes the surface — too small to cut or handle")
     suggest_fixes(slices, p, ctx, mode)
-    n_err += len(ctx.errors) + len(dropped); n_warn += len(ctx.warnings)
 
     # split + pack
     progress("nesting the parts on sheets", 0.85)
@@ -185,7 +184,11 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
             split_slice(sl, p["sheet"], p["sheet_margin"], p["tab"], p["grain"])
         else:
             sl.pieces = islands(sl) if sl.facets is None else [Piece(sl.label, sl.profile, sl, sl.lines, sl.marks)]   # a folded net stays whole
-    n_err += _oversize(slices, p, sheet0, mesh, ctx)
+    _oversize(slices, p, sheet0, mesh, ctx)
+    # counted once the parts are cut: splitting a slice, cutting a ring into pieces and a piece too big for the sheet
+    # add their own warnings and errors, which the count taken at the check left out (bug 052: "0 warnings" above them)
+    n_err = sum(len(s.errors) for s in slices) + len(ctx.errors) + len(dropped)
+    n_warn = sum(len(s.warnings) for s in slices) + len(ctx.warnings)
     pieces = [pc for sl in slices for pc in sl.pieces]
     if p["orient_mark"]:                               # the same two directions on every part: which way is up, which face is the front
         for pc in pieces:                               # placed after the dowel and seam marks, in the room they leave
@@ -288,11 +291,11 @@ def _profiles(slices, mesh, p, again):
 def _oversize(slices, p, sheet0, mesh, ctx):
     """Every finished piece, however it was made, has to fit the sheet: a part that does not overhangs the drawing and
     takes a sheet to itself, so it is an error whether or not `split` was asked to cut it — with the size the model
-    would have to be for its parts to fit, so "too big for my sheet" comes with the number. Returns the errors added."""
+    would have to be for its parts to fit, so "too big for my sheet" comes with the number."""
     over = [(sl, pc, *min_dims(pc.geom)) for sl in slices for pc in sl.pieces      # rotation is free on the sheet
             if not fits_rotated(pc.geom, p["sheet"], p["sheet_margin"], p["grain"])]
     if not over:
-        return 0
+        return
     sw, sh = p["sheet"][0] - 2 * p["sheet_margin"], p["sheet"][1] - 2 * p["sheet_margin"]
     if p["grain"]:                                  # the part as it stands: its width on the sheet's, its height on the sheet's
         over = [(sl, pc, b[3] - b[1], b[2] - b[0]) for sl, pc, *_ in over for b in [pc.geom.bounds]]
@@ -315,7 +318,6 @@ def _oversize(slices, p, sheet0, mesh, ctx):
     ctx.errors.append(f"{len(over)} part(s) are bigger than the {sheet0[0]:g} × {sheet0[1]:g} mm sheet: "
                       f"set `size` to about {fit_txt} mm ({f:.0%} of this model)"
                       + (", or use a bigger sheet" if p["one_sheet"] else ", use a bigger sheet, or turn on `one_sheet`"))
-    return len(over) + 1
 
 
 def _slice_json(sl):

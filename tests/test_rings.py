@@ -85,3 +85,12 @@ def test_a_ring_inside_the_hole_of_the_next_is_held_by_a_lug():
     area = lambda p: sum(pc["area"] for s in p["slices"] if s["label"].startswith("Z-") for pc in s["pieces"])   # noqa: E731
     solid = build(str(EXAMPLES / "vase.stl"), "stacked", {"distribution": "count", "count": 10})
     assert area(plan) < 0.4 * area(solid), (area(plan), area(solid))    # still rings: the lugs are a few percent
+
+
+def test_the_warnings_a_ring_cut_adds_are_counted():
+    """Bug 052: cutting a long ring into pieces warns about a cut with no room for its puzzle tab, but the count the
+    page shows was taken before the cut: "0 warnings" above warning rows. The count is every warning the plan lists."""
+    plan = build(str(EXAMPLES / "egg.stl"), "stacked", {"ring_slices": True, "max_length": 60, "autofix": "off"})
+    listed = sum(len(s["warnings"]) for s in plan["slices"]) + len(plan["warnings"])
+    assert any("puzzle tab" in w for s in plan["slices"] for w in s["warnings"])
+    assert plan["counts"]["warnings"] == listed > 0, (plan["counts"], listed)
