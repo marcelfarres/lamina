@@ -6,6 +6,7 @@ import pathlib
 from shapely.geometry import Polygon
 from shapely.ops import unary_union
 
+from core.labels import mark_box
 from core.plan import build
 
 EXAMPLES = pathlib.Path(__file__).resolve().parent.parent / "examples"
@@ -65,3 +66,18 @@ def test_a_ring_slice_too_big_for_the_sheet_is_cut_across_its_wall_not_in_strips
     for _, g in _polys(plan):
         x0, y0, x1, y1 = g.bounds
         assert x1 <= 170 and y1 <= 170
+
+
+def test_no_ring_cut_runs_through_a_dowel_number():
+    plan = build(EXAMPLES / "egg.stl", "stacked", {**RINGS, "connect": "dowel", "count": 6, "max_length": 60, "hide_marks": False})
+    assert plan["counts"]["errors"] == 0
+    marks = 0
+    for sl in plan["slices"]:
+        assert len(sl["pieces"]) > 1                                   # every ring is cut
+        parts = [unary_union([Polygon(r[0], r[1:]) for r in pc["kerfed"]]) for pc in sl["pieces"]]
+        for i, pc in enumerate(sl["pieces"]):
+            others = unary_union(parts[:i] + parts[i + 1:])
+            for m in pc["kerfed_marks"]:
+                marks += 1                                              # a number's box has none of another piece in it
+                assert mark_box(m[0], m[1], m[2], m[4] if len(m) > 4 else plan["params"]["font"], m[3]).intersection(others).area < 0.05, (sl["label"], m)
+    assert marks

@@ -14,6 +14,7 @@ from shapely.geometry import LineString, Polygon
 from shapely.ops import nearest_points, unary_union
 
 from .geometry import as_multi
+from .labels import mark_box, mark_rot, mark_size
 from .split import MAX_PIECES, fits_rotated, tab
 
 CUT_W = 0.1                       # the width of the line a ring is cut apart along: the puzzle joint's own fit is the kerf's
@@ -32,13 +33,15 @@ def tongue(c, u, a, w):
 
 def cut_line(E, I, p, sl, mf, joint=None):
     """The line a ring is cut along from its outline at E to its inner edge at I, with a puzzle tab halfway, and
-    whether the tab fit — or (None, False) where the cut would run into one of the slice's cuts. With `joint` the tab
+    whether the tab fit — or (None, False) where the cut would run into one of the slice's cuts or marks. With `joint` the tab
     is a straight tongue instead, along the axis joint(e, i) gives for this cut, or none (a butt cut) where it gives
     None; where it gives True a butt cut is all it asks for (whether the tab fit: None, nothing to look further for),
     and where it gives False no cut at all: a band's pieces could not slide in past a cut that way."""
     e, i = np.array([E.x, E.y]), np.array([I.x, I.y]); L = float(np.linalg.norm(i - e)); u = (i - e) / L
     straight = LineString([e - u * 1.0, i + u * 1.0])
-    if any(straight.distance(c) < mf for c in sl.cuts):   # a distance, not a buffer per cut: 200 bands tried 800 000 of them
+    # the slice's holes and its engraved marks (dowel numbers): a cut through a number would split it between pieces
+    cuts = [*sl.cuts, *(mark_box(*m[:3], mark_size(m, p["font"]), mark_rot(m)) for m in sl.marks)]
+    if any(straight.distance(c) < mf for c in cuts):   # a distance, not a buffer per cut: 200 bands tried 800 000 of them
         return None, False
     a = None if joint is None else joint(e, i)           # after: a band's joint sweeps pieces, the dearer test
     if a is False:
@@ -49,7 +52,7 @@ def cut_line(E, I, p, sl, mf, joint=None):
     if w >= 2.0 and (joint is None or a is not None):
         c = (e + i) / 2
         t = tab(c[0], c[1], tuple(u), w, w * 1.2, 1) if joint is None else tongue(c, u, a, w)
-        if sl.profile.contains(t.buffer(w * 0.25)) and not any(t.distance(cc) < mf for cc in sl.cuts):
+        if sl.profile.contains(t.buffer(w * 0.25)) and not any(t.distance(cc) < mf for cc in cuts):
             parts, tabbed = [straight.difference(t), t.exterior.difference(straight.buffer(0.03, cap_style=2))], True
     return unary_union(parts).buffer(CUT_W / 2, cap_style=2), tabbed
 
