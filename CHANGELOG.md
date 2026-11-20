@@ -128,8 +128,10 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
   version.
 - **Every dowel is cut.** Where a layer narrows, two dowels could land on each other and both were left out with
   a warning. The vase example now opens with no warning.
-- **Examples open without warnings.** The blob, berry, bunny, cow_spot, figure, head_igea, hook, horse, pyramid,
-  ripple, snowman, tall_bar, torus and twisted examples open clean, ready to cut.
+- **Examples open without warnings.** The blob, berry, cow, cow_spot, figure, head_igea, hook, horse, pyramid,
+  ripple, snowman, tall_bar, torus and twisted examples open clean, ready to cut. The cow is now a low-poly cow made for folding.
+- **Folded nets keep tabs and numbers.** Every tab seam keeps its tab, a seam number on a short edge is engraved
+  smaller instead of left off, and coverage reads the same in any card thickness.
 - **Fewer false warnings on stacked models.** An island with no dowel no longer warns when the next layer outline is
   engraved, since the line shows where it goes. "Connectors left out" counts only pieces that miss dowels.
 
