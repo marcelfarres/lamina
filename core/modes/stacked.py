@@ -59,6 +59,13 @@ class Stacked(Mode):
         Param("dowel_shape", "choice", "round", "Dowel hole shape (round, square, pencil = hexagon, cross, horizontal / vertical slot)", choices=["round", "square", "pencil", "cross", "hslot", "vslot"], show_if=("connect", "dowel"), label="dowel hole shape"),
         Param("placement", "choice", "aligned", "aligned = the same points through the whole stack, so each dowel is one straight rod (every island that persists gets its own); to move one or add your own, alt-click a slice in the 3D view or type it under dowels · random = new points for every pair of slices, spread as far apart as that pair allows, so no two layers share a hole · lines = straight dowels you draw yourself, start → end, holes wherever they cross between two slices", choices=["aligned", "random", "lines"], show_if=("connect", ["dowel", "tab"]), label="dowel placement"),
         Param("n_points", "int", 2, "Connection points per pair of slices (per island)", 1, 20, 1, show_if=("placement", ["aligned", "random"]), label="dowels per layer"),
+        Param("hide_dowels", "bool", False, "Put each dowel only where the layer below and the layer above both cover its hole, "
+              "so the glued model shows no open holes on its steps. Inside that covered area the dowels still sit as far apart as "
+              "it allows, so on a model that tapers they are closer together than with this off and a wide layer is held less "
+              "firmly: line it up with `next layer outline`. A piece too small to hide two dowels keeps them where they can "
+              "show, and the notes name it. The first and the last layer have nothing over them: the holes in those show. "
+              "Dowels you placed yourself stay where you put them. Off = as far apart as each pair of layers allows",
+              show_if=("placement", ["aligned", "random"]), label="hide dowels"),
         Param("dowels", "points", [], "Your own dowels, on top of the automatic ones (n_points), each straight through every layer it fits (x, y in the slice plane, 0, 0 = the middle of the model). Alt-click a slice in the 3D view to add one there or remove the one you click; type its x, y here to move it", unit="mm", show_if=("placement", "aligned"), label="your own dowels"),
         Param("lines", "lines3", [], "Each line is one straight dowel through the stack: a start and an end point in "
               "the model's own x, y, z (0, 0, 0 is the middle of the model). Every pair of slices the line passes through "

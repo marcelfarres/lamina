@@ -15,6 +15,11 @@ inside to see it as a lamp.
 
   ![The library page: a project's revisions, each with open, export and delete](web/static/news/0.4.0-library.jpg)
 
+- **Hide dowels.** New for stacked slices: each dowel goes only where the layers above and below cover its hole, so a
+  tapering model shows no open holes on its steps. The end layers still show theirs.
+
+  ![A stacked vase twice: three open dowel holes ringed on its steps, then none with hide dowels on](web/static/news/0.4.0-hide-dowels.jpg)
+
 - **Band lattice.** A new technique: rings across x, y and z that slot together, best on round or boxy shapes.
   Lamina names any piece that cannot slide in. Thanks to @DaveLauber: adapted from his fork.
 

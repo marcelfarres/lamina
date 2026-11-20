@@ -439,6 +439,13 @@ does not slip through. It carries the most signal for stacked and folded work; d
   [![The spacing graph, step by step: the box ticked, a starting shape picked, a point dragged, the curve drawn from the model](docs/media/spacing_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#spacing)
 
   [Watch the walk-through](https://marcelfarres.github.io/lamina/?ref=github-readme#spacing).
+- **Dowels** can stay out of sight on a stacked model. With `hide_dowels` on, a dowel goes only where the layer
+  below its pair of layers and the layer above it cover the hole. The dowels still sit as far apart as that covered
+  area allows. On a model that tapers they are closer together than with the setting off, so a wide layer is held
+  less firmly. A piece too small to hide two dowels keeps them where they can show, and the notes name its layers.
+  The first and the last layer have no layer over them, so their holes show. Dowels you placed yourself do not move.
+
+  ![One layer of a stacked sphere from above, with hide dowels off and on: two holes on the open step, then all four under the layer glued on top](docs/media/hide_dowels.jpg)
 - **Labels** go on the part itself wherever the whole label fits on its material — on a stacked layer only where the
   layer glued on top hides it (`hide_marks`, on by default; the arrows of `orient_mark`, the dowel numbers and the
   label of a 3D-printed part keep to the same area, 1 mm in from the edge of the layer above, so the stack's top layer
