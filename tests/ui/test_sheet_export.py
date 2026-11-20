@@ -6,7 +6,7 @@ import re
 
 import pytest
 
-from .helpers import settle, plan, set_fields, zip_of, state, use, menu
+from .helpers import settle, plan, set_fields, zip_of, state, use, menu, example
 
 
 @pytest.mark.timeout(600)
@@ -203,6 +203,28 @@ def test_every_material_is_complete(page):
     assert "1.27 g/cm³" in page.text_content("#weight")
     page.select_option("#material", "cardboard")
     settle(page)
+
+
+def test_the_look_follows_the_material_into_the_next_job(page):
+    """Bug 057: fold_lamp's preset picks PETG, and picking a material turns the 3D look to that material's, plastic.
+    The next example, a project or an undo put the material back to cardboard without the picker, and the look
+    stayed: a cardboard job showed as blue plastic. Now the look follows the material whichever way it changed."""
+    look = lambda: page.evaluate("() => [document.getElementById('material').value, document.getElementById('look').value,"   # noqa: E731
+                                 " window.__t.parts()[0].material.color.getHex()]")
+    use(page, "sphere")
+    fresh = look()
+    assert fresh[:2] == ["cardboard", "group"], fresh
+    example(page, "fold_lamp")
+    assert look()[:2] == ["PETG", "plastic"]
+    example(page, "sphere")
+    assert look() == fresh                                        # by family again, its parts in their family colours
+    page.click('nav button[data-t="sheet"]')
+    page.select_option("#material", "steel")
+    settle(page)
+    assert look()[:2] == ["steel", "steel"]                       # picking a material still shows its own look
+    page.click("#undo")
+    settle(page)
+    assert look() == fresh
 
 
 @pytest.mark.timeout(1800)

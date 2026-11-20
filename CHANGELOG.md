@@ -149,6 +149,8 @@ inside to see it as a lamp.
   engraved, since the line shows where it goes. "Connectors left out" counts only pieces that miss dowels.
 - **Leg spines end on a rib.** In Curve, the end of a leg's spine that goes into the body now stops on a body rib.
   Before, it could stop past a rib's slot and leave a thin strip that can break.
+- **The 3D look follows the material.** After a printed example such as *fold_lamp*, the next example or project
+  showed cardboard as blue plastic. The look now changes with the material.
 
 ## 0.3.3
 

@@ -2,6 +2,7 @@ import {state, ST} from './state.js';
 import {MATERIALS, SHEETS, IN, MACHINES} from './catalog.js';
 import {ls, $, esc} from './util.js';
 import {DU, DUNIT} from './units.js';
+import {applyLook} from './scene.js';
 
 // presets: manufacturing (sheet+fit params), materials, sheets — builtin + user (this browser)
 export const PKEYS=()=>['material','density','machine',...ST.mode.common.filter(p=>p.group==='sheet'||p.group==='fit').map(p=>p.name)];
@@ -28,6 +29,11 @@ export function applyMachine(k){const x=machineOf(k);if(!x)return;state.machine=
   if(x.beds.length===1)state.sheet=[...x.beds[0][1]]}    // a machine by name has one bed, and that is the sheet
 export function syncPresetSelects(){
   const m=state.material||(state.material='cardboard'); if(!machineOf(state.machine)?.cuts.includes(kind(m)))state.machine=matOf(m).machine;
+  // the 3D look follows the material however it changed (an example, a project, undo): cardboard, the default, shows
+  // by family as a fresh page does, any other material its own look. The picker sets the look itself and notes it in
+  // ST.lookOf, so a look chosen by hand stays while the material does. Left to the picker alone, a cardboard job
+  // opened after fold_lamp (PETG) showed as blue plastic (bug 057)
+  if(m!==ST.lookOf){ST.lookOf=m;$('#look').value=m==='cardboard'?'group':matOf(m).look;applyLook()}
   const names=[...new Set([...Object.keys(MATERIALS),...Object.keys(userMaterials()),m])];   // m last: kept even when nobody here knows it
   $('#material').innerHTML=names.map(n=>`<option value="${esc(n)}" ${n===m?'selected':''}>${esc(n)}</option>`).join('');
   // the density box shows the stored g/cm³ in the unit on show and is never read back, so switching units cannot drift it
