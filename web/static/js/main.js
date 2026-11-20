@@ -14,6 +14,7 @@ import {slice, oops, popup, LOCAL_DOC} from './slice.js';
 import {applyLook, controls, banner, parts, guides, gizmo, axes, rings, camera, renderer, applyFold, scene, ghost, ghostUrl} from './scene.js';
 import {renderWeight, renderDownloads, applyFix} from './results.js';
 import {saveProject, openProject, bump, projectObj, projName} from './project.js';
+import './light.js';
 import {initSeams, seamsNow} from './seams.js';
 import {initFaces, facesNow} from './faces.js';
 // what each technique makes, as a small drawing on its card

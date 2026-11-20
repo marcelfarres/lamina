@@ -35,7 +35,7 @@ export async function saveProject(){
 }
 export const projName=proj=>`${proj.name||proj.model?.name||proj.example||'model'}_v${proj.rev}.lamina.json`;
 export async function openProject(f){
-  const s=JSON.parse(await f.text()); Object.assign(memo,s.memo||{}); setMode(s.mode||'interlocked',false); Object.assign(state,s.state||{}); ST.unit=s.unit||state.units||'mm';
+  const s=JSON.parse(await f.text()); Object.assign(memo,s.memo||{}); setMode(s.mode||'interlocked',false); delete state.light; delete state.lights; Object.assign(state,s.state||{});   // the lights are the file's, or none ST.unit=s.unit||state.units||'mm';
   if((s.version||0)<4&&(state.size||[]).some(Boolean))state.size=sizeToModel(state.size);   // before 0.3.2 size was along the view's axes
   state.project=s.name||state.project||''; state.rev=s.rev||state.rev||'1.0'; syncProject();
   ST.job=null; ST.pendingFile=null; ST.srcFile=null; ST.fitted=false; deselect(); $('#file').value='';   // as an example does: the upload box lets go

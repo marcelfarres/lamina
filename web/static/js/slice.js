@@ -13,7 +13,7 @@ export async function slice(){
   record();                                        // one undo step per change that gets this far
   if(ST.fresh){ST.trail=[];ST.trailT0=Date.now();act(ST.fresh);ST.fresh=''}   // after record(): a new model's own settings are not steps
   const my=++ST.seq, fd=new FormData(), loading=ST.pendingFile;
-  fd.append('client',CLIENT); fd.append('mode',ST.mode.name); fd.append('params',JSON.stringify({...state,material_kind:kind(state.material)})); fd.append('memo',JSON.stringify(memo));   // the server keeps this as the tab's session; a material of your own is checked as the one it was made from
+  fd.append('client',CLIENT); fd.append('mode',ST.mode.name); fd.append('params',JSON.stringify({...state,light:undefined,lights:undefined,material_kind:kind(state.material)})); fd.append('memo',JSON.stringify(memo));   // the server keeps this as the tab's session; a material of your own is checked as the one it was made from
   if(ST.pendingFile)fd.append('model',ST.pendingFile); else if(ST.job)fd.append('job',ST.job); else fd.append('example',$('#example').value);
   status('slicing…','busy'); $('#busy').hidden=false; $('#busy_txt').textContent='slicing…'; $('#busy_note').textContent=''; $('#busy .bar').className='bar';
   expectStages(); $('#busy_steps').innerHTML=''; ST.ghostLive=false;   // this slice's own stages, counted from the settings it runs with

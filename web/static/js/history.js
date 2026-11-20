@@ -19,9 +19,10 @@ export function record(){
 }
 // schedule(), not slice(): holding Ctrl+Z walks back several steps, and one slice of the step you land on is the
 // point — a slice per step queues minutes of work in the browser build and looks like a hang
-export function step(from,to){if(!from.length)return;act((from===undos?'undo: ':'redo: ')+changes(cur,from.at(-1)).join(', '));to.push(cur);const j=from.pop();cur=j;restoring=true;
+export function step(from,to){if(!from.length)return;const ch=changes(cur,from.at(-1)),lit=ch.length&&ch.every(c=>/^lights? /.test(c));act((from===undos?'undo: ':'redo: ')+ch.join(', '));to.push(cur);const j=from.pop();cur=j;restoring=!lit;
   const d=JSON.parse(j); if(d.m!==ST.mode.name)setMode(d.m,false);
   for(const k of Object.keys(state))delete state[k]; Object.assign(state,d.s);
+  if(lit){syncUndo();return ST.light()}   // only the lights changed: they are drawn again, nothing is sliced
   ST.unit=d.u; deselect(); applyUnit(); syncUndo(); schedule()}
 function syncUndo(){$('#undo').disabled=!undos.length;$('#redo').disabled=!redos.length}
 
