@@ -466,6 +466,15 @@ does not slip through. It carries the most signal for stacked and folded work; d
   from below and one with its own number the rod going up. A straight rod through several slices keeps the name of the
   slice it starts from; with tab connectors the peg or spacer is the connector and `Z-3a` is its part label. The
   assembly key lists every rod with its two ends and its length.
+- **Printed standoffs** (`connect` = `standoff`): the laser cuts the layers and a 3D printer makes the posts between
+  them. A standoff has a body as long as the gap and a pin at each end. The pins go into the holes of the two
+  layers, so the body keeps the distance and the pins line the layers up. The shape of a hole says which pin it
+  takes. A hole that two standoffs share has the dowel hole shape, and a short pin goes in from each side. A hole
+  that one standoff uses is a pentagon, and its pin goes through and ends flush with the far face. The export zip
+  holds the print file, named `3D-PRINT standoffs`, and a note with each size and where it goes. The standoffs lie
+  on a flat side in that file and print without supports. A job with 3D-printed layers gets the same file in its
+  print set. `shoulder` sets how wide the body is, `pin_fit` how tight the pins are. The `shade`
+  example opens with them.
 - **An assembly key** comes with the cut files (`assembly-key.txt`): what this technique's labels mean — `R-2a` is the
   *a* half of the second radial plane, `Z-3` the third ring up — then every part with its centre, what it slots onto,
   in the order the 3D view builds them. The same legend is shown in the Export tab, so the scheme is clear before the
@@ -538,9 +547,14 @@ sheets are always the same plan.
 - **Tools in the 3D view**: buttons at the left of the view add or remove a dowel, a curve point or an axis, add a
   branch, and tilt or roll a slice. Pick one, then click or drag the model. The keys (alt-click, shift-drag,
   ctrl-drag) do the same.
-- **Lamp**: tick *lamp* over the 3D view to light the model from inside and see the soft shadows it throws on the
-  floor, walls and ceiling of a room. *Bulb height*, *left–right* and *front–back* move the bulb; *bulb* picks a small
-  LED (sharp pattern) or a frosted bulb (soft).
+- **Light**: tick *light* over the 3D view to light the model and see the soft shadows it throws on the floor, walls
+  and ceiling of a room. The *Light* tab holds the lights, four at most. A light is a bulb (all round) or a spot (a
+  cone with a beam angle and a soft edge), like a real lamp you pick or your own. Each has a place (inside the model
+  or outside it), a source size (small is sharp, big is soft), a brightness in lumens and a colour, and can be turned
+  off. With the light on, the *move a light* tool of the 3D view drags a light across the view, or along one of its three
+  arrows. *Room* sets the room: shown or not, its size, the walls, the floor, and how much light the walls give back.
+  *Picture* saves the view as a PNG and says if the assembly video is lit. All of it is saved with the project and
+  is a step of undo.
 - **Export tab**: the buttons first. The text about a file opens with a click on the line under its button.
 - **Top bar**: project name, open and save, a *version* menu, undo and redo, and a *help* menu with the guide, the
   release notes, the links and *clear my data*.

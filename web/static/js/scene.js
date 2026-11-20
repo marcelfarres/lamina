@@ -22,7 +22,7 @@ view.addEventListener('wheel',e=>{if(e.target!==renderer.domElement||e.lamina)re
   e.stopPropagation();e.preventDefault();
   const w=new WheelEvent('wheel',{deltaY:y,clientX:e.clientX,clientY:e.clientY,ctrlKey:e.ctrlKey,metaKey:e.metaKey,shiftKey:e.shiftKey,bubbles:true,cancelable:true});
   w.lamina=true;renderer.domElement.dispatchEvent(w)},{capture:true,passive:false});
-const hemi=new THREE.HemisphereLight(0xffffff,0x334455,1.1); scene.add(hemi); const dl=new THREE.DirectionalLight(0xffffff,1.2); dl.position.set(1,-1,2); scene.add(dl);
+export const hemi=new THREE.HemisphereLight(0xffffff,0x334455,1.1); scene.add(hemi); export const dl=new THREE.DirectionalLight(0xffffff,1.2); dl.position.set(1,-1,2); scene.add(dl);
 export const parts=new THREE.Group(), ghost=new THREE.Group(), guides=new THREE.Group(), gizmo=new THREE.Group(), axes=new THREE.Group(), rings=new THREE.Group(); scene.add(parts,ghost,guides,gizmo,axes,rings);
 rings.visible=true;   // turn rings belong to the Model tab; showTab() hides them elsewhere
 export const ray=new THREE.Raycaster(); export let ghostUrl=null;
@@ -76,9 +76,13 @@ function renderAxes(){ // world axes at the model's corner with X/Y/Z labels + d
   for(const [i,col,name] of [[0,0xff5c5c,'X'],[1,0x5cff7a,'Y'],[2,0x5c9cff,'Z']]){const dir=new THREE.Vector3(i===0?1:0,i===1?1:0,i===2?1:0);
     axes.add(new THREE.ArrowHelper(dir,o,L,col,L*.12,L*.06));const s=label3d(name,'#'+col.toString(16).padStart(6,'0'));s.position.copy(o).addScaledVector(dir,L*1.12);s.scale.set(L*.16,L*.08,1);axes.add(s)}
   // a rod is its hole's own section (round, square, hexagon, cross, slot) swept from end to end, turned as its slice is
-  for(const [a,b,,sec,xa] of ST.plan.rods||[]){const A=V3(a),z=V3(b).sub(A),len=z.length(),x=V3(xa);z.normalize();
-    const m=new THREE.Mesh(new THREE.ExtrudeGeometry(new THREE.Shape(sec.map(([u,v])=>new THREE.Vector2(u,v))),{depth:len,bevelEnabled:false}),new THREE.MeshStandardMaterial({color:0xc8b48a,roughness:.6}));
-    m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x,z.clone().cross(x),z));m.position.copy(A);axes.add(m)}
+  const rod=(A,z,x,sec,len,color)=>{const m=new THREE.Mesh(new THREE.ExtrudeGeometry(new THREE.Shape(sec.map(([u,v])=>new THREE.Vector2(u,v))),{depth:len,bevelEnabled:false}),new THREE.MeshStandardMaterial({color,roughness:.6}));
+    m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x,z.clone().cross(x),z));m.position.copy(A);axes.add(m)};
+  for(const [a,b,,sec,xa] of ST.plan.rods||[]){const A=V3(a),z=V3(b).sub(A),len=z.length();rod(A,z.normalize(),V3(xa),sec,len,0xc8b48a)}
+  // a printed standoff: a pin into each layer (a flush one where the hole is its own), and the body that keeps the two apart
+  const so=ST.plan.standoffs, pin=f=>f?so.flush:so.pin;
+  for(const e of so?.items||[]){const A=V3(e.at),z=V3(e.z),x=V3(e.x),at=d=>A.clone().addScaledVector(z,d);
+    rod(at(-e.pins[0]),z,x,pin(e.flush[0]),e.pins[0],0xe8e8ee); rod(at(e.gap),z,x,pin(e.flush[1]),e.pins[1],0xe8e8ee); if(e.gap>0)rod(A,z,x,so.body,e.gap,0xe8e8ee)}
   // where a connector that was asked for found no room (the warning says how many): a crossed ring, seen through the parts
   for(const q of ST.plan.left_out||[]){const s=label3d('⊗','#f5b642',true);s.position.copy(V3(q));s.scale.set(L*.2,L*.1,1);s.renderOrder=10;axes.add(s)}
   renderRings();
@@ -117,75 +121,7 @@ function renderGuides(){
 const stripes=turn=>{const c=document.createElement('canvas');c.width=c.height=16;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,16,16);g.fillStyle='#555';g.fillRect(0,0,16,8);
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.rotation=turn;return t};
 const STRIPES=stripes(Math.PI/4), ACROSS=stripes(-Math.PI/4), stripesOf=g=>g==='Z'?ACROSS:STRIPED.includes(g)?STRIPES:null;
-// Lamp: a bulb inside the model, in a room whose floor, walls and ceiling catch its light and the shadows the parts
-// throw — as a camera sees a lamp in a dark room. The light falls off with the square of the distance, the picture is
-// tone-mapped (AgX) so the bright inside of the shade does not clip to flat colour, and the room gives a little of the
-// light back. A bulb is a ball, not a point, and its shadows are soft: the point light's shadow test is replaced (PCSS)
-// by one that finds how far the part between the bulb and a point is, and blurs by the bulb's size times how much
-// farther the point is than that part — sharp where a panel meets the floor, wide on a far wall, as a real bulb gives.
-// The room is a box drawn from the inside: a wall between the camera and the model is seen from behind and not drawn,
-// so the room can be looked into from any side. Off, nothing of it is on the scene and the view is the one without it.
-// ponytail: paper that glows through, and a bulb dragged in 3D, are not here
-const BULB={led:.04,frosted:.1};   // the bulb's radius, a share of the model's narrower width: a small LED, a frosted bulb
-const lamp=new THREE.Group(), bulb=new THREE.PointLight(0xffcf9e,1,0,2),   // a warm white, as a camera balanced for the room shows a 3000 K bulb
-  bulbMark=new THREE.Mesh(new THREE.SphereGeometry(1,24,16),new THREE.MeshBasicMaterial({color:0xfff6e8,toneMapped:false})),
-  glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex(),color:0xffc890,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})),
-  bounce=new THREE.HemisphereLight(0xffd6a8,0x5a4a3c,.1),   // what the lit walls give back, from above more than below
-  wallMat=new THREE.MeshStandardMaterial({color:0xf0eeea,roughness:.95,side:THREE.BackSide}), floorMat=new THREE.MeshStandardMaterial({color:0xc9c2b8,roughness:.9,side:THREE.BackSide}),
-  room=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),[wallMat,wallMat,wallMat,wallMat,wallMat,floorMat]); let lampOn=false;   // faces +x −x +y −y, ceiling, floor
-bulb.castShadow=room.receiveShadow=true; bulb.shadow.mapSize.set(1024,1024); bulb.shadow.bias=-.001; bulb.shadow.normalBias=.3;
-bounce.position.set(0,0,1); lamp.add(bulb,bulbMark,glow,bounce,room); lamp.visible=false; scene.add(lamp);
-renderer.shadowMap.autoUpdate=false;   // the shadows are made again when something but the camera moved (the render loop)
-renderer.toneMappingExposure=1.5;      // used only while the lamp tone-maps
-// The soft test, for every point light (the lamp's bulb is the only one). shadow.radius carries the bulb's radius in mm.
-// Both steps take samples on a spiral turned by a random angle at each pixel: a wide soft edge shows as fine grain, as
-// in a photo. One fixed spiral drew a wide edge as 32 streaks; an angle from interleaved gradient noise, as diagonal
-// hatching (it is made for renderers that average frames, and this view draws one).
-const PCSS=`float getPointShadow( sampler2D shadowMap, vec2 shadowMapSize, float shadowBias, float shadowRadius, vec4 shadowCoord, float shadowCameraNear, float shadowCameraFar ) {
-	float texelY = 1.0 / ( shadowMapSize.y * 2.0 ), range = shadowCameraFar - shadowCameraNear, R = shadowRadius;
-	float dr = length( shadowCoord.xyz ), dp = ( dr - shadowCameraNear ) / range + shadowBias;
-	vec3 d = shadowCoord.xyz / dr, t = normalize( cross( d, abs( d.z ) < 0.9 ? vec3( 0.0, 0.0, 1.0 ) : vec3( 1.0, 0.0, 0.0 ) ) ), b = cross( d, t );
-	float spin = 6.2831853 * fract( sin( dot( gl_FragCoord.xy, vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
-	float search = 0.5 * max( 1.0 - 2.0 * R / dr, 0.0 ), sum = 0.0, n = 0.0;   // where a part at least 2 R from the bulb's centre can hide some of the bulb
-	for ( int i = 0; i < 16; i ++ ) {
-		float r = sqrt( ( float( i ) + 0.5 ) / 16.0 ) * search, a = float( i ) * 2.39996 + spin;
-		float z = unpackRGBAToDepth( texture2D( shadowMap, cubeToUV( d + ( t * cos( a ) + b * sin( a ) ) * r, texelY ) ) );
-		if ( z < dp ) { sum += z; n += 1.0; }
-	}
-	float lit = 1.0;   // nothing in the way: no return here, the quad's mean below needs every pixel of it to get there
-	if ( n > 0.0 ) {
-		float db = shadowCameraNear + sum / n * range, pen = max( R * ( dr - db ) / ( db * dr ), 6.0 * texelY );
-		lit = 0.0;
-		for ( int i = 0; i < 32; i ++ ) {
-			float r = sqrt( ( float( i ) + 0.5 ) / 32.0 ) * pen, a = float( i ) * 2.39996 + spin;
-			lit += texture2DCompare( shadowMap, cubeToUV( d + ( t * cos( a ) + b * sin( a ) ) * r, texelY ), dp );
-		}
-		lit /= 32.0;
-	}
-	// the mean of this pixel and its two neighbours in the GPU's 2x2 quad, read through the derivatives: three spirals'
-	// worth of samples, so a third of the grain's variance, for no more lookups
-	vec2 q = mod( floor( gl_FragCoord.xy ), 2.0 ) - 0.5;
-	return lit - ( dFdx( lit ) * q.x + dFdy( lit ) * q.y ) * 0.6667;
-}
-#endif`, chunk=THREE.ShaderChunk.shadowmap_pars_fragment.replace(/float getPointShadow\([\s\S]*#endif$/,PCSS);
-if(chunk===THREE.ShaderChunk.shadowmap_pars_fragment)console.error('lamp: the point-shadow code of three.js has changed; the soft shadows are off');
-THREE.ShaderChunk.shadowmap_pars_fragment=chunk;
-function glowTex(){const c=document.createElement('canvas');c.width=c.height=64;const g=c.getContext('2d'),r=g.createRadialGradient(32,32,0,32,32,32);
-  r.addColorStop(0,'rgba(255,255,255,1)');r.addColorStop(.15,'rgba(255,255,255,.4)');r.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=r;g.fillRect(0,0,64,64);return new THREE.CanvasTexture(c)}
-export function applyLamp(){const on=$('#lamp').checked; $('#lampl').hidden=!on;
-  if(on){const b=new THREE.Box3(); for(const m of parts.children)if(m.userData.group!=='B')b.expandByObject(m);   // every part, shown or not: the room stays put while the steps run
-    if(b.isEmpty())b.setFromObject(ghost); if(b.isEmpty())return;
-    const c=b.getCenter(new THREE.Vector3()),S=b.getSize(new THREE.Vector3()),r=S.length(),br=Math.min(S.x,S.y)*BULB[$('#lampb').value],half=r*.9,high=r*1.6;
-    bulb.position.set(b.min.x+$('#lampx').value*S.x,b.min.y+$('#lampy').value*S.y,b.min.z+$('#lampz').value*S.z);   // each slider from the model's one side to the other
-    bulb.intensity=3*half*half; bulb.shadow.radius=br; bulb.shadow.camera.far=r*3; bulb.shadow.camera.updateProjectionMatrix();   // a wall as far as the room's half width is about as bright at any size
-    bulbMark.position.copy(bulb.position); bulbMark.scale.setScalar(br); glow.position.copy(bulb.position); glow.scale.setScalar(br*7);
-    room.scale.set(half*2,half*2,high); room.position.set(c.x,c.y,b.min.z-r*.002+high/2)}
-  for(const m of parts.children)m.castShadow=m.receiveShadow=on&&m.userData.group!=='B';
-  lamp.visible=on; renderer.shadowMap.enabled=on; renderer.toneMapping=on?THREE.AgXToneMapping:THREE.NoToneMapping;
-  hemi.intensity=on?0:1.1; dl.intensity=on?0:1.2; scene.background.set(on?0x050506:0x141517);
-  if(on!==lampOn){lampOn=on; for(const m of [...parts.children,room])for(const x of [m.material].flat())x.needsUpdate=true}   // the shaders gain or lose the shadow lookup
-  ST.dirty=true}
-$('#lamp').onchange=$('#lampb').onchange=$('#lampx').oninput=$('#lampy').oninput=$('#lampz').oninput=applyLamp;
+// The light (a lamp inside the model, a spot beside it: js/light.js) is set again when the parts move or change.
 export function render3D(modelUrl){
   parts.clear(); let i=0; for(const t of [STRIPES,ACROSS])t.repeat.setScalar(20/Math.max(...ST.plan.bbox));
   for(const s of ST.plan.slices)for(const pc of s.pieces){
@@ -230,7 +166,7 @@ export function render3D(modelUrl){
   $('#steps').max=max; $('#steps').value=max; applyExplode(); applyFold();
   if(!ST.ghostLive)showGhost(modelUrl);   // already shown mid-build: the same mesh, and fetching it again is not free
   clipGhost();
-  ghost.visible=$('#ghost').checked; applyLamp();
+  ghost.visible=$('#ghost').checked; ST.light();
   if(ST.selected){const m=parts.children.find(c=>c.userData.slice===ST.selected);m?highlight(m):deselect()}
   renderSeams(); renderFaces();
   if(!ST.fitted){fitView();ST.fitted=true}
@@ -295,22 +231,22 @@ function fitView(){const p=fitPose();if(!p)return;const {c,s,eye}=p;controls.tar
 // and folded up, no highlight, no lobe planes (a guide, not material), the see-through model only while there are no
 // parts. The dowel rods stay: they are the axes group's meshes, its arrows and letters are the helper. The renderer
 // keeps no picture between frames, so it is read in the same task it is drawn, and the view is drawn again at its own
-// size before the task ends: the page never shows the small frame. '' when there is nothing to show. The lamp is off
+// size before the task ends: the page never shows the small frame. '' when there is nothing to show. The light is off
 // for it too (its dark room is a way to look at the model, not the model), and on again after.
 export function snapshot(w=320,h=240){
-  const P=parts.children,fold=$('#fold'),fv=fold.value,lampBox=$('#lamp'),lit=lampBox.checked,
+  const P=parts.children,fold=$('#fold'),fv=fold.value,lit=!!state.light,
     flags=[...[rings,gizmo,guides,banner,...axes.children.filter(o=>!o.isMesh)].map(o=>[o,false]),[ghost,!P.length],...P.map(m=>[m,m.userData.group!=='B'])],
     was=flags.map(([o])=>o.visible),pos=P.map(m=>m.position.clone()),glow=P.map(m=>m.material.emissive.getHex()),
     size=renderer.getSize(new THREE.Vector2()),pr=renderer.getPixelRatio(),dirty=ST.dirty;
   let url='';
-  try{if(lit){lampBox.checked=false;applyLamp()}
+  try{if(lit){state.light=false;ST.light()}
     fold.value=1;applyFold(); flags.forEach(([o,v])=>o.visible=v); P.forEach(m=>{m.position.set(0,0,0);m.material.emissive.set(0)});
     const p=fitPose(); if(!p)return url;
     const cam=new THREE.PerspectiveCamera(camera.fov,w/h,p.s/200,p.s*20); cam.up.set(0,0,1); cam.position.copy(p.eye); cam.lookAt(p.c);
     renderer.setPixelRatio(1); renderer.setSize(w,h,false); renderer.render(scene,cam);
     url=renderer.domElement.toDataURL('image/webp',.8);   // a browser without WebP gives PNG
   }finally{fold.value=fv;applyFold(); flags.forEach(([o],i)=>o.visible=was[i]); P.forEach((m,i)=>{m.position.copy(pos[i]);m.material.emissive.setHex(glow[i])});
-    if(lit){lampBox.checked=true;applyLamp()}   // after the parts are back: the room is fitted to them
+    if(lit){state.light=true;ST.light()}   // after the parts are back: the room is fitted to them
     renderer.setPixelRatio(pr); renderer.setSize(size.x,size.y,false); renderer.render(scene,camera); drawCube(); ST.dirty=dirty||lit}   // lit: its shadows drawn again
   return url}
 // The name of the part going in, at the top centre of the 3D view while the steps slider is short of the end: drawn
@@ -346,7 +282,7 @@ export function applyExplode(){const e=+$('#explode').value,st=$('#steps'),k=+st
   showBanner(going?`step ${k} / ${+st.max}  ·  ${(ST.plan&&ST.plan.label_tag?ST.plan.label_tag+' ':'')}${going.userData.piece}`:folding&&k<+st.max?`step ${k} / ${+st.max}  ·  folding ${Math.round(share*100)} %`:'');
   $('#steps_val').textContent=`${k} / ${+st.max||0}`;   // the step counter, live while the slider is dragged
   const s=ST.selected&&parts.children.find(c=>c.userData.slice===ST.selected); if(s)drawGizmo(s);   // the handles ride with the part
-  showSeamLines(); showFaces(); applyLamp()}
+  showSeamLines(); showFaces(); ST.light()}
 $('#explode').oninput=$('#steps').oninput=applyExplode; $('#fold').oninput=applyFold; $('#ghost').onchange=()=>{ghost.visible=$('#ghost').checked;ST.dirty=true}; $('#fit').onclick=()=>{fitView();ST.dirty=true}; $('#look').onchange=$('#opacity').oninput=applyLook;
 // The build order as a video: the steps slider played into a MediaRecorder reading the canvas the view already
 // draws. Nothing is uploaded and nothing is rendered twice — the file is made in the page and saved from it.
@@ -357,6 +293,7 @@ async function recordAssembly(el){
   const rec=new MediaRecorder(cv.captureStream(30),{mimeType:'video/webm'}), chunks=[], was=st.value, txt=el.textContent;
   rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
   const done=new Promise(r=>rec.onstop=r);
+  const unlit=state.light&&state.light_video===false; if(unlit)state.light=false; ST.recording=true; ST.light();   // no numbers on the lights, and no light when the Light tab says so
   el.textContent='recording the assembly…'; rec.start();
   const hold=Math.min(700,Math.max(90,4000/max));
   for(let k=0;k<=max;k++){st.value=k;applyExplode();await new Promise(r=>setTimeout(r,hold))}
@@ -364,7 +301,7 @@ async function recordAssembly(el){
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob(chunks,{type:'video/webm'}));
   a.download=`${(state.project||'lamina').replace(/\W+/g,'_')}_${ST.mode.name}_assembly.webm`; a.click();
-  URL.revokeObjectURL(a.href); st.value=was; applyExplode(); el.textContent=txt; ST.countUse('export','video');
+  URL.revokeObjectURL(a.href); ST.recording=false; if(unlit)state.light=true; st.value=was; applyExplode(); el.textContent=txt; ST.countUse('export','video');
 }
 $('#vid_go').onclick=e=>{e.preventDefault();recordAssembly(e.currentTarget)};
 $('#viewmode').onchange=e=>{$('#view').className='view '+(e.target.value==='both'?'':e.target.value);resize();ST.dirty=true};

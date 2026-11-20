@@ -80,7 +80,7 @@ export function renderFields(){
   const com=ST.mode.common, byG=g=>fields(com.filter(p=>p.group===g)); syncProject();
   $('#g-model').innerHTML=byG('model'); $('#g-technique').innerHTML=fields(ST.mode.params)+byG('technique'); $('#g-slices').innerHTML=byG('slices');
   $('#g-sheet').innerHTML=byG('sheet'); $('#g-fit').innerHTML=byG('fit'); $('#g-checks').innerHTML=byG('checks');
-  applyShowIf(); syncPresetSelects(); renderSpacing(); syncSeams(); syncFaces(); findRows();
+  applyShowIf(); syncPresetSelects(); renderSpacing(); syncSeams(); syncFaces(); ST.light(); findRows();
 }
 function applyShowIf(){for(const el of $$('.f[data-show]')){const [k,vals]=el.dataset.show.split(':');el.hidden=!vals.split('|').includes(String(state[k]))} markChanged()}
 export const allParams=()=>[...ST.mode.common,...ST.mode.params];
@@ -115,7 +115,8 @@ $('#tabs').addEventListener('input',e=>{
 });
 // reset the parameters of one tab to their defaults
 const TABGROUPS={model:['model'],technique:['technique','slices'],sheet:['sheet','fit'],checks:['checks']};
-export function resetTab(tab){for(const p of ST.mode.common)if(TABGROUPS[tab].includes(p.group))state[p.name]=structuredClone(p.default);
+export function resetTab(tab){if(tab==='light')return ST.light('reset');   // the lights are not the slicer's: nothing to slice
+  for(const p of ST.mode.common)if(TABGROUPS[tab].includes(p.group))state[p.name]=structuredClone(p.default);
   if(tab==='technique')for(const p of ST.mode.params)state[p.name]=structuredClone(p.default);
   // the material sets the 3D look when it is picked, so the reset material takes the look back to the page's own
   if(tab==='model')ST.fitted=false; if(tab==='sheet'){applyMachine(state.machine);$('#look').value='group';applyLook()}
@@ -156,7 +157,7 @@ export const memo={};   // per-technique parameter memory: switching away and ba
 // form (see newModel). An upload after the horse example used to keep its size 300, round 3 and thicken 1: a square
 // cube came back with 14 mm corners and its 15 mm hole closed to 3.5 mm.
 export const MODEL_BOUND=['axes','curve','branches','dowels','skip','offset','tilt','roll','thick','wall','cut_shift','grow','pivot','center','extra_x','extra_y',
-  'rotate','size','scale','shrinkwrap','hollow','thicken','round','smooth'];
+  'rotate','size','scale','shrinkwrap','hollow','thicken','round','smooth','lights'];
 export function setMode(name,keep=true){
   const prev=ST.mode; ST.mode=ST.MODES.find(m=>m.name===name)||ST.MODES[0]; location.hash=ST.mode.name;
   if(prev&&prev!==ST.mode)memo[prev.name]=Object.fromEntries(prev.params.map(p=>[p.name,structuredClone(state[p.name])]));
@@ -166,7 +167,7 @@ export function setMode(name,keep=true){
   renderFields();
 }
 export function showTab(t){$$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));$$('section[data-tab]').forEach(s=>s.classList.toggle('on',s.dataset.tab===t));
-  rings.visible=t==='model';ST.dirty=true}   // the turn rings only clutter the view outside the Model tab
+  rings.visible=t==='model';ST.light();ST.dirty=true}   // the turn rings only clutter the view outside the Model tab, the lights' numbers outside the Light tab
 export function schedule(){clearTimeout(ST.timer);ST.timer=setTimeout(()=>{ST.timer=null;slice()},350)}
 
 export function syncSizeHints(){const p=allParams().find(q=>q.name==='size'); if(!p||!ST.plan)return;

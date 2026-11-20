@@ -4,7 +4,7 @@
 
 geometric: cube, cylinder, cone, pyramid, sphere, torus, bracket (L + hole), tube (hollow), tall_bar (needs splitting)
 organic:   egg, snowman (asymmetric), blob (metaball, bumpy), pear, twisted (twisted ellipsoid), bowl (thin shell),
-           dumbbell (two spheres on a neck: radial with an axis per lobe), wavy_torus (ring with a 3-period sine wave and an LED channel through it)
+           dumbbell (two spheres on a neck: radial with an axis per lobe), shade (a two-lobed lamp shade: stacked on printed standoffs), wavy_torus (ring with a 3-period sine wave and an LED channel through it)
 """
 import sys, pathlib
 import numpy as np
@@ -83,6 +83,17 @@ def vase():
     profile = np.c_[np.r_[0, r, 0], np.r_[z[0], z, z[-1]]]
     m = trimesh.creation.revolve(profile, sections=96)
     return m.apply_translation([0, 0, -27])
+
+
+def shade():
+    """A lamp shade for stacked layers held apart by printed standoffs: wide at the foot, a waist, a rounded top, and
+    two lobes across, so no two layers are the same and none is round. 45 mm tall before the ×3."""
+    z = np.linspace(0, 45, 46)
+    r = 17 + 7 * np.exp(-(z / 16) ** 2) - 3 * np.exp(-((z - 24) / 9) ** 2) - 9 * (z / 45) ** 6      # foot, waist, top
+    m = trimesh.creation.revolve(np.c_[np.r_[0, r, 0], np.r_[z[0], z, z[-1]]], sections=96)
+    v = m.vertices.copy(); v[:, :2] *= (1 + 0.16 * np.cos(2 * np.arctan2(v[:, 1], v[:, 0])))[:, None] * [1.25, 1]
+    m.vertices = v
+    return m.apply_translation([0, 0, -22.5])
 
 
 def ripple():
@@ -249,6 +260,8 @@ MODELS = {
     "ripple": ripple,
     "berry": berry,
     "hook": hook,
+    # laser-cut layers on 3D-printed standoffs
+    "shade": shade,
     # printed and folded: a groove at every fold
     "fold_test": fold_test,
     "fold_lamp": fold_lamp,

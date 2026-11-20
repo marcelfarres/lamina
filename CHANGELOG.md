@@ -30,13 +30,18 @@ inside to see it as a lamp.
 
   [![The scanned head as a stack of rings on dowels ▶](web/static/news/0.4.0-rings.jpg)](https://marcelfarres.github.io/lamina/media/rings.mp4)
 
+- **Printed standoffs for stacked layers.** On Stacked, set a gap and *connect with* to *standoff*: 3D-printed
+  posts hold the laser-cut layers apart. The print file comes in the zip, named 3D-PRINT. Try the new *shade*.
+
+  ![The shade example: laser-cut layers held apart by printed standoffs](web/static/news/0.4.0-standoff.jpg)
+
 - **Shorter pieces for small sheets.** *Max piece length* cuts a long ring into pieces no longer than the length
   you give, joined by tabs, so they fit a small sheet. Thanks to @DaveLauber: adapted from his fork.
 
   ![The head's rings cut into pieces of 150 mm at most, nested on one sheet](web/static/news/0.4.0-max-length.jpg)
 
-- **See it as a lamp.** Tick *lamp* over the 3D view: a bulb inside the model throws its pattern of light and soft
-  shadows on a room's walls. Three sliders move the bulb, and *bulb* picks LED or frosted.
+- **Light your model.** Tick *light* over the 3D view to see its light and soft shadows in a room. The new *Light*
+  tab holds up to four bulbs and spots, and the room. Drag a light in the view. All of it is saved with the project.
 
   ![The lamp tick over the 3D view: the bulb's light and soft shadows in the room](web/static/news/0.4.0-lamp.jpg)
 
@@ -145,6 +150,8 @@ inside to see it as a lamp.
   no longer ends in a thin tip.
 - **Fewer false warnings on stacked models.** An island with no dowel no longer warns when the next layer outline is
   engraved, since the line shows where it goes. "Connectors left out" counts only pieces that miss dowels.
+- **Leg spines end on a rib.** In Curve, the end of a leg's spine that goes into the body now stops on a body rib.
+  Before, it could stop past a rib's slot and leave a thin strip that can break.
 
 ## 0.3.3
 

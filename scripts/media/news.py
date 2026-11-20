@@ -149,7 +149,7 @@ def n040_lamp(app):
     app.view(30, 12, 1.7)
     app.p.check("#lamp")
     app.p.wait_for_timeout(1500)
-    app.shot("0.4.0-lamp", VIEW, [("label:has(#lamp)", "lamp")])
+    app.shot("0.4.0-lamp", VIEW, [("label:has(#lamp)", "light")])
     app.p.uncheck("#lamp")
 
 

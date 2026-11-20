@@ -42,7 +42,7 @@
       Start from a shape or press <b>follow the model</b>, drag the points, or select one and type its numbers.</li></ul>
   <h4>In the 3D view</h4>
   <ul><li>drag = orbit · wheel = zoom · right-drag = pan · click the corner cube = flat view</li>
-    <li><b>lamp</b> over the view puts a bulb inside the model and shows the shadows it throws; <b>bulb height</b>, <b>left–right</b> and <b>front–back</b> move it, and <b>bulb</b> picks a small LED (sharp pattern) or a frosted bulb (soft).</li>
+    <li><b>light</b> over the view lights the model, in a room that shows the shadows it throws. The <b>Light</b> tab holds the lights: bulbs and spots, where each one is, its size, brightness and colour, and the room. They are saved with the project. With the light on, <b>move a light</b> at the left of the view drags a light, or one of its arrows.</li>
     <li>the <b>tools</b> at the left of the view do what a key does: pick one, then click or drag the model. Esc goes back to turning the view.</li>
     <li>drag a coloured ring on the model = turn the whole model · click a part = select it</li>
     <li>a selected part gets its own handles, on the part itself: the <b>yellow arrow</b> slides it along its normal,
@@ -62,6 +62,14 @@
       change its numbers to move it. Every pair of layers it passes through gets a hole. Two lines hold each layer,
       one lets it turn.</li>
     <li>A layer that nothing joins is never deleted: the Checks tab says so and what would hold it.</li></ul>
+  <h4>Printed standoffs: laser-cut layers, 3D-printed posts</h4>
+  <ul><li>On Stacked, set <b>gap between layers</b> and <b>connect with</b> = <b>standoff</b>. Each post has a body as
+      long as the gap and a pin at each end. The pins go into the holes of the two layers.</li>
+    <li>The shape of a hole says which pin it takes. A hole in the <b>dowel hole shape</b> is shared: a short pin
+      goes in from each side. A <b>pentagon</b> hole takes one long pin, which ends flush with the far face.</li>
+    <li>The laser cuts the sheets. The 3D printer makes the file named <b>3D-PRINT standoffs</b>. Both are in the same
+      zip. Print the standoffs as they lie in the file. They need no supports.</li>
+    <li>Pins too tight or too loose: change <b>standoff pin fit</b>. A square <b>dowel hole shape</b> stops a layer turning.</li></ul>
   <h4>Library</h4>
   <ul><li><b>library</b> in the top bar opens your saved projects, newest first, each with a picture, and the examples
       under them. Click a card to open its newest revision; <b>N&nbsp;revisions&nbsp;▾</b> lists every revision, each
@@ -102,7 +110,7 @@
 <a class="kofi" href="https://ko-fi.com/marcelfarres" target="_blank" rel="noopener" data-tip="Lamina is free and always will be — no account, no paid tier, and none of that depends on donations. If you would like to support the work and can comfortably afford it, a coffee is very welcome. No pressure."><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M10.5 11.2c-.8-1-2.3-.2-1.8 1 .3.8 1.8 1.8 1.8 1.8s1.5-1 1.8-1.8c.5-1.2-1-2-1.8-1z" fill="currentColor" stroke="none"/></svg>Support on Ko-fi · thank you</a></header>
 <main>
 <aside>
-  <nav><button data-t="model" class="on">Model</button><button data-t="technique">Technique</button><button data-t="sheet">Sheet &amp; fit</button><button data-t="checks">Checks</button><button data-t="export">Export</button></nav>
+  <nav><button data-t="model" class="on">Model</button><button data-t="technique">Technique</button><button data-t="sheet">Sheet &amp; fit</button><button data-t="light">Light</button><button data-t="checks">Checks</button><button data-t="export">Export</button></nav>
   <input id="find" type="search" placeholder="find a setting…  dowel, kerf, label" aria-label="find a setting" title="type a word: the settings that match stay, from every tab (Esc clears)">
   <div id="level" role="group" aria-label="how many settings show" title="basic: the settings a first piece needs. all: every setting. A setting you changed always shows, and the search box finds every one. The result is the same either way">show <span><button data-level="basic">basic</button><button data-level="all">all</button></span> settings</div>
   <div id="tabs">
@@ -150,6 +158,10 @@
       <div class="f"><span class="k" data-tip="Your machine, or the kind of machine. Picking one fills the kerf, slot fit and inside corners below with typical values for it (they stay yours to change), and a machine listed by name also sets its bed as the sheet. A * means the bed is the maker's published size and the values are typical for that kind of machine, not measured on your material: cut the fit test (Export tab, step 1) and set the slot offset it shows. Not on the list? Set the values and the sheet size, then + keeps them as a machine of your own under its name, − deletes it, and share sends it in to get on the list">machine</span><span class="vec"><select id="machine"></select><button id="kadd" class="small" title="keep the kerf, slot offset, relief, tool and sheet size as a machine of your own, under a name">+</button><button id="kdel" class="small" title="delete the selected machine of yours">−</button><button class="small" data-feedback="machine" title="Share this machine — its name, kerf, slot offset, corner relief, tool diameter and bed, nothing else — so it ships with Lamina for the next person who owns one. Opens a prefilled email or GitHub issue for you to send">share</button></span></div>
       <div id="g-fit"></div>
     </section>
+    <section data-tab="light">
+      <h2>Light <button class="small reset" data-reset="light">reset tab</button></h2>
+      <div id="g-light"></div>
+    </section>
     <section data-tab="checks"><h2>Physical checks <button class="small reset" data-reset="checks">reset tab</button></h2><div id="g-checks"></div><h2>Report</h2><div id="report"></div></section>
     <section data-tab="export"><h2>Weight</h2><div id="weight"></div>
       <!-- Three steps, in the order they happen: the fit test decides the slot offset the parts are then cut with. -->
@@ -189,7 +201,7 @@
 </aside>
 <section class="view" id="view">
   <div id="v3d">
-    <div class="bar"><label><input type="checkbox" id="ghost" checked> model</label><label>explode <input type="range" id="explode" min="1" max="3" step="0.05" value="1"></label><label>steps <input type="range" id="steps" min="0" max="1" step="1" value="1"><span id="steps_val" class="stepsval" title="step shown of the build order">1 / 1</span></label><label id="foldl" hidden title="folded panels from flat (0 %) to folded (100 %): every face turns about its own fold line. The last steps of the steps slider do the same">fold <input type="range" id="fold" min="0" max="1" step="0.01" value="1"><span id="fold_val" class="stepsval">100 %</span></label><label>look <select id="look"><option value="group">by family</option><option>cardboard</option><option>paper</option><option>plywood</option><option>steel</option><option>brass</option><option>copper</option><option>plastic</option><option>foam</option></select></label><label title="transparency of folded panels, to see the connectors inside">panels <input type="range" id="opacity" min="0.1" max="1" step="0.05" value="1"></label><label title="a lamp: a bulb inside the model, in a room whose floor and walls catch its light and the shadows of the parts. Off, the view is as before"><input type="checkbox" id="lamp"> 💡 lamp</label><span id="lampl" hidden><label title="how high the bulb sits in the model: bottom to top">bulb height <input type="range" id="lampz" min="0" max="1" step="0.02" value="0.5"></label><label title="where the bulb sits across the model, seen from the front: left to right">left–right <input type="range" id="lampx" min="0" max="1" step="0.02" value="0.5"></label><label title="where the bulb sits through the model, seen from the front: front to back">front–back <input type="range" id="lampy" min="0" max="1" step="0.02" value="0.5"></label><label title="the light inside: a small LED throws a sharp pattern, a frosted bulb a soft one">bulb <select id="lampb"><option value="led">small LED</option><option value="frosted">frosted</option></select></label></span><button id="fit">fit view</button></div>
+    <div class="bar"><label><input type="checkbox" id="ghost" checked> model</label><label>explode <input type="range" id="explode" min="1" max="3" step="0.05" value="1"></label><label>steps <input type="range" id="steps" min="0" max="1" step="1" value="1"><span id="steps_val" class="stepsval" title="step shown of the build order">1 / 1</span></label><label id="foldl" hidden title="folded panels from flat (0 %) to folded (100 %): every face turns about its own fold line. The last steps of the steps slider do the same">fold <input type="range" id="fold" min="0" max="1" step="0.01" value="1"><span id="fold_val" class="stepsval">100 %</span></label><label>look <select id="look"><option value="group">by family</option><option>cardboard</option><option>paper</option><option>plywood</option><option>steel</option><option>brass</option><option>copper</option><option>plastic</option><option>foam</option></select></label><label title="transparency of folded panels, to see the connectors inside">panels <input type="range" id="opacity" min="0.1" max="1" step="0.05" value="1"></label><label title="light the model from the lights of the Light tab, in a room whose floor and walls catch the light and the shadows of the parts. Off, the view is as before"><input type="checkbox" id="lamp"> 💡 light</label><button id="fit">fit view</button></div>
     <div id="tools" role="toolbar" aria-label="what a click or a drag on the model does">
       <button data-tool="" title="drag turns the view · a click selects a part (Esc comes back here)">✥ turn the view</button>
       <button data-tool="alt" title="click the model where you want one · click one to remove it (the same as alt-click)">＋／－ <span></span></button>
@@ -198,7 +210,9 @@
       <button data-tool="roll" title="click a slice, then drag it sideways: it rolls (the same as ctrl-drag)">↻ roll a slice</button>
       <button data-tool="seam" title="click an edge, or drag along edges: the sheet is cut apart there · click a seam of yours to give it back · right-drag turns the view">✂ put a seam</button>
       <button data-tool="face" title="click or drag on the model to select faces, then remove them: only what is left is cut (a mask from a head) · click a removed face to put it back · right-drag turns the view">◩ select faces</button>
+      <button data-tool="light" hidden title="drag a light across the view, or one of its three arrows along it · click a light to pick it · a drag beside them turns the view">💡 move a light</button>
     </div>
+    <div id="lighthint" hidden>drag a light, or one of its arrows · click a light to pick it · Esc: turn the view</div>
     <div id="sel" hidden></div>
     <div id="seampanel" hidden>
       <div class="t"><b>✂ putting seams</b><button class="small" data-seams="mode">✓ done</button></div>
