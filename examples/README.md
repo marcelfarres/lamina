@@ -13,7 +13,8 @@ intend to sell, use your own model or the synthetic ones.
 | `lion_head` | *Lion Head* by Tina, [Poly Haven](https://polyhaven.com/a/lion_head); the carved head without its plinth (a separate body in the file), scaled to mm and stood z-up | CC0 1.0, public domain |
 | `bunny` | *Stanford Bunny*, [Stanford 3D Scanning Repository](https://graphics.stanford.edu/data/3Dscanrep/) | research use and free redistribution with acknowledgement of the Stanford Computer Graphics Laboratory; not for commercial use or in a product for sale |
 | `head_igea` | *Igea*, provided courtesy of the AIM@SHAPE Shape Repository | research and non-commercial use with acknowledgement of AIM@SHAPE and the model owner |
-| `cow`, `horse` | classic graphics test meshes, widely redistributed for research | original terms not verified; treat as research and non-commercial use |
+| `cow` | the classic graphics test cow, made for folding: scaled 1.5 ×, thickened 2.5 mm by the app's own remesh so the ears, legs and tail take two sheets, and simplified to 242 triangles (the detailed mesh is `tests/data/cow.stl`, for the tests) | original terms not verified; treat as research and non-commercial use |
+| `horse` | classic graphics test mesh, widely redistributed for research | original terms not verified; treat as research and non-commercial use |
 
 `presets.json` says what each one opens with in the app: the technique that suits the shape, a `rotate` that stands
 y-up scans upright, and parameters that slice without an error (`tests/test_presets.py` checks every one).

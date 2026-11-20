@@ -23,7 +23,7 @@ from shapely import affinity
 from shapely.geometry import MultiPolygon, Polygon, box
 from .font import strokes as glyphs
 from .geometry import as_multi, poly_coords
-from .labels import label_box, label_rect
+from .labels import label_box, label_rect, mark_rot, mark_size
 
 COLORS = {"OUTER": "#0055ff", "INNER": "#00aa00", "SCORE": "#d4a800", "GUIDE": "#ff8800", "LABEL": "#ff0000"}
 RGB = {k: tuple(int(v[i:i + 2], 16) / 255 for i in (1, 3, 5)) for k, v in COLORS.items()}
@@ -148,7 +148,7 @@ def item_for_piece(pc, note="", pad=1.0, names=None, tag="", font=4.0):
     x0, y0 = min(xs) - pad, min(ys) - pad
     it.rings = [(l, [(x - x0, y - y0) for x, y in r]) for l, r in it.rings]
     it.scores = [(s, [(x - x0, y - y0) for x, y in pts]) for s, pts in pc.get("kerfed_lines") or []]   # in the part's own frame, like `kerfed`
-    it.marks = [(m[0] - x0, m[1] - y0, m[2], m[3] if len(m) > 3 else 0.0) for m in pc.get("kerfed_marks") or []]
+    it.marks = [(m[0] - x0, m[1] - y0, m[2], m[3] if len(m) > 3 else 0.0, *m[4:]) for m in pc.get("kerfed_marks") or []]
     w, h = max(xs) - x0 + pad, max(ys) - y0 + pad
     it.leader = None
     on = label_on_part(pc)
@@ -195,7 +195,7 @@ def texts(items, font):
     lines in every format, so what the laser engraves never depends on a font the machine's software has."""
     for it in items:
         for m in it.marks:
-            yield str(m[2]), glyphs(str(m[2]), font * 0.6, m[0], m[1], it.rot + (m[3] if len(m) > 3 else 0.0)), None
+            yield str(m[2]), glyphs(str(m[2]), mark_size(m, font) * 0.6, m[0], m[1], it.rot + mark_rot(m)), None
         if it.label_pos:
             x, y, rot = it.label_pos
             yield it.label, glyphs(it.label, it.size or font, x, y, rot), it.leader
