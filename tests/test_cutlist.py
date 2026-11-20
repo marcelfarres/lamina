@@ -45,21 +45,22 @@ def test_the_same_outline_is_not_the_same_part_with_its_holes_or_its_marks_elsew
 
 
 def test_per_piece_export_merges_identical_pieces_with_a_quantity(tmp_path):
-    """A cube cut into four equal slabs is four identical squares: one file, quantity 4, the twins named in the cut list.
+    """A cube cut into four equal slabs: the three under a layer are identical squares, one file, quantity 3, the twins
+    named in the cut list; the top one carries no dowel numbers (hide engravings), so it is a part of its own, x1.
     Every per-piece file is "<part> <material> x<qty>", quantity last and written even when there is one of it."""
     plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 4, "autofix": "off", "material": "plywood"})
     files = {f.name.split(" ", 1)[1] for f in export(plan, tmp_path, fmts=("svg", "eps"), labels=True, per_piece=True)}
-    assert "Z-1 plywood x4.svg" in files and not any(f.startswith("Z-2") for f in files)
+    assert "Z-1 plywood x3.svg" in files and "Z-4 plywood x1.svg" in files and not any(f.startswith(("Z-2", "Z-3")) for f in files)
     assert "scale-check plywood x1.svg" in files and "scale-check plywood x1.eps" in files
     cut_list = (tmp_path / f"{design_name(plan)} cut-list.txt").read_text(encoding="utf-8")
-    assert "Z-1 plywood x4" in cut_list and "also Z-2, Z-3, Z-4" in cut_list
-    assert "×4" in (tmp_path / f"{design_name(plan)} Z-1 plywood x4.svg").read_text(encoding="utf-8")
+    assert "Z-1 plywood x3" in cut_list and "also Z-2, Z-3" in cut_list
+    assert "×3" in (tmp_path / f"{design_name(plan)} Z-1 plywood x3.svg").read_text(encoding="utf-8")
     # a material of several words is one word in the name, so the spaces still split it into its four fields;
     # a stranger's material name cannot reach outside the folder
     for material, tag in (("stainless steel", "stainless-steel"), ("birch / yard\\..", "birch-yard")):
         plan["params"]["material"] = material
         names = {f.name.split(" ", 1)[1] for f in export(plan, tmp_path / tag, fmts=("svg",), labels=True, per_piece=True)}
-        assert f"Z-1 {tag} x4.svg" in names, names
+        assert f"Z-1 {tag} x3.svg" in names, names
         assert all(len(n.split(" ")) in (3, 4) for n in names if n.endswith(".svg")), names
 
 
