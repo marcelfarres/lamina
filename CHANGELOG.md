@@ -150,6 +150,8 @@ inside to see it as a lamp.
   no longer ends in a thin tip.
 - **Fewer false warnings on stacked models.** An island with no dowel no longer warns when the next layer outline is
   engraved, since the line shows where it goes. "Connectors left out" counts only pieces that miss dowels.
+- **Leg spines end on a rib.** In Curve, the end of a leg's spine that goes into the body now stops on a body rib.
+  Before, it could stop past a rib's slot and leave a thin strip that can break.
 
 ## 0.3.3
 

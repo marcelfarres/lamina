@@ -687,11 +687,13 @@ def test_curve_rib_keeps_its_spine_where_the_curve_runs_past_it():
     """The horse as 0.3.3 shipped it (bug 049): its curve runs on into the head, turned aside where the flat body
     spine does not reach, and the head has no branch. Square to the curve, the last rib met no spine and floated
     (3 errors; with auto-fix, 2 blocked slots among the slices it added). The one reach for the whole model had held
-    it back by chance. It turns no further than keeps it on the spine."""
+    it back by chance. It turns no further than keeps it on the spine. And the hind leg's tongue, ending a fixed pitch
+    and a half from its joint, kept a 1.5 mm bridge past R-3's slot once R-3 leaned more: it ends on a rib's face."""
     curve_033 = [[-119, 11], [-89, 18], [-59, 23], [-14, 10], [16, 13], [50, 22], [76, 47], [91, 76], [106, 89], [136, 83]]
     plan = build(EXAMPLES / "horse.stl", "curve", {**HORSE, "curve": curve_033, "branches": BRANCHES, "autofix": "off"})
     assert plan["counts"]["errors"] == 0, [(s["label"], s["errors"]) for s in plan["slices"] if s["errors"]] + plan["errors"]
     assert "K-1" in [s for s in plan["slices"] if s["label"].startswith("R-")][-1]["engages"]
+    assert not [(s["label"], w) for s in plan["slices"] for w in s["warnings"] if "bridge" in w]
 
 
 def test_a_turned_interlocked_grid_reaches_the_corners():
