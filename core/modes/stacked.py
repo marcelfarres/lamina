@@ -122,7 +122,7 @@ class Stacked(Mode):
         geom, made, plain, stuck = shorten(sl, ctx.p, ctx.p["max_length"], [Ring(c) for c in sl.raw.geoms], sl.profile)
         if stuck:
             sl.warnings.append(f"{stuck} piece(s) longer than `max_length` or too big for the sheet found no clean place to be cut "
-                               "(dowel holes close together all along): cut by hand, or move the dowels")
+                               "(holes or slots close together all along): cut by hand, or move the dowels")
         if plain:
             sl.warnings.append(f"{plain} of its {made} cut(s) have no room for a puzzle tab (a narrow wall): glue those")
         return list(as_multi(geom).geoms) if made else None

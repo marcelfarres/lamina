@@ -164,7 +164,12 @@ def shorten(sl, p, limit, rings, geom, joint=None):
                 # only as wide as the slack in the spread closed to a single point on a band that needs its full count
                 # (2400 mm round at 100 mm: 24 pieces of exactly 100), and one slot there left the band whole
                 target = a + arc / k
-                lo, hi = a + gap, min(b - gap, a + limit) if long else b - gap
+                # room for a tab beside each cut; a stretch too short for that (under 2 × CLEAR tab widths: 48 mm at
+                # the default tab, against a limit of 40) gets a plain cut, which only needs min_feature of room
+                for room in (gap, p["min_feature"]):
+                    lo, hi = a + room, min(b - room, a + limit) if long else b - room
+                    if hi > lo:
+                        break
                 tries = _between(lo, hi, min(1600, int((hi - lo) / STEP) + 1)) if hi > lo else []
                 tries.sort(key=lambda t: abs(t - target))
                 # a tab is worth a little way, not a stub of a piece: near the spread first, tab or not, then the rest
@@ -174,7 +179,8 @@ def shorten(sl, p, limit, rings, geom, joint=None):
             got = got or rg.place(tries, sl, p, joint=joint)
             if got is None and rg.cuts:
                 # nowhere within the limit: anywhere in the stretch, so it is at least shorter, and cut again after
-                wide = _between(a + gap, b - gap, min(1600, int((b - a - 2 * gap) / STEP) + 1)) if b - a > 2 * gap else []
+                room = gap if b - a > 2 * gap else p["min_feature"]
+                wide = _between(a + room, b - room, min(1600, int((b - a - 2 * room) / STEP) + 1)) if b - a > 2 * room else []
                 got = rg.place(sorted(wide, key=lambda t: abs(t - (a + limit if long else (a + b) / 2))), sl, p, joint=joint)
             if got is None:
                 stuck += 1; done.add((round(a, 3), round(b, 3)))
