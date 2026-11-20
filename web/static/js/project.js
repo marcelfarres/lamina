@@ -38,7 +38,9 @@ export const projName=proj=>`${nameOf(proj)}_v${proj.rev}.lamina.json`;
 // Whatever was in hand stops being this tab's revision here: only openRevision() names one again, after this returns.
 // Left in place, a file from disk named like the revision opened before was saved onto it without a question
 export async function openProjectText(text,label){
-  ST.saved=null; const s=JSON.parse(text); Object.assign(memo,s.memo||{}); setMode(s.mode||'interlocked',false); Object.assign(state,s.state||{}); ST.unit=s.unit||state.units||'mm';
+  ST.saved=null; const s=JSON.parse(text); Object.assign(memo,s.memo||{}); setMode(s.mode||'interlocked',false);
+  for(const k of ['light','lights','room','light_video'])delete state[k];   // the lights and the room are the file's, or none
+  Object.assign(state,s.state||{}); ST.unit=s.unit||state.units||'mm';
   if((s.version||0)<4&&(state.size||[]).some(Boolean))state.size=sizeToModel(state.size);   // before 0.3.2 size was along the view's axes
   state.project=nameOf(s); state.rev=revOf(s); syncProject();
   ST.job=null; ST.pendingFile=null; ST.srcFile=null; ST.fitted=false; deselect(); $('#file').value='';   // as an example does: the upload box lets go

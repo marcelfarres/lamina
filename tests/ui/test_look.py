@@ -79,6 +79,6 @@ def test_the_library_picture_does_not_depend_on_the_lamp(page):
     page.evaluate(LAMP, True)
     try:
         assert page.evaluate("() => window.__t.snapshot()") == off
-        assert page.evaluate("() => [document.querySelector('#lamp').checked, window.__t.lamp(), !document.querySelector('#lampl').hidden]") == [True, True, True]
+        assert page.evaluate("() => [document.querySelector('#lamp').checked, window.__t.lamp(), document.querySelector('#light_on').checked]") == [True, True, True]
     finally:
         page.evaluate(LAMP, False)

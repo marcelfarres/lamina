@@ -16,6 +16,7 @@ import {renderWeight, renderDownloads, applyFix} from './results.js';
 import {bump, projectObj, projName} from './project.js';
 import * as lib from './library.js';
 import {initLibraryPage} from './librarypage.js';
+import './light.js';
 import {initSeams, seamsNow} from './seams.js';
 import {initFaces, facesNow} from './faces.js';
 // what each technique makes, as a small drawing on its card

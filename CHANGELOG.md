@@ -35,8 +35,8 @@ inside to see it as a lamp.
 
   ![The head's rings cut into pieces of 150 mm at most, nested on one sheet](web/static/news/0.4.0-max-length.jpg)
 
-- **See it as a lamp.** Tick *lamp* over the 3D view: a bulb inside the model throws its pattern of light and soft
-  shadows on a room's walls. Three sliders move the bulb, and *bulb* picks LED or frosted.
+- **Light your model.** Tick *light* over the 3D view to see its light and soft shadows in a room. The new *Light*
+  tab holds up to four bulbs and spots, and the room. Drag a light in the view. All of it is saved with the project.
 
   ![The lamp tick over the 3D view: the bulb's light and soft shadows in the room](web/static/news/0.4.0-lamp.jpg)
 

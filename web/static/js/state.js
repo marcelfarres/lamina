@@ -27,4 +27,5 @@ export const ST={
   ghostLive:false,
   fitted:false,
   dirty:true,
+  light:()=>{},   // js/light.js puts its own here: the lights are set again (the parts moved, another tab is on show)
   countUse:()=>{}};
