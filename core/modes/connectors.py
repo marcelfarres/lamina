@@ -35,7 +35,7 @@ def hole_mark(sl, hole, text, font):
     w, h = (lambda b: (b[2] - b[0], b[3] - b[1]))(mark_box(0, 0, text, font).bounds)
     cx, cy = hole.centroid.coords[0]
     reach = max(math.hypot(x - cx, y - cy) for x, y in hole.exterior.coords)
-    room = (sl.raw if sl.cover is None else sl.cover).buffer(-0.3)
+    room = mark_room(sl)
     cuts = [c.buffer(0.3) for c in sl.cuts]
     taken = [mark_box(*m[:3], font, mark_rot(m)) for m in sl.marks]
     for ang in (90, 270, 0, 180, 45, 135, 225, 315):
@@ -46,6 +46,11 @@ def hole_mark(sl, hole, text, font):
         if room.covers(b) and all(b.disjoint(c) for c in cuts) and all(b.disjoint(m) for m in taken):
             sl.marks.append((x, y, text))
             return
+
+
+def mark_room(sl):
+    """Where a dowel mark may lie on `sl`: its material (only its `cover` when it has one), 0.3 mm in from the edge."""
+    return (sl.raw if sl.cover is None else sl.cover).buffer(-0.3)
 
 
 def hole_of(sl, text):
