@@ -5,7 +5,8 @@ What changed in each release. The GitHub release for a version is this section, 
 ## 0.4.0
 
 A new way to build, the band lattice, and a new look: settings with full names in short sections, and tool buttons
-in the 3D view. Make a mask from any model, and light it from inside to see it as a lamp.
+in the 3D view. Keep your projects and every revision in a library, make a mask from any model, and light it from
+inside to see it as a lamp.
 
 ### Added
 
@@ -17,7 +18,7 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
 - **Band lattice.** A new technique: rings across x, y and z that slot together, best on round or boxy shapes.
   Lamina names any piece that cannot slide in. Thanks to @DaveLauber: adapted from his fork.
 
-  [![The sphere's lattice built piece by piece, step 35 of 44 ▶](web/static/news/0.4.0-bands.jpg)](https://marcelfarres.github.io/lamina/media/bands_build.mp4)
+  [![The band sphere: three families of rings, each with its own colour and pattern; the clip builds it ▶](web/static/news/0.4.0-bands.jpg)](https://marcelfarres.github.io/lamina/media/bands_build.mp4)
 
 - **Ring slices.** Tick *ring slices* on Stacked: each slice keeps only a wall, so the stack uses about a quarter
   of the material. Each dowel sits in a collar. Thanks to @DaveLauber: adapted from his fork.
@@ -55,7 +56,7 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
 - **Choose which slices go in first.** *Into the plate first* picks the X or Y slices of a crossed plaque. The
   others slide onto them one by one. *First family height* makes them a low rail. Their teeth are full width.
 
-  ![The cow as a plaque: the low rail goes in first, then the ribs slide onto it](web/static/news/0.4.0-first.jpg)
+  ![The cow as a plaque: the rail goes in first, then the ribs slide onto it](web/static/news/0.4.0-first.jpg)
 
 - **A warning for weak fingers.** Many crossing slices close together turn a slice into a comb. A finger between two
   slots that is thinner than your material can take now gets a warning with its width.
