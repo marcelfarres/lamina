@@ -9,6 +9,8 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
 
 ### Added
 
+- **Hide dowels.** A new setting for stacked slices. Each dowel goes only where the layers above and below cover its
+  hole, so a model that tapers shows no open holes on its steps. The first and last layer still show theirs.
 - **Band lattice.** A new technique: rings across x, y and z that slot together, best on round or boxy shapes.
   Lamina names any piece that cannot slide in. Thanks to @DaveLauber: adapted from his fork.
 
