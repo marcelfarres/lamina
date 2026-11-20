@@ -97,11 +97,12 @@ def check_slice(sl, p):
     # fingers: the material left between the slots of two crossing slices side by side. Narrower than the material
     # takes (about the sheet's thickness in plywood, more in a brittle or soft sheet), a finger snaps or crushes when
     # the crossing slice is pushed in, though it is wider than min_feature. Two slots of one crossing slice end to end
-    # (its line passes the model twice) leave no finger: that is not one
+    # (its line passes the model twice) leave no finger: that is not one. Every family slotted into another has
+    # them: a radial core ring between its half-slices' slots too (stacked layers carry dowel holes, not slots)
     kind, (_, share) = fit_of(p)
     least = share * sl.thickness
     owner = {id(c): lab for lab, c, _ in sl.links}                  # each slot's crossing slice
-    if sl.group in ("X", "Y", "Z") and len(sl.cuts) > 1:
+    if sl.group in ("X", "Y", "Z", "R", "C") and len(sl.cuts) > 1:
         a, b = STRtree(sl.cuts).query(sl.cuts, predicate="dwithin", distance=least - 1e-6)
         two = lambda i, j: {owner.get(id(sl.cuts[i])), owner.get(id(sl.cuts[j]))}   # noqa: E731
         widths = [d for i, j in zip(a, b) if i < j and len(two(i, j) - {None}) == 2
