@@ -337,9 +337,12 @@ does not slip through. It carries the most signal for stacked and folded work; d
   assembly key lists every rod with its two ends and its length.
 - **Printed standoffs** (`connect` = `standoff`): the laser cuts the layers and a 3D printer makes the posts between
   them. A standoff has a body as long as the gap and a pin at each end. The pins go into the holes of the two
-  layers, so the body keeps the distance and the pins line the layers up. A pin is half a layer deep, so two
-  standoffs can share one hole. The export zip holds the print file, named `3D-PRINT standoffs`, and a note with
-  each size and where it goes. `shoulder` sets how wide the body is, `pin_fit` how tight the pins are. The `shade`
+  layers, so the body keeps the distance and the pins line the layers up. The shape of a hole says which pin it
+  takes. A hole that two standoffs share has the dowel hole shape, and a short pin goes in from each side. A hole
+  that one standoff uses is a pentagon, and its pin goes through and ends flush with the far face. The export zip
+  holds the print file, named `3D-PRINT standoffs`, and a note with each size and where it goes. The standoffs lie
+  on a flat side in that file and print without supports. A job with 3D-printed layers gets the same file in its
+  print set. `shoulder` sets how wide the body is, `pin_fit` how tight the pins are. The `shade`
   example opens with them.
 - **An assembly key** comes with the cut files (`assembly-key.txt`): what this technique's labels mean — `R-2a` is the
   *a* half of the second radial plane, `Z-3` the third ring up — then every part with its centre, what it slots onto,

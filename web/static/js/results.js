@@ -85,10 +85,12 @@ export function renderDownloads(){ // the labels checkbox applies to every cut f
     ['assembled STEP',`${b}/step`,'the same model as true solids, for CAD (Fusion, FreeCAD, Onshape): every part a body with flat faces, not a triangle mesh'],
     ['plan.json',`jobs/${CLIENT}/${ST.job}/plan.json`,'everything Lamina worked out, for scripts and other tools']];
   $('#dl_title').textContent=state.printed?'The parts':'2 · The parts';
-  if(state.printed){$('#dl').innerHTML=rows(more);return}
+  // standoffs: which file is for which machine. Printed layers: one more file in the print set
+  const nso=ST.plan.standoffs?.items.length, two=!nso?'':`<div class="msg note" id="two_machines">`+(state.printed
+    ?`<b>Two print files.</b><br>⬢ The plates: the layers.<br>⬢ <b>3D-PRINT standoffs</b>: the ${nso} standoffs. Both are in the print set zip.`
+    :`<b>Two machines make this model.</b><br>✂ <b>LASER</b>: the sheet files below.<br>⬢ <b>3D PRINTER</b>: the file named <b>3D-PRINT standoffs</b> (${nso} standoffs). It is inside every sheets zip, with a note that says which size goes where.`)+`</div>`;
+  if(state.printed){$('#dl').innerHTML=two+rows(more);return}
   $('#dlfit').innerHTML=rows([['fit test SVG + DXF',`${b}/fitcut?fmt=svg,dxf&labels=${L}&step=${step}${U}`],['fit test PDF',`${b}/fitcut?fmt=pdf&labels=${L}&step=${step}${U}`]]);
-  // laser-cut layers on printed standoffs: two machines, so the tab says which files go to which
-  const two=ST.plan.standoffs?`<div class="msg note" id="two_machines"><b>Two machines make this model.</b><br>✂ <b>LASER</b>: the sheet files below.<br>⬢ <b>3D PRINTER</b>: the file named <b>3D-PRINT standoffs</b> (${ST.plan.standoffs.items.length} standoffs). It is inside every sheets zip, with a note that says which size goes where.</div>`:'';
   $('#dl').innerHTML=two+rows([
     ['sheets SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&grouped=${G}${U}`,'the usual one, a zip with one file per sheet: laser software opens the SVGs (LightBurn, xTool Creative Space, Glowforge), CAM the DXFs (Fusion, VCarve, SheetCAM)'],
     ['sheets PDF (one page per sheet)',`${b}/export?fmt=pdf&labels=${L}&key=${K}${U}`,'print it at 100 % to cut by hand or check the sizes; Glowforge and LightBurn open it too'],

@@ -7,7 +7,11 @@ The words Lamina uses for its parts. One word for one thing.
 - **Standoff**: a 3D-printed connector between two layers of a stack that has a gap. Not a *dowel*, which is a rod
   through the layers, and not a *spacer*, which is a flat part cut from the sheet.
 - **Body**: the middle of a standoff. It is as long as the gap and wider than the hole, so the layers rest on it.
-- **Pin**: an end of a standoff. It goes into the hole of one layer and is half that layer deep.
+- **Pin**: an end of a standoff. It goes into the hole of one layer.
+- **Shared hole**: a hole that two standoffs use, one from each side of the layer. It has the dowel hole shape. Each
+  pin in it is half the layer deep.
+- **Flush pin**: the pin in a hole that only one standoff uses. The hole is a pentagon. The pin is as long as the
+  layer is thick, so its end is level with the far face.
 - **Shoulder**: how much wider than the pin the body is, all round.
 
 ## Plaque

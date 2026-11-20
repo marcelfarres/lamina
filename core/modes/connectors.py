@@ -12,7 +12,8 @@ from ..labels import mark_box, mark_rot
 
 _dist = lambda a, b: math.hypot(a[0] - b[0], a[1] - b[1])   # noqa: E731
 
-PIN_SHORT = 0.1            # a standoff's pin stops this short of the layer's middle: two that meet in one hole never touch
+PIN_SHORT = 0.1            # a standoff's pin in a shared hole stops this short of the layer's middle: the two never touch
+FLUSH = "pentagon"         # the shape of a hole only one standoff uses, and of the pin that goes through it
 MIN_DOWEL = 2.0            # below this a dowel is not worth cutting for: too small to buy, too weak to locate anything
 ABC_LOWER = ABC.lower()    # the letters of connector names, no i or o (they read as 1 and 0 when engraved small)
 
@@ -70,7 +71,11 @@ class Connectors:
         # a printed standoff: a dowel's hole, and round it a body `shoulder` wider that rests on the layer
         self.shoulder = p["shoulder"] if p["connect"] == "standoff" else 0.0
         # keep the hole's real reach from the outline, not d/2: a square's corner sits at 0.71 d, a slot's end at 0.75 d
-        self.margin = hole_reach(self.d + p["slot_offset"], p["dowel_shape"]) + self.shoulder + self.mf
+        hole = self.d + p["slot_offset"]
+        reach = hole_reach(hole, p["dowel_shape"])
+        if self.shoulder:      # the body covers either hole it can stand on: the shared one, or the flush one (see flush_ends)
+            reach = max(reach, hole_reach(hole, FLUSH))
+        self.margin = reach + self.shoulder + self.mf
         self.rod = [[round(x, 3), round(y, 3)] for x, y in dowel((0, 0), self.d, p["dowel_shape"]).exterior.coords[:-1]]   # the rod's section, for the 3D view
         tab_w = self.d if p["space"] == 0 else self.d * 0.6               # a tab's width along its slot
         self.slot_w = self.t + p["slot_offset"]                           # the slot's width
@@ -79,10 +84,15 @@ class Connectors:
         self.skipped, self.bare, self.rooms = 0, 0, []                    # points that found no spot, pairs left without one, the room those pairs had
         self.named = {}                                                   # connectors so far per pair, for the letters
         self.common = None                                                # the points every slice shares (cached)
-        if self.shoulder:      # the printed part's two sections, for the 3D view and the print file: the pin is the hole's shape
+        self.pins = []                                                    # standoffs: (its entry in the plan, the slice and hole of each pin)
+        if self.shoulder:
+            # the printed part's sections, for the 3D view and the print file: a pin for a shared hole, a pin for a
+            # flush one, and the body — round, less a flat level with the pins' lowest side, which it is printed lying on
             sec = lambda g: [[round(x, 3), round(y, 3)] for x, y in g.exterior.coords[:-1]]   # noqa: E731
-            ctx.view["standoffs"] = {"pin": sec(dowel((0, 0), self.d - p["pin_fit"], p["dowel_shape"])),
-                                     "body": sec(dowel((0, 0), 2 * self.reach)), "items": []}
+            pin, flush = (dowel((0, 0), self.d - p["pin_fit"], s) for s in (p["dowel_shape"], FLUSH))
+            flat = min(pin.bounds[1], flush.bounds[1])
+            body = dowel((0, 0), 2 * self.reach).intersection(shapely.box(-self.reach, flat, self.reach, self.reach))
+            ctx.view["standoffs"] = {"pin": sec(pin), "flush": sec(flush), "body": sec(body), "items": []}
 
     def run(self):
         """Place the connectors pair by pair, say what went short, and give back the slices of the pegs and spacers."""
@@ -115,12 +125,36 @@ class Connectors:
         # was asked for is not in the cut files (as a note it sat under a green "0 warnings")
         if self.typed:
             ctx.warnings += self._said()
+        self.flush_ends()
         if p["placement"] == "aligned" and p["dowels"]:
             used = {(round(x, 2), round(y, 2)) for s in self.slices for x, y, *_ in s.cutkeys}
             for x, y in p["dowels"]:
                 if (round(x, 2), round(y, 2)) not in used:
                     self.slices[0].warnings.append(f"dowel point ({x:g}, {y:g}) is outside the material of every pair of slices — nothing cut; alt-click nearer the middle of a slice")
         return self.extra
+
+    def flush_ends(self):
+        """A standoff's pins, known once every pair is placed. A hole two standoffs share (one from each side of the
+        layer: aligned points) keeps the dowel hole shape, and each pin goes half way in. A hole only one standoff uses
+        is cut as a pentagon instead, and its pin goes through the layer and ends flush with the far face: no hole is
+        left half empty, and the shape of a hole says which end of which standoff it takes."""
+        p = self.p
+        uses = {}
+        for _, *ends in self.pins:
+            for s, k in ends:
+                uses[id(s), k] = uses.get((id(s), k), 0) + 1
+        for e, *ends in self.pins:
+            e["flush"] = [uses[id(s), k] == 1 for s, k in ends]
+            e["pins"] = [round(s.thickness if own else s.thickness / 2 - PIN_SHORT, 3) for (s, _), own in zip(ends, e["flush"])]
+            for (s, k), own in zip(ends, e["flush"]):
+                if own:
+                    old = s.cutkeys[k]; c = old.centroid
+                    new = s.cutkeys[k] = dowel((c.x, c.y), self.d + p["slot_offset"], FLUSH)
+                    s.cuts[next(i for i, g in enumerate(s.cuts) if g is old)] = new
+                    s.links = [(o, new if g is old else g, pt) for o, g, pt in s.links]
+                    text = s.cutnames[k].split("-", 1)[1]              # its mark keeps clear of the new shape
+                    for m in [m for m in s.marks if m[2] == text]:
+                        s.marks.remove(m); hole_mark(s, new, text, p["font"])
 
     # ------------------------------------------------------------ one connector
     def cut(self, x, y, ang, tab_w):
@@ -178,12 +212,9 @@ class Connectors:
             self.extra.append(self.tab_piece(name, a, i, pt, ang, spacing, gap_i, tab_w))
         elif self.shoulder:
             top = lambda v: [round(float(c), 3) for c in v]   # noqa: E731
-            # every pin half its layer deep: the standoff on the other side of a layer can share the hole (aligned
-            # points do), and one size of standoff fits every hole of a stack with one gap
-            self.ctx.view["standoffs"]["items"].append({
-                "name": name, "lo": a.label, "hi": b.label, "gap": gap_i, "pins": [round(s.thickness / 2 - PIN_SHORT, 3) for s in (a, b)],
-                "x": top(a.M[:3, 0]), "z": top(a.M[:3, 2]),
-                "at": top((a.M @ np.array([xa, ya, a.thickness / 2, 1]))[:3])})       # the middle of the body's foot, on a's top face
+            e = {"name": name, "lo": a.label, "hi": b.label, "gap": gap_i, "x": top(a.M[:3, 0]), "z": top(a.M[:3, 2]),
+                 "at": top((a.M @ np.array([xa, ya, a.thickness / 2, 1]))[:3])}       # the middle of the body's foot, on a's top face
+            self.ctx.view["standoffs"]["items"].append(e); self.pins.append((e, (a, ka), (b, kb)))   # its pins: flush_ends
         else:
             self.ctx.view["rods"].append([list((a.M @ np.array([xa, ya, -self.t / 2, 1]))[:3]), list((a.M @ np.array([xa, ya, spacing + self.t / 2, 1]))[:3]), self.d,
                                   self.rod, list(a.M[:3, 0]), name, a.label, b.label])

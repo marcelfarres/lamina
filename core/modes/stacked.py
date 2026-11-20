@@ -19,7 +19,8 @@ CONNECT_HELP = ("dowel = round/square rods through holes (drawn in the 3D view),
                 "slide while it dries, and two dowels through a piece hold it where it belongs · tab = flat pieces cut from the sheet: "
                 "a peg between touching slices, or a spacer (body + tabs into slots) when `space` > 0 — keeps the distance and the "
                 "orientation · standoff = 3D-printed posts for a stack with a gap: a pin at each end goes into the layers' holes, the body "
-                "keeps them apart. The print file comes in the zip, named 3D-PRINT · none = glue only, for a stack you are happy to line up by eye")
+                "keeps them apart. A hole two standoffs share has the dowel hole shape and takes two short pins; a hole one "
+                "standoff uses is a pentagon and its pin ends flush. The print file comes in the zip, named 3D-PRINT · none = glue only, for a stack you are happy to line up by eye")
 
 
 @register
