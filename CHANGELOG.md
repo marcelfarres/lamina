@@ -150,6 +150,8 @@ inside to see it as a lamp.
   no longer ends in a thin tip.
 - **Fewer false warnings on stacked models.** An island with no dowel no longer warns when the next layer outline is
   engraved, since the line shows where it goes. "Connectors left out" counts only pieces that miss dowels.
+- **The 3D look follows the material.** After a printed example such as *fold_lamp*, the next example or project
+  showed cardboard as blue plastic. The look now changes with the material.
 
 ## 0.3.3
 

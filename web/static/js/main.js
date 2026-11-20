@@ -48,7 +48,7 @@ async function init(){
     if(m){const ts=matThicks(n);if(!ts.some(t=>Math.abs(t[0]-state.thickness)<1e-6))state.thickness=ts[Math.floor(ts.length/2)][0];   // a stock thickness of the new material
       if(!machineOf(state.machine)?.cuts.includes(kind(n)))applyMachine(m.machine);                                                       // a machine that cuts it
       if(!shs().some(([,s])=>sameSheet(s,state.sheet)))state.sheet=[...shs()[0][1]];                                                       // a sheet it comes in
-      $('#look').value=m.look;applyLook()
+      $('#look').value=m.look;ST.lookOf=n;applyLook()
       // a printed material is the job itself, not a model of it: its sheets are plates of the bed, printed full size
       state.printed=m.family==='print';if(state.printed){$('#pr_scale').value=1;$('#pr_size').value='';$('#pr_size').dataset.mm=''}}
     renderFields();schedule()};
