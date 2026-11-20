@@ -40,13 +40,13 @@ inside to see it as a lamp.
 
   ![The head's rings cut into pieces of 150 mm at most, nested on one sheet](web/static/news/0.4.0-max-length.jpg)
 
-- **Light your model.** Tick *light* over the 3D view to see its light and soft shadows in a room. The new *Light*
-  tab holds up to four bulbs and spots, and the room. Drag a light in the view. All of it is saved with the project.
+- **Light your model.** Tick *light* over the 3D view to see its light and soft shadows in a room. The *Light* tab
+  holds up to four bulbs and spots; drag them in the view. Saved with the project.
 
-  ![The lamp tick over the 3D view: the bulb's light and soft shadows in the room](web/static/news/0.4.0-lamp.jpg)
+  ![The Light tab beside the lit lamp: the bulb's light and soft shadows on the room's walls](web/static/news/0.4.0-lamp.jpg)
 
 - **Make a mask from a model.** In Folded Panels, use the *select faces* tool: click, drag, *grow* or *connected*,
-  then *remove*. Only what is left is cut, even when you change the face size. Try it on the new *lion_head*.
+  then *remove*. *Smallest face* merges faces under a size and keeps the rest. Try both on the new *lion_head*.
 
   [![A lion head made into a mask: the face and the whole mane kept, the back removed ▶](web/static/news/0.4.0-mask.jpg)](https://marcelfarres.github.io/lamina/media/mask.mp4)
 
@@ -60,23 +60,15 @@ inside to see it as a lamp.
 
   ![The fold_box example half folded, and the fold_lantern example](web/static/news/0.4.0-examples.jpg)
 
-- **Close up only the small faces.** The folded setting *smallest face* merges the faces under the size you give
-  and keeps the rest of the model as it is.
-
 - **Choose which slices go in first.** *Into the plate first* picks the X or Y slices of a crossed plaque. The
   others slide onto them one by one. *First family height* makes them a low rail. Their teeth are full width.
 
   ![The cow as a plaque: the rail goes in first, then the ribs slide onto it](web/static/news/0.4.0-first.jpg)
 
-- **A warning for weak fingers.** Many crossing slices close together turn a slice into a comb. A finger between two
-  slots that is thinner than your material can take now gets a warning with its width.
+- **A warning for weak fingers.** A finger between two slots that is thinner than your material can take gets a
+  warning with its width. The material you pick sets that width, and how much a slice can get past.
 
-  ![The egg's spine is a comb of thin fingers: the warning gives their width](web/static/news/0.4.0-fingers.jpg)
-
-- **The checks know your material.** The material you pick on the Sheet & fit tab now sets two checks: how wide a
-  finger between slots must be, and how much material a slice can get past. The messages name the material.
-
-  ![In acrylic, which cracks, a finger must be 1.5 times the sheet: the warning says so](web/static/news/0.4.0-material.jpg)
+  ![The egg's spine is a comb of thin fingers: in acrylic, which cracks, the warning asks for 1.5 times the sheet](web/static/news/0.4.0-material.jpg)
 
 ### Changed
 
