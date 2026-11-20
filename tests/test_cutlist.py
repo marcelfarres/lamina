@@ -177,6 +177,20 @@ def test_split_tabs_interlock_on_a_plain_bar():
     assert a.intersection(b).area < 1e-6 and abs(a.area + b.area - profile.area) < 1e-6
 
 
+def test_split_tabs_interlock_on_a_bar_split_across_its_height():
+    """Bug 048: a part cut across y (a tall part) came out as two plain halves joined by a butt cut. Its tabs were
+    given to the piece they stick into, so the union and the difference did nothing. Stood up, the plain bar is cut
+    across y, and both pieces carry tabs past the cut, as they do across x."""
+    profile = as_multi(box(0, 0, 120, 300))
+    sl = types.SimpleNamespace(label="B-1", profile=profile, lines=[], marks=[], warnings=[], pieces=None, facets=None)
+    split_slice(sl, (200, 200), 5, 8)
+    a, b = sorted((pc.geom for pc in sl.pieces), key=lambda g: g.bounds[1])
+    big = 1e4
+    ha = as_multi(a.intersection(box(-big, 150.02, big, big))); hb = as_multi(b.intersection(box(-big, -big, big, 149.98)))
+    assert len(ha.geoms) >= 2 and len(hb.geoms) >= 2                  # tabs on both sides of the cut
+    assert a.intersection(b).area < 1e-6 and abs(a.area + b.area - profile.area) < 1e-6
+
+
 def test_a_split_never_leaves_a_loose_piece():
     """The tall bar, interlocked and too tall for the sheet, is split into strips; the cut used to be free to fall
     where the other family's slots end, and the lower half came apart into three pieces, one a small triangle held by
