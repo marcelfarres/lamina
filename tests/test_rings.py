@@ -85,3 +85,12 @@ def test_a_ring_inside_the_hole_of_the_next_is_held_by_a_lug():
     area = lambda p: sum(pc["area"] for s in p["slices"] if s["label"].startswith("Z-") for pc in s["pieces"])   # noqa: E731
     solid = build(str(EXAMPLES / "vase.stl"), "stacked", {"distribution": "count", "count": 10})
     assert area(plan) < 0.4 * area(solid), (area(plan), area(solid))    # still rings: the lugs are a few percent
+
+
+def test_a_peg_slot_collar_is_not_a_thin_spot():
+    """Bug 054: the collar round each peg slot of a ring was exactly 1.5 × min_feature wide, the widest wall the
+    thin-spot check flags, so every peg on the egg's rings was a "thin spot" warning (48 of them). The collar is wider
+    than that now: no peg slot is flagged, and the pieces are the same."""
+    plan = build(str(EXAMPLES / "egg.stl"), "stacked", {"ring_slices": True, "connect": "tab", "space": 0})
+    thin = [w for s in plan["slices"] for w in s.get("warnings", []) if "thin spot" in w]
+    assert not thin and plan["counts"]["errors"] == 0, (thin[:3], plan["counts"])
