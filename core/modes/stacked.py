@@ -7,7 +7,7 @@ import shapely.affinity
 from shapely.geometry import MultiPolygon
 from shapely.ops import unary_union
 from . import MAX_SLICES, Mode, Param, register, spacing_params
-from .connectors import Connectors, Layer, hole_mark, hole_of
+from .connectors import Connectors, Layer, hole_mark, hole_of, mark_room
 from ..geometry import as_multi, as_lines, section_polygons, into
 from ..labels import mark_box, mark_rot
 from ..ring import collared, ring as ring_of
@@ -97,20 +97,29 @@ class Stacked(Mode):
         extra = conn.run() if conn else []
         self.ring_down(ctx, slices)
         if p["hide_marks"]:
-            self.hide(ctx, slices)
+            self.hide(slices)
+        self.settle_marks(ctx, slices)
         return self.in_order(slices, extra) if conn else slices
 
     @staticmethod
-    def hide(ctx, slices):
+    def hide(slices):
         """Where each layer's engravings go (`cover`): under the layer glued on top of it, HIDE mm in from that layer's
-        edge, so the assembled stack shows none. The label and the arrows are placed in it later (nest, plan.build); a
-        dowel number already placed outside it moves in now, or goes, the assembly key still naming its hole. The top
-        layer has nothing over it and stays clean. Taken from the layers as built here, the rings cut back: a sliver
-        shed from the layer above later is not known yet, and HIDE takes in one thinner than itself."""
-        font = ctx.p["font"]
+        edge, so the assembled stack shows none. The label and the arrows are placed in it later (nest, plan.build), the
+        dowel numbers by settle_marks. The top layer has nothing over it and stays clean. Taken from the layers as built
+        here, the rings cut back: a sliver shed from the layer above later is not known yet, and HIDE takes in one
+        thinner than itself."""
         for a, b in zip(slices, [*slices[1:], None]):
             a.cover = MultiPolygon() if b is None else as_multi(a.raw.intersection(into(a.M, b.M, b.raw).buffer(-HIDE)))
-            for m in [m for m in a.marks if not a.cover.covers(mark_box(*m[:3], font, mark_rot(m)))]:
+
+    @staticmethod
+    def settle_marks(ctx, slices):
+        """Every dowel number where hole_mark would put it now: the numbers were placed while a ring slice was still
+        ring_up's wide placement ring, and over its hollow once ring_down cut the wall back (bug 051), and before the
+        cover was known. One that is off its room moves in, or goes, the assembly key still naming its hole."""
+        font = ctx.p["font"]
+        for a in slices:
+            room = mark_room(a)
+            for m in [m for m in a.marks if not room.covers(mark_box(*m[:3], font, mark_rot(m)))]:
                 a.marks.remove(m)
                 hole_mark(a, hole_of(a, m[2]), m[2], font)
 

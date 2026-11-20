@@ -839,6 +839,20 @@ def test_orientation_arrows_are_two_lines_inside_every_part_clear_of_its_marks()
                 assert all(not a.intersects(mark_box(x, y, t, font, rot)) for x, y, t, rot in pc["marks"])
 
 
+def test_a_dowel_number_on_a_ring_slice_lies_on_its_wall():
+    """Bug 051: ring slices place their dowels while each slice is still a wide ring, then cut it back to its wall. A
+    dowel number placed in the wide ring hung over the hollow, up to 81 % of it off the part at a 4 mm wall, with
+    `hide_marks` off and on every fit coupon of a ring stack. Every number lies whole on its part."""
+    from shapely.geometry import MultiPolygon, Polygon
+    from core.labels import mark_box
+    plan = build(EXAMPLES / "egg.stl", "stacked", {"ring_slices": True, "ring_wall": 4, "hide_marks": False, "autofix": "off"})
+    font = plan["params"]["font"]
+    numbers = [(pc["label"], MultiPolygon([Polygon(r[0], r[1:]) for r in pc["kerfed"]]).buffer(0.01), mark_box(x, y, t, font, r))
+               for sl in plan["slices"] for pc in sl["pieces"] for x, y, t, r in pc["kerfed_marks"]]
+    assert len(numbers) > 20
+    assert all(part.covers(box) for _, part, box in numbers), [lab for lab, part, box in numbers if not part.covers(box)][:6]
+
+
 def test_a_stack_hides_every_engraving_under_the_layer_above():
     """`hide_marks`, on by default: everything engraved on a stacked layer — its label, its orientation arrows, its dowel
     numbers — lies under the outline of the layer glued on top of it, so the glued pyramid shows none of it, and the
