@@ -24,9 +24,9 @@ const lc=s=>s.normalize('NFC').toLowerCase();
 const num=r=>String(r).split('.').map(x=>+x||0);
 const byRev=(a,b)=>{const [x,y]=num(a.rev),[u,v]=num(b.rev);return u-x||v-y};   // newest first
 
-// rows: the index entries of the last listing; last: them grouped; seen: the listing itself (lower-cased file name → its size and mtime)
-let store=browserStore(), rows=[], last=[], seen=new Map(), first=null, saving=null, persisted=false;
-export function useStore(s){store=s;rows=[];last=[];seen=new Map();first=null}
+// rows: the index entries of the last listing (each with its file's size and mtime); last: them grouped
+let store=browserStore(), rows=[], last=[], first=null, saving=null, persisted=false;
+export function useStore(s){store=s;rows=[];last=[];first=null}
 const here=()=>({kind:store.kind,label:store.label});
 const sameStore=()=>ST.saved?.store?.kind===store.kind&&ST.saved.store.label===store.label;
 
@@ -44,7 +44,8 @@ const sane=e=>['name','rev','saved','preview'].every(k=>typeof e?.[k]==='string'
 async function readEntry(s,f){
   const at={file:f.file,size:f.size,mtime:f.mtime,saved:new Date(f.mtime).toISOString(),preview:''};
   try{return entryOf(at,parse(await s.read(f.file)))}
-  catch(e){return {...at,name:f.file,rev:'',bad:true}}   // listed by its file name; Lamina never writes onto it or deletes it
+  catch(e){if(e.unanswered)throw e;   // not heard is not unreadable: nothing is cached, the next listing reads it again
+    return {...at,name:f.file,rev:'',bad:true}}   // listed by its file name; Lamina never writes onto it or deletes it
 }
 const group=()=>{const by=new Map();
   // size and mtime: the file as listed, which a delete from this card expects to find
@@ -64,7 +65,7 @@ export async function entries(){
   // an entry is trusted while its file's size and mtime are unchanged: a library of big models opens without reading them
   const out=[];for(const f of files){let e=idx.get(f.file);if(!sane(e)||e.size!==f.size||e.mtime!==f.mtime){e=await readEntry(s,f);changed=true}out.push(e)}
   if(s!==store)return last;   // useStore() overtook this listing: it is not the current store's, and changes nothing
-  rows=out;seen=new Map(files.map(f=>[lc(f.file),f]));
+  rows=out;
   if(changed)await idxPut(s,rows);
   return group();
 }
@@ -112,7 +113,7 @@ function place(name,rev,own){
   own=own||rows.find(r=>r.name===name&&!r.bad)?.file;let stem=own&&stemOf(own);
   if(!stem){const other=new Set(rows.map(r=>lc(stemOf(r.file)))),base=legal(name);stem=base;for(let k=2;other.has(lc(stem));k++)stem=`${base}~${k}`}
   const file=fileName(stem,rev);
-  return {file,hit:rows.find(r=>lc(r.file)===lc(file)),taken:rows.filter(r=>lc(stemOf(r.file))===lc(stem)).map(r=>revOf(r.file))};
+  return {file,hit:rows.find(r=>r.file===file)||rows.find(r=>lc(r.file)===lc(file)),taken:rows.filter(r=>lc(stemOf(r.file))===lc(stem)).map(r=>revOf(r.file))};
 }
 
 // Save, link, import, open, delete, unlink and reconnect run one at a time, after start-up has picked the store: a save that
@@ -141,16 +142,19 @@ function fixed(ask){
 async function save(ask,obj,st,me,model,preview){
   const proj=await obj;
   proj.state=st;proj.memo=me;if(preview)proj.preview=preview;
-  const name=proj.name;let consent=null;   // the file the person said to replace, as listed when they were asked
+  const name=proj.name;let consent=null, again=null;   // the file the person said to replace, as listed when they were asked
   for(;;){
     await entries();
     const {file,hit,taken}=place(name,proj.rev,ST.saved?.file&&ST.saved.name===name&&sameStore()&&ST.saved.file);   // the file in hand first
     if(hit?.bad)throw new Error(`${hit.file} in ${store.label} cannot be read, and Lamina does not write onto it: bump the revision, or use export to keep a copy of this project.`);
     // without asking only onto the file this tab opened or last saved, in this store, as it was then: another tab, or a
     // hand in the linked folder, can have changed it since (the index is no help here: listing just rebuilt it)
-    const s=ST.saved, now=seen.get(lc(file)), mine=!!s?.file&&lc(s.file)===lc(file)&&sameStore()&&now?.mtime===s.mtime&&now.size===s.size;
+    // the expectation is always the written file's own listed numbers (twins that differ in case are two files)
+    const s=ST.saved, now=hit&&{size:hit.size,mtime:hit.mtime}, dest=hit?.file||file, mine=!!s?.file&&lc(s.file)===lc(file)&&sameStore()&&now?.mtime===s.mtime&&now.size===s.size;
     const expect=!hit?'absent':mine?now:consent?.file===lc(file)?consent.at:null;
-    if(expect)try{return await write(hit?.file||file,proj,model,expect)}catch(e){if(!e.stale)throw e;consent=null;continue}
+    // a write refused as changed is tried once more (the listing was old); refused again, it is asked about, never written again
+    if(expect)try{return await write(dest,proj,model,expect)}catch(e){if(!e.stale)throw e;consent=null;if(again!==dest){again=dest;continue}}
+    again=null;
     const next=nextFree(taken,proj.rev,false), c=await ask({name,rev:proj.rev,next});
     if(c==='replace')consent={file:lc(file),at:now};
     else if(c==='keep'){proj.rev=proj.state.rev=state.rev=next;syncProject();schedule()}
@@ -176,7 +180,7 @@ async function write(file,proj,model,expect){
 }
 
 export const openRevision=file=>one(async()=>{
-  await entries();const f=seen.get(lc(file));   // listed before it is read: a change after this makes the next save ask
+  await entries();const f=rows.find(r=>r.file===file);   // listed before it is read: a change after this makes the next save ask
   const text=await store.read(file), p=parse(text);
   await openProjectText(text,file);
   setSaved({name:nameOf(p),rev:revText(p),snap:snap(),file,store:here(),mtime:f?.mtime,size:f?.size});
@@ -238,18 +242,19 @@ export const importFiles=(files,ask)=>one(async()=>{
   }
   let rest;
   // k: this file's line in `kept`, one per file, naming where it landed in the end
-  try{for(const [i,{p,text,name,rev:r0}] of todo.entries()){let rev=r0, out=text, consent=null, k=null;
+  try{for(const [i,{p,text,name,rev:r0}] of todo.entries()){let rev=r0, out=text, consent=null, k=null, again=null, changed=false;
     for(;;){
       // listed before each file and after each question, with no wait but the question before the write: another tab
       // can save a revision of this name meanwhile. The write expects what the listing showed, as a save's does.
       // ponytail: a listing reads no text now, but each file still reads and writes the whole cached index (its
       // pictures too); one listing per import if imports of hundreds of files get slow: the checked write covers it
-      await entries();const {file,hit,taken}=place(name,rev), now=seen.get(lc(file)), expect=!hit?'absent':!hit.bad&&consent?.file===lc(file)?consent.at:null;
+      await entries();const {file,hit,taken}=place(name,rev), now=hit&&{size:hit.size,mtime:hit.mtime}, expect=!hit?'absent':!hit.bad&&consent?.file===lc(file)?consent.at:null;
       if(expect){const dest=hit?.file||file;let w;
-        try{w=await store.write(dest,out??JSON.stringify(p),expect)}catch(e){if(!e.stale)throw e;consent=null;continue}
-        imported.push(dest);await reindex(dest,entryOf({file:dest,size:w.size,mtime:w.mtime,saved:p.saved},p));break}
+        try{w=await store.write(dest,out??JSON.stringify(p),expect)}catch(e){if(!e.stale)throw e;consent=null;changed=true;if(again!==dest){again=dest;continue}if(!hit)throw e;w=null}   // refused again: asked about below, as a save does
+        if(w){imported.push(dest);await reindex(dest,entryOf({file:dest,size:w.size,mtime:w.mtime,saved:p.saved},p));break}}
       const next=nextFree([...taken,...todo.slice(i+1).filter(q=>q.name===name).map(q=>q.rev)],rev,false);
-      let a=rest;if(a===undefined){const r=await ask({name,rev,next});a=typeof r==='object'&&r?r.answer:r;if(r?.rest)rest=a}
+      // a clash that appeared after an answer (the file changed meanwhile) is asked about on its own, not answered for the rest
+      let a=changed?undefined:rest;if(a===undefined){const r=await ask({name,rev,next});a=typeof r==='object'&&r?r.answer:r;if(r?.rest)rest=a;changed=false;again=null}
       const twice=imported.some(f=>lc(f)===lc(hit.file));
       if(a==='replace'&&!hit.bad&&!twice)consent={file:lc(file),at:now};
       else if(a==='replace'||a==='keep'){if(k)k.as=next;else if(a==='replace')both.push(k={rev:`${name} v${r0}`,as:next,why:twice?'twice':'unreadable'});
@@ -336,14 +341,14 @@ async function moveInto(to,ask){
   await look();const files=await from.list();
   try{for(const f of files){
     // read with its own time and size: another tab can have saved it since the listing, and those bytes are the ones that move
-    const {file}=f, got=await from.record(file);let text, dest, w=null, k=null;
+    const {file}=f, got=await from.record(file);let text, dest, w=null, k=null, stale=false;   // stale: the folder's file changed after an answer
     for(;;){text=got.text;dest=file;k=null;let expect='absent';const old=there.get(lc(file));
       if(old){
         const stem=stemOf(file), rev=revOf(file);
         let p=null;try{p=parse(text)}catch(e){}
         // a kept revision lands on no revision of this name: those in the folder, nor those still to come from the browser
         const next=nextFree([...there.values(),...files].map(g=>g.file).filter(g=>lc(stemOf(g))===lc(stem)).map(revOf),rev||'1.0',false);
-        let a=rest;if(a===undefined){const r=await ask({name:p?.name||file,rev,next});a=typeof r==='object'&&r?r.answer:r;if(r?.rest)rest=a}
+        let a=stale?undefined:rest;if(a===undefined){const r=await ask({name:p?.name||file,rev,next});a=typeof r==='object'&&r?r.answer:r;if(r?.rest)rest=a;stale=false}
         // a file in the folder that cannot be read is never written onto: replace keeps both instead
         if(a==='replace'&&await to.read(old.file).then(parse).then(()=>false,()=>true)){a='keep';k={rev:`${p?nameOf(p):stem} v${rev}`,as:next,why:'unreadable'}}
         if(a==='replace'){dest=old.file;expect=old}   // the folder's own spelling of the name, as it was listed
@@ -351,7 +356,7 @@ async function moveInto(to,ask){
         else break;   // left in the browser, where unlink finds it again
       }
       try{w=await to.write(dest,text,expect);break}
-      catch(e){if(e.stale){await look();continue}if(!e.refused)throw e;refused.push({file,why:e.message});break}
+      catch(e){if(e.stale){await look();stale=true;continue}if(!e.refused)throw e;refused.push({file,why:e.message});break}
     }
     if(!w){skipped.push(file);continue}
     if(k)both.push(k);

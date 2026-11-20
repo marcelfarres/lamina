@@ -266,6 +266,10 @@ page on another site from reading your projects through your browser. If you ope
 own (for example through a reverse proxy), add that name to `LAMINA_HOSTS` in `docker-compose.yml`. Without it,
 the library says "The library does not answer on the name …".
 
+A name that your router or VPN gives (for example `nas.fritz.box`, `*.localdomain`, `*.internal`, a Tailscale
+`*.ts.net` name or `*.localhost`) must be in `LAMINA_HOSTS` too. Behind a reverse proxy, forward the original Host
+(nginx: `proxy_set_header Host $host;`). Else the check sees the proxy's own name for Lamina.
+
 The same without the compose file, in one command. `-v` connects a folder on your computer to a folder in the
 container, and `-e` gives Lamina a setting. Run it in the folder where `lamina-projects` must go:
 

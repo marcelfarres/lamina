@@ -8,7 +8,7 @@ import pytest
 
 from serve import serve_app
 from .conftest import new_page
-from .helpers import settle
+from .helpers import set_fields, settle
 from .test_library import card, lib, library, name, note, put, said, save, where, wipe
 
 
@@ -345,3 +345,82 @@ def test_a_server_that_drops_the_connection_is_said_plainly(page, folder):
                                              "It may not have been written; use export to keep a copy of this project.")
     finally:
         page.unroute("**/api/library/*")
+
+
+# --- twin names, a write refused again and again, a read nobody answered ---
+# A store kept in the page, which the library uses as its own: {files: {name: text}, stale: [names whose next write
+# is refused as changed], writes: [names written], reads: {name: how many reads}, mute: [names whose next read gets no answer]}
+MEM = """(init) => { const m = window.__mem = {files: {}, stale: [], writes: [], reads: {}, mute: [], clock: 1000, always: false, stamp: {}, ...init};
+    const meta = f => ({file: f, size: m.files[f].length, mtime: m.stamp[f] ?? 1});
+    const staleErr = f => Object.assign(new Error(f + ' changed'), {stale: true});
+    __t.lib.useStore({kind: 'mem', label: 'mem', list: async () => Object.keys(m.files).map(meta),
+      read: async f => { m.reads[f] = (m.reads[f] || 0) + 1;
+        const i = m.mute.indexOf(f); if (i >= 0) { m.mute.splice(i, 1); throw Object.assign(new Error('no answer'), {unanswered: true}) }
+        return m.files[f] },
+      write: async (f, text, expect) => { m.writes.push(f);
+        if (m.writes.length > 6) throw new Error('written again and again');
+        if (m.always) throw staleErr(f);
+        const i = m.stale.indexOf(f); if (i >= 0) { m.stale.splice(i, 1); m.files[f] += ' '; throw staleErr(f) }
+        const now = m.files[f] !== undefined && meta(f);
+        if (expect === 'absent' ? now : expect && (!now || now.size !== expect.size || now.mtime !== expect.mtime)) throw staleErr(f);
+        m.files[f] = text; m.stamp[f] = ++m.clock; return {size: text.length, mtime: m.clock} },
+      removeIf: async () => true}) }"""
+
+
+def test_twin_names_in_the_store_never_loop_a_save(page, folder):
+    """Two files that differ only by case: the expectation comes from the file that is written, so a save ends (a
+    write, or the question), and never writes again and again. The page's own store keeps both spellings, so this runs anywhere."""
+    page.evaluate(MEM, {"files": {"Lamp_v1.0.lamina.json": project("lamp"), "lamp_v1.0.lamina.json": project("lamp", extra="    ")}})
+    name(page, "lamp")
+    page.evaluate("__t.lib.openRevision('lamp_v1.0.lamina.json')"); settle(page)
+    set_fields(page, [("p_thickness", 3)]); settle(page)
+    r = page.evaluate("""() => Promise.race([__t.lib.saveCurrent(() => Promise.resolve(null)).then(x => x, e => e.message),
+        new Promise(ok => setTimeout(() => ok('hung'), 15000))])""")
+    assert r is None or r == {"file": "lamp_v1.0.lamina.json"}, r
+    assert len(page.evaluate("__mem.writes")) <= 2
+
+
+def test_twin_names_on_the_server_folder_never_loop_a_save(page, folder):
+    (folder / "Lamp_v1.0.lamina.json").write_text(project("lamp"), encoding="utf-8")
+    (folder / "lamp_v1.0.lamina.json").write_text(project("lamp", extra="    "), encoding="utf-8")
+    if len(list(folder.glob("*.lamina.json"))) < 2:
+        pytest.skip("this file system does not tell Lamp from lamp: no two such files can exist")
+    page.evaluate("__t.lib.restoreStore()")
+    puts = []
+    page.on("request", lambda rq: puts.append(rq.url) if rq.method == "PUT" else None)
+    name(page, "lamp")
+    page.evaluate("__t.lib.openRevision('lamp_v1.0.lamina.json')"); settle(page)
+    set_fields(page, [("p_thickness", 3)]); settle(page)
+    r = page.evaluate("""() => Promise.race([__t.lib.saveCurrent(() => Promise.resolve(null)).then(x => x, e => e.message),
+        new Promise(ok => setTimeout(() => ok('hung'), 15000))])""")
+    assert r is None or r == {"file": "lamp_v1.0.lamina.json"}, r
+    assert len(puts) <= 2
+
+
+def test_a_write_refused_twice_is_asked_about_not_written_again(page, folder):
+    page.evaluate(MEM, {"always": True})
+    name(page, "lamp")
+    asked, r = page.evaluate("""async () => { const asked = [];
+        const r = await __t.lib.saveCurrent(c => { asked.push(c); return Promise.resolve(null) }); return [asked, r] }""")
+    assert r is None and len(asked) == 1 and len(page.evaluate("__mem.writes")) == 2
+
+
+def test_an_answer_for_the_rest_is_not_reused_after_a_file_changed(page, folder):
+    """Import: replace for the rest; the second file then changes in the store before its write: it is asked about."""
+    page.evaluate(MEM, {"files": {"lamp_v1.0.lamina.json": project("lamp"), "vase_v1.0.lamina.json": project("vase")},
+                        "stale": ["vase_v1.0.lamina.json"]})
+    asked = page.evaluate("""async () => { const asked = [], f = (n, t) => new File([t], n);
+        await __t.lib.importFiles([f('lamp_v1.0.lamina.json', %r), f('vase_v1.0.lamina.json', %r)],
+          c => { asked.push(c.name); return Promise.resolve(asked.length === 1 ? {answer: 'replace', rest: true} : 'skip') });
+        return asked }""" % (project("lamp", extra=" "), project("vase", extra=" ")))
+    assert asked == ["lamp", "vase"]
+
+
+def test_a_read_nobody_answered_is_no_unreadable_card(page, folder):
+    page.evaluate(MEM, {"files": {"lamp_v1.0.lamina.json": project("lamp"), "vase_v1.0.lamina.json": project("vase")},
+                        "mute": ["vase_v1.0.lamina.json"]})
+    first = page.evaluate("__t.lib.entries().then(() => 'listed', e => e.message)")
+    assert first == "no answer"
+    names = page.evaluate("__t.lib.entries().then(l => l.map(p => [p.name, p.revs.map(r => r.bad)]))")
+    assert sorted(names) == [["lamp", [False]], ["vase", [False]]]
+    assert page.evaluate("__mem.reads['vase_v1.0.lamina.json']") == 2
