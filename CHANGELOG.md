@@ -63,15 +63,10 @@ inside to see it as a lamp.
 
   ![The cow as a plaque: the rail goes in first, then the ribs slide onto it](web/static/news/0.4.0-first.jpg)
 
-- **A warning for weak fingers.** Many crossing slices close together turn a slice into a comb. A finger between two
-  slots that is thinner than your material can take now gets a warning with its width.
+- **A warning for weak fingers.** A finger between two slots that is thinner than your material can take gets a
+  warning with its width. The material you pick sets that width, and how much a slice can get past.
 
-  ![The egg's spine is a comb of thin fingers: the warning gives their width](web/static/news/0.4.0-fingers.jpg)
-
-- **The checks know your material.** The material you pick on the Sheet & fit tab now sets two checks: how wide a
-  finger between slots must be, and how much material a slice can get past. The messages name the material.
-
-  ![In acrylic, which cracks, a finger must be 1.5 times the sheet: the warning says so](web/static/news/0.4.0-material.jpg)
+  ![The egg's spine is a comb of thin fingers: in acrylic, which cracks, the warning asks for 1.5 times the sheet](web/static/news/0.4.0-material.jpg)
 
 ### Changed
 

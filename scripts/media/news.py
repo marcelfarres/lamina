@@ -60,6 +60,12 @@ class App:
                         [name, str(v)])
         self.idle()
 
+    def tick(self, name, on):               # a tick box, the same way
+        self.p.evaluate("([n, on]) => {const s = document.querySelector('#p_' + n); s.checked = on;"
+                        " for (const e of ['input', 'change']) s.dispatchEvent(new Event(e, {bubbles: true}))}",
+                        [name, on])
+        self.idle()
+
     def view(self, az, el, zoom=1.0, only3d=True):
         """The 3D view alone (or beside the sheets), from the Technique tab: the Model tab rings the model with the
         handles that turn it."""
@@ -375,18 +381,6 @@ def n040_first(app):
     plaque_back(app)
 
 
-def n040_fingers(app):
-    sheet = app.p.input_value("#p_thickness")                         # the sheet as it was, for the pictures after this one
-    crossed_side(app, "egg", 60, (("thickness", 3), ("nx", 32)))      # 32 ribs: 2.5 mm fingers in the 3 mm spine
-    app.view(65, 20, 0.9, only3d=False)
-    x0, y0, x1, _ = app.box(VIEW)
-    row = "#msgs :text('finger')"
-    app.shot("0.4.0-fingers", (x0, y0, x1, app.box(row)[3]), [(row, "")])
-    plaque_back(app)
-    app.set("thickness", sheet)
-    assert app.p.input_value("#p_thickness") == sheet
-
-
 def pick_material(app, name):                # the Sheet tab's picker, from any tab: its own change handler runs
     app.p.evaluate("n => {const s = document.querySelector('#material'); s.value = n; s.dispatchEvent(new Event('change'))}", name)
     app.idle()
@@ -411,22 +405,49 @@ def n040_clean_tops(app):
     app.example("egg", "stacked")
     app.set("distribution", "count")
     app.set("count", 6)
-    tick = lambda n, on: (app.p.evaluate("([n, on]) => {const s = document.querySelector('#p_' + n); s.checked = on;"   # noqa: E731
-                                         " for (const e of ['input', 'change']) s.dispatchEvent(new Event(e, {bubbles: true}))}",
-                                         [n, on]), app.idle())
-    tick("orient_mark", True)                         # the arrows show what used to be engraved on top
+    app.tick("orient_mark", True)                     # the arrows show what used to be engraved on top
     app.p.select_option("#viewmode", "only2d")
     app.p.wait_for_timeout(800)
     top = '#sheets path[data-label="Z-6"]'            # the egg's top layer
     shots = []
     for on, name in ((False, "before: on the top layer"), (True, "now: the top layer is clean")):
-        tick("hide_marks", on)
+        app.tick("hide_marks", on)
         x0, y0, x1, y1 = app.box(top)
         cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
         shots.append(caption(app.grab((cx - 220, cy - 190, cx + 220, cy + 150), [(top, "")]), name))
     save("0.4.0-clean-tops", side_by_side(*shots))
-    tick("hide_marks", True)
-    tick("orient_mark", False)
+    app.tick("hide_marks", True)
+    app.tick("orient_mark", False)
+    app.p.select_option("#viewmode", "both")
+
+
+# the top end of every dowel on the screen, where the view's own ray finds no higher layer over it: an open hole
+OPEN = """() => {const n = l => +String(l).split('-')[1], rods = window.__t.plan().rods, last = Math.max(...rods.map(r => n(r[7])));
+  return rods.filter(r => n(r[7]) < last).map(([a, b, d, , , , , top]) => {       // the top layer's holes always show
+    const [x, y] = window.__t.screen([a[0], a[1], b[2]]), hit = window.__t.hitAt(x, y);
+    return !hit || hit !== 'gizmo' && n(hit) <= n(top) ? [x, y] : null}).filter(Boolean)}"""       # no layer hit = the rod's own end, seen in its hole
+
+
+def n040_hide_dowels(app):
+    sheet = app.p.input_value("#p_thickness")                    # the sheet as it was, for the pictures after this one
+    app.example("vase", "stacked")
+    app.tick("spacing_vary", False)                                # layers that touch: a gap shows every hole anyway
+    app.set("distribution", "distance")
+    app.set("placement", "random")
+    app.set("thickness", 6)                                        # steps wider than a hole, so an open hole is seen whole
+    shots = []
+    for on in (False, True):
+        app.tick("hide_dowels", on)
+        app.view(30, 58, 0.85)
+        holes = app.p.evaluate(OPEN)
+        marks = [((x - 9, y - 9, x + 9, y + 9), "open hole" if i == 0 else "") for i, (x, y) in enumerate(sorted(holes, key=lambda q: q[1]))]
+        x0, y0, x1, y1 = app.box("#view canvas")
+        cx = (x0 + x1) / 2
+        img = app.grab((cx - 330, y0 + 40, cx + 330, y1 - 40), marks)
+        shots.append(caption(img, f"hide dowels on: {len(holes) or 'no'} open holes on the steps" if on else f"before: {len(holes)} open holes on the steps"))
+    save("0.4.0-hide-dowels", side_by_side(*shots))
+    app.tick("hide_dowels", False)
+    app.set("thickness", sheet)
     app.p.select_option("#viewmode", "both")
 
 
