@@ -32,7 +32,7 @@
       Start from a shape or press <b>follow the model</b>, drag the points, or select one and type its numbers.</li></ul>
   <h4>In the 3D view</h4>
   <ul><li>drag = orbit · wheel = zoom · right-drag = pan · click the corner cube = flat view</li>
-    <li><b>light</b> over the view lights the model, in a room that shows the shadows it throws. The <b>Light</b> tab holds the lights: bulbs and spots, where each one is, its size, brightness and colour. They are saved with the project.</li>
+    <li><b>light</b> over the view lights the model, in a room that shows the shadows it throws. The <b>Light</b> tab holds the lights: bulbs and spots, where each one is, its size, brightness and colour, and the room. They are saved with the project. With the light on, <b>move a light</b> at the left of the view drags a light, or one of its arrows.</li>
     <li>the <b>tools</b> at the left of the view do what a key does: pick one, then click or drag the model. Esc goes back to turning the view.</li>
     <li>drag a coloured ring on the model = turn the whole model · click a part = select it</li>
     <li>a selected part gets its own handles, on the part itself: the <b>yellow arrow</b> slides it along its normal,
@@ -176,7 +176,9 @@
       <button data-tool="roll" title="click a slice, then drag it sideways: it rolls (the same as ctrl-drag)">↻ roll a slice</button>
       <button data-tool="seam" title="click an edge, or drag along edges: the sheet is cut apart there · click a seam of yours to give it back · right-drag turns the view">✂ put a seam</button>
       <button data-tool="face" title="click or drag on the model to select faces, then remove them: only what is left is cut (a mask from a head) · click a removed face to put it back · right-drag turns the view">◩ select faces</button>
+      <button data-tool="light" hidden title="drag a light across the view, or one of its three arrows along it · click a light to pick it · a drag beside them turns the view">💡 move a light</button>
     </div>
+    <div id="lighthint" hidden>drag a light, or one of its arrows · click a light to pick it · Esc: turn the view</div>
     <div id="sel" hidden></div>
     <div id="seampanel" hidden>
       <div class="t"><b>✂ putting seams</b><button class="small" data-seams="mode">✓ done</button></div>

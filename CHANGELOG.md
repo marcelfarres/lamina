@@ -25,7 +25,7 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
   ![The head's rings cut into pieces of 150 mm at most, nested on one sheet](web/static/news/0.4.0-max-length.jpg)
 
 - **Light your model.** Tick *light* over the 3D view to see its light and soft shadows in a room. The new *Light*
-  tab holds up to four bulbs and spots: place, size, brightness, colour. They are saved with the project.
+  tab holds up to four bulbs and spots, and the room. Drag a light in the view. All of it is saved with the project.
 
   ![The lamp tick over the 3D view: the bulb's light and soft shadows in the room](web/static/news/0.4.0-lamp.jpg)
 

@@ -404,3 +404,33 @@ def test_the_lights_are_settings_of_the_project_and_leave_the_view_as_it_was(pag
     set_fields(page, [["p_count", 12]]); settle(page); assert shadows() and plan(page)["counts"]["slices"] == 12 and len(lit()) == 1
     page.uncheck("#lamp"); assert not shadows() and look() == [False, True] and saved()[0] is False
     use(page, "cone", "stacked"); assert saved()[1] is None and not errs, errs
+
+def test_a_light_is_moved_in_the_view_and_the_room_and_the_picture_are_settings(page):
+    """The move-a-light tool is in the tool column while the light is on: a drag of the z arrow lifts the light, a drag
+    of the light moves it across the view, a drag beside it turns the view. The room's settings and the video tick are
+    in the project; the picture button saves a PNG; none of it slices."""
+    use(page, "cone", "stacked"); errs = []; page.on("pageerror", lambda e: errs.append(str(e)))
+    tool = page.locator("#tools button[data-tool=light]")
+    assert not tool.is_visible()
+    page.check("#lamp"); page.click('nav button[data-t="light"]'); tool.click(); assert page.is_visible("#lighthint")
+    at = lambda: page.evaluate("async () => {const m = await import(location.origin + '/static/js/scene.js'),"   # noqa: E731
+                               " l = m.scene.getObjectsByProperty('isLight', true).find(x => x.castShadow && x.parent.visible),"
+                               " a = l.parent.children.find(c => c.children[0]?.type === 'ArrowHelper'), p = l.position.toArray(), q = [...p]; q[2] += a.scale.x * .8;"
+                               " return [window.__t.screen(p), window.__t.screen(q)]}")
+    saved = lambda: page.evaluate("async () => {const s = (await window.__t.project()).state; return [s.lights, s.room, s.light_video]}")   # noqa: E731
+
+    def drag(x, y, dx, dy):
+        page.mouse.move(x, y); page.mouse.down(); page.mouse.move(x + dx / 2, y + dy / 2, steps=3); page.mouse.move(x + dx, y + dy, steps=3); page.mouse.up()
+
+    z0 = float(page.input_value("#lt_p2")); _, tip = at(); drag(*tip, 0, -50)
+    (x, y, z), = [saved()[0][0]["pos"]]; assert (x, y) == (0, 0) and z > z0 and float(page.input_value("#lt_p2")) == z
+    here, _ = at(); drag(*here, 60, 0); x1, y1, _ = saved()[0][0]["pos"]; assert (x1, y1) != (0, 0)
+    cam = page.evaluate("window.__t.camera.position.toArray()"); box = page.locator("#v3d canvas").bounding_box()
+    drag(box["x"] + 60, box["y"] + box["height"] - 60, 50, 0); assert page.evaluate("window.__t.camera.position.toArray()") != cam
+    page.keyboard.press("Escape"); assert not page.is_visible("#lighthint")
+    page.select_option("#g-light select[data-l=r_floor]", "wood"); page.uncheck("#light_video")
+    assert saved()[1:] == [{"show": True, "size": 2, "walls": "white", "floor": "wood", "back": 10}, False]
+    with page.expect_download() as d:
+        page.click("#g-light button[data-act=png]")
+    assert d.value.suggested_filename.endswith("_light.png") and page.evaluate("window.__t.idle()") and not errs, errs
+    page.uncheck("#lamp"); assert not tool.is_visible()

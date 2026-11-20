@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import {state, ST} from './state.js';
-import {$, esc} from './util.js';
+import {$, $$, esc} from './util.js';
 import {inU, toMM} from './units.js';
 import {record} from './history.js';
-import {scene, renderer, parts, ghost, hemi, dl, V3} from './scene.js';
+import {scene, renderer, camera, parts, ghost, hemi, dl, V3} from './scene.js';
+import {setTool} from './edit3d.js';
 
 // ---------------------------------------------------------------- light
 // The lights of the project: bulbs (all round) and spots (a cone) in and around the model, in a room whose floor, walls
@@ -20,14 +21,18 @@ import {scene, renderer, parts, ghost, hemi, dl, V3} from './scene.js';
 // blur by the source's size times how much farther the point is — sharp where a part meets the floor, wide on a far
 // wall. The room is a box drawn from the inside: a wall between the camera and the model is seen from behind and not
 // drawn, so the room can be looked into from any side. Off, nothing of it is on the scene and the view is as without it.
-// ponytail: no tube or panel lights (three.js gives them no shadows), no light dragged in the 3D view, a spot points
-// up, down or at the model's middle only, 4 lights at most (each is a shadow pass and a texture)
+// The room is a setting too (`state.room`: shown or not, its size, walls, floor, the light the walls give back), and
+// so is whether the assembly video is lit (`state.light_video`).
+// ponytail: no tube or panel lights (three.js gives them no shadows), a spot points up, down or at the model's middle only, 4 lights at most (each is a shadow pass and a texture)
 const MAX=4, MARK=['#E69F00','#56B4E9','#009E73','#CC79A7'];   // Okabe-Ito; a light is known by its number, the colour only helps
 const WHITE={'#ffcf9e':'warm white, 2700 K','#ffe6cc':'neutral white, 4000 K','#eef2ff':'daylight, 6500 K'}, WARM='#ffcf9e';
 const LIKE={led:['small LED',{kind:'bulb',size:6,lm:400}],filament:['LED filament bulb',{kind:'bulb',size:25,lm:500}],frosted:['frosted bulb',{kind:'bulb',size:45,lm:600}],
   gu10:['GU10 spot, 36°',{kind:'spot',angle:36,soft:25,size:50,lm:350}],desk:['desk lamp, 60°',{kind:'spot',angle:60,soft:40,size:40,lm:500}],own:['my own',{}]};
 const AIM={up:'straight up',down:'straight down',middle:'the middle of the model'};
 const fresh=z=>({on:true,like:'led',kind:'bulb',angle:60,soft:30,size:6,lm:400,color:WARM,pos:[0,0,z],aim:'up'});
+const WALLS={white:['white',0xf0eeea],grey:['light grey',0xa3a19e],dark:['dark',0x3b3a38]}, FLOOR={walls:['as the walls'],wood:['wood',0x9a6a40],dark:['dark',0x2c2b2a]};
+const roomOf=()=>({show:true,size:2,walls:'white',floor:'walls',back:10,...state.room});
+const key=()=>JSON.stringify([!!state.light,list(),ST.unit,state.room,state.light_video]);   // all the tab shows
 let box=null, sel=0, shown='';   // the model's box at the last draw, the light the tab shows, and the list the tab was drawn from
 const list=()=>state.lights||(box?[fresh(+(box.S.z/2).toFixed(1))]:[]);
 const own=()=>state.lights||(state.lights=list());   // the first change makes the list the project's own
@@ -109,14 +114,17 @@ function rig(l,i,small){if(!l.on)return null; const spot=l.kind==='spot', light=
     cone:spot?new THREE.LineSegments(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:MARK[i],depthTest:false,toneMapped:false,transparent:true,opacity:.85})):null};
   g.tag.renderOrder=20; lamp.add(light,g.ball,g.glow,g.tag); if(spot){g.cone.renderOrder=19;lamp.add(light.target,g.cone)} return g}
 function unrig(g){if(!g)return; g.light.shadow.dispose(); g.tag.material.map.dispose(); g.cone?.geometry.dispose(); lamp.remove(g.light,g.ball,g.glow,g.tag); if(g.cone)lamp.remove(g.light.target,g.cone)}
-export function applyLight(){const on=!!state.light, tab=$('section[data-tab="light"]').classList.contains('on'); $('#lamp').checked=on;
+export function applyLight(){const on=!!state.light, tool=ST.tool==='light', tab=($('section[data-tab="light"]').classList.contains('on')||tool)&&!ST.recording; $('#lamp').checked=on;
+  // the move-a-light tool is there while the light is on; the column is there while it holds a tool to choose
+  $('#tools button[data-tool=light]').hidden=!on; $('#tools').hidden=!$$('#tools button').some(b=>b.dataset.tool&&!b.hidden); if(tool&&!on)return setTool('');
+  $('#lighthint').hidden=!tool; arrows.visible=false;
   const b=new THREE.Box3(); for(const m of parts.children)if(m.userData.group!=='B')b.expandByObject(m);   // every part, shown or not: the room stays put while the steps run
   if(b.isEmpty())b.setFromObject(ghost); if(b.isEmpty())return;
   const c=b.getCenter(new THREE.Vector3()),S=b.getSize(new THREE.Vector3()),r=S.length(),O=new THREE.Vector3(c.x,c.y,b.min.z); box={S,r};   // off too: the tab shows the light a tick would turn on
   if(on){const L=list(), s=L.map(l=>l.on?l.kind:'-').join();
     if(s!==sig){rigs.forEach(unrig); const small=L.filter(l=>l.on&&l.kind==='bulb').length>2; rigs=L.map((l,i)=>rig(l,i,small)); sig=s}
     // the room holds the model with air round it, and every light: one put outside the model is still inside the room
-    let half=r*.9, high=r*1.6; for(const l of L){half=Math.max(half,Math.abs(l.pos[0])+r*.3,Math.abs(l.pos[1])+r*.3);high=Math.max(high,l.pos[2]+r*.3)}
+    const Rm=roomOf(); let half=r*.45*Rm.size, high=r*.8*Rm.size; for(const l of L){half=Math.max(half,Math.abs(l.pos[0])+r*.3,Math.abs(l.pos[1])+r*.3);high=Math.max(high,l.pos[2]+r*.3)}
     const K=3*(r*.9)**2/400, far=Math.hypot(2*half,2*half,high)*1.05;   // 400 lm on a wall half a room away is about as bright at any size of model
     rigs.forEach((g,i)=>{if(!g)return; const l=L[i],P=O.clone().add(V3(l.pos)),R=l.size/2;
       g.light.color.set(l.color); g.light.position.copy(P); g.light.shadow.camera.far=far;
@@ -133,12 +141,14 @@ export function applyLight(){const on=!!state.light, tab=$('section[data-tab="li
         for(let k=0;k<40;k++){pts.push(ring(k),ring(k+1)); if(k%5===0)pts.push(P,ring(k))}
         g.cone.geometry.setFromPoints(pts); g.cone.visible=tab}
       g.light.shadow.camera.updateProjectionMatrix()});
-    room.scale.set(half*2,half*2,high); room.position.set(c.x,c.y,b.min.z-r*.002+high/2)}
+    room.scale.set(half*2,half*2,high); room.position.set(c.x,c.y,b.min.z-r*.002+high/2); room.visible=Rm.show; bounce.intensity=Rm.back/100;
+    wallMat.color.set(WALLS[Rm.walls][1]); Rm.floor==='walls'?floorMat.color.copy(wallMat.color).multiplyScalar(.85):floorMat.color.set(FLOOR[Rm.floor][1]);
+    const g=tool&&rigs[sel]; if(g){arrows.visible=true;arrows.position.copy(g.light.position);arrows.scale.setScalar(r*.22)}}
   for(const m of parts.children)m.castShadow=m.receiveShadow=on&&m.userData.group!=='B';
   lamp.visible=on; renderer.shadowMap.enabled=on; renderer.toneMapping=on?THREE.AgXToneMapping:THREE.NoToneMapping;
   hemi.intensity=on?0:1.1; dl.intensity=on?0:1.2; scene.background.set(on?0x050506:0x141517);
   if(on!==wasOn){wasOn=on; for(const m of [...parts.children,room])for(const x of [m.material].flat())x.needsUpdate=true}   // the shaders gain or lose the shadow lookup
-  if(JSON.stringify([on,list(),ST.unit])!==shown)renderTab();   // an undo, an opened project, a new model, other units: the tab follows
+  if(key()!==shown)renderTab();   // an undo, an opened project, a new model, other units: the tab follows
   ST.dirty=true}
 
 // ---- the Light tab, in the rows the other tabs are made of
@@ -150,7 +160,7 @@ const rows=L=>{const u=ST.unit;return L.map((x,i)=>`<div class="lrow${i===sel?' 
       <input type="checkbox" data-on="${i}" ${x.on?'checked':''} title="this light on or off" aria-label="light ${i+1} on"><span class="ln" style="border-color:${MARK[i]}">${i+1}</span>
       <span>${x.kind==='spot'?'Spot':'Bulb'}<small>${x.like in LIKE&&x.like!=='own'?esc(LIKE[x.like][0]):x.kind==='spot'?`${x.angle}° cone`:`${inU(x.size)} ${u} across`}${x.kind==='spot'?` · ${AIM[x.aim]}`:''} · ${x.lm} lm${x.on?'':' · off'}</small></span>
       <span><button class="small" data-act="copy" data-i="${i}" title="a copy of this light" ${L.length<MAX?'':'disabled'}>⧉</button><button class="small" data-act="del" data-i="${i}" title="remove this light">✕</button></span></div>`).join('')};   // the list: drawn again on its own while a slider moves, so a row says what its light is now
-function renderTab(){const L=list(), on=!!state.light, u=ST.unit, lim=box?Math.ceil(inU(box.r*2)):300, st=inU(1)<1?.01:1; sel=Math.max(0,Math.min(sel,L.length-1)); shown=JSON.stringify([on,L,u]);
+function renderTab(){const Rm=roomOf(), L=list(), on=!!state.light, u=ST.unit, lim=box?Math.ceil(inU(box.r*2)):300, st=inU(1)<1?.01:1; sel=Math.max(0,Math.min(sel,L.length-1)); shown=key();
   const l=L[sel], spot=l?.kind==='spot';
   $('#g-light').innerHTML=row('show','show the light','Light the model from the lights below and show the shadows it throws, in a room. The same tick as 💡 light over the 3D view',`<input type="checkbox" id="light_on" ${on?'checked':''}>`)
     +`<div class="sec" data-sec="Lights"><h3 class="sub" title="click to fold or unfold">Lights<small></small></h3><div class="llist">${rows(L)}</div>
@@ -164,19 +174,54 @@ function renderTab(){const L=list(), on=!!state.light, u=ST.unit, lim=box?Math.c
       +row('size',`source size (${u})`,'How big the part that shines is, across. A small source throws a sharp pattern, a big one a soft one',sl('size',inU(l.size),inU(1),inU(120),st))
       +row('lm','brightness (lm)','The light it gives, in lumens, as on the box of a real lamp: 400 lm is a 40 W bulb',sl('lm',l.lm,10,1600,10))
       +row('color','colour','The colour of the light: a white of a real lamp, or any colour',`<span>${pick('color',{...WHITE,pick:'a colour…'},l.color in WHITE?l.color:'pick')} <input type="color" data-l="hex" value="${esc(l.color)}" ${l.color in WHITE?'hidden':''} aria-label="the colour of the light"></span>`)
-      +`<div class="f wide" data-p="light_pos"><span class="k" data-tip="Where the light is: x and y from the middle of the model, z up from the floor it stands on. A light can be outside the model">where it is (${u})</span><div class="rows">${['x','y','z'].map((a,j)=>`<div class="r"><small>${a}</small>${sl('p'+j,inU(l.pos[j]),j<2?-lim:0,lim,st)}</div>`).join('')}</div></div>${MORE}`:'')}
-function touch(redraw){if(redraw)renderTab(); else{shown=JSON.stringify([!!state.light,list(),ST.unit]);$('#g-light .llist').innerHTML=rows(list())}   // a slider being dragged keeps its row: the tab is not drawn again under it
+      +`<div class="f wide" data-p="light_pos"><span class="k" data-tip="Where the light is: x and y from the middle of the model, z up from the floor it stands on. A light can be outside the model">where it is (${u})</span><div class="rows">${['x','y','z'].map((a,j)=>`<div class="r"><small>${a}</small>${sl('p'+j,inU(l.pos[j]),j<2?-lim:0,lim,st)}</div>`).join('')}</div></div>${MORE}`:'')
+    +`<div class="sec" data-sec="Room"><h3 class="sub" title="click to fold or unfold">Room<small></small></h3>`
+      +row('room_show','show the room','The floor, walls and ceiling that catch the light. Off, the lights still light the model, in the dark',`<input type="checkbox" data-r="show" ${Rm.show?'checked':''}>`)
+      +row('room_size','size (× the model)','How big the room is beside the model. In a big room the pattern on the walls is larger and fainter. A light outside the room makes it grow',sl('r_size',Rm.size,1,6,.5))
+      +row('room_walls','walls','The colour of the walls and the ceiling',pick('r_walls',Object.fromEntries(Object.entries(WALLS).map(([k,v])=>[k,v[0]])),Rm.walls))
+      +row('room_floor','floor','The colour of the floor',pick('r_floor',Object.fromEntries(Object.entries(FLOOR).map(([k,v])=>[k,v[0]])),Rm.floor))
+      +row('room_back','light back from the walls (%)','How much the room lights what the lights do not reach: 0 is a black shadow, more is a softer one',sl('r_back',Rm.back,0,40))+MORE
+    +`<div class="sec" data-sec="Picture"><h3 class="sub" title="click to fold or unfold">Picture<small></small></h3>`
+      +row('picture','picture','The 3D view as it is now, as a PNG file',`<button class="small" data-act="png">save the view as a picture (PNG)</button>`)
+      +row('video','light in the assembly video','The assembly video of the Export tab is lit as the view is. Off, it is recorded without the light',`<input type="checkbox" id="light_video" ${state.light_video===false?'':'checked'}>`)+MORE}
+function touch(redraw){if(redraw)renderTab(); else{shown=key();$('#g-light .llist').innerHTML=rows(list())}   // a slider being dragged keeps its row: the tab is not drawn again under it
   applyLight(); clearTimeout(touch.t); touch.t=setTimeout(record,400)}   // a slider drag is one step of undo
-$('#g-light').addEventListener('input',e=>{const t=e.target,k=t.dataset.l; if(!k||t.type==='range')return; const l=own()[sel],v=+t.value||0;   // a slider writes its number box, which lands here
+$('#g-light').addEventListener('input',e=>{const t=e.target,k=t.dataset.l; if(!k||t.type==='range')return;
+  if(k[1]==='_'){state.room={...roomOf(),[k.slice(2)]:t.tagName==='SELECT'?t.value:+t.value};return touch()}   // a setting of the room
+  const l=own()[sel],v=+t.value||0;   // a slider writes its number box, which lands here
   if(t.tagName==='SELECT'){if(k==='like')Object.assign(l,LIKE[t.value][1],{like:t.value}); else if(k==='color'){if(t.value!=='pick')l.color=t.value; else if(l.color in WHITE)l.color='#ff8040'} else{l[k]=t.value;if(k==='kind')l.like='own'}
     return touch(1)}   // a choice can add or take rows: the tab is drawn again
   if(k==='hex')l.color=t.value; else if(k[0]==='p')l.pos[+k[1]]=toMM(v); else{l[k]=k==='size'?toMM(v):v; l.like='own'; $('#g-light select[data-l=like]').value='own'}
   touch()});
-$('#g-light').addEventListener('change',e=>{const t=e.target; if(t.id==='light_on'){state.light=t.checked;return touch()} if(t.dataset.on){own()[+t.dataset.on].on=t.checked;touch(1)}});
+$('#g-light').addEventListener('change',e=>{const t=e.target; if(t.id==='light_on'){state.light=t.checked;return touch()} if(t.id==='light_video'){state.light_video=t.checked;return touch()} if(t.dataset.r){state.room={...roomOf(),show:t.checked};return touch()} if(t.dataset.on){own()[+t.dataset.on].on=t.checked;touch(1)}});
 $('#g-light').addEventListener('click',e=>{const t=e.target,a=t.dataset.act,r=t.closest('.lrow'); if(t.dataset.on)return;
+  if(a==='png')return snap();
   if(a){const L=own(),i=+t.dataset.i; if(a==='del')L.splice(i,1); else if(L.length<MAX){L.push(a==='copy'?structuredClone(L[i]):fresh(+(box.S.z/2).toFixed(1)));const n=L.at(-1);n.pos[0]+=a==='copy'?Math.round(box.r*.2):0;sel=L.length-1}
     return touch(1)}
   if(r&&+r.dataset.li!==sel){sel=+r.dataset.li;shown='';applyLight()}});
+// the view as a picture: drawn once more without the lights' numbers and cones, and read before the browser clears it
+function snap(){for(const g of rigs)if(g){g.tag.visible=false;if(g.cone)g.cone.visible=false} arrows.visible=false; renderer.render(scene,camera);
+  const a=document.createElement('a'); a.href=renderer.domElement.toDataURL('image/png'); a.download=`${(state.project||'lamina').replace(/\W+/g,'_')}_light.png`; a.click(); applyLight()}
+// ---- the move-a-light tool: a light is taken by its place on the screen (a small LED is too small to aim a ray at) and
+// dragged across the view, or by one of the three arrows of the light picked, along that arrow. A click picks a light.
+// A drag that starts on neither turns the view as ever.
+const arrows=new THREE.Group(), AX=[[1,0,0],[0,1,0],[0,0,1]]; let pull=null;
+AX.forEach((d,i)=>{const a=new THREE.ArrowHelper(V3(d),new THREE.Vector3(),1,[0xff5c5c,0x5cff7a,0x5c9cff][i],.28,.14);a.traverse(o=>{o.renderOrder=30;if(o.material){o.material.depthTest=false;o.material.toneMapped=false}});arrows.add(a)});
+arrows.visible=false; lamp.add(arrows);
+const px=(P,rc)=>{const q=P.clone().project(camera);return [rc.left+(q.x+1)/2*rc.width,rc.top+(1-q.y)/2*rc.height]};   // a point of the scene on the screen
+{const cv=renderer.domElement;
+  cv.addEventListener('pointerdown',ev=>{if(ST.tool!=='light'||ev.button!==0||!state.light)return; const rc=cv.getBoundingClientRect(),m=[ev.clientX,ev.clientY],g=rigs[sel]; let hit=null;
+    if(g)AX.forEach((d,i)=>{const A=px(g.light.position,rc),B=px(g.light.position.clone().addScaledVector(V3(d),arrows.scale.x),rc),ux=B[0]-A[0],uy=B[1]-A[1],n=ux*ux+uy*uy||1,t=((m[0]-A[0])*ux+(m[1]-A[1])*uy)/n;
+      if(t>.3&&t<1.1&&Math.hypot(m[0]-A[0]-t*ux,m[1]-A[1]-t*uy)<9)hit={i:sel,axis:i,ux,uy,n}});   // the outer part of an arrow: its foot is the light's own
+    if(!hit)rigs.forEach((x,i)=>{if(!x)return;const A=px(x.light.position,rc),d=Math.hypot(m[0]-A[0],m[1]-A[1]);if(d<20&&(!hit||d<hit.d))hit={i,d}});
+    if(!hit)return; ev.stopImmediatePropagation(); cv.setPointerCapture(ev.pointerId);   // taken: the view does not turn and no part is picked
+    const P=rigs[hit.i].light.position.clone(); pull={...hit,m,P,pos:[...list()[hit.i].pos],moved:false,plane:new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()),P)}},true);
+  cv.addEventListener('pointermove',ev=>{if(!pull)return; ev.stopImmediatePropagation(); const dx=ev.clientX-pull.m[0],dy=ev.clientY-pull.m[1]; if(!pull.moved&&Math.hypot(dx,dy)<4)return; pull.moved=true;
+    let d; if(pull.axis!==undefined)d=V3(AX[pull.axis]).multiplyScalar((dx*pull.ux+dy*pull.uy)/pull.n*arrows.scale.x);
+    else{const rc=cv.getBoundingClientRect(),ray=new THREE.Raycaster(),at=new THREE.Vector3(); ray.setFromCamera(new THREE.Vector2((ev.clientX-rc.left)/rc.width*2-1,1-(ev.clientY-rc.top)/rc.height*2),camera);
+      if(!ray.ray.intersectPlane(pull.plane,at))return; d=at.sub(pull.P)}
+    const l=own()[pull.i]; sel=pull.i; l.pos=[0,1,2].map(j=>+(pull.pos[j]+d.getComponent(j)).toFixed(1)); l.pos[2]=Math.max(0,l.pos[2]); touch(1)},true);   // never under the floor
+  cv.addEventListener('pointerup',ev=>{if(!pull)return; ev.stopImmediatePropagation(); const p=pull; pull=null; if(!p.moved&&p.i!==sel){sel=p.i;shown='';applyLight()}},true)}
 $('#lamp').onchange=e=>{state.light=e.target.checked;touch(1)};
 // what the other modules ask of the light, through ST (they are loaded before this one): () the parts or the tab on
 // show changed, ('reset') the tab's reset button

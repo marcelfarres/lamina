@@ -239,6 +239,7 @@ async function recordAssembly(el){
   const rec=new MediaRecorder(cv.captureStream(30),{mimeType:'video/webm'}), chunks=[], was=st.value, txt=el.textContent;
   rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
   const done=new Promise(r=>rec.onstop=r);
+  const unlit=state.light&&state.light_video===false; if(unlit)state.light=false; ST.recording=true; ST.light();   // no numbers on the lights, and no light when the Light tab says so
   el.textContent='recording the assembly…'; rec.start();
   const hold=Math.min(700,Math.max(90,4000/max));
   for(let k=0;k<=max;k++){st.value=k;applyExplode();await new Promise(r=>setTimeout(r,hold))}
@@ -246,7 +247,7 @@ async function recordAssembly(el){
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob(chunks,{type:'video/webm'}));
   a.download=`${(state.project||'lamina').replace(/\W+/g,'_')}_${ST.mode.name}_assembly.webm`; a.click();
-  URL.revokeObjectURL(a.href); st.value=was; applyExplode(); el.textContent=txt; ST.countUse('export','video');
+  URL.revokeObjectURL(a.href); ST.recording=false; if(unlit)state.light=true; st.value=was; applyExplode(); el.textContent=txt; ST.countUse('export','video');
 }
 $('#vid_go').onclick=e=>{e.preventDefault();recordAssembly(e.currentTarget)};
 $('#viewmode').onchange=e=>{$('#view').className='view '+(e.target.value==='both'?'':e.target.value);resize();ST.dirty=true};

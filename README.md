@@ -410,7 +410,10 @@ sheets are always the same plan.
   and ceiling of a room. The *Light* tab holds the lights, four at most. A light is a bulb (all round) or a spot (a
   cone with a beam angle and a soft edge), like a real lamp you pick or your own. Each has a place (inside the model
   or outside it), a source size (small is sharp, big is soft), a brightness in lumens and a colour, and can be turned
-  off. The lights are saved with the project and are steps of undo.
+  off. With the light on, the *move a light* tool of the 3D view drags a light across the view, or along one of its three
+  arrows. *Room* sets the room: shown or not, its size, the walls, the floor, and how much light the walls give back.
+  *Picture* saves the view as a PNG and says if the assembly video is lit. All of it is saved with the project and
+  is a step of undo.
 - **Export tab**: the buttons first. The text about a file opens with a click on the line under its button.
 - **Top bar**: project name, open and save, a *version* menu, undo and redo, and a *help* menu with the guide, the
   release notes, the links and *clear my data*.
