@@ -144,13 +144,17 @@ def save(name, img):
 # ---- 0.4.0 -----------------------------------------------------------------------------------------------------
 
 
-def n040_lamp(app):
+def n040_lamp(app):                           # the light on, beside the Light tab that holds the lights and the room
     app.example("fold_lamp")
     app.view(30, 12, 1.7)
     app.p.check("#lamp")
+    app.tab("light")
     app.p.wait_for_timeout(1500)
-    app.shot("0.4.0-lamp", VIEW, [("label:has(#lamp)", "light")])
+    _, _, x1, y1 = app.box(VIEW)
+    app.shot("0.4.0-lamp", (0, app.box("nav")[1], x1, y1),
+             [("nav button[data-t=light]", "the Light tab"), ("label:has(#lamp)", "light")])
     app.p.uncheck("#lamp")
+    app.tab("technique")                     # where view() left it, for the pictures after this one
 
 
 # the back of the lion: the largest joined area of faces that face backward (normal y over 0.3), behind the middle.
@@ -449,6 +453,14 @@ def n040_hide_dowels(app):
     app.tick("hide_dowels", False)
     app.set("thickness", sheet)
     app.p.select_option("#viewmode", "both")
+
+
+def n040_standoff(app):                     # written by the printed-spacers branch, pasted here (one writer)
+    app.example("shade", "stacked")
+    app.view(40, 10, 0.8)
+    app.p.evaluate("() => document.querySelector('section[data-tab=technique] .f[data-p=connect]').scrollIntoView({block: 'center'})")
+    app.p.wait_for_timeout(300)
+    app.shot("0.4.0-standoff", (0, 40, 1574, 860), [("section[data-tab=technique] .f[data-p=connect]", "printed standoffs")])
 
 
 # ---- 0.3.3 -----------------------------------------------------------------------------------------------------

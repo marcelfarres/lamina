@@ -40,13 +40,13 @@ inside to see it as a lamp.
 
   ![The head's rings cut into pieces of 150 mm at most, nested on one sheet](web/static/news/0.4.0-max-length.jpg)
 
-- **Light your model.** Tick *light* over the 3D view to see its light and soft shadows in a room. The new *Light*
-  tab holds up to four bulbs and spots, and the room. Drag a light in the view. All of it is saved with the project.
+- **Light your model.** Tick *light* over the 3D view to see its light and soft shadows in a room. The *Light* tab
+  holds up to four bulbs and spots; drag them in the view. Saved with the project.
 
-  ![The lamp tick over the 3D view: the bulb's light and soft shadows in the room](web/static/news/0.4.0-lamp.jpg)
+  ![The Light tab beside the lit lamp: the bulb's light and soft shadows on the room's walls](web/static/news/0.4.0-lamp.jpg)
 
 - **Make a mask from a model.** In Folded Panels, use the *select faces* tool: click, drag, *grow* or *connected*,
-  then *remove*. Only what is left is cut, even when you change the face size. Try it on the new *lion_head*.
+  then *remove*. *Smallest face* merges faces under a size and keeps the rest. Try both on the new *lion_head*.
 
   [![A lion head made into a mask: the face and the whole mane kept, the back removed ▶](web/static/news/0.4.0-mask.jpg)](https://marcelfarres.github.io/lamina/media/mask.mp4)
 
@@ -59,9 +59,6 @@ inside to see it as a lamp.
   plywood lantern of 72 pieces.
 
   ![The fold_box example half folded, and the fold_lantern example](web/static/news/0.4.0-examples.jpg)
-
-- **Close up only the small faces.** The folded setting *smallest face* merges the faces under the size you give
-  and keeps the rest of the model as it is.
 
 - **Choose which slices go in first.** *Into the plate first* picks the X or Y slices of a crossed plaque. The
   others slide onto them one by one. *First family height* makes them a low rail. Their teeth are full width.
