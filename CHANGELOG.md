@@ -122,6 +122,8 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
 
 ### Fixed
 
+- **Puzzle tabs on tall split parts.** A part split across its height now gets puzzle tabs, as one split across its
+  width does, and every piece still fits the sheet.
 - **Cleaner seams in stiff sheet.** A small panel is no longer cut too small at a seam, and no specks are left
   beside it.
 - **Zip projects open at their size.** A project file from a download zip was read as one from an older
