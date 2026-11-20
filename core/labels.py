@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 import shapely
 import shapely.affinity
-from shapely.geometry import LineString, Point, Polygon, box
+from shapely.geometry import LineString, Point, box
 from shapely.ops import nearest_points, unary_union
 from shapely.strtree import STRtree
 from .geometry import as_multi, min_rect_angle, robust
@@ -64,38 +64,19 @@ def fit_block(region, w, h, angles=(0, 90)):
     return None
 
 
-def covered(region, guides):
-    """The part of `region` the next layer covers, rebuilt from the guide lines (the stacked "engrave next layer"
-    outline): the rings they enclose, less a ring inside a ring, which is the layer above's hole — its inner edge is
-    engraved too, and a label under it would show through. None when the part carries no guide."""
-    if not guides:
-        return None
-    loops = [g for g in shapely.polygonize(guides).geoms if getattr(g, "area", 0) > 0]
-    loops = [g for g in loops if not any(o is not g and Polygon(o.exterior).contains(g) for o in loops)]
-    if not loops:
-        return None
-    under = shapely.union_all(loops).intersection(region)
-    return None if under.is_empty else under
+def fit_on_part(region, cover, w, h, marks=(), angles=(0, 90), room=0.0):
+    return robust(lambda r: _fit_on_part(r, cover, w, h, marks, angles, room), region, default=None)
 
 
-def fit_on_part(region, guides, w, h, marks=(), angles=(0, 90), room=0.0):
-    return robust(lambda r: _fit_on_part(r, guides, w, h, marks, angles, room), region, default=None)
-
-
-def _fit_on_part(region, guides, w, h, marks=(), angles=(0, 90), room=0.0):
-    """Where a w × h label fits whole on a part's material with `room` to spare all round: inside the next layer's
-    outline when the part carries one (`guides`), so the layer glued on top hides it, else anywhere on the part —
-    clear of its holes and of the marks and arrows (boxes) already engraved on it — at the first of `angles` that
-    holds it. None when it fits nowhere: a label crammed against the edge of a small part is better off beside it."""
-    region = as_multi(region)
+def _fit_on_part(region, cover, w, h, marks=(), angles=(0, 90), room=0.0):
+    """Where a w × h label fits whole on a part's material with `room` to spare all round — only inside `cover` when
+    the part has one (a stacked layer: under the layer glued on top, which hides it) — clear of its holes and of the
+    marks and arrows (boxes) already engraved on it, at the first of `angles` that holds it. None when it fits
+    nowhere: a label crammed against the edge of a small part is better off beside it."""
+    region = as_multi(region if cover is None else region.intersection(cover))
     if marks:
         region = robust(lambda a, b: as_multi(a.difference(b)), region, unary_union([m.buffer(0.5) for m in marks]), default=region)
-    for cand in (covered(region, guides), region):
-        if cand is not None and not cand.is_empty:
-            spot = fit_block(cand, w + 2 * room, h + 2 * room, angles)
-            if spot:
-                return spot
-    return None
+    return fit_block(region, w + 2 * room, h + 2 * room, angles)
 
 
 def widest_spot(region):
@@ -156,10 +137,10 @@ def label_angles(region):
 
 
 def place_labels(sh, font, tag="", place="part"):
-    """Every part's label. `place` = "part": on the part itself where the whole label fits on its material — inside
-    the next layer's outline where the piece carries one (the stacked "engrave next layer" guide), so the layer glued
-    on top hides it, upright or turned along the part, clear of its marks and arrows — else beside the part in free
-    space, with a leader line to its outline; "beside": always beside; "on": always on the part. Free space is space
+    """Every part's label. `place` = "part": on the part itself where the whole label fits on its material — on a
+    stacked layer only where the layer glued on top hides it (`placed_cover`) — upright or turned along the part,
+    clear of its marks and arrows, else beside the part in free space, with a leader line to its outline; "beside":
+    always beside; "on": always on the part, but for a stacked layer with nothing over it (the top layer). Free space is space
     inside the sheet margin that no part (at the nesting gap), no earlier label and no leader line crosses, searched
     outward from the part's outline, above it first. A label with no room at the job's font is tried smaller, down to
     half, before it is put on the part's widest spot anyway, past its outline if it must, for the maker to trim in the
@@ -173,7 +154,6 @@ def place_labels(sh, font, tag="", place="part"):
     for k, pc in enumerate(sh.pieces):
         keep = [mark_box(x, y, t, font, rot + pc.place[3]) for x, y, t, rot in pc.placed_marks] \
             + [ln.buffer(0.8) for s, ln in pc.placed_lines if s == "orient"]
-        guides = [ln for s, ln in pc.placed_lines if s == "guide"]
         angles = label_angles(pc.placed) if place != "beside" else ()
         pc.crowded = False
         sizes = [font * sc for sc in (1.0, 0.8, 0.65)]
@@ -184,11 +164,13 @@ def place_labels(sh, font, tag="", place="part"):
         if place != "beside":                                       # on the part
             for size, short in forms:                             # down to two thirds of the font: a peg's name along the peg
                 w, h = label_box(text(pc, short), size)
-                spot = fit_on_part(pc.placed, guides, w, h, keep, angles, room=0.0 if place == "on" else min(2.0, 0.3 * size))
+                spot = fit_on_part(pc.placed, pc.placed_cover, w, h, keep, angles, room=0.0 if place == "on" else min(2.0, 0.3 * size))
                 if spot:
                     break
-        if spot is None and place == "on":
-            size, short = forms[-1]; spot = widest_spot(pc.placed)
+        if spot is None and place == "on":                           # the widest spot of what may be engraved
+            on = pc.placed if pc.placed_cover is None else as_multi(pc.placed.intersection(pc.placed_cover))
+            if not on.is_empty:
+                size, short = forms[-1]; spot = widest_spot(on)
         if spot:
             pc.label_pos, pc.leader, pc.label_size, pc.label_short = spot, None, size, short
             taken.append(label_rect(*spot, *label_box(text(pc, short), size)))

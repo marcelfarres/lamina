@@ -283,6 +283,46 @@ The example `fold_lamp` uses it: a twisted, swelling tube of 30 triangles (about
 plate. It had 72 triangles of 38 × 19 mm and 32 seams at first: too many and too small to put together by hand.
 The lantern keeps the 72: at 420 mm they are big enough.
 
+## Removed faces
+`removed` holds the faces the user took off the surface, to keep only a part of the model (a mask from a head). They
+go after the model is simplified and before it is unfolded. What is left is an open surface: the rim round the
+removed faces is a boundary like any other, a plain cut edge with no seam and no joint.
+
+A removed face is kept by its place, not by its number: its triangle, in the coordinates of the model file. The plan
+gives the 4 × 4 matrix from the file's coordinates to the plan's millimetres (`frame`; `core/mesh.py` builds it from
+every scale, turn and move it applies). So the same places are removed after a change of facet size, of the model's
+size or of its rotation. After a change of facet size the rim moves by one triangle at most.
+
+`faces_at` (`core/unfold.py`) finds the faces at those places. A face is removed when the line through its middle,
+along its own normal, meets a stored triangle that faces the same way, no further off than half that triangle's
+longest edge. The stored triangles of a region lie edge to edge, so a line through the region meets one of them; a
+flat projection onto each triangle leaves a gap along every ridge between two. The far side of a thin wall faces
+the other way and stays.
+
+- A seam the user chose that is now on the rim, or among the removed faces, is left out and nothing is said. The
+  page takes it off the list when the face is removed; undo brings back the face and the seam.
+- A piece of the surface that the removed faces cut off from the rest is cut as panels of its own. A warning names
+  the panels. It is not deleted.
+- When every face is removed, the plan has an error and no parts.
+- Coverage is measured on the model without the points at the removed places.
+
+Measured on `head_igea` in 0.5 mm card (2026-11-17): the back of the head picked at facet 20 mm, 246 faces, leaves
+451 cm² of 944 cm². At facet 12 mm with the same list, 703 faces are removed and 456 cm² is left.
+Not done: a smooth rim along a drawn line. The rim follows the edges of the triangles.
+Limit: where the surface folds over itself within half an edge length and both layers face the same way (the
+curls of a carved mane), a face under a removed one can be at the same place and go with it. On the lion head
+at face size 25 mm, one selection of 617 faces removed 618.
+
+On the page (`web/static/js/faces.js`) the `select faces` tool of the 3D view makes the list. The plan gives the
+faces that are left (`faces3d`: the corners, the faces, and the two faces across each edge, numbered as `edges3d`).
+A click or a drag selects faces. `grow` adds the faces across an edge of the selection, `connected` goes on until
+nothing is added; both stop at a seam the user chose, and so at a removed face and at the rim, where there is no
+face across the edge. `remove` adds the selected triangles to `removed`, carried to the file's coordinates with the
+inverse of `frame`. A removed face is drawn as a dashed outline while the tool is on; a click on one takes its
+triangle out of the list. Selected faces are hatched: the three looks (hatched, dashed outline, thick seam line)
+do not depend on colour. In the seam tool and in this one, a drag with the left button paints, so the right button
+turns the view and the middle one moves it.
+
 ## The fold slider
 Each panel face remembers the face it was unfolded from (`Panel.parent`). The plan gives every facet a `hinge`:
 its parent facet, the fold line on the model (a point and a direction) and the turn that lays it flat beside the

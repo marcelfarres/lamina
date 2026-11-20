@@ -324,7 +324,9 @@ def test_proto_set_says_which_parts_had_no_room_for_a_label(tmp_path):
     files = proto_set(plan, tmp_path, font=150)                          # "Z-1" in 150 mm letters fits no 180 mm square
     readme = (tmp_path / "README.txt").read_text(encoding="utf-8")
     assert tmp_path / "README.txt" in files
-    assert all(pc["label"] in readme for sl in plan["slices"] for pc in sl["pieces"])
+    *lower, top = [pc["label"] for sl in plan["slices"] for pc in sl["pieces"]]
+    assert all(label in readme for label in lower)
+    assert top not in readme                                             # the top layer is clean on purpose, not short of room
 
 
 def test_a_printed_job_comes_out_as_one_plate_per_bed(tmp_path):

@@ -1,6 +1,7 @@
 """Modify form and connector placement keep to what was asked: a small thicken stays small, a square dowel keeps
 its wall."""
 import collections
+import json
 import os
 import pathlib
 import re
@@ -293,6 +294,33 @@ def test_a_stack_is_dowelled_through_without_holes_running_together(name, over, 
         # two holes need a wall of material between their edges, or they cut into one another and locate nothing
         assert all(g >= d + min_feature - 0.01 for g in gaps), \
             f"dowels {min(gaps):.1f} mm apart at z={z} leave no wall between them (d={d}, min_feature={min_feature})"
+
+
+def test_the_vase_example_opens_with_every_dowel_it_asks_for():
+    """Bug 046: the vase example, as it opens, left 4 dowels out at its waist with a warning. The points shared by the
+    whole stack fell 3.8 mm from the rods carried up from the wider layers below, the holes overlapped, and each
+    was turned down. Every dowel it asks for is cut now, and no two holes in a layer run into each other."""
+    preset = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["vase"]
+    plan = build(EXAMPLES / "vase.stl", preset["mode"], {"slot_offset": 0.1, "kerf": 0.15, **preset["params"]})
+    assert plan["counts"]["errors"] == 0 and plan["counts"]["warnings"] == 0, plan["warnings"]
+    assert plan["left_out"] == [] and len(plan["rods"]) == 38
+    d, wall = preset["params"]["dowel_d"], 2.0
+    for z, pts in dowels_by_level(plan).items():
+        gaps = [float(np.hypot(*(pts[i] - pts[j]))) for i in range(len(pts)) for j in range(i + 1, len(pts))]
+        assert all(g >= d + wall - 0.01 for g in gaps), f"holes {min(gaps):.1f} mm apart at z={z}"
+
+
+@pytest.mark.timeout(600)   # the remeshed bunny: about a minute alone
+def test_a_point_whose_piece_got_its_dowels_anyway_is_not_left_out():
+    """Bug 045: the bunny as it shipped in 0.3.3 opened with "24 connector(s) left out". The random placer works on
+    the overlap shrunk by the wall, which splits the hollow bunny's rings into pieces, and asks for two points in each;
+    24 of them found no room, but the topping-up gave every ring the two dowels it asks for. Nothing was left out, and
+    no dowel is lost for saying so."""
+    plan = build(EXAMPLES / "bunny.stl", "stacked", {"slot_offset": 0.1, "kerf": 0.15, "thickness": 3, "rotate": [90, 0, 0], "axis": "z",
+                                                     "connect": "dowel", "dowel_d": 4, "placement": "random", "n_points": 2,
+                                                     "round": 2, "thicken": 2, "margin": 4})
+    assert not any("left out" in w for w in plan["warnings"]), plan["warnings"]
+    assert plan["left_out"] == [] and len(plan["rods"]) == 733
 
 
 def test_a_stack_with_nothing_joining_its_layers_keeps_every_layer():

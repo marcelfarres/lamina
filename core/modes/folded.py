@@ -20,7 +20,8 @@ from ..model import Issue, Slice
 from ..geometry import as_multi, circle, min_dims, rect_along, frame_xy, poly_coords
 from ..labels import mark_box, mark_rot
 from ..mesh import simplify, merge_small
-from ..unfold import unfold, closing_shortfall, edges_at
+import trimesh
+from ..unfold import unfold, closing_shortfall, edges_at, faces_at
 
 JOINTS = ["seam", "tab", "multitab", "diamond", "ticked", "gear", "tongue", "puzzle", "snap", "click", "rivet", "laced", "loops", "strip", "rib"]
 # The thickest sheet of each material that folds along a score line (mm); 0 = it does not fold at all, it cracks or
@@ -267,10 +268,14 @@ class Folded(Mode):
         Param("separate", "bool", False, "Every face is its own panel (no folds): each triangle is cut alone and joined to its neighbours along every edge", label="every face separate"),
         Param("strategy", "choice", "auto", "How panels grow: flat = flattest fold first; strip = long strips along the model's axis; area = big faces first; auto = try all and keep the fewest, most compact panels (≤ 800 faces)", choices=["auto", "flat", "strip", "area"], show_if=("separate", False), label="panel strategy"),
         Param("seams", "edges", [], "The seams you chose: the sheet is cut apart at each of these edges and never folded there, and the "
-              "panels are laid out round them. Turn on `choose seams`, then click an edge on the model or on a sheet to put a seam "
+              "panels are laid out round them. With the `put a seam` tool of the 3D view, click an edge on the model or on a sheet, or drag along edges, to put a seam "
               "there; click a seam of yours again to give the edge back to the program. A closed model needs as many seams whoever "
               "chooses them: a seam of yours takes the place of one the program would have put somewhere else", show_if=("separate", False)),
         Param("max_faces", "int", 0, "Max triangles per panel (0 = as many as fit the sheet without overlapping)", 0, 5000, 1, show_if=("separate", False), label="most faces per panel"),
+        Param("removed", "faces", [], "The faces you took off the surface, to keep only a part of the model (a mask from a head): "
+              "they are not cut, and the edge round them is a plain cut edge with no joint. With the `select faces` tool in the 3D view, "
+              "select faces on the model and remove them; click a removed face to put it back. Each is kept by its place on the model, so "
+              "it stays removed when the facet size, the model's size or its rotation changes", label="removed faces"),
         Param("window", "number", 0.0, "Open every face with a window of its own shape, for light (lamp shades, lanterns): how "
               "much of the face it takes, 0 = none, 1 = as much as the frame allows. The frame left round it is never "
               "narrower than the minimum feature width plus the room its folds need; a face too small for that stays whole", 0, 1, 0.05, label="windows in faces"),
@@ -372,9 +377,29 @@ class Folded(Mode):
         mesh = simplify(ctx.mesh, target)
         if p["min_face"]:
             mesh = merge_small(mesh, p["min_face"])
+        # The faces the user took off the surface go before anything is unfolded: what is left is an open surface, and
+        # the edge round them a boundary like any other (no seam, no joint). They are kept by their place on the file's
+        # model, so the same places go whatever faces this facet size, this model size and this rotation gave.
+        frame = np.asarray(ctx.mesh.metadata.get("frame", np.eye(4)))
+        ctx.view["frame"] = frame.tolist()
+        whole = mesh
+        try:                                                  # the removed faces' triangles, here in the model's mm
+            spots = np.asarray(p["removed"], float).reshape(-1, 3, 3) @ frame[:3, :3].T + frame[:3, 3]
+        except (TypeError, ValueError):
+            spots = np.zeros((0, 3, 3))
+        gone = faces_at(mesh, spots)
+        if gone.all():
+            ctx.view["faces3d"] = {"v": [], "f": [], "adj": [], "removed": int(gone.sum())}   # none left to select; the page still puts them back
+            ctx.errors.append("every face of the model is removed: nothing is left to cut. Put some faces back (the `select faces` tool in the 3D view)")
+            return []
+        if gone.any():
+            mesh = mesh.copy(); mesh.update_faces(~gone); mesh.remove_unreferenced_vertices()
+            ctx.cover_skip = spots                            # the parts cover what is left, not the whole model
         self.mesh = mesh
         ctx.cover_r = t                                       # coverage: surface points within the sheet thickness of a panel
         chosen, lost = (set(), 0) if p["separate"] else edges_at(mesh, p["seams"])     # every face its own panel: every edge is a seam already
+        if lost and gone.any():                               # a seam on the rim or among the removed faces went with them: only one that is nowhere on the model is said
+            lost = edges_at(whole, p["seams"])[1]
         frames, local, panels, seams = unfold(mesh, p["separate"], p["max_faces"], self.usable_sheet(p), p["strategy"], chosen)
         self.frames, self.local = frames, local
         convex = mesh.face_adjacency_convex
@@ -558,13 +583,27 @@ class Folded(Mode):
         self.check_folds(ctx, panels, seams)
         if len(ctx.errors) == said:                           # a sheet that does not fold at all has said so: how far it folds is moot
             self.check_closing(slices)
-        ctx.notes_extra = " · ".join(x for x in [f"unfolded {len(mesh.faces)} triangles into {n_panels} panel(s), {len(seams)} seams", ctx.notes_extra] if x)
+        ctx.notes_extra = " · ".join(x for x in [f"unfolded {len(mesh.faces)} triangles into {n_panels} panel(s), {len(seams)} seams"
+                                                 + (f"; {int(gone.sum())} faces removed" if gone.any() else ""), ctx.notes_extra] if x)   # the joints' notes after it
+        # A piece of the surface the removed faces cut off from the rest is still cut, as panels of its own: said, never dropped
+        parts = trimesh.graph.connected_components(mesh.face_adjacency, nodes=np.arange(len(mesh.faces)))
+        cut_off = len(parts) - len(trimesh.graph.connected_components(whole.face_adjacency, nodes=np.arange(len(whole.faces)))) if gone.any() else 0
+        if cut_off > 0 and slices:
+            islands = sorted(parts, key=lambda fs: mesh.area_faces[fs].sum())[:cut_off]
+            names = sorted({owner[int(f)].label for fs in islands for f in fs}, key=lambda s: int(s[2:]))
+            slices[0].warnings.append(f"{cut_off} piece(s) of the surface are cut off from the rest by the faces you removed, and are cut "
+                                      f"as panels of their own ({', '.join(names[:8])}{' …' if len(names) > 8 else ''}): remove their "
+                                      f"faces too if they are not wanted (the `select faces` tool in the 3D view)")
         if not p["separate"]:
             ctx.view["edges3d"] = self.edges3d(seams, chosen)
+        # the faces as they are now, for the page to select and remove: corners, and which two faces lie across each
+        # edge (an edge's place in `adj` is its number in `edges3d`, so a seam the user chose is a wall a selection stops at)
+        ctx.view["faces3d"] = {"v": np.round(mesh.vertices, 3).tolist(), "f": mesh.faces.tolist(),
+                               "adj": mesh.face_adjacency.tolist(), "removed": int(gone.sum())}
         if lost and slices:
             slices[0].warnings.append(f"{lost} of the {len(p['seams'])} seams you chose are on no edge of the model as it is now, and are left "
                                       f"out: the facet size, the model or its size changed after you chose them. Choose them again "
-                                      f"(`choose seams`), or go back to the settings you chose them with")
+                                      f"(the `put a seam` tool in the 3D view), or go back to the settings you chose them with")
         return slices + extra
 
     def edges3d(self, seams, chosen):

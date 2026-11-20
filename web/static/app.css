@@ -78,13 +78,18 @@ button.small{padding:3px 8px;border:1px solid var(--line);background:var(--panel
 #busy_steps li.now{color:var(--warn);font-weight:500}#busy_steps li.now::before{content:'▸ '}
 .bar{position:absolute;left:10px;top:8px;display:flex;gap:10px;align-items:center;font-size:12px;color:var(--muted);background:#0f1012cc;padding:5px 8px;border-radius:5px;flex-wrap:wrap}.bar label{display:flex;gap:5px;align-items:center}.bar input[type=range]{width:90px}.bar button{padding:2px 8px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:4px;cursor:pointer;font-size:11px}
 .bar label[hidden]{display:none}   /* `.bar label` sets a display, which beat the hidden attribute: the fold slider showed on every job */
+.bar #lampl:not([hidden]){display:contents}   /* the lamp's controls, shown and hidden together, sit in the bar's row as its own labels do */
 /* the steps slider is a scrubber through the build order: wider than the other sliders so each layer gets its own
    stretch of track, and with a live counter beside it to read off which step you have landed on */
 .bar input#steps{width:250px}.bar .stepsval{min-width:52px;text-align:center;font-variant-numeric:tabular-nums;color:var(--ink)}
 #sel{position:absolute;right:10px;top:8px;background:#0f1012ee;padding:8px 10px;border-radius:6px;border:1px solid var(--line);font-size:12px;width:250px}#sel[hidden]{display:none}#sel b{color:var(--sel)}#sel .row{display:grid;grid-template-columns:44px 1fr 66px;gap:6px;align-items:center;margin:4px 0}#sel .row input[type=number]{padding:2px 5px}#sel small{color:var(--muted);display:block;margin-top:4px}
 /* choosing the seams of a folded model: three line styles, never colour alone (thin = fold, dashed = the program's seam, thick = yours) */
-#seampanel{position:absolute;left:10px;bottom:36px;width:300px;max-width:calc(100% - 130px);background:#0f1012ee;border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.5}#seampanel[hidden]{display:none}
+#seampanel{position:absolute;left:150px;bottom:36px;width:300px;max-width:calc(100% - 270px);background:#0f1012ee;border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.5}#seampanel[hidden]{display:none}
 #seampanel .t{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}#seampanel p{margin:0 0 6px;color:var(--muted)}#seampanel p b{color:var(--ink);font-weight:600}#seampanel .lg{display:flex;align-items:center;gap:8px}#seampanel .lg svg{flex:none}#seampanel .lg small{color:var(--muted)}#seampanel .r{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap}#seampanel .r[hidden]{display:none}
+/* selecting and removing faces of a folded model: hatched = selected, dashed outline = removed */
+#facebar{position:absolute;left:130px;right:130px;bottom:36px;margin:0 auto;width:fit-content;background:#0f1012ee;border:1px solid var(--line);border-radius:6px;padding:7px 10px;font-size:12px}#facebar[hidden]{display:none}
+#facebar .r{display:flex;gap:8px;align-items:center;flex-wrap:wrap}#facebar .r+.r{margin-top:6px}#facebar .r[hidden]{display:none}#facebar .lg{color:var(--muted);font-size:11px}#facebar .lg svg{flex:none}
+#facebar .r>i{width:1px;align-self:stretch;background:var(--line)}#facebar button[disabled]{opacity:.4;cursor:default}
 #seamtip{position:fixed;z-index:60;pointer-events:none;background:#000d;border:1px solid #fff6;border-radius:4px;padding:5px 8px;font-size:12px;line-height:1.5;color:#fff;white-space:nowrap}#seamtip[hidden]{display:none}
 .seamcard{display:flex;flex-direction:column;gap:5px}.seamcard>span:last-child{display:flex;gap:6px;flex-wrap:wrap}
 #sheets g.seams{display:none}#sheets.choosing g.seams{display:inline}#sheets g.seams line{vector-effect:non-scaling-stroke;fill:none;stroke-linecap:round;pointer-events:none}
@@ -141,6 +146,7 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
 #newsdlg{max-height:82vh;overflow:auto;max-width:720px}
 #newsdlg h4{margin:16px 0 2px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 #newsdlg h5{margin:14px 0 4px;font-size:15px}#newsdlg ul{margin:4px 0;padding-left:20px}#newsdlg li{margin:4px 0}
+#newsdlg img{display:block;max-width:calc(100% - 20px);height:auto;margin:6px 0 10px 20px;border:1px solid var(--line);border-radius:6px}
 #newsdlg code{background:var(--panel2);border-radius:3px;padding:0 4px;font:12px ui-monospace,monospace}
 #helpdlg{max-height:82vh;overflow:auto}#helpdlg h4{margin:18px 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 #helpdlg ol,#helpdlg ul{margin:4px 0;padding-left:20px}#helpdlg li{margin:3px 0}#helpdlg kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;font:12px ui-monospace,monospace}

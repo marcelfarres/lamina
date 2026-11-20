@@ -157,13 +157,15 @@ def rail(a, b, into, profile) -> trimesh.Trimesh:
 
 def proto_part(pc, thickness, scale, labels, font, min_thick):
     """One part flat on z = 0 at `scale`, its label (`font` mm tall at least, see label_inside) as a groove (half
-    depth, 0.6 mm at most) or a hole (through). Returns the mesh and whether the part got its label."""
-    geom = unary_union([Polygon(r[0], r[1:]) for r in pc["kerfed"]]).buffer(0)
-    geom = affinity.scale(geom, scale, scale, origin=(0, 0))
+    depth, 0.6 mm at most) or a hole (through) — on a stacked layer only where the layer above hides it (`cover`),
+    so the top layer prints clean. Returns the mesh and whether the part got the label it should have."""
+    shape = lambda rings: affinity.scale(unary_union([Polygon(r[0], r[1:]) for r in rings]), scale, scale, origin=(0, 0))   # noqa: E731
+    geom = shape(pc["kerfed"]).buffer(0)
     x0, y0, x1, y1 = geom.bounds
     geom = affinity.translate(geom, -x0, -y0)
+    room = geom if pc.get("cover") is None else geom.intersection(affinity.translate(shape(pc["cover"]), -x0, -y0))
     t = max(thickness * scale, min_thick)
-    label = label_inside(geom, pc["label"], font) if labels != "none" else None
+    label = label_inside(room, pc["label"], font) if labels != "none" and not room.is_empty else None
     if label is not None and labels == "hole":
         geom = geom.difference(label)
     mesh = trimesh.util.concatenate([extrude(g, t) for g in shapely.get_parts(geom) if g.area > 0])
@@ -191,7 +193,7 @@ def proto_part(pc, thickness, scale, labels, font, min_thick):
         else:
             plain.append("label")
     mesh.metadata["plain"] = plain
-    return mesh, label is not None or labels == "none"
+    return mesh, label is not None or labels == "none" or room.is_empty
 
 
 def proto_plan(plan, scale, min_thick, offset=None):
@@ -293,7 +295,8 @@ def fit_plan(plan, slot_offset, sheet=None, thickness=None):
     p = {key: v for key, v in plan["params"].items() if key not in FIT_DROP}
     p["slot_offset"] = round(slot_offset, 4)
     p["thickness"] = thickness or p["thickness"]
-    p.update(scale=1.0, size=[0, 0, 0], rotate=[0, 0, 0], split=False, autofix="off")
+    p.update(scale=1.0, size=[0, 0, 0], rotate=[0, 0, 0], split=False, autofix="off",
+             hide_marks=False)                      # a coupon is known by the offset engraved on it: on every part, the top one too
     from .plan import MODES, build
     mode = plan["mode"]
     few, room = MODES[mode].fit(p)                 # the technique's own: which slices show its joint, on how big a stand-in
