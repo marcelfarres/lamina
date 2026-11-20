@@ -63,6 +63,7 @@ export function renderWeight(){if(!ST.plan)return;const d=dens(),g=d/1000,by=new
       <div class="k" data-tip="Parts and dowels together: what the finished model weighs, glue aside"><b>${fmtMass((parts+rods.vol)*g)}</b>assembled</div>`:'')+`</div>`
     +(state.printed?'':`<div class="hint">${fmtArea(ST.plan.material_area_mm2)} in the parts · ${Math.round(ST.plan.sheet_usage*100)} % of the stock used</div>`)
     +(rods.n?`<div class="hint">${rods.n} dowel(s), ${fmtLen(rods.len)} of rod in all</div>`:'')
+    +(ST.plan.standoffs?`<div class="hint">${ST.plan.standoffs.items.length} printed standoff(s), not weighed here</div>`:'')
     +(by.size>1?[...by].sort((a,b)=>a[0]-b[0]).map(([t,b])=>{const n=sheetsOf.get(+t.toFixed(6))||0;
       return `<div class="hint">${fmtLen(t)} stock: ${b.n} part(s) · ${fmtMass(b.v*g)} · ${n} sheet(s), ${fmtArea(n*area0)}</div>`}).join(''):'')
     +`<div class="hint">at ${+(d*DU()).toPrecision(4)} ${DUNIT()}, set with the material on Sheet &amp; fit</div>`;
@@ -86,7 +87,9 @@ export function renderDownloads(){ // the labels checkbox applies to every cut f
   $('#dl_title').textContent=state.printed?'The parts':'2 · The parts';
   if(state.printed){$('#dl').innerHTML=rows(more);return}
   $('#dlfit').innerHTML=rows([['fit test SVG + DXF',`${b}/fitcut?fmt=svg,dxf&labels=${L}&step=${step}${U}`],['fit test PDF',`${b}/fitcut?fmt=pdf&labels=${L}&step=${step}${U}`]]);
-  $('#dl').innerHTML=rows([
+  // laser-cut layers on printed standoffs: two machines, so the tab says which files go to which
+  const two=ST.plan.standoffs?`<div class="msg note" id="two_machines"><b>Two machines make this model.</b><br>✂ <b>LASER</b>: the sheet files below.<br>⬢ <b>3D PRINTER</b>: the file named <b>3D-PRINT standoffs</b> (${ST.plan.standoffs.items.length} standoffs). It is inside every sheets zip, with a note that says which size goes where.</div>`:'';
+  $('#dl').innerHTML=two+rows([
     ['sheets SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&grouped=${G}${U}`,'the usual one, a zip with one file per sheet: laser software opens the SVGs (LightBurn, xTool Creative Space, Glowforge), CAM the DXFs (Fusion, VCarve, SheetCAM)'],
     ['sheets PDF (one page per sheet)',`${b}/export?fmt=pdf&labels=${L}&key=${K}${U}`,'print it at 100 % to cut by hand or check the sizes; Glowforge and LightBurn open it too'],
     ['sheets EPS',`${b}/export?fmt=eps&labels=${L}&key=${K}${U}`,'for CorelDRAW, Illustrator and laser drivers that ask for EPS'],

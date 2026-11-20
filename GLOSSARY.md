@@ -2,6 +2,14 @@
 
 The words Lamina uses for its parts. One word for one thing.
 
+## Stacked
+
+- **Standoff**: a 3D-printed connector between two layers of a stack that has a gap. Not a *dowel*, which is a rod
+  through the layers, and not a *spacer*, which is a flat part cut from the sheet.
+- **Body**: the middle of a standoff. It is as long as the gap and wider than the hole, so the layers rest on it.
+- **Pin**: an end of a standoff. It goes into the hole of one layer and is half that layer deep.
+- **Shoulder**: how much wider than the pin the body is, all round.
+
 ## Plaque
 
 - **Plaque**: the technique. The model is cut off at a flat plate and its slices stand on edge on that plate.

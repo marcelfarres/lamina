@@ -83,7 +83,7 @@ def check_slice(sl, p):
             elif not held and not _outlined(sl, reg):
                 sl.warnings.append(Issue(f"{tag} is a separate island — glued to its neighbours only, with no dowel / peg through it and nothing that "
                                          f"shows where it goes: engrave the next layer outline, or add a connection point inside it", "island"))
-        if sl.group == "S" and p.get("connect") == "dowel":
+        if sl.group == "S" and p.get("connect") in ("dowel", "standoff"):
             _spread_warning(sl, reg, tag, p)
     if sl.group in ("X", "Y", "Z") and not sl.engages:
         sl.errors.append(Issue("no crossing slice — this slice touches nothing: add a slice of the other family through it, move it toward the centre, or delete it", "no-crossing"))
