@@ -22,7 +22,7 @@ from shapely import affinity
 from shapely.geometry import Point, box
 from shapely.ops import unary_union
 from .geometry import as_multi, min_rect_angle
-from .labels import fit_on_part, label_angles, label_box, mark_box, mark_rot, place_labels
+from .labels import fit_on_part, label_angles, label_box, mark_box, mark_rot, mark_size, place_labels
 from .nofit import Sheet, _convex_pieces, _fill_small_holes, _hull, _rot
 
 ROTS = (0, 90, 180, 270)
@@ -92,7 +92,7 @@ def _put(p):
     corner, or `p.at` where the caller means a spot (the margin)."""
     pc, T = p.pc, lambda g: _move(g, p.rot, p.dx, p.dy)
     geom = as_multi(T(pc.kerfed))
-    pc.placed, pc.placed_lines, pc.placed_marks = geom, [(s, T(l)) for s, l in pc.lines], [(*T(Point(m[0], m[1])).coords[0], m[2], mark_rot(m)) for m in pc.marks]
+    pc.placed, pc.placed_lines, pc.placed_marks = geom, [(s, T(l)) for s, l in pc.lines], [(*T(Point(m[0], m[1])).coords[0], m[2], mark_rot(m), *m[4:]) for m in pc.marks]
     pc.placed_cover = None if pc.parent.cover is None else as_multi(T(pc.parent.cover))
     pc.place = (p.sheet, *(p.at or geom.bounds[:2]), p.rot)
 
@@ -186,7 +186,7 @@ def _nest(pieces, job):
             # so the label can sit right beside the part instead of wherever the packed sheet leaves a gap. The
             # reserve is only ever a hole the nester keeps; the part's own outline is what is cut and labelled.
             w, h = label_box(pc.label, job.font * 0.65)                       # the least the part could carry
-            keep = [mark_box(*m[:3], job.font, mark_rot(m)) for m in pc.marks] + [ln.buffer(0.8) for s, ln in pc.lines if s == "orient"]
+            keep = [mark_box(*m[:3], mark_size(m, job.font), mark_rot(m)) for m in pc.marks] + [ln.buffer(0.8) for s, ln in pc.lines if s == "orient"]
             if fit_on_part(pc.kerfed, pc.parent.cover, w, h, keep, label_angles(pc.kerfed), room=min(2.0, 0.3 * job.font * 0.65)) is None:
                 x0, y0, x1, y1 = pc.kerfed.bounds; cx = (x0 + x1) / 2
                 pc.nest_shape = as_multi(unary_union([pc.kerfed, box(cx - w / 2, y1 + 1.0, cx + w / 2, y1 + 1.0 + h)]))

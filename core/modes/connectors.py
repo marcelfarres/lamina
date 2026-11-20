@@ -35,7 +35,7 @@ def hole_mark(sl, hole, text, font):
     w, h = (lambda b: (b[2] - b[0], b[3] - b[1]))(mark_box(0, 0, text, font).bounds)
     cx, cy = hole.centroid.coords[0]
     reach = max(math.hypot(x - cx, y - cy) for x, y in hole.exterior.coords)
-    room = (sl.raw if sl.cover is None else sl.cover).buffer(-0.3)
+    room = mark_room(sl)
     cuts = [c.buffer(0.3) for c in sl.cuts]
     taken = [mark_box(*m[:3], font, mark_rot(m)) for m in sl.marks]
     for ang in (90, 270, 0, 180, 45, 135, 225, 315):
@@ -46,6 +46,11 @@ def hole_mark(sl, hole, text, font):
         if room.covers(b) and all(b.disjoint(c) for c in cuts) and all(b.disjoint(m) for m in taken):
             sl.marks.append((x, y, text))
             return
+
+
+def mark_room(sl):
+    """Where a dowel mark may lie on `sl`: its material (only its `cover` when it has one), 0.3 mm in from the edge."""
+    return (sl.raw if sl.cover is None else sl.cover).buffer(-0.3)
 
 
 def hole_of(sl, text):
@@ -76,10 +81,47 @@ class Connectors:
         self.skipped, self.bare, self.rooms = 0, 0, []                    # points that found no spot, pairs left without one, the room those pairs had
         self.named = {}                                                   # connectors so far per pair, for the letters
         self.common = None                                                # the points every slice shares (cached)
+        # Two holes need `min_feature` of material between their edges, the same wall this job asks for everywhere
+        # else — so their centres are two of the hole's reach (the cut, with its slot offset) plus that wall apart.
+        # Any less and `fits` turns the point down: points spread as far apart as they go land right on
+        # this limit, so a smaller one here lost the horse's random dowels a layer at a time.
+        self.clearance = 2 * self.margin - self.mf
+        self.hide = bool(p.get("hide_dowels")) and islands is None        # the plaque says itself where its pieces are held
+        self.at = {id(s): k for k, s in enumerate(slices)}
+        self.both, self.shown = {}, []                                    # shared() per pair; the pairs whose connectors show
+
+    def shared(self, a, b):
+        """The material of `a` a connector between a and b may go through: where the two overlap. With `hide_dowels`
+        only where the layer under a and the layer over b lie over it as well, so both ends of the hole are covered
+        when the stack is glued (an end layer has nothing beyond it: the holes in it show). A piece of the overlap
+        whose covered part has no room for two connectors keeps all of itself — two that show locate it, one hidden
+        lets it turn — and the pair is remembered in `shown`."""
+        k = self.at[id(a)]
+        if k not in self.both:
+            raw = a.raw.intersection(b.raw)
+            beyond = [into(a.M, n.M, n.raw) for n in (*self.slices[max(0, k - 1):k], *self.slices[k + 2:k + 3])] if self.hide else []
+            if beyond:
+                parts = []
+                for g in as_multi(raw).geoms:
+                    h = g
+                    for n in beyond:
+                        h = h.intersection(n)
+                    room = h.buffer(-self.margin)
+                    # ponytail: "room for two" is the room's bounding circle being one clearance across — an L-shaped
+                    # room can pass and still take one; hold() then tops it up from the same room, so it gets one
+                    if room.is_empty or self.p["n_points"] > 1 and 2 * shapely.minimum_bounding_radius(room) < self.clearance:
+                        if not g.buffer(-self.margin).is_empty:
+                            self.shown.append(f"{a.label}/{b.label}")
+                        h = g
+                    parts.append(h)
+                raw = as_multi(unary_union(parts))
+            self.both[k] = raw
+        return self.both[k]
 
     def run(self):
         """Place the connectors pair by pair, say what went short, and give back the slices of the pegs and spacers."""
         p, ctx = self.p, self.ctx
+        typed = {tuple(q) for q in p["dowels"]} if p["placement"] == "aligned" else set()   # only aligned placement uses them
         for i, (a, b) in enumerate(zip(self.slices, self.slices[1:])):
             # what slice a already carries, for every placement: an aligned point repeats exactly and is kept
             taken = [(x, y) for x, y, *_ in a.cutkeys]
@@ -93,10 +135,11 @@ class Connectors:
             # A point the placer could not put down is left out only where its piece of the pair still has fewer
             # connectors than it asks for: hold() tops every piece up from its exact free room. The placer works on
             # the overlap shrunk by the wall, which splits a hollow model's thin ring into pieces and asks for points
-            # in each: 24 were "left out" of a bunny whose every ring had its two dowels (bug 045).
-            left = [q for q in missed if not any(isl.contains(Point(q)) for isl in isls)]   # lines: nothing tops them up
+            # in each: 24 were "left out" of a bunny whose every ring had its two dowels (bug 045). A point typed in is
+            # always left out when it is not cut: a dowel put somewhere else is not the one asked for there (bug 050).
+            left = [q for q in missed if q in typed or not any(isl.contains(Point(q)) for isl in isls)]   # lines: nothing tops them up
             for isl in isls:
-                left += [q for q in missed if isl.contains(Point(q))][:max(0, self._need(isl) - sum(isl.contains(Point(q)) for q in got))]
+                left += [q for q in missed if q not in typed and isl.contains(Point(q))][:max(0, self._need(isl) - sum(isl.contains(Point(q)) for q in got))]
             self.skipped += len(left)
             ctx.view["left_out"] += [[round(float(v), 3) for v in (a.M @ np.array([x, y, 0, 1]))[:3]] for x, y in left]
             if not got:      # nothing this size fits here: remember the biggest hole these two layers would take
@@ -108,6 +151,10 @@ class Connectors:
         # was asked for is not in the cut files (as a note it sat under a green "0 warnings")
         if self.typed:
             ctx.warnings += self._said()
+        if self.shown:
+            shown = list(dict.fromkeys(self.shown))
+            ctx.notes_extra = " · ".join(x for x in [ctx.notes_extra, f"hide dowels: {len(shown)} pair(s) of layers have no covered room "
+                                                     f"for two dowels and keep theirs where they can show — {', '.join(shown[:6])}{'…' if len(shown) > 6 else ''}"] if x)
         if p["placement"] == "aligned" and p["dowels"]:
             used = {(round(x, 2), round(y, 2)) for s in self.slices for x, y, *_ in s.cutkeys}
             for x, y in p["dowels"]:
@@ -267,7 +314,8 @@ class Connectors:
         """The spots to try for a connector in island `isl`: a rod carried on from the pair below, then the seeds, then
         a grid over the room that is left."""
         mf, d = self.mf, self.d
-        room = inside = isl.buffer(-(mf + self.reach))
+        # hidden connectors: the island is still the piece to hold, its room only what the layers beyond cover
+        room = inside = (isl.intersection(self.shared(a, b)) if self.hide else isl).buffer(-(mf + self.reach))
         near = [c for s in (a, b) for c in s.cutkeys.values() if c.distance(isl) < mf + self.reach]
         if near and not room.is_empty:
             room = room.difference(unary_union(near).buffer(mf + self.reach))
@@ -347,26 +395,33 @@ class Connectors:
     def points_for_pair(self, a, b, i, taken):
         """Connection points (local xy of slice a) between consecutive slices a, b — per island of their overlap,
         each keeping a full wall of material from every hole already cut in slice a (`taken`)."""
-        p = self.p; d = self.d; margin = self.margin
-        # Two holes need `min_feature` of material between their edges, the same wall this job asks for everywhere
-        # else — so their centres are two of the hole's reach (the cut, with its slot offset) plus that wall apart.
-        # Any less and `fits` turns the point down: points spread as far apart as they go land right on
-        # this limit, so a smaller one here lost the horse's random dowels a layer at a time.
-        clearance = 2 * margin - p["min_feature"]
-        raw = a.raw.intersection(b.raw)
+        p = self.p; d = self.d; margin = self.margin; clearance = self.clearance
+        raw = a.raw.intersection(b.raw) if p["placement"] == "lines" else self.shared(a, b)   # a line is drawn: it goes where it is
         overlap = raw.buffer(-margin)
         # An island is somewhere this connector really fits: the hole and the wall around it. Hollowing a model turns
         # every layer into a thin ring, and eroding that ring leaves a scatter of crumbs — each of which used to be
         # given points of its own, which is how a job asking for two pins per layer came back with fifteen.
         islands = [h for g in shapely.get_parts(raw) for h in shapely.get_parts(g.buffer(-margin)) if not h.is_empty and h.area >= (d / 2) ** 2]
+        every = islands
+        if self.hide:
+            # What the layers beyond cover of one piece can be several patches (a ring's wall, covered here and there):
+            # the points go in the biggest, and hold() tops the piece up from all of them. A pair of points in every
+            # patch gave a hollowed bunny 528 dowels for 203.
+            pieces = as_multi(a.raw.intersection(b.raw)).geoms
+            own = [max(hs, key=lambda h: h.area) for g in pieces if (hs := [h for h in islands if g.contains(h.representative_point())])]
+            islands = [h for h in islands if any(h is o for o in own)]
         # where a rod through this pair can go, kept on both slices (b's own frame: a layer can be tilted) for the
         # spread check to offer a dowel that will really be cut — the piece alone offered ears spots nothing cut
-        a.dowel_room += islands
-        b.dowel_room += [into(b.M, a.M, h) for h in islands]
+        a.dowel_room += every
+        b.dowel_room += [into(b.M, a.M, h) for h in every]
         if not islands:
             return []
         if p["placement"] == "aligned":
-            return self._aligned(a, islands, overlap, clearance, taken)
+            pts = self._aligned(a, islands, overlap, clearance, taken)
+            if self.hide and p["dowels"]:       # a dowel someone placed stays where they put it, covered or not
+                plain = a.raw.intersection(b.raw).buffer(-margin)
+                pts += [q for q in p["dowels"] if plain.contains(Point(q)) and all(_dist(q, r) > 0.01 for r in pts)]
+            return pts
         if p["placement"] == "random":
             return self._random(islands, i, clearance, taken)
         return self._on_lines(a, b, overlap)

@@ -36,7 +36,7 @@ body:
     attributes:
       label: How to reproduce
       description: |
-        The model plus the settings. The easiest way is **save project** in the UI and attach the file, since it embeds the model and every parameter. Otherwise attach the STL (or name the bundled example) and paste the settings or the CLI command.
+        The model plus the settings. The easiest way is **save** in the UI, then **library**, open the project's revisions and press **export** on the one that shows the problem, and attach that file: it embeds the model and every parameter. Otherwise attach the STL (or name the bundled example) and paste the settings or the CLI command.
       placeholder: |
         1. Load examples/egg.stl
         2. Interlocked, nx=5 ny=4, thickness 3

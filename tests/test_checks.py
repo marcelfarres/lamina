@@ -3,6 +3,7 @@ geometry (no synthetic Slice fixtures) and verify autofix actually clears the on
 """
 import json
 import pathlib
+import re
 
 from shapely.geometry import Polygon
 
@@ -209,3 +210,15 @@ def test_an_island_whose_place_is_engraved_is_not_a_loose_island():
     on = build(EXAMPLES / "torus.stl", "stacked", {**prm, "next_outline": True})
     assert islands(on) == [] and on["counts"]["warnings"] == 0
     assert all(any(style == "guide" for pc in sl["pieces"] for style, _ in pc["lines"]) for sl in on["slices"][:-1])   # the marks that place them
+
+
+def test_a_radial_core_ring_says_when_its_fingers_are_thinner_than_the_sheet():
+    """Bug 055: the finger check ran on the X, Y and Z families only, so a radial core ring, notched round its edge by
+    every half-slice, never said that 30 half-slices on the egg leave fingers well under the 3 mm sheet. Every family
+    slotted into another is checked now; the egg as it opens (8 half-slices) leaves none."""
+    job = {"thickness": 3, "slot_offset": 0.1, "autofix": "off"}
+    crowded = build(EXAMPLES / "egg.stl", "radial", {**job, "count": 30, "ring_count": 12})
+    warned = [w for sl in crowded["slices"] if sl["group"] == "C" for w in sl["warnings"] if "finger" in w]
+    assert warned and all(float(re.search(r"\((\d+\.\d) mm <", w)[1]) < 3 for w in warned), warned[:2]
+    plain = build(EXAMPLES / "egg.stl", "radial", {**job, "count": 8, "ring_count": 5})
+    assert not [w for sl in plain["slices"] for w in sl["warnings"] if "finger" in w]

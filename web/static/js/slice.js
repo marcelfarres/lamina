@@ -7,14 +7,15 @@ import {renderSpacing} from './spacing.js';
 import {memo, syncSizeHints} from './form.js';
 import {render3D, showGhost} from './scene.js';
 import {renderSheets, renderReport, SH} from './results.js';
+import {changed} from './library.js';
 
 // ---------------------------------------------------------------- slicing
 export async function slice(){
-  record();                                        // one undo step per change that gets this far
+  record(); changed();                             // one undo step per change that gets this far; the unsaved-changes text follows it
   if(ST.fresh){ST.trail=[];ST.trailT0=Date.now();act(ST.fresh);ST.fresh=''}   // after record(): a new model's own settings are not steps
   const my=++ST.seq, fd=new FormData(), loading=ST.pendingFile;
   fd.append('client',CLIENT); fd.append('mode',ST.mode.name); fd.append('params',JSON.stringify({...state,light:undefined,lights:undefined,room:undefined,light_video:undefined,material_kind:kind(state.material)})); fd.append('memo',JSON.stringify(memo));   // the server keeps this as the tab's session; a material of your own is checked as the one it was made from
-  if(ST.pendingFile)fd.append('model',ST.pendingFile); else if(ST.job)fd.append('job',ST.job); else fd.append('example',$('#example').value);
+  if(ST.pendingFile)fd.append('model',ST.pendingFile); else if(ST.job)fd.append('job',ST.job); else fd.append('example',ST.example);
   status('slicing…','busy'); $('#busy').hidden=false; $('#busy_txt').textContent='slicing…'; $('#busy_note').textContent=''; $('#busy .bar').className='bar';
   expectStages(); $('#busy_steps').innerHTML=''; ST.ghostLive=false;   // this slice's own stages, counted from the settings it runs with
   ST.busy=true; ST.busySince=Date.now(); const t0=ST.busySince;
@@ -33,7 +34,7 @@ export async function slice(){
     // where the time went, for anyone tuning it: the build's stages (seconds), the round trip around them, and the page's own drawing
     console.info('lamina timing', ST.mode.name, {...ST.plan.timing, 'round trip beyond the build': +((t1-t0)/1000-j.took).toFixed(2), 'page drawing': (Date.now()-t1)/1000});
   }catch(e){if(my===ST.seq){act('slice failed: '+e.message); status('error: '+inUnit(e.message),'err'); if(loading)modelFailed(loading,e.message)}}
-  if(my===ST.seq){$('#busy').hidden=true;ST.busy=false}
+  if(my===ST.seq){$('#busy').hidden=true;ST.busy=false;changed()}   // and once it is back: an upload now has its job
 }
 // The model never arrived, so the 3D view still shows the one before it and the file box still names this one —
 // which is exactly how a failed upload reads as "it loaded the wrong model". Clear the box and say so in a dialog:

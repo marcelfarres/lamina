@@ -35,8 +35,8 @@ class App:
 
     def example(self, name, mode=None):     # every picture starts here: the normal view, then the example
         self.p.select_option("#viewmode", "both")
-        self.p.evaluate("e => {const s = document.querySelector('#example'); s.value = e;"
-                        " s.dispatchEvent(new Event('change'))}", name)
+        self.p.select_option("#look", "group")             # by family: picking a material sets its look, and keeps it
+        self.p.evaluate("n => window.__t.openExample(n)", name)   # what the library's example cards call
         self.idle()
         if mode:
             self.mode(mode)
@@ -299,8 +299,10 @@ def n040_basic(app):
 def n040_spacing(app):
     app.example("vase", "stacked")          # the vase opens with vary the spacing on
     app.level("basic")
-    app.shot("0.4.0-spacing", (0, 40, 470, 880),
-             [("section[data-tab=technique] .f[data-p=spacing_vary]", "vary the spacing")])
+    row, graph = (f"section[data-tab=technique] .f[data-p={p}]" for p in ("spacing_vary", "spacing_curve"))
+    app.p.locator(graph).evaluate("e => e.scrollIntoView({block: 'center'})")   # the section is below the fold
+    app.p.wait_for_timeout(300)
+    app.shot("0.4.0-spacing", (0, app.box(row)[1] - 60, 470, app.box(graph)[3]), [(row, "vary the spacing")])
 
 
 def n040_tools(app):
@@ -361,9 +363,11 @@ def plaque_back(app):                         # the plaque settings as the examp
 
 
 def n040_first(app):
-    crossed_side(app, "cow", 50, (("nx", 20), ("first_height", 35)))   # the rail at 35 %: it keeps the cow's outline
+    # the low-poly cow: at ny 1 its rail misses the lowered head (5 ribs touch nothing); at ny 2 it runs through the
+    # head, and only the last rib, at the tail, has an error
+    crossed_side(app, "cow", 50, (("nx", 20), ("first_height", 35), ("ny", 2)))
     app.view(65, 30, 0.75)
-    app.p.evaluate("() => {const s = document.querySelector('#steps'); s.value = 8;"   # the plate, the rail, 6 ribs
+    app.p.evaluate("() => {const s = document.querySelector('#steps'); s.value = 9;"   # the plate, the rail, 7 ribs
                    " s.dispatchEvent(new Event('input'))}")
     app.p.wait_for_timeout(1200)
     app.shot("0.4.0-first", VIEW, [("label:has(#steps)", "the rail goes in first")])
@@ -475,6 +479,45 @@ def n033_step(app):
     app.tab("export")
     app.p.locator("#dl").scroll_into_view_if_needed()
     app.shot("0.3.3-step", "#dl", [("#dl >> text=STEP", "assembled STEP")])
+
+
+# ---- 0.4.0, last: it leaves four saved projects in the page's library ----------------------------------------------
+
+
+def n040_library(app):
+    save_it = "window.__t.lib.saveCurrent(() => Promise.resolve('keep'))"
+    for ex, name, bumps in (("horse", "horse, 3 mm ply", ["#pminor"]), ("vase", "vase for Anna", []),
+                            ("bunny", "bunny plaque", []), ("fold_lamp", "desk lamp", ["#pminor", "#pmajor"])):
+        app.example(ex)
+        app.p.fill("#pname", name)
+        app.idle()
+        app.p.evaluate(save_it)
+        for b in bumps:                     # a new revision from the version menu: v1.1, then v2.0
+            app.p.click(f"details.menu:has({b}) > summary")
+            app.p.click(b)
+            app.idle()
+            app.p.evaluate(save_it)
+    app.p.click("#popen")
+    app.p.wait_for_function("() => document.querySelector('#libyours').dataset.listed")
+    app.p.evaluate("""async () => {const d = await (await navigator.storage.getDirectory())
+                          .getDirectoryHandle('lib', {create: true}); window.showDirectoryPicker = async () => d}""")
+    app.p.click("#liblink")                 # the page's own folder stands in for the one a person picks
+    app.p.wait_for_function("() => /kept in the folder/.test(document.querySelector('#libwhere').innerText)")
+    app.p.evaluate("document.querySelector('#libwhere .note')?.remove()")   # the link's result, shown once
+    lamp = '#libyours .card[data-name="desk lamp"]'
+    app.p.click(f"{lamp} .more")
+    app.p.wait_for_function("() => [...document.querySelectorAll('#library img')].every(i => i.complete)")
+    app.p.evaluate("document.querySelector('#library').scrollTop = 0")
+    app.p.wait_for_timeout(300)
+    x0, y0, _, _ = app.box("#library")
+    x1 = app.box("#libyours .card >> nth=3")[2]
+    revs = f"{lamp} .revs"
+    _, ry0, rx1, ry1 = app.box(revs)
+    img = app.grab((x0, y0, x1, ry1), [(revs, "")])
+    ox, oy = max(0, x0 - 12), max(0, y0 - 12)                # grab's crop starts 12 px out
+    tag(ImageDraw.Draw(img), rx1 - ox + 30, (ry0 + ry1) / 2 - oy - 16, "every revision kept: open, export, delete")
+    save("0.4.0-library", img)                # the label beside the ring: above it, it would hide the card's name
+    app.p.click("#libclose")
 
 
 def picture_name(f):                        # n040_lamp_example -> 0.4.0-lamp-example

@@ -310,6 +310,16 @@ def test_the_vase_example_opens_with_every_dowel_it_asks_for():
         assert all(g >= d + wall - 0.01 for g in gaps), f"holes {min(gaps):.1f} mm apart at z={z}"
 
 
+def test_a_typed_dowel_that_cannot_be_cut_is_left_out():
+    """Bug 050: two dowel points typed 3 mm apart on the vase cannot both be cut. Since bug 045's fix a missed point
+    counted only while its piece was short of dowels, and the piece was topped up somewhere else, so the point typed
+    was dropped without a word. A typed point that is not cut is always left out: a warning, and a ring at each place."""
+    preset = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["vase"]
+    plan = build(EXAMPLES / "vase.stl", preset["mode"], {**preset["params"], "dowels": [[0, 0], [3, 0]]})
+    said = [w for w in plan["warnings"] if "left out" in w]
+    assert said and int(said[0].split()[0]) == len(plan["left_out"]) > 0, plan["warnings"]
+
+
 @pytest.mark.timeout(600)   # the remeshed bunny: about a minute alone
 def test_a_point_whose_piece_got_its_dowels_anyway_is_not_left_out():
     """Bug 045: the bunny as it shipped in 0.3.3 opened with "24 connector(s) left out". The random placer works on

@@ -70,20 +70,19 @@ def later_pieces(plan):
     return {pc["label"]: s for s in plan["slices"] if not s["label"].startswith(first) for pc in s["pieces"]}
 
 
-@pytest.mark.parametrize("model, prm", [
-    ("cube.stl", {}),
-    ("sphere.stl", {"thickness": 3}),       # the defaults in the sphere example's own 3 mm stock: 5 x 5 x 4 locked two
-    ("sphere.stl", {"nx": 3, "ny": 3, "nz": 3}),
-    ("sphere.stl", {"nx": 4, "ny": 4, "nz": 4}),
-    # the head locked 7 pieces where its lines ran along the walls of the bands they cross, until those moved (nudge)
-    ("head_igea.stl", {}),
-    # the head as the app opens it (its preset: standing, 3 mm stock, rounded and smoothed) still locks two, a finding
-    # held strict: Z-4-2 and X-2-1, each at a corner where three bands' sheets meet at the edge of a wall — Y-1, Z-4
-    # and X-3 at the surface, and Y-1 and Z-1 1.4 mm outside X-2's wall — so a sheet passes a wall that has no slot
-    pytest.param("head_igea.stl", {"thickness": 3, "rotate": [90, 0, 0], "round": 3, "smooth": 6},
-                 marks=pytest.mark.xfail(strict=True, reason="two three-band corners at the edge of a wall lock pieces")),
+@pytest.mark.parametrize("model, prm, clean", [
+    ("cube.stl", {}, True),
+    ("sphere.stl", {"thickness": 3}, True),     # the defaults in the sphere example's own 3 mm stock: 5 x 5 x 4 locked two
+    ("sphere.stl", {"nx": 3, "ny": 3, "nz": 3}, True),
+    ("sphere.stl", {"nx": 4, "ny": 4, "nz": 4}, True),
+    # the head locked 7 pieces where its lines ran along the walls of the bands they cross, until those moved (nudge);
+    # one band's slots still cut it in two
+    ("head_igea.stl", {}, False),
+    # the head as the app opens it (its preset: standing, 3 mm stock, rounded and smoothed) locked Z-4-2 and X-2-1: past
+    # their slots Y-1's line ran within half a sheet of their walls, and its sheet brushed them as they slid in (shaved)
+    ("head_igea.stl", {"thickness": 3, "rotate": [90, 0, 0], "round": 3, "smooth": 6}, True),
 ])
-def test_every_piece_slides_in_past_the_ones_already_there(model, prm):
+def test_every_piece_slides_in_past_the_ones_already_there(model, prm, clean):
     plan = build(EXAMPLES / model, "bands", prm)
     later = later_pieces(plan)
     locked = set(later) - set(plan["steps"])
@@ -91,6 +90,7 @@ def test_every_piece_slides_in_past_the_ones_already_there(model, prm):
         assert any(e.startswith(f"{lab} cannot slide in: ") for e in later[lab]["errors"])
     assert not any(e.startswith(f"{lab} cannot") for s in plan["slices"] for e in s["errors"] for lab in plan["steps"])
     assert not locked, sorted(locked)
+    assert not clean or plan["counts"]["errors"] == 0, [(s["label"], e) for s in plan["slices"] for e in s["errors"]]
 
 
 # 12 x bands in the 180 mm cube put the end ones at ±82.5 mm, inside the side walls (8 mm: 82 to 90): their lines with
@@ -121,6 +121,23 @@ def test_a_band_moved_by_hand_stays_where_it_is_put():
     assert x_of(plan, "X-12") == 83.0 and x_of(plan, "X-1") > -82.5               # its mirror image is moved
     note = next(n for n in plan["notes"] if n.startswith("assembly"))
     assert "X-1 +" in note and "X-12 " not in note and not shape(plan, "X-12")[1]["note"]
+
+
+def test_a_wall_a_sheet_brushes_past_the_slot_is_shaved(monkeypatch):
+    # X-4 moved by hand to x = 81.5 mm, half a millimetre into the cube's hollow beside the side walls (82 to 90): its
+    # line with each y and z band runs clear of their side walls, but its 1.5 mm sheet overlaps them by a quarter of a
+    # millimetre past their slots, all the way along as those pieces slide in. Shaved there, every piece slides in
+    prm = {"autofix": "off", "offset": {"X-4": 14}}
+    plan = build(CUBE, "bands", prm)
+    assert not set(later_pieces(plan)) - set(plan["steps"])
+    g, _ = shape(plan, "Y-2")                                           # local x is ±world x, local y world z
+    side = max((-1, 1), key=lambda s: g.contains(Point(s * 85, 0)) and not g.contains(Point(s * 82.1, 0)))
+    assert not g.contains(Point(side * 82.1, 0)) and g.contains(Point(side * 82.4, 0))   # 0.25 mm off its side wall
+    assert g.contains(Point(-side * 82.1, 0))                          # and nothing off the other side
+    orig = Bands.slot_pair                                              # left on: they rub X-4's sheet and lock
+    monkeypatch.setattr(Bands, "slot_pair", staticmethod(lambda ctx, j, out: [t[:4] + (None,) for t in orig(ctx, j, out)]))
+    rubbed = build(CUBE, "bands", prm)
+    assert set(later_pieces(rubbed)) - set(rubbed["steps"])
 
 
 def test_a_corner_boxed_in_by_two_bands_is_cut_off_and_glued_in_last():

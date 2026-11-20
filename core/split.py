@@ -39,16 +39,37 @@ def tab(cx, cy, along, w, depth, side):
     return Polygon([(cx + ax * x + px * y, cy + ay * x + py * y) for x, y in shape.exterior.coords])
 
 
-def _strips(profile, axis, sheet, margin, tab_w, sl, grain=False):
-    """Cut `profile` across `axis` into strips joined by puzzle tabs. Returns the strips (the profile itself when it
-    would take more than MAX_PIECES, with the slice saying so)."""
+def _strips(profile, axis, room, tab_w, sl):
+    """Cut `profile` across `axis` into strips joined by puzzle tabs, each at most `room` long that way, its tabs
+    included. Returns the strips (the profile itself when it would take more than MAX_PIECES, with the slice saying
+    so). A strip whose neighbours' tabs stick out past `room` is cut again into one strip more: a tab reaches 1.8 ×
+    tab_w past its cut, more than the 1 × tab_w kept free at each end (bug 048)."""
     x0, y0, x1, y1 = profile.bounds
     w, h = x1 - x0, y1 - y0
-    usable = (sheet[axis] if grain else max(sheet)) - 2 * margin - 2 * tab_w   # with `grain` a strip cannot turn to the long side
-    n = max(2, math.ceil((w if axis == 0 else h) / usable))
+    usable = room - 2 * tab_w
+    # A room no wider than the tab width kept free at each end holds no strip at any count (the slider's 10 mm sheet
+    # with its 5 mm margin): one try at two strips, not every count to MAX_PIECES for every strip of every pass.
+    n = max(2, math.ceil((w if axis == 0 else h) / usable)) if usable > 0 else 2
     if n > MAX_PIECES:                                    # a part many sheets long is a wrong setting, not a puzzle
         sl.errors.append(f"{w:.0f}×{h:.0f} mm is {n} sheets long: use a bigger sheet or `one_sheet`, a smaller model, or a technique with smaller parts")
         return [profile]
+    for k in range(n, MAX_PIECES + 1 if usable > 0 else n + 1):
+        pieces, cuts, errors, warnings = _strips_of(profile, axis, k, usable, tab_w)
+        if all(g.bounds[2 + axis] - g.bounds[axis] <= room + 1e-6 for g in pieces):
+            break
+    sl.split_cuts = cuts
+    for e in errors:
+        sl.errors.append(e)
+    for x in warnings:
+        sl.warnings.append(x)
+    return pieces
+
+
+def _strips_of(profile, axis, n, usable, tab_w):
+    """`profile` cut across `axis` into `n` strips with their puzzle tabs → (strips, cuts, errors, warnings)."""
+    x0, y0, x1, y1 = profile.bounds
+    w, h = x1 - x0, y1 - y0
+    errors, warnings = [], []
     lo, hi = (x0, x1) if axis == 0 else (y0, y1)
     cuts = list(np.linspace(lo, hi, n + 1))
     big = 10 * max(w, h) + 1000
@@ -59,11 +80,14 @@ def _strips(profile, axis, sheet, margin, tab_w, sl, grain=False):
     holes = [Polygon(r) for poly in as_multi(profile).geoms for r in poly.interiors]
     cut_line = lambda x: LineString([(x, -big), (x, big)] if axis == 0 else [(-big, x), (big, x)])
     band = lambda a, b: box(a, -big, b, big) if axis == 0 else box(-big, a, big, b)
-    whole = len(as_multi(profile).geoms)                  # a slice that is islands already stays as many
+    # Counted a hair in: a cut exactly where the other family's slots end left the fingers between them joined by a
+    # band thousandths of a millimetre high, one region on paper and loose fingers on the sheet (the upright tall bar).
+    regions = lambda g: len(as_multi(g.buffer(-0.05)).geoms)   # noqa: E731
+    whole = regions(profile)                              # a slice that is islands already stays as many
     def clean(k, x):
         return (not any(h.intersects(cut_line(x)) for h in holes)
-                and len(as_multi(profile.intersection(band(cuts[k - 1], x))).geoms) <= whole
-                and len(as_multi(profile.intersection(band(x, cuts[k + 1]))).geoms) <= whole)
+                and regions(profile.intersection(band(cuts[k - 1], x))) <= whole
+                and regions(profile.intersection(band(x, cuts[k + 1]))) <= whole)
     for k in range(1, n):
         if clean(k, cuts[k]):
             continue
@@ -72,9 +96,8 @@ def _strips(profile, axis, sheet, margin, tab_w, sl, grain=False):
             if cuts[k - 1] + 2 * tab_w < x < cuts[k + 1] - 2 * tab_w and x - cuts[k - 1] <= usable and cuts[k + 1] - x <= usable and clean(k, x):
                 cuts[k] = x; break
         else:
-            sl.errors.append(f"no split position across {'x' if axis == 0 else 'y'} keeps the pieces whole: every one leaves a loose region held by nothing — "
-                             f"a bigger sheet, `one_sheet`, a smaller model, or fewer crossing slices")
-    sl.split_cuts = cuts
+            errors.append(f"no split position across {'x' if axis == 0 else 'y'} keeps the pieces whole: every one leaves a loose region held by nothing — "
+                          f"a bigger sheet, `one_sheet`, a smaller model, or fewer crossing slices")
     pieces_geom = []
     for i in range(n):
         a, b = cuts[i], cuts[i + 1]
@@ -101,15 +124,18 @@ def _strips(profile, axis, sheet, margin, tab_w, sl, grain=False):
                     break
             else:
                 continue
-            # tab() protrudes toward the LOWER piece for side > 0, so that tab belongs to the higher piece and is cut
-            # out of the lower one (the other way round the union and the difference are both no-ops: no tab at all)
-            owner, other = (i + 1, i) if side > 0 else (i, i + 1)
+            # A tab belongs to the piece it sticks out of and is cut out of the one it sticks into (the other way round
+            # the union and the difference are both no-ops: no tab at all). Which piece that is follows from where the
+            # tab lies, not from `side`: a positive side points to the lower piece across x but to the higher one
+            # across y, and reading it from `side` left every cut across y (a tall part) a plain butt joint (bug 048).
+            into_lower = (t.centroid.x if axis == 0 else t.centroid.y) < c
+            owner, other = (i + 1, i) if into_lower else (i, i + 1)
             pieces_geom[owner] = unary_union([pieces_geom[owner], t])
             pieces_geom[other] = pieces_geom[other].difference(t)
             tabs.append(t)
         if not tabs:
-            sl.warnings.append(f"no puzzle tab fits along the split at {c:.0f} mm (an opening is in the way): glue that joint, or move the split with a different sheet size")
-    return [as_multi(g) for g in pieces_geom if not g.is_empty]
+            warnings.append(f"no puzzle tab fits along the split at {c:.0f} mm (an opening is in the way): glue that joint, or move the split with a different sheet size")
+    return [as_multi(g) for g in pieces_geom if not g.is_empty], cuts, errors, warnings
 
 
 def pieces_of(sl, geoms):
@@ -143,17 +169,41 @@ def split_slice(sl, sheet, margin, tab_w, grain=False):
     x0, y0, x1, y1 = sl.profile.bounds
     w, h = x1 - x0, y1 - y0
     long_first = (0, 1) if w >= h else (1, 0)
-    geoms = [sl.profile]
-    over = lambda g, axis: g.bounds[2 + axis] - g.bounds[axis] > sheet[axis] - 2 * margin
-    for axis in long_first * 2:
-        bad = [i for i, g in enumerate(geoms) if not fits_rotated(g, sheet, margin, grain)]
-        if not bad:
-            break
-        if grain and not (bad := [i for i in bad if over(geoms[i], axis)]):
-            continue
-        cut = [g2 for i, g in enumerate(geoms) for g2 in (_strips(g, axis, sheet, margin, tab_w, sl, grain) if i in bad else [g])]
-        if len(cut) == len(geoms):                       # nothing could be cut further (MAX_PIECES): the slice said so
-            break
-        geoms = cut
+    over = lambda g, axis: g.bounds[2 + axis] - g.bounds[axis] > sheet[axis] - 2 * margin   # noqa: E731
+
+    def passes(short):
+        """The cutting passes. `short`: the second way is cut to the sheet's short side, not its long one."""
+        geoms = [sl.profile]
+        for axis in long_first * 2:
+            bad = [i for i, g in enumerate(geoms) if not fits_rotated(g, sheet, margin, grain)]
+            if not bad:
+                break
+            if grain and not (bad := [i for i in bad if over(geoms[i], axis)]):
+                continue
+            room = (sheet[axis] if grain else min(sheet) if short and axis != long_first[0] else max(sheet)) - 2 * margin
+            cut = [g2 for i, g in enumerate(geoms) for g2 in (_strips(g, axis, room, tab_w, sl) if i in bad else [g])]
+            if len(cut) == len(geoms):                   # nothing could be cut further (MAX_PIECES): the slice said so
+                break
+            geoms = cut
+        return geoms
+
+    said = lambda: (list(getattr(sl, "errors", [])), list(sl.warnings))   # noqa: E731
+    before = said()
+    geoms = passes(False)
+    if not grain and sheet[0] != sheet[1] and not all(fits_rotated(g, sheet, margin) for g in geoms):
+        # Both ways cut to the sheet's long side can leave a near-square piece too big for the sheet either way, once
+        # its tabs stick out (a bowl's rings on 200 × 150, bug 048). The part is planned again with the second way cut
+        # to the short side, and that plan is kept when every piece fits; the first one's messages go with it. A
+        # square sheet has no short side: the second plan would be the first again.
+        first, first_said, first_cuts = geoms, said(), getattr(sl, "split_cuts", None)
+        if hasattr(sl, "errors"):
+            sl.errors[:] = before[0]
+        sl.warnings[:] = before[1]
+        geoms = passes(True)
+        if not all(fits_rotated(g, sheet, margin) for g in geoms):
+            geoms, sl.split_cuts = first, first_cuts
+            if hasattr(sl, "errors"):
+                sl.errors[:] = first_said[0]
+            sl.warnings[:] = first_said[1]
     sl.pieces = pieces_of(sl, geoms)
     sl.warnings.append(f"split into {len(sl.pieces)} pieces ({w:.0f}×{h:.0f} mm does not fit the sheet)")

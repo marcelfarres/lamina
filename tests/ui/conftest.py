@@ -4,6 +4,7 @@ instead of in someone's inbox.
 
     uv run playwright install chromium
     LAMINA_UI=1 uv run pytest tests/ui -q
+    LAMINA_UI=1 LAMINA_BROWSER=firefox uv run pytest tests/ui -q     # or chrome / msedge: the browser installed here
 
 It drives the page the way a person does (real input events, the debounce, the real /api/slice), and fails on any
 uncaught JavaScript error, on a status line that never settles, and on a parameter whose value does not reach the
@@ -39,17 +40,28 @@ def server():
 
 
 @pytest.fixture(scope="session")
-def page(server):
+def browser():
     from playwright.sync_api import sync_playwright
     with sync_playwright() as p:
-        browser = p.chromium.launch()
-        pg = browser.new_page(viewport={"width": 1500, "height": 950})
-        pg.errors = []
-        pg.on("pageerror", lambda e: pg.errors.append(str(e)))
-        pg.goto(server + "/")
-        settle(pg)
-        yield pg
-        browser.close()
+        name = os.environ.get("LAMINA_BROWSER", "chromium")    # playwright's own, unless a test run asks for another
+        b = p.firefox.launch() if name == "firefox" else p.chromium.launch(channel=None if name == "chromium" else name)
+        yield b
+        b.close()
+
+
+def new_page(browser, url):
+    """The app at `url` in a tab of its own (with its own storage), settled; an uncaught JavaScript error fails the test."""
+    pg = browser.new_page(viewport={"width": 1500, "height": 950})
+    pg.errors = []
+    pg.on("pageerror", lambda e: pg.errors.append(str(e)))
+    pg.goto(url + "/")
+    settle(pg)
+    return pg
+
+
+@pytest.fixture(scope="session")
+def page(server, browser):
+    return new_page(browser, server)
 
 
 @pytest.fixture(autouse=True)
@@ -60,7 +72,7 @@ def fresh(page):
     shift-drag miss), and not the page's default, which can change and be slower to re-slice."""
     if page.evaluate("() => window.__t.job()") != "ex_egg":
         page.click('nav button[data-t="model"]')
-        page.select_option("#example", "egg")
+        page.evaluate("__t.openExample('egg')")
     for tab in ("model", "technique", "sheet", "checks"):
         page.click(f'nav button[data-t="{tab}"]')
         page.click(f'button.reset[data-reset="{tab}"]')

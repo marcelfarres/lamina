@@ -12,7 +12,7 @@ from . import progress as bar
 from .progress import DETAIL, progress
 from .modes import load_all, Ctx
 from .geometry import section_polygons, as_multi, poly_coords, line_coords, min_dims, trim_thin
-from .labels import mark_box, mark_rot, orient_arrows
+from .labels import mark_box, mark_rot, mark_size, orient_arrows
 from .checks import STRUCTURAL, check_plan, suggest_fixes, crossing_suggestions
 from .split import split_slice, fits_rotated, islands, pieces_of
 from .nest import nest
@@ -173,7 +173,6 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         notes.append(f"{shaved} sliver(s) thinner than {p['min_feature']:g} mm everywhere left out: shavings a slot cuts off its own part, "
                      f"and specks under {p['min_part']:g} mm where a slice only grazes the surface — too small to cut or handle")
     suggest_fixes(slices, p, ctx, mode)
-    n_err += len(ctx.errors) + len(dropped); n_warn += len(ctx.warnings)
 
     # split + pack
     progress("nesting the parts on sheets", 0.85)
@@ -185,12 +184,16 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
             split_slice(sl, p["sheet"], p["sheet_margin"], p["tab"], p["grain"])
         else:
             sl.pieces = islands(sl) if sl.facets is None else [Piece(sl.label, sl.profile, sl, sl.lines, sl.marks)]   # a folded net stays whole
-    n_err += _oversize(slices, p, sheet0, mesh, ctx)
+    _oversize(slices, p, sheet0, mesh, ctx)
+    # counted once the parts are cut: splitting a slice, cutting a ring into pieces and a piece too big for the sheet
+    # add their own warnings and errors, which the count taken at the check left out (bug 052: "0 warnings" above them)
+    n_err = sum(len(s.errors) for s in slices) + len(ctx.errors) + len(dropped)
+    n_warn = sum(len(s.warnings) for s in slices) + len(ctx.warnings)
     pieces = [pc for sl in slices for pc in sl.pieces]
     if p["orient_mark"]:                               # the same two directions on every part: which way is up, which face is the front
         for pc in pieces:                               # placed after the dowel and seam marks, in the room they leave
             room = pc.geom if pc.parent.cover is None else pc.geom.intersection(pc.parent.cover)   # a stacked layer: under the one above
-            pc.lines = pc.lines + orient_arrows(room, keep=[mark_box(*m[:3], p["font"], mark_rot(m)) for m in pc.marks])
+            pc.lines = pc.lines + orient_arrows(room, keep=[mark_box(*m[:3], mark_size(m, p["font"]), mark_rot(m)) for m in pc.marks])
     kerf = p["kerf"] if p["compensate"] else 0.0       # off by default: many machines compensate their own kerf
     tag = label_tag(p, model_path)                     # the model's name, engraved before every label: nested with room for it
     n_sheets = nest(pieces, p["sheet"], p["gap"], p["sheet_margin"], kerf, p["labels"], p["font"], tag, p["label_place"], p["grain"])
@@ -288,11 +291,11 @@ def _profiles(slices, mesh, p, again):
 def _oversize(slices, p, sheet0, mesh, ctx):
     """Every finished piece, however it was made, has to fit the sheet: a part that does not overhangs the drawing and
     takes a sheet to itself, so it is an error whether or not `split` was asked to cut it — with the size the model
-    would have to be for its parts to fit, so "too big for my sheet" comes with the number. Returns the errors added."""
+    would have to be for its parts to fit, so "too big for my sheet" comes with the number."""
     over = [(sl, pc, *min_dims(pc.geom)) for sl in slices for pc in sl.pieces      # rotation is free on the sheet
             if not fits_rotated(pc.geom, p["sheet"], p["sheet_margin"], p["grain"])]
     if not over:
-        return 0
+        return
     sw, sh = p["sheet"][0] - 2 * p["sheet_margin"], p["sheet"][1] - 2 * p["sheet_margin"]
     if p["grain"]:                                  # the part as it stands: its width on the sheet's, its height on the sheet's
         over = [(sl, pc, b[3] - b[1], b[2] - b[0]) for sl, pc, *_ in over for b in [pc.geom.bounds]]
@@ -315,7 +318,6 @@ def _oversize(slices, p, sheet0, mesh, ctx):
     ctx.errors.append(f"{len(over)} part(s) are bigger than the {sheet0[0]:g} × {sheet0[1]:g} mm sheet: "
                       f"set `size` to about {fit_txt} mm ({f:.0%} of this model)"
                       + (", or use a bigger sheet" if p["one_sheet"] else ", use a bigger sheet, or turn on `one_sheet`"))
-    return len(over) + 1
 
 
 def _slice_json(sl):
@@ -331,8 +333,8 @@ def _slice_json(sl):
                     "placed": poly_coords(pc.placed),        # sheet coordinates, kerf applied
                     "lines": [[s, line_coords(l)[0]] for s, l in pc.placed_lines],   # fold and guide lines on the sheet
                     "kerfed_lines": [[s, line_coords(l)[0]] for s, l in pc.lines],   # the same in the part's own frame (per-piece export)
-                    "marks": [[round(m[0], 3), round(m[1], 3), m[2], round(mark_rot(m), 2)] for m in pc.placed_marks],
-                    "kerfed_marks": [[round(m[0], 3), round(m[1], 3), m[2], round(mark_rot(m), 2)] for m in pc.marks],
+                    "marks": [[round(m[0], 3), round(m[1], 3), m[2], round(mark_rot(m), 2), *m[4:]] for m in pc.placed_marks],   # a fifth value: its own size
+                    "kerfed_marks": [[round(m[0], 3), round(m[1], 3), m[2], round(mark_rot(m), 2), *m[4:]] for m in pc.marks],
                     "label_pos": pc.label_pos, "label_size": pc.label_size, "label_short": pc.label_short, "leader": pc.leader, "same": pc.same, "flipped": pc.flipped,
                     **({} if sl.cover is None else {"cover": poly_coords(as_multi(sl.cover.intersection(pc.geom)))}),   # local: where a printed label may go
                     **sl.piece_extra(pc),

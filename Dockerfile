@@ -14,8 +14,10 @@ COPY core core
 COPY web web
 COPY examples examples
 
-# jobs live under working-files/ (mount a volume there to keep them); owned by the app user so the volume is writable
-RUN useradd -m lamina && install -d -o lamina /app/working-files
+# jobs live under working-files/ (mount a volume there to keep them), and the library under /library when
+# LAMINA_LIBRARY=/library is set: both owned by the app user, so a named volume there is writable as it is. User 1000:
+# the server's message for a host folder it cannot write (web/app.py, library_problem) names this id, as the README does
+RUN useradd -m -u 1000 lamina && install -d -o lamina /app/working-files /library
 USER lamina
 
 EXPOSE 8000

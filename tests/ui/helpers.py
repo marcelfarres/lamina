@@ -33,13 +33,18 @@ def state(page):
     return page.evaluate("() => window.__t.state()")
 
 
-def use(page, example=None, mode=None):
-    """The click sequence most tests start with: the example picked on the Model tab, then the technique picked on the
+def example(page, name):
+    """Open a bundled example the way every way into one does (the dropdown, the library), and wait for its slice."""
+    page.evaluate("n => __t.openExample(n)", name)
+    settle(page)
+
+
+def use(page, name=None, mode=None):
+    """The sequence most tests start with: the example opened on the Model tab, then the technique picked on the
     Technique tab, each waited for."""
-    if example:
+    if name:
         page.click('nav button[data-t="model"]')
-        page.select_option("#example", example)
-        settle(page)
+        example(page, name)
     if mode:
         page.click('nav button[data-t="technique"]')
         page.click(f'#modes button[data-m="{mode}"]')

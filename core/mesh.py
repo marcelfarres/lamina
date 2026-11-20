@@ -63,11 +63,17 @@ MESH_PARAMS = ("up_axis", "rotate", "size", "scale", "shrinkwrap", "hollow", "th
 _last = None   # [key, mesh, notes, {name: what was worked out from it}]: the model as last prepared
 
 
+SHARP = 2 * math.atan(0.25)    # 28°: a corner this sharp is thinner than min_feature for twice its length, a thin tip
+SHARP_HEIGHT = 2.0              # a sharp face is merged while its height is under this × min_face: a long sliver keeps the shape
+
+
 def merge_small(mesh, least, rounds=40):
     """The faces too small to work with merged into their neighbours, the rest of the model left as it is: a face whose
-    least height is under `least` (mm) has its shortest edge closed up to its middle, the smallest faces first, round
-    after round until none is left (or `rounds` rounds). Where a bigger facet size would coarsen the whole model,
-    this touches only the slivers and the small faces.
+    least height is under `least` (mm), or whose sharpest corner is under SHARP, has its shortest edge closed up to its
+    middle, the smallest faces first, round after round until none is left (or `rounds` rounds). The shortest edge is
+    the one facing the sharpest corner, so closing it takes the corner away. A long, sharp face passed the height test
+    and ended a panel in a thin tip (the lion head's last four warnings, bug 045). Where a bigger facet size would
+    coarsen the whole model, this touches only the slivers, the sharp faces and the small faces.
     ponytail: the shortest edge, whatever it is; a flat wide triangle with no short edge is pulled out of shape
     rather than removed, and an edge on the rim of an open surface moves that rim."""
     m = mesh
@@ -75,7 +81,7 @@ def merge_small(mesh, least, rounds=40):
         tri = m.triangles
         edge = np.linalg.norm(tri - np.roll(tri, -1, axis=1), axis=2)        # edge i runs from corner i to corner i + 1
         height = 2 * m.area_faces / np.maximum(edge.max(1), 1e-12)
-        small = np.nonzero(height < least)[0]
+        small = np.nonzero((height < least) | ((m.face_angles.min(1) < SHARP) & (height < SHARP_HEIGHT * least)))[0]
         if not len(small):
             break
         v = np.array(m.vertices); to = np.arange(len(v)); taken = np.zeros(len(v), bool)

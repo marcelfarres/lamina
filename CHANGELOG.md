@@ -5,14 +5,25 @@ What changed in each release. The GitHub release for a version is this section, 
 ## 0.4.0
 
 A new way to build, the band lattice, and a new look: settings with full names in short sections, and tool buttons
-in the 3D view. Make a mask from any model, and light it from inside to see it as a lamp.
+in the 3D view. Keep your projects and every revision in a library, make a mask from any model, and light it from
+inside to see it as a lamp.
 
 ### Added
+
+- **Your projects in a library.** *library* in the top bar holds your projects and the examples, with every
+  revision; *export all* backs them up. In Chrome or Edge link a folder, or use Docker, to keep them as files.
+
+  ![The library page: a project's revisions, each with open, export and delete](web/static/news/0.4.0-library.jpg)
+
+- **Hide dowels.** New for stacked slices: each dowel goes only where the layers above and below cover its hole, so a
+  tapering model shows no open holes on its steps. The end layers still show theirs.
+
+  ![A stacked vase twice: three open dowel holes ringed on its steps, then none with hide dowels on](web/static/news/0.4.0-hide-dowels.jpg)
 
 - **Band lattice.** A new technique: rings across x, y and z that slot together, best on round or boxy shapes.
   Lamina names any piece that cannot slide in. Thanks to @DaveLauber: adapted from his fork.
 
-  [![The sphere's lattice built piece by piece, step 35 of 44 ▶](web/static/news/0.4.0-bands.jpg)](https://marcelfarres.github.io/lamina/media/bands_build.mp4)
+  [![The band sphere: three families of rings, each with its own colour and pattern; the clip builds it ▶](web/static/news/0.4.0-bands.jpg)](https://marcelfarres.github.io/lamina/media/bands_build.mp4)
 
 - **Ring slices.** Tick *ring slices* on Stacked: each slice keeps only a wall, so the stack uses about a quarter
   of the material. Each dowel sits in a collar. Thanks to @DaveLauber: adapted from his fork.
@@ -50,7 +61,7 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
 - **Choose which slices go in first.** *Into the plate first* picks the X or Y slices of a crossed plaque. The
   others slide onto them one by one. *First family height* makes them a low rail. Their teeth are full width.
 
-  ![The cow as a plaque: the low rail goes in first, then the ribs slide onto it](web/static/news/0.4.0-first.jpg)
+  ![The cow as a plaque: the rail goes in first, then the ribs slide onto it](web/static/news/0.4.0-first.jpg)
 
 - **A warning for weak fingers.** Many crossing slices close together turn a slice into a comb. A finger between two
   slots that is thinner than your material can take now gets a warning with its width.
@@ -93,8 +104,8 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
 
   ![The help menu open, and the technique cards](web/static/news/0.4.0-cards.jpg)
 
-- **Clear warnings.** A warning starts with ⚠ WARNING and an error with ✖ ERROR. A dowel with no room is now a
-  counted warning, with a ring where it is.
+- **Clear warnings, not only colour.** A warning starts with ⚠ WARNING, an error with ✖ ERROR. A dowel with no room
+  is a counted warning. Parts with errors carry a net, and crossing slices are striped.
 
   ![A dowel warning, and the rings in the 3D view where the dowels found no room](web/static/news/0.4.0-warnings.jpg)
 
@@ -122,14 +133,21 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
 
 ### Fixed
 
+- **Puzzle tabs on tall split parts.** A part split across its height now gets puzzle tabs, as one split across its
+  width does, and every piece still fits the sheet.
 - **Cleaner seams in stiff sheet.** A small panel is no longer cut too small at a seam, and no specks are left
   beside it.
 - **Zip projects open at their size.** A project file from a download zip was read as one from an older
   version.
 - **Every dowel is cut.** Where a layer narrows, two dowels could land on each other and both were left out with
   a warning. The vase example now opens with no warning.
-- **Examples open without warnings.** The blob, berry, bunny, cow_spot, figure, head_igea, hook, horse, pyramid,
-  ripple, snowman, tall_bar, torus and twisted examples open clean, ready to cut.
+- **Examples open without warnings.** The blob, berry, cow, cow_spot, figure, head_igea, hook, horse, horse_statue,
+  lion_head, pyramid, ripple, snowman, tall_bar, torus and twisted examples open clean, ready to cut. The cow is now a
+  low-poly cow made for folding.
+- **Folded nets keep tabs and numbers.** Every tab seam keeps its tab, a seam number on a short edge is engraved
+  smaller instead of left off, and coverage reads the same in any card thickness.
+- **Smallest face takes sharp faces too.** With *smallest face* set, a sharp face is merged as well, so a folded panel
+  no longer ends in a thin tip.
 - **Fewer false warnings on stacked models.** An island with no dowel no longer warns when the next layer outline is
   engraved, since the line shows where it goes. "Connectors left out" counts only pieces that miss dowels.
 

@@ -26,7 +26,7 @@ const until = async (expr, tries = 400) => { for (let i = 0; i < tries; i++) { i
 const settle = async () => { await until("window.__t.idle()", 960); await sleep(400); };   // the fine-remeshed head takes ~30 s a slice
 const png = async (name, clip) => { const s = await send("Page.captureScreenshot", { format: "png", ...(clip ? { clip } : {}) }); fs.writeFileSync(`${OUT}/${name}.png`, Buffer.from(s.data, "base64")); };
 const shot = async name => { await png(name); await project(name); console.log("shot", name, await verdict()); };
-// the scene as a project file (the page's own, as "save project" writes it, minus the model: it names the bundled example),
+// the scene as a project file (the page's own, as the top bar's "save" writes it into the library, minus the model: it names the bundled example),
 // so a reviewer can open it in the app and see exactly this
 fs.mkdirSync("working-files/review", { recursive: true });
 const project = async name => fs.writeFileSync(`working-files/review/${name}.lamina.json`, await js(`window.__t.project().then(p => JSON.stringify({...p, name: 'Lamina demo ${name}'}))`));
@@ -65,7 +65,7 @@ const heal = async (rounds = 12) => {
 // the base preparation goes in before the switch: the new mode slices at once with its remembered parameters, and
 // e.g. round 3 + a remembered facet 0 would unfold a remeshed 100k-triangle cube (never finishes)
 const mode = async m => { await params({}); await js(`document.querySelector('#modes button[data-m=${m}]').click()`); await settle(); };
-const example = async e => { await js(`(()=>{const s=document.querySelector('#example');s.value='${e}';s.dispatchEvent(new Event('change'))})()`); await settle(); };
+const example = async e => { await js(`window.__t.openExample('${e}')`); await settle(); };
 const tab = async t => { await js(`document.querySelector('nav button[data-t=${t}]').click()`); await sleep(300); };
 const cam = (az, el, d) => js(`window.__t.cam(${az},${el},${d ?? "null"})`);
 const fit = async () => { await js("document.querySelector('#fit').click()"); await sleep(300); };

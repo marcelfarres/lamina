@@ -41,11 +41,14 @@ addEventListener('error',e=>act('page error: '+e.message));
 addEventListener('unhandledrejection',e=>act('page error: '+(e.reason?.message||e.reason)));
 addEventListener('keydown',e=>{
   const typing=e.target.type==='text'||e.target.tagName==='TEXTAREA';   // a text box keeps its own undo, and its own ?
-  if(e.key==='?'&&!typing&&!e.ctrlKey&&!e.metaKey){$('#helpdlg').showModal();return e.preventDefault()}
-  if(e.key==='Escape'&&!typing&&!document.querySelector('dialog[open]')&&leaveSeams())return;
+  // the library is a page over the app: no key changes what is behind it. The keys are still taken: the browser's
+  // own undo would reach back into a text box typed in before (it refocused the library's find box and put its text back)
+  const over=!$('#library').hidden;
+  if(e.key==='?'&&!typing&&!e.ctrlKey&&!e.metaKey){if(!over)$('#helpdlg').showModal();return e.preventDefault()}
+  if(!over&&e.key==='Escape'&&!typing&&!document.querySelector('dialog[open]')&&leaveSeams())return;
   if(!(e.ctrlKey||e.metaKey)||typing)return;
   const k=e.key.toLowerCase();
-  if(k==='z'&&!e.shiftKey)step(undos,redos); else if(k==='y'||(k==='z'&&e.shiftKey))step(redos,undos); else return;
+  if(k==='z'&&!e.shiftKey){if(!over)step(undos,redos)} else if(k==='y'||(k==='z'&&e.shiftKey)){if(!over)step(redos,undos)} else return;
   e.preventDefault();
 });
 

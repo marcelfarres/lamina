@@ -29,20 +29,24 @@ def ring(section, wall, min_feature):
     return as_multi(section) if mid.is_empty else as_multi(section.difference(mid))
 
 
+COLLAR = 2.0   # × min_feature: wider than the widest wall checks.thin_spots flags (1.5 × min_feature, its second tier)
+
+
 def collared(section, wall, cuts, min_feature):
     """The ring `wall` grown locally round each of `cuts` (dowel holes, tab slots) so each sits in material: a collar
-    1.5 × `min_feature` wide round the cut (the thin-bridge check wants more than min_feature), and a stem as wide as
-    the collar from it to the nearest point of the ring, the corners where it meets the ring filled in. Kept inside
-    `section`, so the outline is never crossed. Returns the ring as cut."""
+    COLLAR × `min_feature` wide round the cut, wider than any wall the thin-spot check flags (at exactly 1.5 × it
+    flagged every peg slot's collar), and a stem as wide as the collar from it to the nearest point of the ring, the
+    corners where it meets the ring filled in. Kept inside `section`, so the outline is never crossed. Returns the ring
+    as cut."""
     if not cuts:
         return wall
     keep = [wall]
     for c in cuts:
         half = max(c.bounds[2] - c.bounds[0], c.bounds[3] - c.bounds[1]) / 2
-        collar = c.buffer(1.5 * min_feature)
+        collar = c.buffer(COLLAR * min_feature)
         if not wall.is_empty and c.distance(wall) > 0:
             _, near = nearest_points(c, wall)
-            collar = unary_union([collar, near.buffer(half + 1.5 * min_feature)]).convex_hull
+            collar = unary_union([collar, near.buffer(half + COLLAR * min_feature)]).convex_hull
         keep.append(collar)
     # closing by min_feature fills the notch where a collar meets the ring: no thin neck, no sharp inside corner
     r = min_feature

@@ -7,7 +7,7 @@ import shapely.affinity
 from shapely.geometry import MultiPolygon
 from shapely.ops import unary_union
 from . import MAX_SLICES, Mode, Param, register, spacing_params
-from .connectors import Connectors, Layer, hole_mark, hole_of
+from .connectors import Connectors, Layer, hole_mark, hole_of, mark_room
 from ..geometry import as_multi, as_lines, section_polygons, into
 from ..labels import mark_box, mark_rot
 from ..ring import collared, ring as ring_of
@@ -59,6 +59,13 @@ class Stacked(Mode):
         Param("dowel_shape", "choice", "round", "Dowel hole shape (round, square, pencil = hexagon, cross, horizontal / vertical slot)", choices=["round", "square", "pencil", "cross", "hslot", "vslot"], show_if=("connect", "dowel"), label="dowel hole shape"),
         Param("placement", "choice", "aligned", "aligned = the same points through the whole stack, so each dowel is one straight rod (every island that persists gets its own); to move one or add your own, alt-click a slice in the 3D view or type it under dowels · random = new points for every pair of slices, spread as far apart as that pair allows, so no two layers share a hole · lines = straight dowels you draw yourself, start → end, holes wherever they cross between two slices", choices=["aligned", "random", "lines"], show_if=("connect", ["dowel", "tab"]), label="dowel placement"),
         Param("n_points", "int", 2, "Connection points per pair of slices (per island)", 1, 20, 1, show_if=("placement", ["aligned", "random"]), label="dowels per layer"),
+        Param("hide_dowels", "bool", False, "Put each dowel only where the layer below and the layer above both cover its hole, "
+              "so the glued model shows no open holes on its steps. Inside that covered area the dowels still sit as far apart as "
+              "it allows, so on a model that tapers they are closer together than with this off and a wide layer is held less "
+              "firmly: line it up with `next layer outline`. A piece too small to hide two dowels keeps them where they can "
+              "show, and the notes name it. The first and the last layer have nothing over them: the holes in those show. "
+              "Dowels you placed yourself stay where you put them. Off = as far apart as each pair of layers allows",
+              show_if=("placement", ["aligned", "random"]), label="hide dowels"),
         Param("dowels", "points", [], "Your own dowels, on top of the automatic ones (n_points), each straight through every layer it fits (x, y in the slice plane, 0, 0 = the middle of the model). Alt-click a slice in the 3D view to add one there or remove the one you click; type its x, y here to move it", unit="mm", show_if=("placement", "aligned"), label="your own dowels"),
         Param("lines", "lines3", [], "Each line is one straight dowel through the stack: a start and an end point in "
               "the model's own x, y, z (0, 0, 0 is the middle of the model). Every pair of slices the line passes through "
@@ -97,20 +104,29 @@ class Stacked(Mode):
         extra = conn.run() if conn else []
         self.ring_down(ctx, slices)
         if p["hide_marks"]:
-            self.hide(ctx, slices)
+            self.hide(slices)
+        self.settle_marks(ctx, slices)
         return self.in_order(slices, extra) if conn else slices
 
     @staticmethod
-    def hide(ctx, slices):
+    def hide(slices):
         """Where each layer's engravings go (`cover`): under the layer glued on top of it, HIDE mm in from that layer's
-        edge, so the assembled stack shows none. The label and the arrows are placed in it later (nest, plan.build); a
-        dowel number already placed outside it moves in now, or goes, the assembly key still naming its hole. The top
-        layer has nothing over it and stays clean. Taken from the layers as built here, the rings cut back: a sliver
-        shed from the layer above later is not known yet, and HIDE takes in one thinner than itself."""
-        font = ctx.p["font"]
+        edge, so the assembled stack shows none. The label and the arrows are placed in it later (nest, plan.build), the
+        dowel numbers by settle_marks. The top layer has nothing over it and stays clean. Taken from the layers as built
+        here, the rings cut back: a sliver shed from the layer above later is not known yet, and HIDE takes in one
+        thinner than itself."""
         for a, b in zip(slices, [*slices[1:], None]):
             a.cover = MultiPolygon() if b is None else as_multi(a.raw.intersection(into(a.M, b.M, b.raw).buffer(-HIDE)))
-            for m in [m for m in a.marks if not a.cover.covers(mark_box(*m[:3], font, mark_rot(m)))]:
+
+    @staticmethod
+    def settle_marks(ctx, slices):
+        """Every dowel number where hole_mark would put it now: the numbers were placed while a ring slice was still
+        ring_up's wide placement ring, and over its hollow once ring_down cut the wall back (bug 051), and before the
+        cover was known. One that is off its room moves in, or goes, the assembly key still naming its hole."""
+        font = ctx.p["font"]
+        for a in slices:
+            room = mark_room(a)
+            for m in [m for m in a.marks if not room.covers(mark_box(*m[:3], font, mark_rot(m)))]:
                 a.marks.remove(m)
                 hole_mark(a, hole_of(a, m[2]), m[2], font)
 
@@ -122,7 +138,7 @@ class Stacked(Mode):
         geom, made, plain, stuck = shorten(sl, ctx.p, ctx.p["max_length"], [Ring(c) for c in sl.raw.geoms], sl.profile)
         if stuck:
             sl.warnings.append(f"{stuck} piece(s) longer than `max_length` or too big for the sheet found no clean place to be cut "
-                               "(dowel holes close together all along): cut by hand, or move the dowels")
+                               "(holes or slots close together all along): cut by hand, or move the dowels")
         if plain:
             sl.warnings.append(f"{plain} of its {made} cut(s) have no room for a puzzle tab (a narrow wall): glue those")
         return list(as_multi(geom).geoms) if made else None

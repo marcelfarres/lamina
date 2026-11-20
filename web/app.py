@@ -13,13 +13,23 @@ GET  /api/progress?client=<id>                                                 �
 GET  /api/job/{client}/{job}/export?fmt=svg,dxf,pdf,eps&labels=1&per_piece=0&grouped=1   → zip of cut files
 GET  /api/job/{client}/{job}/stl?part=<label>                                  → assembled solid (or one part) as STL
 GET  /api/job/{client}/{job}/step?part=<label>                                 → the same as STEP: true solids for CAD
+
+Only with LAMINA_LIBRARY=<folder> set (the library kept by this server, for every browser; 404 without it), and only
+on this server's own names (403 else: library_host):
+GET    /api/library                      → {name, problem, files: [{file, size, mtime}]}: the project files in the folder
+GET    /api/library/<file>               → the file as it is
+PUT    /api/library/<file>[?expect=absent | ?size=&mtime=]  body=text  → {size, mtime}; 412 when the file is no longer
+                                           what the page compared (not there / exactly that size and mtime)
+DELETE /api/library/<file>[?size=&mtime=] → {removed}: with size and mtime, only while the file still has them
 """
 
 from __future__ import annotations
-import base64, contextlib, hashlib, io, itertools, json, os, pathlib, re, shutil, tempfile, threading, time, zipfile
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+import base64, contextlib, errno, hashlib, io, ipaddress, itertools, json, os, pathlib, re, shutil, stat, sys, tempfile, threading, time, zipfile
+from typing import Literal
+from fastapi import Depends, FastAPI, UploadFile, File, Form, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from core import progress as build_progress
 from core.plan import build, MODES, swap_in
 from core.mesh import CAD_SUFFIXES
@@ -71,6 +81,13 @@ TTL = float(os.environ.get("LAMINA_TTL_HOURS", 24)) * 3600  # 0 = never: only "c
 # No cap by default: this server is your own computer, and the only real limit is the memory the slice needs. Set
 # LAMINA_MAX_UPLOAD_MB when you put it on a public address, where a stranger's 2 GB scan is not yours to hold.
 MAX_UPLOAD = int(float(os.environ.get("LAMINA_MAX_UPLOAD_MB", 0)) * 1e6)
+# The library kept by this server, for every browser that opens the page (a Docker volume above all). Unset, and in
+# the browser build: the page keeps its projects in the browser or in a folder linked there, and no api/library
+# answers. No accounts: whoever can open the page can read, change and delete the projects in this folder.
+LIBRARY = pathlib.Path(os.environ["LAMINA_LIBRARY"]).expanduser().resolve() if os.environ.get("LAMINA_LIBRARY") else None
+# Names the library also answers on, besides this server's own addresses (own_host): a reverse proxy's domain, say.
+# Comma-separated, without a port
+HOSTS = {h.strip().lower() for h in os.environ.get("LAMINA_HOSTS", "").split(",") if h.strip()}
 
 
 def sweep():
@@ -147,8 +164,9 @@ def progress(client: str):
 @app.middleware("http")
 async def refuse_oversize_bodies(request, call_next):
     """The upload cap before the body is read: the multipart parser spools the whole request to disk before a handler
-    sees it, so a request that announces more than the cap (plus room for the form fields) is refused unread."""
-    if MAX_UPLOAD and int(request.headers.get("content-length") or 0) > MAX_UPLOAD + 1_000_000:
+    sees it, so a request that announces more than the cap (plus room for the form fields) is refused unread. The
+    library has its own cap (library_cap): a project file carries its model as base64, a third bigger than the model."""
+    if MAX_UPLOAD and not request.url.path.startswith("/api/library/") and int(request.headers.get("content-length") or 0) > MAX_UPLOAD + 1_000_000:
         return Response("request too large", status_code=413)
     return await call_next(request)
 
@@ -177,14 +195,257 @@ def modes():
 # The project file's layout version. The page writes it when it saves, this server writes it into every export zip, and
 # the page reads it back to tell an old project from a current one (before 4 a `size` ran along the view's axes, from
 # 4 on along the model's): one number, here, so no writer can claim a layout it does not write. Bump it when the layout
-# changes, and give the page's openProject the migration for the version below.
+# changes, and give the page's openProjectText (web/static/js/project.js) the migration for the version below.
 PROJECT_VERSION = 4
 
 
 @app.get("/api/project")
 def project():
-    """What the page needs to know about project files before it saves one."""
-    return {"version": PROJECT_VERSION}
+    """What the page needs to know about project files before it saves one, and with LAMINA_LIBRARY set, `library`:
+    the server's folder by name, and what is wrong with it ('' when nothing). A field of this call, not a call of its
+    own: the page asks it first thing, and web/static/browser.js takes a 404 from the first call for "no server here"
+    and runs the page without one."""
+    out = {"version": PROJECT_VERSION}
+    if LIBRARY:
+        out["library"] = {"name": LIBRARY.name, "problem": library_problem()}
+    return out
+
+
+# ---------------------------------------------------------------- the library kept by this server (LAMINA_LIBRARY)
+# What the page's serverStore (web/static/js/store.js) calls: the same list, read, write, remove and conditional remove
+# the browser's own store answers. The folder is flat, one <name>_v<rev>.lamina.json per revision, as a linked folder.
+# What library.js's legal() leaves in a file name, with the ending every project file has; lib_path checks where it leads
+LIB_FILE = re.compile(r'[^\\/:*?"<>|\x00-\x1f]+\.lamina\.json')
+
+
+def library_cap() -> int:
+    """The biggest project file the library takes. A project carries its model as base64 (4/3 of the model): with
+    LAMINA_MAX_UPLOAD_MB set, the project of the biggest model the server takes, plus 1 MB for settings and picture.
+    Unset, 2^29 bytes (537 MB): Chrome cannot build a longer text, so no project a page sends is refused, and a runaway
+    request still cannot fill the disk."""
+    return MAX_UPLOAD * 4 // 3 + 1_000_000 if MAX_UPLOAD else 1 << 29
+
+
+def library_problem() -> str:
+    """'' while the server can write into its library folder, else what is wrong and the fix, in plain words. Asked as
+    the server starts (said once on its output), by api/project, by every listing and by a write that failed, so the
+    page's folder line follows a fix without a restart."""
+    try:
+        LIBRARY.mkdir(parents=True, exist_ok=True)   # named but not made yet: a first run without Docker
+        fd, probe = tempfile.mkstemp(dir=LIBRARY, prefix=".", suffix=".probe")
+        os.close(fd)
+        os.unlink(probe)
+        return ""
+    except OSError as e:
+        uid = os.getuid() if hasattr(os, "getuid") else None   # 1000 in the Docker image (the Dockerfile's useradd)
+        fix = ("It is mounted read-only: remove :ro from its volume line." if e.errno == errno.EROFS
+               else f"On the host, give the folder to user {uid}: sudo chown -R {uid} /path/to/the/folder" if uid is not None
+               else "Check that it exists and that the user who started Lamina may write to it.")
+        return f"The server cannot write to its library folder {LIBRARY.name} ({e.strerror or e}). {fix}"
+
+
+def sweep_library():
+    """The side files of a write or of the probe whose process was killed half way, once they are an hour old: a write
+    under way keeps its own side file's time fresh."""
+    with contextlib.suppress(OSError):
+        for f in [*LIBRARY.glob(".*.tmp"), *LIBRARY.glob(".*.probe")]:
+            with contextlib.suppress(OSError):
+                if f.stat().st_mtime < time.time() - 3600:
+                    f.unlink()
+
+
+if LIBRARY:
+    sweep_library()
+    if _problem := library_problem():
+        print(f"Lamina: {_problem}", file=sys.stderr, flush=True)
+
+# a Host header: an address in brackets (v6) or a name or v4 address, with or without a port
+HOST = re.compile(r"\[([0-9a-f:.]+)\](?::\d+)?|([^:\[\]]+)(?::\d+)?")
+
+
+def own_host(host: str) -> bool:
+    """A name the library answers on: an address (v4 or v6), a name with no dot (localhost, a computer on the LAN), one
+    that ends in .local, .lan or .home.arpa, or one in LAMINA_HOSTS. A web page elsewhere can point its own name at
+    this server (DNS rebinding) and read the library from its visitor's browser: the Host it sends is then its own name."""
+    m = HOST.fullmatch(host.lower())
+    if not m:
+        return False
+    name = m[1] or m[2]
+    with contextlib.suppress(ValueError):
+        return bool(ipaddress.ip_address(name))
+    return name in HOSTS or bool(re.fullmatch(r"[a-z0-9_-]+", name)) or name.endswith((".local", ".lan", ".home.arpa"))
+
+
+def library_host(request: Request):
+    """Every /api/library call: 404 while this server keeps no library, 403 on a name that is not its own (own_host)."""
+    if LIBRARY is None:
+        raise HTTPException(404)
+    host = request.headers.get("host", "")
+    if not own_host(host):
+        raise HTTPException(403, f"The library does not answer on the name {host!r}. If that is your own name for this server "
+                                 "(a reverse proxy, for example), add it to the setting LAMINA_HOSTS and start the server again.")
+
+
+ON_OWN_HOST = [Depends(library_host)]
+
+
+def lib_path(file: str) -> pathlib.Path:
+    """The library's file for a name the page sent: the library's own kind of name (no separator, no dot first, no
+    `..`, the project ending), no link (the listing does not show one), then where it leads, resolved: straight inside
+    the folder."""
+    ok = LIB_FILE.fullmatch(file) and not file.startswith(".") and ".." not in file and not (LIBRARY / file).is_symlink()
+    p = (LIBRARY / file).resolve() if ok else None
+    if p is None or p.parent != LIBRARY:
+        raise HTTPException(400, f"{file!r} is not the name of a project file in the library")
+    return p
+
+
+@contextlib.contextmanager
+def library_lock():
+    """One change at a time in the folder, across every worker process (WEB_CONCURRENCY > 1): a write's swap and the
+    size and time it answers, and a conditional remove's compare and delete, never interleave.
+    ponytail: an OS lock on a file in the folder holds for the processes of one machine (the kernel lets go when one
+    dies); servers on two machines sharing one network folder would need the file server's own locking."""
+    with open(LIBRARY / ".lamina.lock", "a+b") as f:
+        if os.name == "nt":
+            import msvcrt                                    # imported here: the browser build has neither module
+            f.seek(0)
+            msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)    # tries for 10 s, then OSError
+            try:
+                yield
+            finally:
+                f.seek(0)
+                msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(f, fcntl.LOCK_EX)                    # let go when the file closes
+            yield
+
+
+def mtime_ms(st) -> int:
+    return st.st_mtime_ns // 1_000_000                       # the page's own unit (File.lastModified)
+
+
+def now_at(p: pathlib.Path):
+    """(size, mtime) of the project file at p, as the listing shows it; None when the listing shows none (no file, or a
+    folder with the name)."""
+    try:
+        st = os.stat(p)
+    except FileNotFoundError:
+        return None
+    return (st.st_size, mtime_ms(st)) if stat.S_ISREG(st.st_mode) else None
+
+
+@app.get("/api/library", dependencies=ON_OWN_HOST)
+def library_list():
+    """Every project file straight in the folder, by name, size and time (links and sub-folders left out, so nothing
+    outside shows even its size), with what is wrong with the folder for the page's folder line."""
+    files = []
+    try:
+        with os.scandir(LIBRARY) as it:
+            for e in it:
+                with contextlib.suppress(OSError):           # gone between its name and its size: not there
+                    if e.name.endswith(".lamina.json") and e.is_file(follow_symlinks=False):
+                        st = e.stat(follow_symlinks=False)
+                        files.append({"file": e.name, "size": st.st_size, "mtime": mtime_ms(st)})
+    except OSError as err:
+        raise HTTPException(503, library_problem() or f"The server cannot read its library folder {LIBRARY.name} ({err.strerror or err}).") from None
+    return {"name": LIBRARY.name, "problem": library_problem(), "files": sorted(files, key=lambda f: f["file"])}
+
+
+@app.get("/api/library/{file:path}", dependencies=ON_OWN_HOST)
+def library_read(file: str):
+    """A project file as it is, streamed from the file opened here: a big project is never held whole in memory, and a
+    write swapped in meanwhile does not change what this read sends."""
+    p = lib_path(file)
+    try:
+        f = open(p, "rb")                                    # noqa: SIM115 — closed by chunks() as the answer ends
+    except FileNotFoundError:
+        raise HTTPException(404, f"{file} is not in the library") from None
+    except OSError as e:
+        raise HTTPException(503, f"{file} could not be read in {LIBRARY.name} ({e.strerror or e}).") from None
+
+    def chunks():
+        with f:
+            yield from iter(lambda: f.read(1 << 20), b"")
+    return StreamingResponse(chunks(), media_type="application/json")
+
+
+def _settle(f, tmp: str):
+    f.flush()
+    os.fsync(f.fileno())
+    os.chmod(tmp, 0o644)                                     # mkstemp's 0600 would keep the file from the host's own user
+
+
+def _swap_in(tmp: str, p: pathlib.Path, file: str, check: bool, want) -> dict:
+    with library_lock():
+        if check and now_at(p) != want:
+            raise HTTPException(412, f"{file} changed in {LIBRARY.name} since the page listed it.")
+        for wait in (0.05, 0.1, 0.2, 0.4, 0.8, None):
+            try:
+                os.replace(tmp, p)
+                break
+            except PermissionError:                          # Windows refuses while a read still has the old file open
+                if os.name != "nt" or wait is None:
+                    raise
+                time.sleep(wait)
+        st = os.stat(p)
+    return {"size": st.st_size, "mtime": mtime_ms(st)}
+
+
+@app.put("/api/library/{file:path}", dependencies=ON_OWN_HOST)
+async def library_write(file: str, request: Request, expect: Literal["absent"] | None = None, size: int | None = None,
+                        mtime: int | None = None):
+    """The file swapped in whole: the body goes to a dot-file beside it first (no listing shows it), flushed to the
+    disk, then swapped in, so a write that fails or stops half way leaves the old file as it was. Answers the size and
+    time the listing will show. Counted as it comes: a body that announces no length is capped too. With expect=absent
+    the file must not be there, with size and mtime it must still have them: what the page compared before it wrote,
+    checked under the lock as the file is swapped in (other browsers write too), else 412 and nothing changes. The file
+    work runs in the threadpool: a big project's write and fsync would hold every other request."""
+    p, cap = lib_path(file), library_cap()
+    check, want = expect == "absent" or size is not None or mtime is not None, None if expect == "absent" else (size, mtime)
+    big = f"This project is bigger than the {cap // 1_000_000} MB this server's library takes. Use export to keep it as a file."
+    if int(request.headers.get("content-length") or 0) > cap:
+        raise HTTPException(413, big)
+    try:
+        fd, tmp = await run_in_threadpool(tempfile.mkstemp, dir=LIBRARY, prefix=".", suffix=".tmp")
+    except OSError as e:
+        raise HTTPException(503, library_problem() or f"{file} could not be written in {LIBRARY.name} ({e.strerror or e}).") from None
+    try:
+        with os.fdopen(fd, "wb") as f:
+            n = 0
+            async for chunk in request.stream():
+                n += len(chunk)
+                if n > cap:
+                    raise HTTPException(413, big)
+                await run_in_threadpool(f.write, chunk)
+            await run_in_threadpool(_settle, f, tmp)
+        return await run_in_threadpool(_swap_in, tmp, p, file, check, want)
+    except OSError as e:
+        raise HTTPException(503, library_problem() or f"{file} could not be written in {LIBRARY.name} ({e.strerror or e}).") from None
+    finally:
+        with contextlib.suppress(OSError):                   # swapped in, it is gone already
+            os.unlink(tmp)
+
+
+@app.delete("/api/library/{file:path}", dependencies=ON_OWN_HOST)
+def library_remove(file: str, size: int | None = None, mtime: int | None = None):
+    """The file deleted. With `size` and `mtime`, only while it still has them (the page's removeIf), checked and
+    deleted under the lock, so a write that lands meanwhile stays. `removed` is true when it is gone, also when it was."""
+    p = lib_path(file)
+    try:
+        with library_lock():
+            if size is not None or mtime is not None:
+                try:
+                    st = os.stat(p)
+                except FileNotFoundError:
+                    return {"removed": True}
+                if (st.st_size, mtime_ms(st)) != (size, mtime):
+                    return {"removed": False}
+            p.unlink(missing_ok=True)
+    except OSError as e:
+        raise HTTPException(503, library_problem() or f"{file} could not be deleted in {LIBRARY.name} ({e.strerror or e}).") from None
+    return {"removed": True}
 
 
 @app.get("/api/examples")
@@ -313,7 +574,7 @@ def with_units(plan: dict, units: str) -> dict:
 
 
 def project_file(client: str, jd: pathlib.Path, plan: dict) -> tuple[str, str]:
-    """The job as the project file the UI's "open project" reads back (technique, every parameter, per-technique
+    """The job as the project file the library's import reads back (technique, every parameter, per-technique
     memory, and an uploaded model itself), for the zips: a cut file or a printed part found later has to lead back
     to the model that made it. The session has the parameters as the form holds them; the plan's are the fallback."""
     sess = {}
