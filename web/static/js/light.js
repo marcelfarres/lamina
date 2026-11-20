@@ -146,13 +146,14 @@ const sl=(k,v,lo,hi,step=1)=>`<span class="sl"><input type="range" id="lt_${k}_r
 const pick=(k,opts,v)=>`<select data-l="${k}">${Object.entries(opts).map(([x,t])=>`<option value="${esc(x)}" ${x===v?'selected':''}>${esc(t)}</option>`).join('')}</select>`;
 const row=(k,label,tip,inp,cls='')=>`<div class="f ${cls}" data-p="light_${k}"><span class="k" data-tip="${esc(tip)}">${label}</span>${inp}</div>`;
 const MORE='<button class="more" hidden></button></div>';   // the foot every group of settings has (form.js counts on it)
+const rows=L=>{const u=ST.unit;return L.map((x,i)=>`<div class="lrow${i===sel?' sel':''}${x.on?'':' off'}" data-li="${i}">
+      <input type="checkbox" data-on="${i}" ${x.on?'checked':''} title="this light on or off" aria-label="light ${i+1} on"><span class="ln" style="border-color:${MARK[i]}">${i+1}</span>
+      <span>${x.kind==='spot'?'Spot':'Bulb'}<small>${x.like in LIKE&&x.like!=='own'?esc(LIKE[x.like][0]):x.kind==='spot'?`${x.angle}° cone`:`${inU(x.size)} ${u} across`}${x.kind==='spot'?` · ${AIM[x.aim]}`:''} · ${x.lm} lm${x.on?'':' · off'}</small></span>
+      <span><button class="small" data-act="copy" data-i="${i}" title="a copy of this light" ${L.length<MAX?'':'disabled'}>⧉</button><button class="small" data-act="del" data-i="${i}" title="remove this light">✕</button></span></div>`).join('')};   // the list: drawn again on its own while a slider moves, so a row says what its light is now
 function renderTab(){const L=list(), on=!!state.light, u=ST.unit, lim=box?Math.ceil(inU(box.r*2)):300, st=inU(1)<1?.01:1; sel=Math.max(0,Math.min(sel,L.length-1)); shown=JSON.stringify([on,L,u]);
   const l=L[sel], spot=l?.kind==='spot';
   $('#g-light').innerHTML=row('show','show the light','Light the model from the lights below and show the shadows it throws, in a room. The same tick as 💡 light over the 3D view',`<input type="checkbox" id="light_on" ${on?'checked':''}>`)
-    +`<div class="sec" data-sec="Lights"><h3 class="sub" title="click to fold or unfold">Lights<small></small></h3><div class="llist">${L.map((x,i)=>`<div class="lrow${i===sel?' sel':''}${x.on?'':' off'}" data-li="${i}">
-      <input type="checkbox" data-on="${i}" ${x.on?'checked':''} title="this light on or off" aria-label="light ${i+1} on"><span class="ln" style="border-color:${MARK[i]}">${i+1}</span>
-      <span>${x.kind==='spot'?'Spot':'Bulb'}<small>${x.like in LIKE&&x.like!=='own'?esc(LIKE[x.like][0]):x.kind==='spot'?`${x.angle}° cone`:`${inU(x.size)} ${u} across`}${x.kind==='spot'?` · ${AIM[x.aim]}`:''} · ${x.lm} lm${x.on?'':' · off'}</small></span>
-      <span><button class="small" data-act="copy" data-i="${i}" title="a copy of this light" ${L.length<MAX?'':'disabled'}>⧉</button><button class="small" data-act="del" data-i="${i}" title="remove this light">✕</button></span></div>`).join('')}</div>
+    +`<div class="sec" data-sec="Lights"><h3 class="sub" title="click to fold or unfold">Lights<small></small></h3><div class="llist">${rows(L)}</div>
       <button class="small" data-act="add" ${L.length<MAX?'':`disabled title="${MAX} lights at most: each one is a shadow to work out"`}>＋ add a light</button>${MORE}`
     +(l?`<div class="sec" data-sec="Light"><h3 class="sub" title="click to fold or unfold">Light ${sel+1}<small></small></h3>`
       +row('like','like','A real lamp to start from: it sets the kind, the size, the brightness and, for a spot, the cone. Change any of them and this reads “my own”',pick('like',Object.fromEntries(Object.entries(LIKE).map(([k,v])=>[k,v[0]])),l.like))
@@ -164,7 +165,7 @@ function renderTab(){const L=list(), on=!!state.light, u=ST.unit, lim=box?Math.c
       +row('lm','brightness (lm)','The light it gives, in lumens, as on the box of a real lamp: 400 lm is a 40 W bulb',sl('lm',l.lm,10,1600,10))
       +row('color','colour','The colour of the light: a white of a real lamp, or any colour',`<span>${pick('color',{...WHITE,pick:'a colour…'},l.color in WHITE?l.color:'pick')} <input type="color" data-l="hex" value="${esc(l.color)}" ${l.color in WHITE?'hidden':''} aria-label="the colour of the light"></span>`)
       +`<div class="f wide" data-p="light_pos"><span class="k" data-tip="Where the light is: x and y from the middle of the model, z up from the floor it stands on. A light can be outside the model">where it is (${u})</span><div class="rows">${['x','y','z'].map((a,j)=>`<div class="r"><small>${a}</small>${sl('p'+j,inU(l.pos[j]),j<2?-lim:0,lim,st)}</div>`).join('')}</div></div>${MORE}`:'')}
-function touch(redraw){if(redraw)renderTab(); else shown=JSON.stringify([!!state.light,list(),ST.unit]);   // a slider being dragged keeps its row: the tab is not drawn again under it
+function touch(redraw){if(redraw)renderTab(); else{shown=JSON.stringify([!!state.light,list(),ST.unit]);$('#g-light .llist').innerHTML=rows(list())}   // a slider being dragged keeps its row: the tab is not drawn again under it
   applyLight(); clearTimeout(touch.t); touch.t=setTimeout(record,400)}   // a slider drag is one step of undo
 $('#g-light').addEventListener('input',e=>{const t=e.target,k=t.dataset.l; if(!k||t.type==='range')return; const l=own()[sel],v=+t.value||0;   // a slider writes its number box, which lands here
   if(t.tagName==='SELECT'){if(k==='like')Object.assign(l,LIKE[t.value][1],{like:t.value}); else if(k==='color'){if(t.value!=='pick')l.color=t.value; else if(l.color in WHITE)l.color='#ff8040'} else{l[k]=t.value;if(k==='kind')l.like='own'}
