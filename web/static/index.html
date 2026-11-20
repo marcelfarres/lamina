@@ -10,6 +10,16 @@
 <div id="tip" hidden></div>
 <dialog id="oops"><h3 id="oops_title">That model did not load</h3><div class="msg" id="oops_msg"></div><div id="oops_help"></div>
   <div class="row"><button id="oops_no" hidden>Cancel</button><button id="oops_go" class="go">OK</button></div></dialog>
+<dialog id="libask"><h3>Save over another revision?</h3><p id="libask_msg"></p>
+  <label id="libask_restl" hidden><input type="checkbox" id="libask_rest"> the same for the rest</label>
+  <div class="row"><button id="libask_cancel">Cancel</button><button id="libask_replace"></button><button id="libask_keep" class="go"></button></div></dialog>
+<div id="library" hidden>
+  <div class="lbbar"><h1>Library</h1><input id="libfind" placeholder="find a project or example"><span class="sp"></span>
+    <button class="small" id="libimport">import files…</button><button class="small" id="libexportall">export all (.zip)</button><button class="small" id="libclose">✕ close</button></div>
+  <div id="libwhere">💾 kept in this browser only. Clearing the site data deletes them: use <b>export all</b> for a backup.</div>
+  <section id="libyours"></section>
+  <section id="libexamples"></section>
+</div>
 <dialog id="newsdlg"><h3 id="news_title">What's new</h3><div id="news_body"></div>
   <div class="row"><button id="news_go" class="go">OK</button></div></dialog>
 <dialog id="helpdlg"><h3>How Lamina works</h3>
@@ -52,8 +62,24 @@
       change its numbers to move it. Every pair of layers it passes through gets a hole. Two lines hold each layer,
       one lets it turn.</li>
     <li>A layer that nothing joins is never deleted: the Checks tab says so and what would hold it.</li></ul>
+  <h4>Library</h4>
+  <ul><li><b>library</b> in the top bar opens your saved projects, newest first, each with a picture, and the examples
+      under them. Click a card to open its newest revision; <b>N&nbsp;revisions&nbsp;▾</b> lists every revision, each
+      with <b>open</b>, <b>export</b> and <b>delete</b>.</li>
+    <li><b>save</b> writes the revision you are on (the name and the version number beside it), over the one this tab
+      opened or last saved. <b>version ▾</b> moves to the next free revision number (+0.1 or +1), and the next save
+      writes it beside the old ones. A save onto another revision that is already there asks first: replace, keep
+      both or Cancel. <b>●&nbsp;unsaved changes</b> shows what is not saved yet.</li>
+    <li>Your projects are kept in this browser. In Chrome and Edge, <b>link a folder</b> keeps them as files in a
+      folder on your computer instead; the folder line at the top of the library says which. When the server keeps
+      a library folder (Docker, <code>LAMINA_LIBRARY</code>), that folder is the library, in every browser. <b>Clear my data…</b>
+      leaves the library as it is. Clearing the site data in the browser deletes the projects kept in this browser
+      and forgets a linked folder (its files stay).</li>
+    <li><b>export all (.zip)</b> is your backup: keep it somewhere else. <b>import files…</b> (or drop the files on
+      the library) takes it back, and single <b>.lamina.json</b> files too.</li>
+    <li>An example opens as it is; save it and it becomes a project of yours.</li></ul>
   <h4>Keyboard</h4>
-  <ul><li><kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Ctrl</kbd>+<kbd>Y</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redo — the last 60 changes, including a part you moved by accident (⌘ on a Mac); the <b>↶ undo</b> button in the header does the same</li>
+  <ul><li><kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Ctrl</kbd>+<kbd>Y</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redo — the last 60 changes, including a part you moved by accident (⌘ on a Mac); the <b>↶ undo</b> button in the top bar does the same</li>
     <li><kbd>?</kbd> this help · <kbd>Esc</kbd> close a dialog or deselect</li></ul>
   <h4>When something does not fit</h4>
   <ul><li>Parts bigger than your sheet: the Checks tab says so and offers the size that fits, <b>split</b> (cut into pieces joined by puzzle tabs), or <b>one sheet</b> (one long strip).</li>
@@ -62,14 +88,14 @@
   <div class="row"><button id="help_go" class="go">Close</button></div></dialog>
 <header><h1 data-tip="Lamina turns a 3D model into flat parts you can cut from paper, cardboard, plywood or sheet metal — stacked, interlocked, radial, ribbed or folded — checks that the result holds together, nests the parts on your sheets and exports the cut files. Not the 3D-printing kind of slicing — it works out the pieces you cut from a sheet and put back together."><img src="static/logo.svg" alt="">Lamina</h1>
 <input id="pname" placeholder="project name" style="width:150px;padding:3px 6px" title="project name (printed on every sheet and used for the file name)">
-<button class="small" id="popen">open project</button><button class="small" id="psave2">save project</button><input type="file" id="pfile" accept=".json" hidden>
+<button class="small" id="popen" title="your saved projects and their revisions">library</button><button class="small" id="psave2" title="save this project into the library, over the revision you are on">save</button><span class="hint" id="punsaved" hidden>● unsaved changes</span>
 <details class="menu"><summary class="small" title="revision: bump minor for small changes, major for a new design">version <span id="prev">1.0</span> ▾</summary><div class="pop">
   <button id="pminor" title="new minor revision (1.0 → 1.1)">A small change · +0.1</button><button id="pmajor" title="new major revision (1.x → 2.0)">A new design · +1</button></div></details>
 <button class="small" id="undo" title="undo the last change (Ctrl+Z)" disabled>↶ undo</button><button class="small" id="redo" title="redo (Ctrl+Y or Ctrl+Shift+Z)" disabled>↷</button>
 <details class="menu"><summary class="small" title="how it works, every shortcut, and what to do when something does not fit (?)">? help ▾</summary><div class="pop">
   <button id="helpbtn">How Lamina works</button><button id="newsbtn" title="what changed in this version, and every version before it">What is new</button><a href="https://marcelfarres.github.io/lamina/?ref=app" target="_blank" rel="noopener" data-tip="What Lamina does, every technique explained, how to run it yourself">Documentation ↗</a><hr>
   <a data-feedback href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml" target="_blank" rel="noopener" data-tip="Something came out wrong? Write a sentence here and the report fills in the rest: the technique, every setting, what the checks said, the steps you took since loading the model, and the model saved ready to attach unless you untick that box. It then opens a prefilled email or the GitHub issue form for you to send — email needs no account.">Report a problem ↗</a><a href="https://discord.gg/N66bCQxmt3" target="_blank" rel="noopener" data-tip="Questions, ideas and builds: the Lamina Discord, where other people cutting with it can answer too">Discord ↗</a><a href="https://www.reddit.com/r/Lamina3D" target="_blank" rel="noopener" data-tip="r/Lamina3D on Reddit: show what you built, ask for help, say what Lamina should do next">Reddit ↗</a><a href="https://github.com/marcelfarres/lamina" target="_blank" rel="noopener" data-tip="Source code, issues, releases (AGPL-3.0)">GitHub ↗</a><hr>
-  <button id="clear" title="delete everything this tab sliced — uploaded models, cut files, session (presets stay)">Clear my data…</button></div></details>
+  <button id="clear" title="delete everything this tab sliced — uploaded models, cut files, session (presets and the library stay)">Clear my data…</button></div></details>
 <span class="sp"></span><span id="dot" title="green = ready · orange = slicing · red = error"></span><span id="status"></span>
 <label style="font-size:12px;color:var(--muted)">view <select id="viewmode"><option value="both">3D + sheets</option><option value="only3d">3D only</option><option value="only2d">sheets only</option></select></label>
 <label style="font-size:12px;color:var(--muted)">units <select id="unit"><option>mm</option><option>cm</option><option>in</option></select></label>
@@ -83,7 +109,7 @@
     <section data-tab="model" class="on">
       <h2>Model <button class="small reset" data-reset="model">reset tab</button></h2>
       <label class="f"><span class="k" data-tip="STL, OBJ, 3MF, PLY, OFF, GLB, or STEP / BREP (CAD; needs `uv sync --extra cad`)">upload</span><input type="file" id="file" accept=".stl,.obj,.3mf,.ply,.off,.glb,.gltf,.step,.stp,.brep"></label>
-      <label class="f"><span class="k" data-tip="Bundled test shapes: geometric, organic, heads and animals">example</span><select id="example"></select></label>
+      <label class="f"><span class="k" data-tip="Bundled test shapes: geometric, organic, heads and animals. They are in the library, under Examples">example</span><button class="small" id="exopen">pick an example…</button></label>
       <div id="g-model"></div>
       <div class="f"><span class="k" data-tip="Quarter turns of the whole model (the ghost and the axes in the 3D view follow)">turn</span><span class="vec"><button class="small" data-rot="0">x ±90°</button><button class="small" data-rot="1">y ±90°</button><button class="small" data-rot="2">z ±90°</button></span></div>
       <div class="f" id="square" hidden><span></span><span><span class="hint" data-tip="Its flat faces are a few degrees off the axes, so every slice steps and straight edges come out as a staircase. The button turns it square; leave it if the tilt is on purpose"></span> <button class="small"></button></span></div>

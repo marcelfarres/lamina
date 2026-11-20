@@ -100,8 +100,9 @@ sheet before you commit expensive material.
   send. **Email needs no account anywhere**; an issue is public, an email is not.
 - **[The issue form](https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml)**, filled in by
   hand. It asks for the model and the settings that reproduce the problem; the quickest way to give both is
-  **save project** in the UI, which writes one file with the model embedded and every parameter in it — the same
-  file the button attaches.
+  **export** on the revision in the library (**library**, then **N revisions ▾** on the project's card), which
+  downloads one `.lamina.json` file with the model embedded and every parameter in it — the same file the button
+  attaches.
 
 **A question, an idea, or stuck on a build?** Ask in [r/Lamina3D](https://www.reddit.com/r/Lamina3D) on Reddit or on the
 [Lamina Discord](https://discord.gg/N66bCQxmt3), where
@@ -165,6 +166,128 @@ The image on GitHub Container Registry carries everything; the machine that runs
 
 ```bash
 docker run -d -p 8000:8000 -v lamina-jobs:/app/working-files ghcr.io/marcelfarres/lamina:latest
+```
+
+### Keep your projects in a folder (Docker)
+
+With Docker, Lamina keeps your library in a folder on your computer. Every browser then shows the same projects,
+Firefox and Safari too, and each project is a file that you can copy. Docker runs Lamina in a closed box (a
+*container*), so you do not install Python or anything else. You do these steps once.
+
+1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows, macOS) and start it. On Linux,
+   install [Docker Engine](https://docs.docker.com/engine/install/) with its compose plugin.
+2. Open a terminal. Windows: open the Start menu, type `PowerShell` and open it. macOS: open *Terminal* (in
+   *Applications → Utilities*). Linux: open your terminal.
+3. Make a folder for Lamina, and go into it:
+
+   ```bash
+   mkdir lamina
+   ```
+
+   ```bash
+   cd lamina
+   ```
+
+4. Download the file `docker-compose.yml` into this folder. It tells Docker what to start. Windows:
+
+   ```powershell
+   curl.exe -O https://raw.githubusercontent.com/marcelfarres/lamina/main/docker-compose.yml
+   ```
+
+   macOS and Linux:
+
+   ```bash
+   curl -O https://raw.githubusercontent.com/marcelfarres/lamina/main/docker-compose.yml
+   ```
+
+   Or open [docker-compose.yml](https://raw.githubusercontent.com/marcelfarres/lamina/main/docker-compose.yml) in
+   your browser and save it as `docker-compose.yml` in the `lamina` folder.
+5. Linux only: make the projects folder yourself before the first start, so that it is yours and not the system's:
+
+   ```bash
+   mkdir lamina-projects
+   ```
+
+   Lamina runs as user 1000 in the container. If `id -u` does not show `1000`, give the folder to user 1000 too:
+
+   ```bash
+   sudo chown 1000 lamina-projects
+   ```
+
+6. Start Lamina. The first start downloads it, which takes a few minutes. `-d` keeps it running after you close the
+   terminal.
+
+   ```bash
+   docker compose up -d
+   ```
+
+   Every device on your network (the same Wi-Fi) can open the page and change your projects. To allow only this
+   computer, write `127.0.0.1:8000:8000` in place of `8000:8000` in `docker-compose.yml`, then run
+   `docker compose up -d` again.
+
+7. Open <http://localhost:8000>. Press **library** in the top bar: the line at the top of the library reads
+   "📁 kept in the folder library on the server".
+
+**Your projects** are in the folder `lamina-projects`, in the `lamina` folder. Each revision is one file,
+`<name>_v<rev>.lamina.json`. A project file that you copy into this folder shows in the library.
+
+**Back up** your projects: copy the folder `lamina-projects` to another place, for example a USB drive. **export all
+(.zip)** on the library page also makes a backup.
+
+**Update** to the newest Lamina: in the `lamina` folder, run these two commands. Your projects stay.
+
+```bash
+docker compose pull
+```
+
+```bash
+docker compose up -d
+```
+
+**Stop** Lamina. Your projects stay in the folder.
+
+```bash
+docker compose down
+```
+
+**Linux: "⚠ The server cannot write to its library folder library".** The folder does not belong to user 1000:
+Docker made it as the system user (root). Run this in the `lamina` folder, then reload the page:
+
+```bash
+sudo chown -R 1000 lamina-projects
+```
+
+**Who can see your projects.** There is no login. Anyone who can open the page can read, change and delete these
+projects. Run it only where only you, or people that you trust, can reach the page.
+
+**Open it by a domain name.** The library answers only on the addresses of the computer and on local names
+(`localhost`, a name without a dot, or a name that ends in `.local`, `.lan` or `.home.arpa`). This stops a web
+page on another site from reading your projects through your browser. If you open Lamina by a domain name of your
+own (for example through a reverse proxy), add that name to `LAMINA_HOSTS` in `docker-compose.yml`. Without it,
+the library says "The library does not answer on the name …".
+
+A name that your router or VPN gives (for example `nas.fritz.box`, `*.localdomain`, `*.internal`, a Tailscale
+`*.ts.net` name or `*.localhost`) must be in `LAMINA_HOSTS` too. Behind a reverse proxy, forward the original Host
+(nginx: `proxy_set_header Host $host;`). Else the check sees the proxy's own name for Lamina.
+
+The same without the compose file, in one command. `-v` connects a folder on your computer to a folder in the
+container, and `-e` gives Lamina a setting. Run it in the folder where `lamina-projects` must go:
+
+```bash
+docker run -d -p 8000:8000 -v lamina-jobs:/app/working-files -v "$PWD/lamina-projects:/library" -e LAMINA_LIBRARY=/library ghcr.io/marcelfarres/lamina:latest
+```
+
+Without Docker, set `LAMINA_LIBRARY` to the folder before Lamina starts; the folder is made if it is not there. From
+a clone, on macOS and Linux (or `lamina3d` in place of `uv run uvicorn …` for the installed tool):
+
+```bash
+LAMINA_LIBRARY=~/lamina-projects uv run uvicorn web.app:app --port 8000
+```
+
+Windows (PowerShell):
+
+```powershell
+$env:LAMINA_LIBRARY="$HOME\lamina-projects"; uv run uvicorn web.app:app --port 8000
 ```
 
 ### Updating
@@ -240,9 +363,10 @@ stranger's 2 GB scan is not yours to hold. `WEB_CONCURRENCY` is how many slices 
 time (one uvicorn worker each, about 300 MB). Lamina still has no login of its own, so put it behind your reverse
 proxy's authentication if the server is reachable from the internet.
 
-The Model tab opens on a bundled example; [examples/](examples/README.md) holds 24 of them, and each opens on the
-technique and parameters that suit it ([examples/presets.json](examples/presets.json) — the shape standing the right
-way up, sliced without an error; a test keeps that true). The same pipeline runs headless, so it can be scripted:
+The page resumes the tab's session, or opens the `blob` example on a first visit. The library shows every bundled
+example: [examples/](examples/README.md) holds 35 of them, and each opens on the technique and parameters that suit
+it ([examples/presets.json](examples/presets.json) — the shape standing the right way up, sliced without an error; a
+test keeps that true). The same pipeline runs headless, so it can be scripted:
 
 ```bash
 uv run python -m core.plan examples/egg.stl --mode interlocked --set nx=5 ny=4 thickness=3 --out out/egg
@@ -383,8 +507,9 @@ does not slip through. It carries the most signal for stacked and folded work; d
   fit test** (Downloads) is at 1:1 for the real machine and predicts the model's fit; the **print fit test**
   (Prototyping) dials in the print's own **print slot offset**, in printed millimetres whatever the scale, which the
   prototype set uses in place of the job's.
-- **Every zip carries the project file** (`….lamina.json`) that the UI's *open project* reads back: technique, every
-  parameter and the uploaded model itself, so a printed part or a cut file found later leads back to what made it.
+- **Every zip carries the project file** (`….lamina.json`): technique, every parameter and the uploaded model
+  itself, so a printed part or a cut file found later leads back to what made it. Take it out of the zip, and
+  **import files…** on the library page reads it back.
 
 ### The web UI
 
@@ -443,8 +568,57 @@ sheets are always the same plan.
 - **View cube**: the cube in the corner of the 3D view turns with the camera; click a face for a flat top, front or
   side view.
 - **Session and projects**: the session belongs to the browser tab, so a refresh resumes where you were; a second tab
-  is a second session, and on a shared server nobody sees anyone else's models or cut files. Project save / open
-  writes one file with the model embedded. Units mm / cm / in for every length field and for the DXF.
+  is a second session, and on a shared server nobody sees anyone else's models or cut files. A project is one file
+  with the model embedded ([Your projects](#your-projects)). Units mm / cm / in for every length field and for the DXF.
+
+### Your projects
+
+A project is a model with its technique, every setting, a name and a revision. **save** in the top bar puts the
+project you are working on into the library; until then "● unsaved changes" shows beside the button. **library**
+opens a page with a card for each project, newest first: a picture of the model, the name, the revision and the
+date. Click a card to open the newest revision. The **N revisions ▾** button on a card lists every revision, each
+with **open**, **export** and **✕ delete**, and under them **export all N** and **✕ delete project** for the whole
+project. A find box filters the cards by name. Opening a project or an example while there are unsaved changes asks
+first.
+
+Save writes the revision you are on. The **version ▾** menu (+0.1 or +1) starts a new revision at the next free number:
+with 1.0 to 1.3 saved, `+0.1` from 1.0 gives 1.4. Every revision stays until you delete it. Change the name and
+save, and it is a new project; the old one stays. A save that would land on a revision that is already there, and
+is not the one this tab opened or last saved, asks: **replace** it, **keep both** (the save takes the next free
+number), or **Cancel**.
+
+The bundled examples are on the same page, under your projects, marked "example · read-only". **pick an example…**
+on the Model tab opens the library at them; once one is loaded, the button reads "<name> · pick another…". Save an
+opened example and it becomes a project of yours.
+
+Where the projects are kept, said on the folder line at the top of the library page:
+
+- **In this browser** (every browser): "💾 kept in this browser only". Clearing the site data deletes them, so use
+  **export all (.zip)** for a backup. **Clear my data…** in the *help* menu does not touch the library.
+- **In a folder on your disk** (Chrome and Edge). **link a folder** moves the browser's projects into the folder you
+  pick; the folder line then reads "📁 kept in the folder <its name> · N files", with **change folder** and
+  **unlink**. The folder is the library: each revision is one `<name>_v<rev>.lamina.json` file, a project file you
+  put there appears in the library, and one you delete is gone. A revision that stays in the browser (a link whose
+  question was cancelled) is counted on the folder line. **unlink** and **change folder** leave the files where they
+  are, and the folder line says where. The browser asks for permission to the folder again on a later visit, unless
+  you allow it on every visit; **library** and **save** ask for it from their click. Until it is given, the folder
+  line says "⚠ The linked folder <its name> cannot be reached", with **reconnect folder**, **pick another folder**
+  and **unlink**, and a save fails instead of going somewhere else.
+- **In a folder on the server** (every browser), when the server starts with `LAMINA_LIBRARY` set
+  ([Keep your projects in a folder (Docker)](#keep-your-projects-in-a-folder-docker)): "📁 kept in the folder <its
+  name> on the server · N files". That folder is the library for everyone who opens the page, and the page offers no
+  folder of its own then. Projects that were in this browser before are counted on the folder line, and **move them
+  to the server folder** moves them in, with the same questions as a link. When the server cannot write to the
+  folder, the folder line says so with the fix, and a save fails instead of going somewhere else.
+
+**export all (.zip)** makes one zip of every project, the backup that lives somewhere else; **export** on a revision
+downloads that one file, and **export all N** the project as a zip. **import files…** (or a drop on the library page)
+takes project files and such zips, several at once. When a revision with the same name and number is already there,
+it asks: **replace**, **keep both** (the import takes the next free number), or **Cancel** (that file is skipped);
+"the same for the rest" answers once for every clash of that import. Linking a folder asks the same way when the
+folder already has that revision. Nothing of this goes to a server, except to the server's own folder when it is
+set up with `LAMINA_LIBRARY`: otherwise the page reads and writes the projects itself, the same in the local version
+and in the browser version.
 
 ## How it is built
 
@@ -558,7 +732,7 @@ Actions tab), and committed back to main, so they always show the version people
 ```text
 core/        planner, modes, unfold, notch, checks, nest, split, export, solid
 web/         FastAPI app + single-page UI: static/index.html (markup), static/js/ (one module per concern), static/app.css; vendored three.js
-examples/    24 test models: 18 synthetic + a scanned head, a porcelain horse statue, three animals and the bunny (terms in examples/README.md)
+examples/    35 test models: 29 synthetic + a scanned head, a porcelain horse statue, three animals and the bunny (terms in examples/README.md)
 docs/        index.html + media/ (the GitHub Pages site), roadmap.md, folded-panels.md, original-slicer-reference.md
 tests/       pytest suite, ui/ (the app in a browser), test_unfold.py, run_matrix.py
 ```

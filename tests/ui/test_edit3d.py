@@ -204,7 +204,7 @@ def test_a_drag_while_a_slice_runs_turns_the_view_not_the_model(page):
     use(page, "head_igea")
     box = page.locator("#v3d canvas").first.bounding_box()
     cx, cy = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
-    page.select_option("#example", "horse_statue")
+    page.evaluate("__t.openExample('horse_statue')")
     drags = 0
     for _ in range(6):                                   # across the middle, where the red ring runs edge-on
         page.wait_for_timeout(250)

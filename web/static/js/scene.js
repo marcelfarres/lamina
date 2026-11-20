@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {OrbitControls} from '../vendor/OrbitControls.js';
 import {STLLoader} from '../vendor/STLLoader.js';
 import {state, ST} from './state.js';
-import {COLORS, LOOKS, PLANE_IDX} from './catalog.js';
+import {COLORS, LOOKS, PLANE_IDX, STRIPED} from './catalog.js';
 import {$, status} from './util.js';
 import {highlight, deselect, drawGizmo} from './edit3d.js';
 import {renderSeams, showSeamLines} from './seams.js';
@@ -58,7 +58,10 @@ let lastFrame=performance.now();
 export function mat4(M){return new THREE.Matrix4().set(...M[0],...M[1],...M[2],...M[3])}
 function shape(rings){const s=new THREE.Shape(rings[0].map(([x,y])=>new THREE.Vector2(x,y)));for(const h of rings.slice(1))s.holes.push(new THREE.Path(h.map(([x,y])=>new THREE.Vector2(x,y))));return s}
 export function applyLook(){const k=$('#look').value,op=+$('#opacity').value;for(const m of parts.children){if(m.userData.group==='B')continue;   // a lobe boundary is a guide, not material: it keeps its own look
-  const [c,r,me]=k==='group'?[COLORS[m.userData.group]||0xaaaaaa,.7,.05]:LOOKS[k];m.material.color.set(m.userData.bad?0xff5555:c);m.material.roughness=r;m.material.metalness=me;
+  const [c,r,me]=k==='group'?[COLORS[m.userData.group]||0xaaaaaa,.7,.05]:LOOKS[k],col=m.material.color.set(m.userData.bad?0xff5555:c);m.material.roughness=r;m.material.metalness=me;
+  // a material look gives every part one colour: the striped family moves .3 in lightness away from it (lighter on a
+  // dark look, darker on a light one), so it differs even on a cut edge seen end-on, where no stripe shows
+  if(k!=='group'&&!m.userData.bad&&STRIPED.includes(m.userData.group)){const h={};col.getHSL(h,THREE.SRGBColorSpace);col.setHSL(h.h,h.s,h.l>.5?h.l-.3:h.l+.3,THREE.SRGBColorSpace)}
   const tr=m.userData.group==='F'&&op<1;m.material.transparent=tr;m.material.opacity=tr?op:1;m.material.depthWrite=!tr}ST.dirty=true}
 // rotation rings (OrcaSlicer-style): drag a ring to turn the whole model about that axis
 function renderRings(){
@@ -106,6 +109,14 @@ function renderGuides(){
   (ST.plan.curve_pts||[]).forEach(([u,v,w=0],i)=>{const s=onTop(new THREE.Mesh(new THREE.SphereGeometry(r*1.5,12,8),new THREE.MeshBasicMaterial({color:0x4f8cff})));s.userData.cp=i;   // a handle: drag it in the curve's plane
     s.position.copy(mid).addScaledVector(V3(ST.plan.axes[idx[0]]),u).addScaledVector(V3(ST.plan.axes[idx[1]]),v).addScaledVector(V3(ST.plan.axes[wi]),w);guides.add(s)})
 }
+// Diagonal stripes on the second family of a technique (STRIPED): two families differ by pattern, not only by colour
+// (the owner is colour-blind, and the old red rings between green half-slices were one colour to him). On the faces'
+// own mm coordinates, about 20 stripes across the model whatever its size, so they read at the library's 320 × 240
+// too. sRGB, so the band is the dark it is drawn as (read as linear it came out a light grey). The band lattice has a
+// third family (Z): its stripes run the other way, as X and Z differ by hue only (and not at all under a material look)
+const stripes=turn=>{const c=document.createElement('canvas');c.width=c.height=16;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,16,16);g.fillStyle='#555';g.fillRect(0,0,16,8);
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.rotation=turn;return t};
+const STRIPES=stripes(Math.PI/4), ACROSS=stripes(-Math.PI/4), stripesOf=g=>g==='Z'?ACROSS:STRIPED.includes(g)?STRIPES:null;
 // Lamp: a bulb inside the model, in a room whose floor, walls and ceiling catch its light and the shadows the parts
 // throw — as a camera sees a lamp in a dark room. The light falls off with the square of the distance, the picture is
 // tone-mapped (AgX) so the bright inside of the shade does not clip to flat colour, and the room gives a little of the
@@ -176,7 +187,7 @@ export function applyLamp(){const on=$('#lamp').checked; $('#lampl').hidden=!on;
   ST.dirty=true}
 $('#lamp').onchange=$('#lampb').onchange=$('#lampx').oninput=$('#lampy').oninput=$('#lampz').oninput=applyLamp;
 export function render3D(modelUrl){
-  parts.clear(); let i=0;
+  parts.clear(); let i=0; for(const t of [STRIPES,ACROSS])t.repeat.setScalar(20/Math.max(...ST.plan.bbox));
   for(const s of ST.plan.slices)for(const pc of s.pieces){
     const geos=[],own=[];   // own: the facet each solid was extruded from, for the fold slider
     pc.facets.forEach((fc,fi)=>{for(const r of fc.rings){
@@ -187,8 +198,13 @@ export function render3D(modelUrl){
         if(ext.length<3)continue;
         const g=new THREE.ExtrudeGeometry(shape([ext,...r.slice(1)]),{depth:t/n,bevelEnabled:false});g.translate(0,0,-t/2+j*t/n);g.applyMatrix4(mat4(fc.M));geos.push(g);own.push(fi)}}});
     if(!geos.length)continue;
-    const m=new THREE.Mesh(mergeGeos(geos),new THREE.MeshStandardMaterial({color:COLORS[s.group]||0xaaaaaa,roughness:.7,metalness:.05}));
+    const m=new THREE.Mesh(mergeGeos(geos),new THREE.MeshStandardMaterial({color:COLORS[s.group]||0xaaaaaa,roughness:.7,metalness:.05,map:stripesOf(s.group)}));
     m.userData={slice:s.label,piece:pc.label,group:s.group,i:i++,origin:new THREE.Vector3(s.M[0][3],s.M[1][3],s.M[2][3]),normal:new THREE.Vector3(s.M[0][2],s.M[1][2],s.M[2][2]),bad:s.errors.length>0};
+    // a part with errors is red and netted with dark lines (the ✗ of the results list): red alone is lost on a colour-blind
+    // eye. The net shares the part's geometry, so it folds with it; it takes no clicks, the part does; the faces sit a
+    // step back in depth so the net never fights them
+    if(m.userData.bad){const net=new THREE.Mesh(m.geometry,new THREE.MeshBasicMaterial({color:0x111111,wireframe:true}));net.raycast=()=>{};m.add(net);
+      Object.assign(m.material,{polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1})}
     if(pc.facets.some(f=>f.hinge)){let o=0;   // a folded panel: where each facet's vertices are, to swing them about their fold lines
       m.userData.fold={base:m.geometry.attributes.position.array.slice(),hinges:pc.facets.map(f=>f.hinge||null),
         ranges:geos.map((g,j)=>{const n=g.index?g.index.count:g.attributes.position.count,r=[o,n,own[j]];o+=n;return r})}}
@@ -255,14 +271,48 @@ function clipEdge(ring,x0,y0,x1,y1,d){const L=Math.hypot(x1-x0,y1-y0);let nx=-(y
   const dist=([x,y])=>(x-x0)*nx+(y-y0)*ny-d,out=[];
   ring.forEach((p,i)=>{const q=ring[(i+1)%ring.length],a=dist(p),b=dist(q);if(a>=0)out.push(p);if((a>=0)!==(b>=0)){const k=a/(a-b);out.push([p[0]+(q[0]-p[0])*k,p[1]+(q[1]-p[1])*k])}});
   return out}
-function mergeGeos(geos){
-  const ngs=geos.map(g=>g.index?g.toNonIndexed():g),n=ngs.reduce((a,g)=>a+g.attributes.position.array.length,0),pos=new Float32Array(n),nor=new Float32Array(n);let o=0;
-  for(const g of ngs){pos.set(g.attributes.position.array,o);nor.set(g.attributes.normal.array,o);o+=g.attributes.position.array.length}
-  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('normal',new THREE.BufferAttribute(nor,3));return g}
-function fitView(){const b=new THREE.Box3().setFromObject(parts.children.length?parts:ghost);if(b.isEmpty())return;const c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3()).length();controls.target.copy(c);camera.position.copy(c).add(new THREE.Vector3(.7,-1,.6).normalize().multiplyScalar(s*1.5));
+function mergeGeos(geos){   // uv too: the extrusion's own, in mm, for the ring slices' stripes
+  const ngs=geos.map(g=>g.index?g.toNonIndexed():g),g=new THREE.BufferGeometry();
+  for(const [k,n] of [['position',3],['normal',3],['uv',2]]){const a=new Float32Array(ngs.reduce((s,x)=>s+x.attributes[k].array.length,0));let o=0;
+    for(const x of ngs){a.set(x.attributes[k].array,o);o+=x.attributes[k].array.length}g.setAttribute(k,new THREE.BufferAttribute(a,n))}
+  return g}
+// the standard view of what is shown (the parts, or the model until there are any): its centre, its diagonal, the eye.
+// A plaque is seen from the side away from its plate (the plan's `back`, an axis of the scene), so the fit button and
+// the library's picture show the slices, not the plate's back. Only the parts are the plan's (render3D builds them from
+// it): a model's ghost lands before its plan, while ST.plan is still the last model's, so the ghost alone is seen from
+// the standard side
+const EYE=new THREE.Vector3(.7,-1,.6);   // where the standard view looks from, before it is scaled to the model
+function fitPose(){const P=parts.children.length, b=new THREE.Box3().setFromObject(P?parts:ghost);if(b.isEmpty())return null;const c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3()).length();
+  const dir=EYE.clone(), back=P&&ST.plan?.mode==='plaque'&&ST.plan.params.back;
+  if(back){const k='xyz'.indexOf(back[1]);dir.setComponent(k,(back[0]==='-'?1:-1)*Math.abs(dir.getComponent(k)))}
+  return {c,s,eye:c.clone().add(dir.normalize().multiplyScalar(s*1.5))}}
+function fitView(){const p=fitPose();if(!p)return;const {c,s,eye}=p;controls.target.copy(c);camera.position.copy(eye);
   // close enough to read a slot, never onto the point it turns about (from 0 no zoom ever comes back), never so far the
   // model is lost; the clipping planes outside both, so nothing is cut away at either end
   controls.minDistance=s/40;controls.maxDistance=s*8;camera.near=s/200;camera.far=s*20;camera.updateProjectionMatrix()}
+// A w × h picture of the model as built, in the fitted view, for the library: a camera of its own, no view cube. The
+// same picture whatever is selected, stepped, exploded, folded or ticked, so the cards are even: every part in place
+// and folded up, no highlight, no lobe planes (a guide, not material), the see-through model only while there are no
+// parts. The dowel rods stay: they are the axes group's meshes, its arrows and letters are the helper. The renderer
+// keeps no picture between frames, so it is read in the same task it is drawn, and the view is drawn again at its own
+// size before the task ends: the page never shows the small frame. '' when there is nothing to show. The lamp is off
+// for it too (its dark room is a way to look at the model, not the model), and on again after.
+export function snapshot(w=320,h=240){
+  const P=parts.children,fold=$('#fold'),fv=fold.value,lampBox=$('#lamp'),lit=lampBox.checked,
+    flags=[...[rings,gizmo,guides,banner,...axes.children.filter(o=>!o.isMesh)].map(o=>[o,false]),[ghost,!P.length],...P.map(m=>[m,m.userData.group!=='B'])],
+    was=flags.map(([o])=>o.visible),pos=P.map(m=>m.position.clone()),glow=P.map(m=>m.material.emissive.getHex()),
+    size=renderer.getSize(new THREE.Vector2()),pr=renderer.getPixelRatio(),dirty=ST.dirty;
+  let url='';
+  try{if(lit){lampBox.checked=false;applyLamp()}
+    fold.value=1;applyFold(); flags.forEach(([o,v])=>o.visible=v); P.forEach(m=>{m.position.set(0,0,0);m.material.emissive.set(0)});
+    const p=fitPose(); if(!p)return url;
+    const cam=new THREE.PerspectiveCamera(camera.fov,w/h,p.s/200,p.s*20); cam.up.set(0,0,1); cam.position.copy(p.eye); cam.lookAt(p.c);
+    renderer.setPixelRatio(1); renderer.setSize(w,h,false); renderer.render(scene,cam);
+    url=renderer.domElement.toDataURL('image/webp',.8);   // a browser without WebP gives PNG
+  }finally{fold.value=fv;applyFold(); flags.forEach(([o],i)=>o.visible=was[i]); P.forEach((m,i)=>{m.position.copy(pos[i]);m.material.emissive.setHex(glow[i])});
+    if(lit){lampBox.checked=true;applyLamp()}   // after the parts are back: the room is fitted to them
+    renderer.setPixelRatio(pr); renderer.setSize(size.x,size.y,false); renderer.render(scene,camera); drawCube(); ST.dirty=dirty||lit}   // lit: its shadows drawn again
+  return url}
 // The name of the part going in, at the top centre of the 3D view while the steps slider is short of the end: drawn
 // into the canvas itself (a sprite riding with the camera), so the recorded video carries it — the video is the
 // canvas, and an HTML caption over it would never reach the file.

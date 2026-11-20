@@ -119,7 +119,7 @@ def test_the_solid_downloads_of_a_job(api):
 
 def test_every_zip_carries_the_project_file_that_reopens_the_job(api):
     """A cut file or a printed part found later has to lead back to the model that made it: the zips carry the same
-    project file the UI's "open project" reads (technique, every parameter, and an uploaded model itself)."""
+    project file the library's import reads (technique, every parameter, and an uploaded model itself)."""
     import json
     job = api.post("/api/slice", data={"client": MINE, **CUBE}).json()["job"]
     for url in (f"/api/job/{MINE}/{job}/export", f"/api/job/{MINE}/{job}/proto?scale=1"):
