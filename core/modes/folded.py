@@ -282,11 +282,18 @@ class Folded(Mode):
               "much of the face it takes, 0 = none, 1 = as much as the frame allows. The frame left round it is never "
               "narrower than the minimum feature width plus the room its folds need; a face too small for that stays whole", 0, 1, 0.05, label="windows in faces"),
         Param("joint", "choice", "laced", JOINT_HELP, choices=JOINTS, section="Joining — how panels meet at a seam"),
-        Param("hole_d", "number", 2.5, "Hole diameter for rivet / laced / strip (mm); shrinks where the triangle is small", 0.5, 30, 0.1, unit="mm", label="hole diameter"),
-        Param("inset", "number", 4.0, "Distance from the seam to the hole centres / slots / second bend (mm); shrinks where the triangle is small", 0.5, 100, 0.5, unit="mm", label="distance from seam"),
-        Param("spacing", "number", 20.0, "Hole spacing along a seam (mm); laced makes ≥ 2 per edge, rivet ≥ 1", 2, 500, 1, unit="mm", label="hole spacing"),
-        Param("tab_h", "number", 10.0, "Tab height for tab / multitab / diamond / gear / tongue / puzzle (mm)", 1, 100, 0.5, unit="mm", label="tab height"),
-        Param("tab_angle", "number", 30, "Side angle of trapezoid tabs (deg)", 0, 80, 5, unit="deg", label="tab side angle"),
+        # each of these shows only with the joints that read it: the rest of the time it would do nothing
+        Param("hole_d", "number", 2.5, "Hole diameter for rivet / laced / strip / loops (mm); shrinks where the triangle is small", 0.5, 30, 0.1, unit="mm",
+              label="hole diameter", show_if=("joint", ["rivet", "laced", "strip", "loops"])),
+        Param("inset", "number", 4.0, "Distance from the seam to the hole centres (rivet / laced / strip), the rib slots, the tongue's second bend "
+              "or the puzzle hole (mm); shrinks where the triangle is small", 0.5, 100, 0.5, unit="mm", label="distance from seam",
+              show_if=("joint", ["rivet", "laced", "strip", "rib", "tongue", "puzzle"])),
+        Param("spacing", "number", 20.0, "One hole (rivet / laced / strip), click or clip every this much along a seam (mm); laced makes ≥ 2 per "
+              "edge, the others ≥ 1", 2, 500, 1, unit="mm", label="spacing along a seam", show_if=("joint", ["rivet", "laced", "strip", "click", "snap"])),
+        Param("tab_h", "number", 10.0, "Tab height for tab / multitab / diamond / ticked / gear / tongue / puzzle (mm)", 1, 100, 0.5, unit="mm", label="tab height",
+              show_if=("joint", ["tab", "multitab", "diamond", "ticked", "gear", "tongue", "puzzle"])),
+        Param("tab_angle", "number", 30, "Side angle of the trapezoid tabs of tab / multitab / tongue (deg)", 0, 80, 5, unit="deg", label="tab side angle",
+              show_if=("joint", ["tab", "multitab", "tongue"])),
         Param("snap_h", "number", 10.5, "Snap and click joints: how high the walls stand on the inside of the panels (mm). Snap: higher walls give "
               "the clip longer legs, which go on more easily. Click: the most a wall may stand; a seam whose tooth needs more is left plain", 6, 20, 0.5,
               unit="mm", show_if=("joint", ["snap", "click"]), label="snap wall"),
@@ -317,7 +324,8 @@ class Folded(Mode):
               "the piece of bar over the tooth is free: much stronger, but that short piece cannot spring, so the seam has to give "
               "somewhere else to shut. Bars break or bow: more. Does not go in: less, or a lower tooth. Above 0 the bar is as thick "
               "as `bar thickness` says, and Lamina warns when it would be stretched too far", 0, 1, 0.1, show_if=("joint", ["click"]), label="bar support"),
-        Param("rib_w", "number", 12.0, "Rib joint: arm width above the panel and tab width through the slot (mm); shrinks where the triangle is small", 2, 100, 0.5, unit="mm", label="rib width"),
+        Param("rib_w", "number", 12.0, "Rib joint: arm width above the panel and tab width through the slot (mm); shrinks where the triangle is small", 2, 100, 0.5, unit="mm", label="rib width",
+              show_if=("joint", "rib")),
         Param("rib_thick", "number", 0.0, "Rib material thickness (mm) when the ribs are cut from a different sheet; 0 = same as the panels. Slots in the panels follow it", 0, 20, 0.1, unit="mm", show_if=("joint", "rib"), label="rib thickness"),
         Param("edge_fit", "choice", "inner", "Where two panels meet at a seam. inner = at their inside edges: every outward seam "
               "edge is cut back by thickness × tan(bend / 2), so stiff sheet (metal, wood, acrylic) closes instead of its "

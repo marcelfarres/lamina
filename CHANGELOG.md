@@ -117,8 +117,8 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
 
   ![The fold_lamp example with its 30 triangles](web/static/news/0.4.0-lamp-example.jpg)
 
-- **Small changes to folded panels.** The printed-fold settings show only on a print job. A fin thinner than two
-  sheets gets a warning. A print set says which parts lost their grooves.
+- **Small changes to folded panels.** The printed-fold settings show only on a print job. Joint settings show only
+  where they apply. A fin thinner than two sheets gets a warning. A print set says which parts lost their grooves.
 
 - **A better horse.** Its head is a branch: a spine with ribs across it, not a flat slab. In Curve, ribs stay square
   to a slim neck on any model. A turned head can have a branch too.
