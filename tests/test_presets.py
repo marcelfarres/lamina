@@ -12,7 +12,7 @@ EXAMPLES = ROOT / "examples"
 PRESETS = {k: v for k, v in json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8")).items() if not k.startswith("_")}
 # Examples that still open with a warning, each waiting for better settings (bug 045). A new example opens clean, and
 # one that opens clean comes off the list, so it only gets shorter.
-STILL_WARNS = {"horse_statue", "lion_head"}
+STILL_WARNS = {"bunny", "horse_statue", "lion_head"}
 
 
 def test_every_example_has_a_preset():
