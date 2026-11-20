@@ -27,7 +27,7 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
 - **See it as a lamp.** Tick *lamp* over the 3D view: a bulb inside the model throws its pattern of light and soft
   shadows on a room's walls. Three sliders move the bulb, and *bulb* picks LED or frosted.
 
-  ![The lamp tick over the 3D view, and the light and shadows the model throws](web/static/news/0.4.0-lamp.jpg)
+  ![The lamp tick over the 3D view: the bulb's light and soft shadows in the room](web/static/news/0.4.0-lamp.jpg)
 
 - **Make a mask from a model.** In Folded Panels, use the *select faces* tool: click, drag, *grow* or *connected*,
   then *remove*. Only what is left is cut, even when you change the face size. Try it on the new *lion_head*.
@@ -64,8 +64,8 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
 
 ### Changed
 
-- **Settings that are easy to read.** Full names, sections that fold, a ↺ sign to undo a change, and a box over
-  the tabs that finds a setting.
+- **Settings that are easy to read.** Full names, sections that fold, a ↺ sign to undo a change, a box over the
+  tabs that finds a setting, and help that opens under a setting's name when you click it.
 
   ![The Technique tab: full names, folding sections and the search box](web/static/news/0.4.0-settings.jpg)
 
@@ -73,10 +73,6 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
   same.
 
   ![The basic / all switch under the search box](web/static/news/0.4.0-basic.jpg)
-
-- **Help opens in place.** Click the name of a setting and its explanation opens under it.
-
-  ![The help of a setting, open under its name](web/static/news/0.4.0-help.jpg)
 
 - **The spacing graph, under its tick.** Start the curve from a shape, add or move points with buttons, and see
   every slice under the curve.
@@ -114,12 +110,15 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
 - **Small changes to folded panels.** The printed-fold settings show only on a print job. A fin thinner than two
   sheets gets a warning. A print set says which parts lost their grooves.
 
-- **A better head on the horse.** The horse example's head is a branch: a spine with ribs across it, not one
-  flat slab. Ribs stay square to a slim neck, and a turned head on your model can have a branch.
+- **A better horse.** Its head is a branch: a spine with ribs across it, not a flat slab. In Curve, ribs stay square
+  to a slim neck on any model. A turned head can have a branch too.
 
   ![The horse's head in 0.3.3, one flat slab, beside 0.4.0, a spine with ribs across it](web/static/news/0.4.0-horse-head.jpg)
+
 - **Clean tops on stacked models.** A layer's name, arrows and dowel numbers now go only where the layer above
   covers them. The top layer stays clean: its name is beside it on the sheet. *Hide engravings* turns this off.
+
+  ![The egg's top layer on the sheet: before, its name, arrow and dowel numbers on it; now clean, its name beside it](web/static/news/0.4.0-clean-tops.jpg)
 
 ### Fixed
 

@@ -296,16 +296,6 @@ def n040_basic(app):
     app.shot("0.4.0-basic", (0, 40, 470, 620), [("#level", "basic / all")])
 
 
-def n040_help(app):
-    app.example("vase", "stacked")
-    app.level("basic")
-    row = "section[data-tab=technique] .f[data-p=count]"
-    app.p.click(f"{row} .k")
-    app.p.wait_for_timeout(300)
-    app.shot("0.4.0-help", (0, 40, 470, 600), [(row, "click the name")])
-    app.p.click(f"{row} .k")
-
-
 def n040_spacing(app):
     app.example("vase", "stacked")          # the vase opens with vary the spacing on
     app.level("basic")
@@ -391,6 +381,49 @@ def n040_fingers(app):
     plaque_back(app)
     app.set("thickness", sheet)
     assert app.p.input_value("#p_thickness") == sheet
+
+
+def pick_material(app, name):                # the Sheet tab's picker, from any tab: its own change handler runs
+    app.p.evaluate("n => {const s = document.querySelector('#material'); s.value = n; s.dispatchEvent(new Event('change'))}", name)
+    app.idle()
+
+
+def n040_material(app):
+    sheet, stock = app.p.input_value("#p_thickness"), app.p.input_value("#material")
+    crossed_side(app, "egg", 60, (("nx", 26),))                       # 26 ribs: 3.9 mm fingers
+    pick_material(app, "acrylic")                                     # picking a material picks its stock thickness
+    app.set("thickness", 3)                                           # plywood takes 3.9 mm fingers, acrylic wants 4.5
+    app.view(65, 20, 0.9, only3d=False)
+    x0, y0, x1, _ = app.box(VIEW)
+    row = "#msgs :text('acrylic can take')"
+    app.shot("0.4.0-material", (x0, y0, x1, app.box(row)[3]), [(row, "")])
+    plaque_back(app)
+    pick_material(app, stock)
+    app.set("thickness", sheet)
+    assert (app.p.input_value("#material"), app.p.input_value("#p_thickness")) == (stock, sheet)
+
+
+def n040_clean_tops(app):
+    app.example("egg", "stacked")
+    app.set("distribution", "count")
+    app.set("count", 6)
+    tick = lambda n, on: (app.p.evaluate("([n, on]) => {const s = document.querySelector('#p_' + n); s.checked = on;"   # noqa: E731
+                                         " for (const e of ['input', 'change']) s.dispatchEvent(new Event(e, {bubbles: true}))}",
+                                         [n, on]), app.idle())
+    tick("orient_mark", True)                         # the arrows show what used to be engraved on top
+    app.p.select_option("#viewmode", "only2d")
+    app.p.wait_for_timeout(800)
+    top = '#sheets path[data-label="Z-6"]'            # the egg's top layer
+    shots = []
+    for on, name in ((False, "before: on the top layer"), (True, "now: the top layer is clean")):
+        tick("hide_marks", on)
+        x0, y0, x1, y1 = app.box(top)
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        shots.append(caption(app.grab((cx - 220, cy - 190, cx + 220, cy + 150), [(top, "")]), name))
+    save("0.4.0-clean-tops", side_by_side(*shots))
+    tick("hide_marks", True)
+    tick("orient_mark", False)
+    app.p.select_option("#viewmode", "both")
 
 
 # ---- 0.3.3 -----------------------------------------------------------------------------------------------------
