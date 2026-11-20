@@ -57,10 +57,12 @@ def closes_at(wide, depth):
 THIN_TABS = ("tab", "multitab", "diamond", "ticked", "gear")   # glue tabs a printed panel carries as thin flaps of its skin
 FOLDED_JOINTS = ("tab", "multitab", "diamond", "ticked", "gear", "tongue", "puzzle", "strip")   # a flap or bridge that bends
 # The snap joint (printed panels): a wall on the inside face of each panel along the seam, and a clip over the two.
-SNAP_WALL = 1.2                       # mm: a wall's thickness (three 0.4 mm lines)
-SNAP_LEDGE, SNAP_GROOVE = 2.7, 0.4    # the groove in a wall's back the clip hooks into: how high its ledge is, how deep it is
-SNAP_LEG, SNAP_BITE = 1.0, 0.3        # a clip's leg: its thickness, and how far its hook reaches into the groove
-SNAP_CLIP, SNAP_LONG = 5.0, 8.0       # a clip's width along the seam, and the length of wall it sits on
+SNAP_WALL = 2.0                       # mm: a wall's thickness (five 0.4 mm lines). 1.2 broke in his first print
+SNAP_LEDGE, SNAP_GROOVE = 3.6, 0.7    # the groove in a wall's back the clip hooks into: how high its ledge is, how deep it is. High enough
+                                      # that a clip's leg clears the other panel beside a 2 mm wall on a seam bent 100°
+SNAP_LEG, SNAP_BITE = 1.6, 0.5        # a clip's leg: its thickness, and how far its hook reaches into the groove
+SNAP_CLIP, SNAP_LONG = 7.0, 9.0       # a clip's width along the seam, and the length of wall it sits on (longer walls grow into a
+                                      # neighbour seam's at a corner)
 SNAP_LEAN = math.radians(50)          # a wall leans by half the seam's bend: past this it does not print without support
 # The click joint (printed panels): a tooth on one panel's wall and a bar on the other's, bridged between two posts.
 # Printed flat, a part that stands on a panel is weak where it is pulled or bent across its layers, so: the one part
@@ -1357,9 +1359,11 @@ class Folded(Mode):
             return []
         bend = float(m.face_adjacency_angles[k]); L = sides[0].L
         profile, at, up, back, h = self.snap_wall(bend, convex)
+        room = min(min((c.distance(LineString([s.A, s.B])) for c in self.face_cuts.get(s.f, ())), default=s.h) for s in sides)
+        # ponytail: no brace at the foot. Below the clip's leg a wall that leans far is still inside its panel at the
+        # back, so there is nothing to brace; the wall is thicker instead (SNAP_WALL)
         reach = profile[-1][0]                                # how far into the panel a wall's foot goes
         n = max(1, int(L // max(p["spacing"], 2 * SNAP_LONG)))
-        room = min(min((c.distance(LineString([s.A, s.B])) for c in self.face_cuts.get(s.f, ())), default=s.h) for s in sides)
         why = ("the seam bends more than 100°: the walls would lean too far to print" if h > SNAP_LEAN else
                "the seam is too short" if L / n < SNAP_LONG + 6 else "the frame beside the window is too narrow" if room < reach + 0.8 else "")
         if why:
