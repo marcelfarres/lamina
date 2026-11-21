@@ -433,3 +433,49 @@ def test_faces_are_selected_removed_and_stay_removed_when_the_faces_are_made_aga
     assert page.evaluate(seen)["faces"] == back["faces"] and page.evaluate(seen)["places"] == 0
     page.keyboard.press("Escape")
     assert not page.is_visible("#facebar") and page.get_attribute('#tools button[data-tool=""]', "aria-pressed") == "true"
+
+
+def test_selected_faces_are_merged_into_one_flat_face_and_unmerged(page):
+    """Asked for: to turn a normal model into a lamp, faces are merged by hand, with the selection the remove button
+    uses. `merge` makes the selected faces one flat face, kept when the faces are made again; `unmerge` takes the
+    merged face under the selection back; a paper window then closes the one window the flat face has."""
+    here = """() => { const r = __t.canvas().getBoundingClientRect(), f = __t.faces(); let best = null;   // a point on a face nearest the middle of the view
+      for (let x = r.left + 80; x < r.right - 80; x += 9) for (let y = r.top + 100; y < r.bottom - 120; y += 9) { const u = f.under(x, y); if (u?.face === undefined) continue;
+        const d = Math.hypot(x - r.left - r.width / 2, y - r.top - r.height / 2); if (!best || d < best.d) best = {x, y, d, i: u.face} }
+      return best }"""
+    seen = """() => { const p = __t.plan(), m = p.faces3d.merged; return {faces: m.length, flat: m.filter(g => g >= 0).length, groups: (__t.state().merged || []).length,
+      sel: __t.faces().selected.length, on: Object.fromEntries(['merge', 'unmerge'].map(k => [k, !document.querySelector(`#facebar [data-faces="${k}"]`).disabled])),
+      windows: p.slices.filter(s => s.label.startsWith('W-')).length, warnings: p.slices.flatMap(s => s.warnings).filter(w => w.includes('merged'))} }"""
+    wait = lambda: (page.wait_for_timeout(600), settle(page))   # noqa: E731
+    use(page, "egg", "folded")
+    set_fields(page, [("p_facet", 30)]); wait(); page.click("#fit")
+    page.evaluate("() => document.getElementById('v3d').scrollIntoView()")
+    page.click('#tools button[data-tool="face"]')
+    whole = page.evaluate(seen)
+    assert whole["flat"] == whole["groups"] == 0 and whole["on"] == {"merge": False, "unmerge": False}
+    p = page.evaluate(here); page.mouse.click(p["x"], p["y"])
+    assert page.evaluate(seen)["on"] == {"merge": False, "unmerge": False}        # one face: nothing to merge
+    page.click('[data-faces="grow"]'); n = page.evaluate(seen)["sel"]; assert n == 4
+    page.click('[data-faces="merge"]'); wait()
+    s = page.evaluate(seen)
+    assert s["groups"] == 1 and 2 <= s["flat"] <= n and s["faces"] < whole["faces"] and not s["warnings"], s
+    assert "1 merged face" in page.inner_text('.f[data-p="merged"]')
+    # made again at another face size: the same place is flat, without a click
+    set_fields(page, [("p_facet", 22)]); wait()
+    t = page.evaluate(seen); assert t["groups"] == 1 and t["flat"] >= 2 and not t["warnings"], t
+    # closed with paper: every window has its paper part, on sheets of paper
+    set_fields(page, [("p_window", 0.6), ("p_window_fill", "paper")]); wait()
+    w = page.evaluate(seen); stock = plan(page)["sheet_stock"]
+    assert w["windows"] > 0 and "paper" in stock and "" in stock and "paper" in page.inner_text("#sheets .sheet .t")
+    assert page.is_visible("#p_paper_color") and state(page)["paper_through"] == 60
+    # a click on the flat face and unmerge: the faces are their own again
+    page.evaluate("() => document.getElementById('v3d').scrollIntoView()")
+    q = page.evaluate("""() => { const r = __t.canvas().getBoundingClientRect(), f = __t.faces(), m = __t.plan().faces3d.merged;
+      for (let x = r.left + 80; x < r.right - 80; x += 7) for (let y = r.top + 100; y < r.bottom - 120; y += 7) { const u = f.under(x, y); if (u?.face !== undefined && m[u.face] >= 0) return {x, y} }
+      return null }""")
+    assert q, "the merged face is not in view"
+    page.mouse.click(q["x"], q["y"]); assert page.evaluate(seen)["on"]["unmerge"]
+    page.click('[data-faces="unmerge"]'); wait()
+    back = page.evaluate(seen); assert back["groups"] == back["flat"] == 0, back
+    page.click("#undo"); wait(); assert page.evaluate(seen)["groups"] == 1
+    page.keyboard.press("Escape")

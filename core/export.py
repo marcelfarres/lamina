@@ -208,6 +208,11 @@ def sheet_thickness(plan, si):
     return (plan.get("sheet_thick") or [p.get("thickness", 0.0)] * max(1, plan["sheets"]))[si]
 
 
+def sheet_stock(plan, si):
+    """What this sheet is cut from when that is not the job's material ("paper"), else ""."""
+    return (plan.get("sheet_stock") or [""] * (si + 1))[si]
+
+
 def thick_tag(plan, mm):
     """Thickness for a file name, but only when the job mixes several: then the files must say which stock each one
     is cut from, and a wrong sheet ruins every fit on it."""
@@ -228,18 +233,18 @@ def design_name(plan):
     return f"{word(p.get('project') or p.get('model_name')) or 'model'}_v{word(p.get('rev')) or '1.0'}"
 
 
-def mat_tag(plan):
+def mat_tag(plan, stock=""):
     """The stock in a file name, when the job says what it is: a file that leaves for a machine should name what it is
-    cut from. It is one word, joined by dashes ("stainless-steel"), because the spaces separate part, material,
+    cut from. `stock`: what this sheet or part is cut from when that is not the job's material (a window's paper). It is one word, joined by dashes ("stainless-steel"), because the spaces separate part, material,
     thickness and quantity; anything but a letter or digit becomes a dash — the name travels from a project file
     someone else wrote, and a path separator in it must never reach the file system."""
-    m = "-".join("".join(c if c.isalnum() else " " for c in str(plan["params"].get("material") or "")).split())
+    m = "-".join("".join(c if c.isalnum() else " " for c in str(stock or plan["params"].get("material") or "")).split())
     return f" {m}" if m else ""
 
 
 def sheet_title(plan, si):
     p = plan["params"]; u = p.get("units", "mm")
-    thick = f"{sheet_thickness(plan, si) * UNIT[u]:.3g} {u} stock"
+    thick = f"{sheet_thickness(plan, si) * UNIT[u]:.3g} {u} {sheet_stock(plan, si) or 'stock'}"
     return (f"{p.get('project') or ''} v{p.get('rev') or '1.0'} · {plan['mode']} · {thick} · "
             f"{'plate' if p.get('printed') else 'sheet'} {si + 1}/{plan['sheets']}").strip(" ·")
 
@@ -498,10 +503,11 @@ def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, bor
             it, w, h = item_for_piece(cpc, cnote); write(stem, [it], w, h, False)
             rows.append((f"{design} {stem}", 1, size_of(it), cnote))
         thick = {pc["label"]: sl["thickness"] for sl in plan["slices"] for pc in sl["pieces"]}
+        stock = {pc["label"]: sl.get("stock", "") for sl in plan["slices"] for pc in sl["pieces"]}
         for pc, note, same, flips in identical_groups(plan):
             n = len(same); t = thick[pc["label"]]
             # in puzzle mode the file is named after the code too: a folder of Z-1, Z-2 … gives the order away
-            stem = names.get(pc["label"], pc["label"]) + mat_tag(plan) + thick_tag(plan, t) + f" x{n}"
+            stem = names.get(pc["label"], pc["label"]) + mat_tag(plan, stock[pc["label"]]) + thick_tag(plan, t) + f" x{n}"
             # the drawing carries the count and how many of them are turned over; the cut list names which ones
             it, w, h = item_for_piece(pc, " ".join(x for x in ([f"×{n}"] if n > 1 else []) + [f"({len(flips)} turned over)" if flips else "", note] if x), names=names,
                                       tag=plan.get("label_tag", ""), font=font)
@@ -519,7 +525,7 @@ def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, bor
         W, H = plan["sheet"]
         pages = [(items_for_sheet(plan, si), W, H) for si in range(plan["sheets"])]
         for si, (items, _, _) in enumerate(pages):
-            write(f"sheet{si + 1}{mat_tag(plan)}{thick_tag(plan, sheet_thickness(plan, si))}", items, W, H, border,
+            write(f"sheet{si + 1}{mat_tag(plan, sheet_stock(plan, si))}{thick_tag(plan, sheet_thickness(plan, si))}", items, W, H, border,
                   [x for x in fmts if x != "pdf"], sheet_title(plan, si) if labels else "")
         if "pdf" in fmts:                           # one multi-page PDF for all sheets
             f = out_dir / f"{design} sheets.pdf"; pdf_doc(f, pages, labels, border, font); written.append(f)

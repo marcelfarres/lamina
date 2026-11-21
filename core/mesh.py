@@ -125,12 +125,21 @@ def _ears(pts):
 def flatten(mesh, pick):
     """The faces `pick` (a bool per face) made one flat face: the corners on their rim are moved onto the plane that
     fits the faces best, the corners inside go, and the rim is filled again with triangles in that plane. The faces
-    next to them follow their moved corners. Returns (the new mesh, how many triangles the flat face has; they are
-    its last faces, the others keep their order), or (None, why not): the faces must be one piece with one rim.
+    next to them follow their moved corners. Returns (the new mesh, the faces of `mesh` that went: a bool per face),
+    or (None, why not). The flat face's triangles are the new mesh's last faces; the faces that stay keep their order.
     ponytail: one plane through whatever is picked; half a ball becomes a disc. That is the user's choice to make."""
-    faces = mesh.faces[pick]
-    if len(faces) < 2:
+    if pick.sum() < 2:
         return None, "fewer than two faces are there now"
+    # Found again by their place on a mesh made with another facet size, the faces come back ragged: a face in the
+    # middle not found, a stray one found beside them. The biggest piece is taken, with what it encloses.
+    adj = mesh.face_adjacency
+
+    def pieces(which):
+        return sorted(trimesh.graph.connected_components(adj[which[adj].all(1)], nodes=np.nonzero(which)[0]), key=len)
+    pick = np.isin(np.arange(len(pick)), pieces(pick)[-1])
+    for island in pieces(~pick)[:-1]:
+        pick[island] = True
+    faces = mesh.faces[pick]
     e = np.concatenate([faces[:, [0, 1]], faces[:, [1, 2]], faces[:, [2, 0]]])      # directed, as the faces wind
     _, inv, count = np.unique(np.sort(e, axis=1), axis=0, return_inverse=True, return_counts=True)
     rim = e[count[inv.ravel()] == 1]
@@ -154,7 +163,7 @@ def flatten(mesh, pick):
     new = trimesh.Trimesh(v, np.r_[mesh.faces[~pick], np.asarray(loop)[np.asarray(tris)]], process=False)
     new.remove_unreferenced_vertices()
     new.metadata.update(mesh.metadata)
-    return new, len(tris)
+    return new, pick
 
 
 def load_mesh(path, params, notes=None, surface=False):

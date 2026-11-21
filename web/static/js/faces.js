@@ -11,6 +11,8 @@ import {foldUp, seamsFolded, sameEnds} from './seams.js';
 // To keep only a part of a model (a mask from a head), the `select faces` tool takes faces off its surface. A click or
 // a drag on the model selects faces; `grow` adds the faces next to them, `connected` every face joined to them, and
 // both stop at a seam the user chose, at a removed face and at the rim; `remove` takes the selected faces off.
+// `merge` makes the selected faces one flat face (`merged`: a group of triangles each, kept by place as a removed face
+// is; the plan says which group every face came from, faces3d.merged), `unmerge` gives the groups under the selection back.
 // A removed face is kept by its place, not by a number: its triangle in the model file's coordinates (`removed`,
 // through the plan's `frame`), so it stays removed when the faces are made again. The plan lists the faces that are
 // left (faces3d: corners, faces, the two faces across each edge). Removed faces show as ghosts while the tool is on:
@@ -43,7 +45,12 @@ export function renderFaces(){   // the faces of the plan just drawn, and the re
   ghostRim.material.dashSize=big*0.012+0.4; ghostRim.material.gapSize=big*0.008+0.3;
   put(ghostRim,corners(gone,lift(),true)); put(ghostPick,corners(gone,0));
   if(faceMode&&!F)faceMode=false; $('#facebar').hidden=!faceMode; showFaces(); draw()}
-export function syncFaces(){const n=sel.size, kept=(state.removed||[]).length, off=ST.plan?.faces3d?.removed??kept;
+const groupsOf=()=>new Set([...sel].map(i=>ST.plan?.faces3d?.merged?.[i]??-1).filter(g=>g>=0));   // the merged groups the selection touches
+export function syncFaces(){const n=sel.size, kept=(state.removed||[]).length, off=ST.plan?.faces3d?.removed??kept, flat=(state.merged||[]).length;
+  for(const b of $$('[data-faces="merge"]'))b.disabled=n<2;
+  for(const b of $$('[data-faces="unmerge"]'))b.disabled=!groupsOf().size;
+  for(const e of $$('.face_merged'))e.textContent=flat?`${flat} merged face${flat===1?'':'s'}`:'none merged';
+  for(const b of $$('[data-faces="unmergeall"]'))b.disabled=!flat;
   $('#face_sel').textContent=`${n} face${n===1?'':'s'} selected`;
   for(const b of $$('[data-faces="grow"],[data-faces="connected"],[data-faces="remove"]'))b.disabled=!n;
   for(const e of $$('.face_gone'))e.textContent=kept?`${off} removed`:'none removed';
@@ -64,8 +71,14 @@ function grow(all){   // the faces across an edge of the selection: one ring, or
   const walls=new Set((ST.plan?.edges3d||[]).filter(e=>e[1]==='chosen').map(e=>e[0])); let edge=[...sel];
   do{const next=[];for(const i of edge)for(const [j,k] of nb[i])if(!walls.has(k)&&!sel.has(j)){sel.add(j);next.push(j)}edge=next}while(all&&edge.length);
   draw()}
-function remove(){if(!sel.size)return;const back=new THREE.Matrix4().set(...ST.plan.frame.flat()).invert(), p=new THREE.Vector3();
-  const add=[...sel].map(i=>[tris[i].a,tris[i].b,tris[i].c].map(q=>p.copy(q).applyMatrix4(back).toArray().map(v=>+v.toFixed(4))));
+function inFile(){const back=new THREE.Matrix4().set(...ST.plan.frame.flat()).invert(), p=new THREE.Vector3();   // the selected faces' triangles, in the model file's coordinates
+  return [...sel].map(i=>[tris[i].a,tris[i].b,tris[i].c].map(q=>p.copy(q).applyMatrix4(back).toArray().map(v=>+v.toFixed(4))))}
+// a merged group under the new one is taken up by it: its flat face is among the selected faces
+function merge(){if(sel.size<2)return;const under=groupsOf(),add=inFile();
+  state.merged=[...(state.merged||[]).filter((_,g)=>!under.has(g)),add]; act(`merged ${add.length} faces into one`); renderFaces(); schedule()}
+function unmerge(all){const under=groupsOf(),n=all?(state.merged||[]).length:under.size;if(!n)return;
+  state.merged=all?[]:state.merged.filter((_,g)=>!under.has(g)); act(`unmerged ${n} face${n===1?'':'s'}`); renderFaces(); schedule()}
+function remove(){if(!sel.size)return;const add=inFile();
   // a seam of the user's on an edge of a face that goes has done its work: it goes with the face, and undo brings both back
   const dead=(ST.plan.edges3d||[]).filter(e=>e[1]==='chosen'&&ST.plan.faces3d.adj[e[0]].some(i=>sel.has(i)));
   if(dead.length)state.seams=(state.seams||[]).filter(l=>!dead.some(e=>sameEnds(l,e)));
@@ -76,7 +89,7 @@ export function setFaceMode(on){faceMode=!!on&&!!ST.plan?.faces3d; if(faceMode){
 export const facesNow=()=>({mode:faceMode,shown:layer.visible,selected:[...sel],faces:tris.length,ghosts:gone.length,under:(x,y)=>under({clientX:x,clientY:y})});   // for the tests
 export function initFaces(){
   scene.add(layer);
-  document.addEventListener('click',e=>{const b=e.target.closest('[data-faces]');if(b)({grow:()=>grow(false),connected:()=>grow(true),remove,back:putAllBack,fold:foldUp})[b.dataset.faces]()});
+  document.addEventListener('click',e=>{const b=e.target.closest('[data-faces]');if(b)({grow:()=>grow(false),connected:()=>grow(true),remove,merge,unmerge:()=>unmerge(false),unmergeall:()=>unmerge(true),back:putAllBack,fold:foldUp})[b.dataset.faces]()});
   const c=renderer.domElement;
   c.addEventListener('pointerdown',ev=>{from=faceMode&&ev.button===0?[ev.clientX,ev.clientY]:null});
   // a drag paints the selection, once it is a drag and not a click (10 px, as everywhere in the view)

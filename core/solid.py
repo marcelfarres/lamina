@@ -262,12 +262,13 @@ def proto_part(pc, thickness, scale, labels, font, min_thick):
         geom = geom.difference(label)
     mesh = trimesh.util.concatenate([extrude(g, t) for g in shapely.get_parts(geom) if g.area > 0])
     plain = []                                             # what this part should have had cut into it and has not: no boolean engine
-    if pc.get("grooves") or pc.get("thin"):               # a printed folded panel: a groove at every fold, its skin the hinge
+    if pc.get("grooves") or pc.get("thin") or pc.get("paper"):   # a printed folded panel: a groove at every fold, its skin the hinge
         move = lambda x, y: (x * scale - x0, y * scale - y0)   # noqa: E731
         cuts = [vee(move(*g["a"]), move(*g["b"]), g["land"] * scale, g["skin"] * scale, g["wide"] * scale, g["top"], t) for g in pc.get("grooves", [])]
-        for rings in pc.get("thin", []):                    # the glue tabs keep only the skin: everything above it goes
+        # the glue tabs keep only the skin, a window closed by a pane only the pane: everything above it goes
+        for rings, keep in [(r, pc["thin_t"]) for r in pc.get("thin", [])] + [(r, pc["paper_t"]) for r in pc.get("paper", [])]:
             tab = Polygon([move(x, y) for x, y in rings[0]]).buffer(0.01, join_style="mitre")
-            top = extrude(tab, t - pc["thin_t"] * scale + 0.01); top.apply_translation([0, 0, pc["thin_t"] * scale]); cuts.append(top)
+            top = extrude(tab, t - keep * scale + 0.01); top.apply_translation([0, 0, keep * scale]); cuts.append(top)
         if has_boolean():
             mesh = trimesh.boolean.difference([mesh, *cuts], engine="manifold")
         else:

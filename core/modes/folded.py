@@ -436,11 +436,11 @@ class Folded(Mode):
                 pick = faces_at(mesh, np.asarray(tris, float).reshape(-1, 3, 3) @ frame[:3, :3].T + frame[:3, 3])
             except (TypeError, ValueError):
                 continue
-            new, n = flatten(mesh, pick)
+            new, went = flatten(mesh, pick)
             if new is None:
-                unmade.append(n)
+                unmade.append(went)
             else:
-                mesh, flat = new, np.r_[flat[~pick], np.full(n, g)]
+                flat = np.r_[flat[~went], np.full(len(new.faces) - int((~went).sum()), g)]; mesh = new
         whole = mesh
         try:                                                  # the removed faces' triangles, here in the model's mm
             spots = np.asarray(p["removed"], float).reshape(-1, 3, 3) @ frame[:3, :3].T + frame[:3, 3]
@@ -821,7 +821,7 @@ class Folded(Mode):
                     n += 1; f = fs[0]
                     pane = pn.to_local(f, hole.buffer(min(PANE_OVER, 0.6 * (frame - edge)), join_style="mitre").intersection(piece.buffer(-edge - 0.2, join_style="mitre")))
                     M = frames[f].copy(); M[:3, 3] -= M[:3, 2] * (t + pt / 2)     # against the inside face of the panel
-                    ps = Slice(f"W-{sl.label[2:]}-{n}", "J", M, pt, note="paper"); ps.raw = as_multi(pane); ps.facets = []; ps.stock = "paper"
+                    ps = Slice(f"W-{sl.label[2:]}-{n}", "J", M, pt, note="paper"); ps.raw = as_multi(pane); ps.facets = []; ps.stock = "paper"; ps.springy = True   # paper: a sharp corner of a pane is no thin spot
                     panes.append(ps); self.paper[f] = (pane, pt, -t)
         return panes
 

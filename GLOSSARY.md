@@ -61,7 +61,14 @@ The words Lamina uses for its parts. One word for one thing.
   edges meet. *Through*: one panel runs to the model's edge, the other is cut back to butt against it. *Outer*: both
   edges are on the model's edge.
 - **Cut-back**: the strip taken off a seam edge so that stiff panels do not occupy the same corner.
-- **Window**: an opening cut in a face, the shape of the face. The **frame** is what is left round it.
+- **Window**: an opening in a flat piece of a panel, the shape of the piece. The **frame** is what is left round it.
+- **Flat piece**: the faces of one panel that lie in one plane and are joined edge to edge. It has no score and gets one
+  window.
+- **Pane**: what closes a window and lets the light through. On a cut job it is a part cut from paper and glued
+  inside the frame. On a printed job it is a thin layer printed across the window. The settings call it *paper*.
+  Not the *skin*, which is the hinge of a printed fold.
+- **Merged face**: a group of faces the user made into one flat face. The corners on its rim move onto one plane.
+  A merged face stays merged when the faces are made again.
 - **Snap wall**: a short wall that stands on the inside face of a printed panel along a seam. The two walls of a
   seam lie face to face when the seam is shut. The joint is *snap*.
 - **Clip**: the small printed part that is pushed over the two snap walls of a seam and holds them together.

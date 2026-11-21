@@ -159,7 +159,7 @@ def nest(pieces, sheet, gap, margin, kerf=0.0, labels=False, font=4.0, tag="", p
     job = NestJob(tuple(sheet), gap, margin, kerf, grain, labels, font, tag, place)
     by_thick = {}
     for pc in pieces:
-        by_thick.setdefault(round(pc.parent.thickness, 6), []).append(pc)
+        by_thick.setdefault((round(pc.parent.thickness, 6), pc.parent.stock), []).append(pc)   # and one stock: paper panes never share a sheet with card of their thickness
     placed, n = [], 0
     for t in sorted(by_thick):
         got = _nest(by_thick[t], job)

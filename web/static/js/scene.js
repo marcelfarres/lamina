@@ -132,7 +132,10 @@ export function render3D(modelUrl){
       for(let j=0;j<n;j++){const z=-t/2+(j+.5)*t/n;let ext=r[0];
         for(const [x0,y0,x1,y1,w,side] of fc.bevel||[]){const d=w*Math.min(1,Math.max(0,(side>0?t/2-skin-z:z+t/2-skin)/(t-skin)));if(d>1e-6)ext=clipEdge(ext,x0,y0,x1,y1,d)}
         if(ext.length<3)continue;
-        const g=new THREE.ExtrudeGeometry(shape([ext,...r.slice(1)]),{depth:t/n,bevelEnabled:false});g.translate(0,0,-t/2+j*t/n);g.applyMatrix4(mat4(fc.M));geos.push(g);own.push(fi)}}});
+        const g=new THREE.ExtrudeGeometry(shape([ext,...r.slice(1)]),{depth:t/n,bevelEnabled:false});g.translate(0,0,-t/2+j*t/n);g.applyMatrix4(mat4(fc.M));geos.push(g);own.push(fi)}}
+      // the pane over its window (fc.paper: rings in the facet's frame, t, z = its outer face from the facet's): one more solid
+      // of the panel, in the panel's look, that folds with its facet. ponytail: no paper look; the light (js/light.js) gives it its glow
+      for(const r of fc.paper?.rings||[]){const T=s.thickness,g=new THREE.ExtrudeGeometry(shape(r),{depth:fc.paper.t,bevelEnabled:false});g.translate(0,0,T/2+fc.paper.z-fc.paper.t);g.applyMatrix4(mat4(fc.M));geos.push(g);own.push(fi)}});
     if(!geos.length)continue;
     const m=new THREE.Mesh(mergeGeos(geos),new THREE.MeshStandardMaterial({color:COLORS[s.group]||0xaaaaaa,roughness:.7,metalness:.05,map:stripesOf(s.group)}));
     m.userData={slice:s.label,piece:pc.label,group:s.group,i:i++,origin:new THREE.Vector3(s.M[0][3],s.M[1][3],s.M[2][3]),normal:new THREE.Vector3(s.M[0][2],s.M[1][2],s.M[2][2]),bad:s.errors.length>0};

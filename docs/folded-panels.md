@@ -299,6 +299,55 @@ The example `fold_lamp` uses it: a twisted, swelling tube of 30 triangles (about
 plate. It had 72 triangles of 38 × 19 mm and 32 seams at first: too many and too small to put together by hand.
 The lantern keeps the 72: at 420 mm they are big enough.
 
+A window belongs to a flat piece, not to a triangle. The faces of a panel that are joined across an edge with no
+bend (under 1°, the same rule that leaves such an edge without a score) are one flat piece, and get one window
+between them. The side of a box is two triangles and gets one square window. Before 0.4.0 it got two triangles.
+A flat piece cut by a seam is two pieces and gets two windows.
+
+### Panes: windows closed with paper
+`window_fill` = `paper` closes each window with a pane, so the light shines through it. `paper_t` is its thickness.
+
+- Cut job: the window is cut out as before. The pane is a part of its own, a slice with the label `W-<panel>-<n>`
+  (`W-7-3` is the third window of panel `P-7`), `paper_t` thick. It is `PANE_OVER` (4 mm) bigger than its window
+  all round, less on a narrow frame, and it stays 0.2 mm clear of the fold grooves. It is glued on the inside face
+  of the frame. Pane slices have `stock` = `paper`: the nester keeps one stock per sheet, so they are on sheets of
+  their own, and the plan's `sheet_stock`, the sheet list and the names of the cut files say `paper`.
+- Printed job: the window is not cut out. The print keeps `paper_t` of the panel there, on the bed, and the frame
+  keeps the whole thickness (`core/solid.py` cuts the rest away, as it does for a thin glue tab). The plan's piece
+  carries `paper` (the rings on the plate) and `paper_t`. A `paper_t` that is not thinner than the panel gives a
+  warning, and the windows stay open.
+- The 3D view and the light: each facet with a pane carries `paper` = `{rings, t, z}`. `rings` is in the facet's own
+  frame. `z` is where the pane's outer face is, along the facet's normal from the facet's outer face: 0 on a printed
+  job (inside face up), minus the sheet thickness on a cut job. A flat piece of several faces has its pane on one
+  facet only. `paper_color` and `paper_through` are for the light; the slicer does not use them.
+- Coverage counts a pane as covered surface.
+- A pane passes the thin-spot check: a sharp corner of a paper triangle does not break off.
+
+Not done: a number on the frame that says which pane goes where. The 3D view does not show the pane parts as parts
+of their own; it shows the pane on its panel.
+
+## Merged faces
+`merged` holds groups of faces the user merged. Each group becomes one flat face (`flatten`, `core/mesh.py`), after
+the model is simplified and before faces are removed:
+
+1. The faces of the group are found again by their place, as removed faces are (`faces_at`). The biggest piece that
+   is joined edge to edge is used, with any face it encloses: at another facet size one face in the middle can be
+   missed.
+2. A plane is fitted to them: the average of their normals, weighted by area, through their centre.
+3. The corners on the rim of the group move onto that plane. The faces next to the group follow their corners. The
+   corners inside the group go.
+4. The rim is filled again with triangles in the plane (ear clipping). They are one flat piece: no score, one window.
+
+A group stays as it is, with a warning that gives the reason, when fewer than two of its faces are there, when it
+has no single rim (several pieces of the same size, the whole model), when its faces turn more than a quarter turn
+away from each other, or when its rim crosses itself in the plane.
+
+The plan's `faces3d.merged` gives, for each face, the number of the group it came from, or -1. On the page the
+`merge` button of the `select faces` tool adds the selected triangles as a group. A group under the selection is
+replaced by the new one. `unmerge` takes away the groups under the selection.
+
+Limit: one plane for the whole group. Half a ball becomes a disc, and the faces round it are pulled with it.
+
 ## Removed faces
 `removed` holds the faces the user took off the surface, to keep only a part of the model (a mask from a head). They
 go after the model is simplified and before it is unfolded. What is left is an open surface: the rim round the

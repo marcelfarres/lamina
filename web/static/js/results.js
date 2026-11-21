@@ -15,7 +15,7 @@ const pieceToSlice=()=>{const m={};for(const s of ST.plan?.slices||[])for(const 
 export function hlSheet(label){const map=pieceToSlice();let first=null;for(const p of $$('#sheets path[data-label]')){const on=label&&map[p.dataset.label]===label;p.classList.toggle('hl',on);if(on&&!first)first=p}
   if(first)first.scrollIntoView({block:'nearest',behavior:'smooth'})}
 export function renderSheets(svgs){
-  $('#sheets').innerHTML=svgs.map((s,i)=>`<div class="sheet"><div class="t"><span>sheet ${i+1} of ${svgs.length} — ${fmtLen(ST.plan.sheet[0])} × ${fmtLen(ST.plan.sheet[1])}${ST.plan.sheet_thick?.[i]?` · ${fmtLen(ST.plan.sheet_thick[i])} stock`:''}</span><a data-open="${i}">open full size ↗</a></div>${s}</div>`).join('');
+  $('#sheets').innerHTML=svgs.map((s,i)=>`<div class="sheet"><div class="t"><span>sheet ${i+1} of ${svgs.length} — ${fmtLen(ST.plan.sheet[0])} × ${fmtLen(ST.plan.sheet[1])}${ST.plan.sheet_thick?.[i]?` · ${fmtLen(ST.plan.sheet_thick[i])} ${esc(ST.plan.sheet_stock?.[i]||'stock')}`:''}</span><a data-open="${i}">open full size ↗</a></div>${s}</div>`).join('');
   const bad=new Set(ST.plan.slices.filter(s=>s.errors.length).flatMap(s=>s.pieces.map(p=>p.label)));   // Slicer: red = part with a problem
   // status line: what is selected (so a click is never silent)
   if(ST.selected)status(`${$('#status').textContent.replace(/ · selected.*$/,'')} · selected ${ST.selected}`);
