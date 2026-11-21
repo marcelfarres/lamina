@@ -23,12 +23,14 @@ import {setTool} from './edit3d.js';
 // drawn, so the room can be looked into from any side. Off, nothing of it is on the scene and the view is as without it.
 // The room is a setting too (`state.room`: shown or not, its size, walls, floor, the light the walls give back), and
 // so is whether the assembly video is lit (`state.light_video`).
-// ponytail: no tube or panel lights (three.js gives them no shadows), a spot points up, down or at the model's middle only, 4 lights at most (each is a shadow pass and a texture)
+// ponytail: no tube or panel lights (three.js gives them no shadows), 4 lights at most (each is a shadow pass and a texture)
 const MAX=4, MARK=['#E69F00','#56B4E9','#009E73','#CC79A7'];   // Okabe-Ito; a light is known by its number, the colour only helps
 const WHITE={'#ffcf9e':'warm white, 2700 K','#ffe6cc':'neutral white, 4000 K','#eef2ff':'daylight, 6500 K'}, WARM='#ffcf9e';
 const LIKE={led:['small LED',{kind:'bulb',size:6,lm:400}],filament:['LED filament bulb',{kind:'bulb',size:25,lm:500}],frosted:['frosted bulb',{kind:'bulb',size:45,lm:600}],
   gu10:['GU10 spot, 36°',{kind:'spot',angle:36,soft:25,size:50,lm:350}],desk:['desk lamp, 60°',{kind:'spot',angle:60,soft:40,size:40,lm:500}],own:['my own',{}]};
-const AIM={up:'straight up',down:'straight down',middle:'the middle of the model'};
+const AIM={up:'straight up',down:'straight down',middle:'the middle of the model',free:'a direction…'};
+// a free direction: `tilt` from straight up (0) through level (90) to straight down (180), `turn` round the upright from x
+const aimOf=l=>{const t=(l.tilt??45)*Math.PI/180,f=(l.turn??0)*Math.PI/180;return new THREE.Vector3(Math.sin(t)*Math.cos(f),Math.sin(t)*Math.sin(f),Math.cos(t))};
 const fresh=z=>({on:true,like:'led',kind:'bulb',angle:60,soft:30,size:6,lm:400,color:WARM,pos:[0,0,z],aim:'up'});
 const WALLS={white:['white',0xf0eeea],grey:['light grey',0xa3a19e],dark:['dark',0x3b3a38]}, FLOOR={walls:['as the walls'],wood:['wood',0x9a6a40],dark:['dark',0x2c2b2a]};
 const roomOf=()=>({show:true,size:2,walls:'white',floor:'walls',back:10,...state.room});
@@ -117,7 +119,7 @@ function unrig(g){if(!g)return; g.light.shadow.dispose(); g.tag.material.map.dis
 export function applyLight(){const on=!!state.light, tool=ST.tool==='light', tab=($('section[data-tab="light"]').classList.contains('on')||tool)&&!ST.recording; $('#lamp').checked=on;
   // the move-a-light tool is there while the light is on; the column is there while it holds a tool to choose
   $('#tools button[data-tool=light]').hidden=!on; $('#tools').hidden=!$$('#tools button').some(b=>b.dataset.tool&&!b.hidden); if(tool&&!on)return setTool('');
-  $('#lighthint').hidden=!tool; arrows.visible=false;
+  $('#lighthint').hidden=!tool; arrows.visible=aimDot.visible=false;
   const b=new THREE.Box3(); for(const m of parts.children)if(m.userData.group!=='B')b.expandByObject(m);   // every part, shown or not: the room stays put while the steps run
   if(b.isEmpty())b.setFromObject(ghost); if(b.isEmpty())return;
   const c=b.getCenter(new THREE.Vector3()),S=b.getSize(new THREE.Vector3()),r=S.length(),O=new THREE.Vector3(c.x,c.y,b.min.z); box={S,r};   // off too: the tab shows the light a tick would turn on
@@ -131,7 +133,7 @@ export function applyLight(){const on=!!state.light, tool=ST.tool==='light', tab
       g.ball.position.copy(P); g.ball.scale.setScalar(R); g.glow.position.copy(P); g.glow.scale.setScalar(R*3+r*.06); g.glow.material.color.set(l.color);
       g.tag.visible=tab; g.tag.position.copy(P).z+=R+r*.05; g.tag.scale.setScalar(r*.07);
       if(l.kind==='bulb'){g.light.intensity=K*l.lm; g.light.shadow.radius=R}
-      else{const a=Math.min(l.angle,170)*Math.PI/360, A=l.aim==='middle'&&P.distanceTo(c)>1?c.clone():P.clone().add(new THREE.Vector3(0,0,l.aim==='down'?-1:1)), dir=A.clone().sub(P).normalize();
+      else{const a=Math.min(l.angle,170)*Math.PI/360, A=l.aim==='middle'&&P.distanceTo(c)>1?c.clone():P.clone().add(l.aim==='free'?aimOf(l):new THREE.Vector3(0,0,l.aim==='down'?-1:1)), dir=A.clone().sub(P).normalize();
         // the same lumens in a narrower cone are brighter along it
         // ponytail: at most 8 times a bulb's, or a narrow spot burns the picture white; real exposure would follow the scene
         g.light.intensity=K*l.lm*Math.min(8,2/(1-Math.cos(a))); g.light.angle=a; g.light.penumbra=l.soft/100; g.light.target.position.copy(A); g.light.target.updateMatrixWorld();
@@ -139,11 +141,12 @@ export function applyLight(){const on=!!state.light, tool=ST.tool==='light', tab
         const len=r*.3, w=Math.tan(a)*len, u=new THREE.Vector3().crossVectors(dir,Math.abs(dir.z)<.9?new THREE.Vector3(0,0,1):new THREE.Vector3(1,0,0)).normalize(), v=new THREE.Vector3().crossVectors(dir,u), pts=[],
           ring=k=>P.clone().addScaledVector(dir,len).addScaledVector(u,w*Math.cos(k*Math.PI/20)).addScaledVector(v,w*Math.sin(k*Math.PI/20));
         for(let k=0;k<40;k++){pts.push(ring(k),ring(k+1)); if(k%5===0)pts.push(P,ring(k))}
-        g.cone.geometry.setFromPoints(pts); g.cone.visible=tab}
+        g.cone.geometry.setFromPoints(pts); g.cone.visible=tab; g.tip=P.clone().addScaledVector(dir,len)}   // the tip: where the tool takes hold to aim it
       g.light.shadow.camera.updateProjectionMatrix()});
     room.scale.set(half*2,half*2,high); room.position.set(c.x,c.y,b.min.z-r*.002+high/2); room.visible=Rm.show; bounce.intensity=Rm.back/100;
     wallMat.color.set(WALLS[Rm.walls][1]); Rm.floor==='walls'?floorMat.color.copy(wallMat.color).multiplyScalar(.85):floorMat.color.set(FLOOR[Rm.floor][1]);
-    const g=tool&&rigs[sel]; if(g){arrows.visible=true;arrows.position.copy(g.light.position);arrows.scale.setScalar(r*.22)}}
+    const g=tool&&rigs[sel]; if(g){arrows.visible=true;arrows.position.copy(g.light.position);arrows.scale.setScalar(r*.22);
+      if(g.tip){aimDot.visible=true;aimDot.position.copy(g.tip);aimDot.scale.setScalar(r*.014)}}}
   for(const m of parts.children)m.castShadow=m.receiveShadow=on&&m.userData.group!=='B';
   lamp.visible=on; renderer.shadowMap.enabled=on; renderer.toneMapping=on?THREE.AgXToneMapping:THREE.NoToneMapping;
   hemi.intensity=on?0:1.1; dl.intensity=on?0:1.2; scene.background.set(on?0x050506:0x141517);
@@ -170,7 +173,9 @@ function renderTab(){const Rm=roomOf(), L=list(), on=!!state.light, u=ST.unit, l
       +row('kind','kind','A bulb shines all round. A spot shines in a cone',pick('kind',{bulb:'bulb: all round',spot:'spot: a cone'},l.kind))
       +(spot?row('angle','beam angle (°)','How wide the cone of a spot is, edge to edge',sl('angle',l.angle,5,160),'dep')
         +row('soft','soft edge (%)','How much of the cone fades out toward its edge: 0 is a hard circle of light',sl('soft',l.soft,0,100),'dep')
-        +row('aim','points at','Where the spot points',pick('aim',AIM,l.aim),'dep'):'')
+        +row('aim','points at','Where the spot points. With the move a light tool, drag the dot at the end of its cone',pick('aim',AIM,l.aim),'dep')
+        +(l.aim==='free'?row('tilt','tilt (°)','How far the spot leans from straight up: 0 is up, 90 is level, 180 is down',sl('tilt',l.tilt??45,0,180),'dep')
+          +row('turn','turn (°)','Which way the spot leans, round the upright: 0 is along x, 90 along y',sl('turn',l.turn??0,0,360),'dep'):''):'')
       +row('size',`source size (${u})`,'How big the part that shines is, across. A small source throws a sharp pattern, a big one a soft one',sl('size',inU(l.size),inU(1),inU(120),st))
       +row('lm','brightness (lm)','The light it gives, in lumens, as on the box of a real lamp: 400 lm is a 40 W bulb',sl('lm',l.lm,10,1600,10))
       +row('color','colour','The colour of the light: a white of a real lamp, or any colour',`<span>${pick('color',{...WHITE,pick:'a colour…'},l.color in WHITE?l.color:'pick')} <input type="color" data-l="hex" value="${esc(l.color)}" ${l.color in WHITE?'hidden':''} aria-label="the colour of the light"></span>`)
@@ -191,7 +196,7 @@ $('#g-light').addEventListener('input',e=>{const t=e.target,k=t.dataset.l; if(!k
   const l=own()[sel],v=+t.value||0;   // a slider writes its number box, which lands here
   if(t.tagName==='SELECT'){if(k==='like')Object.assign(l,LIKE[t.value][1],{like:t.value}); else if(k==='color'){if(t.value!=='pick')l.color=t.value; else if(l.color in WHITE)l.color='#ff8040'} else{l[k]=t.value;if(k==='kind')l.like='own'}
     return touch(1)}   // a choice can add or take rows: the tab is drawn again
-  if(k==='hex')l.color=t.value; else if(k[0]==='p')l.pos[+k[1]]=toMM(v); else{l[k]=k==='size'?toMM(v):v; l.like='own'; $('#g-light select[data-l=like]').value='own'}
+  if(k==='hex')l.color=t.value; else if(k[0]==='p')l.pos[+k[1]]=toMM(v); else{l[k]=k==='size'?toMM(v):v; if(k!=='tilt'&&k!=='turn'){l.like='own'; $('#g-light select[data-l=like]').value='own'}}   // where a lamp points is not what lamp it is
   touch()});
 $('#g-light').addEventListener('change',e=>{const t=e.target; if(t.id==='light_on'){state.light=t.checked;return touch()} if(t.id==='light_video'){state.light_video=t.checked;return touch()} if(t.dataset.r){state.room={...roomOf(),show:t.checked};return touch()} if(t.dataset.on){own()[+t.dataset.on].on=t.checked;touch(1)}});
 $('#g-light').addEventListener('click',e=>{const t=e.target,a=t.dataset.act,r=t.closest('.lrow'); if(t.dataset.on)return;
@@ -205,21 +210,25 @@ function snap(){for(const g of rigs)if(g){g.tag.visible=false;if(g.cone)g.cone.v
 // ---- the move-a-light tool: a light is taken by its place on the screen (a small LED is too small to aim a ray at) and
 // dragged across the view, or by one of the three arrows of the light picked, along that arrow. A click picks a light.
 // A drag that starts on neither turns the view as ever.
-const arrows=new THREE.Group(), AX=[[1,0,0],[0,1,0],[0,0,1]]; let pull=null;
+const arrows=new THREE.Group(), AX=[[1,0,0],[0,1,0],[0,0,1]], aimDot=new THREE.Mesh(new THREE.SphereGeometry(1,16,12),new THREE.MeshBasicMaterial({color:0xffffff,depthTest:false,toneMapped:false})); let pull=null;
+aimDot.renderOrder=30; aimDot.visible=false; lamp.add(aimDot);
 AX.forEach((d,i)=>{const a=new THREE.ArrowHelper(V3(d),new THREE.Vector3(),1,[0xff5c5c,0x5cff7a,0x5c9cff][i],.28,.14);a.traverse(o=>{o.renderOrder=30;if(o.material){o.material.depthTest=false;o.material.toneMapped=false}});arrows.add(a)});
 arrows.visible=false; lamp.add(arrows);
 const px=(P,rc)=>{const q=P.clone().project(camera);return [rc.left+(q.x+1)/2*rc.width,rc.top+(1-q.y)/2*rc.height]};   // a point of the scene on the screen
 {const cv=renderer.domElement;
   cv.addEventListener('pointerdown',ev=>{if(ST.tool!=='light'||ev.button!==0||!state.light)return; const rc=cv.getBoundingClientRect(),m=[ev.clientX,ev.clientY],g=rigs[sel]; let hit=null;
-    if(g)AX.forEach((d,i)=>{const A=px(g.light.position,rc),B=px(g.light.position.clone().addScaledVector(V3(d),arrows.scale.x),rc),ux=B[0]-A[0],uy=B[1]-A[1],n=ux*ux+uy*uy||1,t=((m[0]-A[0])*ux+(m[1]-A[1])*uy)/n;
+    if(g?.tip){const A=px(g.tip,rc);if(Math.hypot(m[0]-A[0],m[1]-A[1])<13)hit={i:sel,aim:true}}   // the dot at the end of a spot's cone: it is aimed
+    if(g&&!hit)AX.forEach((d,i)=>{const A=px(g.light.position,rc),B=px(g.light.position.clone().addScaledVector(V3(d),arrows.scale.x),rc),ux=B[0]-A[0],uy=B[1]-A[1],n=ux*ux+uy*uy||1,t=((m[0]-A[0])*ux+(m[1]-A[1])*uy)/n;
       if(t>.3&&t<1.1&&Math.hypot(m[0]-A[0]-t*ux,m[1]-A[1]-t*uy)<9)hit={i:sel,axis:i,ux,uy,n}});   // the outer part of an arrow: its foot is the light's own
     if(!hit)rigs.forEach((x,i)=>{if(!x)return;const A=px(x.light.position,rc),d=Math.hypot(m[0]-A[0],m[1]-A[1]);if(d<20&&(!hit||d<hit.d))hit={i,d}});
     if(!hit)return; ev.stopImmediatePropagation(); cv.setPointerCapture(ev.pointerId);   // taken: the view does not turn and no part is picked
-    const P=rigs[hit.i].light.position.clone(); pull={...hit,m,P,pos:[...list()[hit.i].pos],moved:false,plane:new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()),P)}},true);
+    const P=rigs[hit.i].light.position.clone(); pull={...hit,m,P,pos:[...list()[hit.i].pos],moved:false,plane:new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()),hit.aim?rigs[hit.i].tip:P)}},true);
   cv.addEventListener('pointermove',ev=>{if(!pull)return; ev.stopImmediatePropagation(); const dx=ev.clientX-pull.m[0],dy=ev.clientY-pull.m[1]; if(!pull.moved&&Math.hypot(dx,dy)<4)return; pull.moved=true;
+    const under=()=>{const rc=cv.getBoundingClientRect(),ray=new THREE.Raycaster(); ray.setFromCamera(new THREE.Vector2((ev.clientX-rc.left)/rc.width*2-1,1-(ev.clientY-rc.top)/rc.height*2),camera); return ray.ray.intersectPlane(pull.plane,new THREE.Vector3())};
+    if(pull.aim){const at=under(); if(!at)return; const v=at.sub(pull.P).normalize(),l=own()[pull.i];
+      l.aim='free'; l.tilt=Math.round(Math.acos(Math.max(-1,Math.min(1,v.z)))*180/Math.PI); l.turn=Math.round((Math.atan2(v.y,v.x)*180/Math.PI+360)%360); return touch(1)}
     let d; if(pull.axis!==undefined)d=V3(AX[pull.axis]).multiplyScalar((dx*pull.ux+dy*pull.uy)/pull.n*arrows.scale.x);
-    else{const rc=cv.getBoundingClientRect(),ray=new THREE.Raycaster(),at=new THREE.Vector3(); ray.setFromCamera(new THREE.Vector2((ev.clientX-rc.left)/rc.width*2-1,1-(ev.clientY-rc.top)/rc.height*2),camera);
-      if(!ray.ray.intersectPlane(pull.plane,at))return; d=at.sub(pull.P)}
+    else{const at=under(); if(!at)return; d=at.sub(pull.P)}
     const l=own()[pull.i]; sel=pull.i; l.pos=[0,1,2].map(j=>+(pull.pos[j]+d.getComponent(j)).toFixed(1)); l.pos[2]=Math.max(0,l.pos[2]); touch(1)},true);   // never under the floor
   cv.addEventListener('pointerup',ev=>{if(!pull)return; ev.stopImmediatePropagation(); const p=pull; pull=null; if(!p.moved&&p.i!==sel){sel=p.i;shown='';applyLight()}},true)}
 $('#lamp').onchange=e=>{state.light=e.target.checked;touch(1)};
