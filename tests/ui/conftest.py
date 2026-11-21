@@ -69,11 +69,14 @@ def fresh(page):
     """Every test starts from the defaults of every tab. One page for the whole run is what makes this suite fast,
     and this is the price: a technique or a remeshed model left behind would slow down or break the next test.
     The model too: the egg, unless the test before left another one (an upload of the cube made the next test's
-    shift-drag miss), and not the page's default, which can change and be slower to re-slice."""
+    shift-drag miss), and not the page's default, which can change and be slower to re-slice. And the light off first:
+    its tick is the project's, kept by every example and every tab's reset, and a test that left it on lit every test
+    after it (bugs/069: the paper pane's, then a stack half a metre tall drawn with shadows hung the page)."""
+    page.evaluate("() => { const b = document.querySelector('#lamp'); if (b.checked) { b.checked = false; b.dispatchEvent(new Event('change')) } }")
     if page.evaluate("() => window.__t.job()") != "ex_egg":
         page.click('nav button[data-t="model"]')
         page.evaluate("__t.openExample('egg')")
-    for tab in ("model", "technique", "sheet", "checks"):
+    for tab in ("model", "technique", "sheet", "light", "checks"):
         page.click(f'nav button[data-t="{tab}"]')
         page.click(f'button.reset[data-reset="{tab}"]')
         page.wait_for_timeout(200)
