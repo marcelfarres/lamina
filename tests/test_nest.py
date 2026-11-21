@@ -126,7 +126,7 @@ def test_a_part_over_the_sheet_both_ways_is_cut_both_ways():
     from core.geometry import as_multi
     from core.split import split_slice, fits_rotated
     sl = SimpleNamespace(label="Z-1", profile=as_multi(box(0, 0, 600, 400)), lines=[], marks=[], warnings=[], errors=[],
-                         pieces=None, facets=None, thickness=3, cover=None)
+                         pieces=None, facets=None, thickness=3, cover=None, stock="")
     split_slice(sl, (300, 300), 5, 8)
     assert len(sl.pieces) >= 4
     assert all(fits_rotated(pc.geom, (300, 300), 5) for pc in sl.pieces), [pc.geom.bounds for pc in sl.pieces]
@@ -165,7 +165,7 @@ def test_keep_the_grain_splits_a_part_that_only_fits_turned():
     from core.geometry import as_multi
     from core.split import split_slice
     part = lambda: SimpleNamespace(label="Z-1", profile=as_multi(box(0, 0, 580, 380)), lines=[], marks=[], warnings=[],
-                                   errors=[], pieces=None, facets=None, thickness=3, cover=None)
+                                   errors=[], pieces=None, facets=None, thickness=3, cover=None, stock="")
     free, kept = part(), part()
     split_slice(free, (400, 600), 5, 8)
     split_slice(kept, (400, 600), 5, 8, grain=True)
@@ -206,7 +206,7 @@ def test_a_disc_nests_inside_a_ring():
     from shapely.geometry import Point
     from core.geometry import as_multi
     from core.model import Piece
-    stock = SimpleNamespace(thickness=3, cover=None)
+    stock = SimpleNamespace(thickness=3, cover=None, stock="")
     ring = Piece("ring", as_multi(Point(0, 0).buffer(40).difference(Point(0, 0).buffer(30))), stock)
     disc = Piece("disc", as_multi(Point(0, 0).buffer(25)), stock)
     assert nest.nest([ring, disc], (100, 100), gap=2, margin=0) == 1
@@ -330,7 +330,7 @@ def test_seven_rings_fill_the_first_sheet_before_the_second():
     from shapely.geometry import Point
     from core.geometry import as_multi
     from core.model import Piece
-    stock = SimpleNamespace(thickness=3, cover=None)
+    stock = SimpleNamespace(thickness=3, cover=None, stock="")
     rings = [Piece(f"Z-{i + 1}", as_multi(Point(0, 0).buffer(90).difference(Point(0, 0).buffer(80))), stock) for i in range(7)]
     assert nest.nest(rings, (600, 400), gap=3, margin=5) == 2
     assert sorted(pc.place[0] for pc in rings) == [0] * 6 + [1]
@@ -344,7 +344,7 @@ def test_a_disc_nests_inside_a_ring_full_of_dowel_holes():
     from shapely.geometry import Point
     from core.geometry import as_multi
     from core.model import Piece
-    stock = SimpleNamespace(thickness=3, cover=None)
+    stock = SimpleNamespace(thickness=3, cover=None, stock="")
     band = Point(0, 0).buffer(40).difference(Point(0, 0).buffer(30))
     holes = [Point(35 * math.cos(a), 35 * math.sin(a)).buffer(1.5) for a in np.linspace(0, 2 * math.pi, 30, endpoint=False)]
     ring = Piece("ring", as_multi(band.difference(unary_union(holes))), stock)
