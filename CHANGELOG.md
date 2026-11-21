@@ -138,6 +138,11 @@ inside to see it as a lamp.
 
   ![The egg's top layer on the sheet: before, its name, arrow and dowel numbers on it; now clean, its name beside it](web/static/news/0.4.0-clean-tops.jpg)
 
+- **Every printed part has its number.** A part too small for its number prints it on a thin tag beside it,
+  joined by a line. Read it, then snap the tag off. Printed standoffs show their size the same way.
+
+  ![Small horse ribs on the print plate, each joined to a tag with its number; one tag up close](web/static/news/0.4.0-print-tags.jpg)
+
 ### Fixed
 
 - **Puzzle tabs on tall split parts.** A part split across its height now gets puzzle tabs, as one split across its
