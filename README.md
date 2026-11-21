@@ -475,8 +475,9 @@ does not slip through. It carries the most signal for stacked and folded work; d
   file each standoff is cut in half along its length. The two halves lie flat side down, joined by a thin hinge,
   and print without supports. Fold the halves together and push the pins into the holes: the holes keep the
   standoff closed. A job with 3D-printed layers gets the same file in its print set. `shoulder` sets how wide the
-  body is, `pin_fit` how tight the pins are, `standoff_hinge` how thick the hinge is. Small standoffs
-  print badly, so the plan warns under a 5 mm dowel diameter and when a shared pin is under 2 mm long. With
+  body is, `pin_fit` how tight the pins are, `standoff_hinge` how thick the hinge is. No print has
+  confirmed small standoffs yet, so the plan warns under a 5 mm dowel diameter and when a shared pin is under 2 mm
+  long: print one to check. With
   `placement` = `random` no hole is shared, and every pin is as long as the layer is thick. The `shade`
   example opens with them.
 - **An assembly key** comes with the cut files (`assembly-key.txt`): what this technique's labels mean — `R-2a` is the
