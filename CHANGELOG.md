@@ -161,6 +161,9 @@ inside to see it as a lamp.
   Before, it could stop past a rib's slot and leave a thin strip that can break.
 - **The 3D look follows the material.** After a printed example such as *fold_lamp*, the next example or project
   showed cardboard as blue plastic. The look now changes with the material.
+- **A crossed plaque slice can stand on its own teeth.** A slice that crosses no slice of the other family but stands
+  in the plate on its teeth, such as the tail of the cow, showed the error "touches nothing". The plate holds it, so
+  it is no longer an error. A slice that does not reach the plate is still an error.
 
 ## 0.3.3
 

@@ -384,6 +384,8 @@ class Plaque(Stacked):
                     sl.links.append((plate.label, tooth, pt)); plate.links.append((sl.label, slot, pt))
                     plate.cuts.append(slot); owner.append(sl.label)
                 mine.append(unary_union([g, *[t[0] for t in tt]]) if tt else g); has.append(bool(tt) or any(g.intersects(c) for c in sl.cuts))
+            if here:
+                sl.engages.append(plate.label)          # its teeth go into the plate's slots: it stands on the plate, crossed or not
             pieces.append(mine); held.append(has); prev = here
         if short:
             say(ctx, f"{len(short)} stretch(es) on the plate too short for {p['teeth']} teeth, "
