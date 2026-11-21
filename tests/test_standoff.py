@@ -107,6 +107,22 @@ def test_a_standoff_prints_as_two_halves_on_a_hinge_that_fold_into_it():
         assert off.max() < 1e-3, off.max()
 
 
+def test_a_standoff_too_small_to_print_well_is_warned_about_with_the_setting_that_cures_it():
+    """Bug 058, Marcel on his first print (pins 3.9 mm across, shared pins 1.4 mm long): "too small, too thin and they
+    pop out of the bed & too fragile". A dowel diameter under 5 mm and shared pins under 2 mm long are each a warning of
+    the plan that names the setting to change. With 6 mm pins and random placement no hole is shared, every pin is as
+    long as the layer is thick, and nothing is warned."""
+    said = lambda **job: build(EXAMPLES / "egg.stl", "stacked", {**JOB, **job})["warnings"]   # noqa: E731
+    small = said(dowel_d=4)
+    assert any("3.9 mm across" in w and "dowel diameter to 5 mm or more" in w for w in small), small
+    assert any("only 1.4 mm long" in w and "placement to random" in w for w in small), small
+    five = said()                                                      # 5 mm: wide enough, the shared pins still short
+    assert len(five) == 1 and "only 1.4 mm long" in five[0], five
+    plan = build(EXAMPLES / "egg.stl", "stacked", {**JOB, "dowel_d": 6, "placement": "random"})
+    assert plan["warnings"] == [] and {n for e in plan["standoffs"]["items"] for n in e["pins"]} == {3.0}
+    assert all(all(e["flush"]) for e in plan["standoffs"]["items"])
+
+
 def test_the_print_file_holds_every_standoff_and_the_key_says_where_each_size_goes(tmp_path):
     """The export carries the print file beside the cut files, named 3D-PRINT so it is not taken for a cut file, with
     a note. One object per standoff, each a closed solid on the plate. A pin is smaller than its hole by the slot
