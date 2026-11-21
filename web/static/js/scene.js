@@ -122,10 +122,12 @@ const stripes=turn=>{const c=document.createElement('canvas');c.width=c.height=1
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.rotation=turn;return t};
 const STRIPES=stripes(Math.PI/4), ACROSS=stripes(-Math.PI/4), stripesOf=g=>g==='Z'?ACROSS:STRIPED.includes(g)?STRIPES:null;
 // The light (a lamp inside the model, a spot beside it: js/light.js) is set again when the parts move or change.
+// The paper of the panes that close a folded panel's windows: one look for them all (js/light.js gives it its colour and its glow)
+export const paper=new THREE.MeshLambertMaterial({color:0xfff1d0});
 export function render3D(modelUrl){
   parts.clear(); let i=0; for(const t of [STRIPES,ACROSS])t.repeat.setScalar(20/Math.max(...ST.plan.bbox));
   for(const s of ST.plan.slices)for(const pc of s.pieces){
-    const geos=[],own=[];   // own: the facet each solid was extruded from, for the fold slider
+    const geos=[],own=[],panes=[],pown=[];   // own: the facet each solid was extruded from, for the fold slider (pown: each pane's)
     pc.facets.forEach((fc,fi)=>{for(const r of fc.rings){
       // a printed panel's face is drawn as it is exported: in layers, each set in from its grooved edges by what the V takes at that height
       const t=fc.t||s.thickness,n=fc.bevel?6:1,skin=ST.plan.params.hinge||0;   // fc.t: a thin printed tab
@@ -133,9 +135,9 @@ export function render3D(modelUrl){
         for(const [x0,y0,x1,y1,w,side] of fc.bevel||[]){const d=w*Math.min(1,Math.max(0,(side>0?t/2-skin-z:z+t/2-skin)/(t-skin)));if(d>1e-6)ext=clipEdge(ext,x0,y0,x1,y1,d)}
         if(ext.length<3)continue;
         const g=new THREE.ExtrudeGeometry(shape([ext,...r.slice(1)]),{depth:t/n,bevelEnabled:false});g.translate(0,0,-t/2+j*t/n);g.applyMatrix4(mat4(fc.M));geos.push(g);own.push(fi)}}
-      // the pane over its window (fc.paper: rings in the facet's frame, t, z = its outer face from the facet's): one more solid
-      // of the panel, in the panel's look, that folds with its facet. ponytail: no paper look; the light (js/light.js) gives it its glow
-      for(const r of fc.paper?.rings||[]){const T=s.thickness,g=new THREE.ExtrudeGeometry(shape(r),{depth:fc.paper.t,bevelEnabled:false});g.translate(0,0,T/2+fc.paper.z-fc.paper.t);g.applyMatrix4(mat4(fc.M));geos.push(g);own.push(fi)}});
+      // the pane over its window (fc.paper: rings in the facet's frame, t, z = its outer face from the facet's): a solid of
+      // its own, in paper, that folds with its facet
+      for(const r of fc.paper?.rings||[]){const T=s.thickness,g=new THREE.ExtrudeGeometry(shape(r),{depth:fc.paper.t,bevelEnabled:false});g.translate(0,0,T/2+fc.paper.z-fc.paper.t);g.applyMatrix4(mat4(fc.M));panes.push(g);pown.push(fi)}});
     if(!geos.length)continue;
     const m=new THREE.Mesh(mergeGeos(geos),new THREE.MeshStandardMaterial({color:COLORS[s.group]||0xaaaaaa,roughness:.7,metalness:.05,map:stripesOf(s.group)}));
     m.userData={slice:s.label,piece:pc.label,group:s.group,i:i++,origin:new THREE.Vector3(s.M[0][3],s.M[1][3],s.M[2][3]),normal:new THREE.Vector3(s.M[0][2],s.M[1][2],s.M[2][2]),bad:s.errors.length>0};
@@ -144,9 +146,11 @@ export function render3D(modelUrl){
     // step back in depth so the net never fights them
     if(m.userData.bad){const net=new THREE.Mesh(m.geometry,new THREE.MeshBasicMaterial({color:0x111111,wireframe:true}));net.raycast=()=>{};m.add(net);
       Object.assign(m.material,{polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1})}
-    if(pc.facets.some(f=>f.hinge)){let o=0;   // a folded panel: where each facet's vertices are, to swing them about their fold lines
-      m.userData.fold={base:m.geometry.attributes.position.array.slice(),hinges:pc.facets.map(f=>f.hinge||null),
-        ranges:geos.map((g,j)=>{const n=g.index?g.index.count:g.attributes.position.count,r=[o,n,own[j]];o+=n;return r})}}
+    // a folded panel: where each facet's vertices are, to swing them about their fold lines
+    const folds=(geo,gs,of)=>{let o=0;return {base:geo.attributes.position.array.slice(),ranges:gs.map((g,j)=>{const n=g.index?g.index.count:g.attributes.position.count,r=[o,n,of[j]];o+=n;return r})}};
+    if(pc.facets.some(f=>f.hinge))m.userData.fold={...folds(m.geometry,geos,own),hinges:pc.facets.map(f=>f.hinge||null)};
+    // the panes of the panel: one mesh in the paper's look, that moves, shows and folds with the panel; a click goes through to the panel
+    if(panes.length){const p=new THREE.Mesh(mergeGeos(panes),paper);p.raycast=()=>{};p.userData=folds(p.geometry,panes,pown);m.add(p);m.userData.pane=p}
     parts.add(m);
   }
   // the plane between two lobes, or at a branch's joint, is a part too — translucent, outside the build order (i = -1 keeps it on every
@@ -272,9 +276,9 @@ export function applyFold(){const s=+$('#fold').value,v=new THREE.Vector3();let 
   for(const m of parts.children){const f=m.userData.fold;if(!f)continue;any=true;const D=[];
     f.hinges.forEach((h,i)=>{D[i]=new THREE.Matrix4();if(!h||!D[h[0]])return;
       D[i].copy(D[h[0]]).multiply(new THREE.Matrix4().makeTranslation(h[1],h[2],h[3])).multiply(new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(h[4],h[5],h[6]),(1-s)*h[7])).multiply(new THREE.Matrix4().makeTranslation(-h[1],-h[2],-h[3]))});
-    const pos=m.geometry.attributes.position;
-    for(const [o,n,fi] of f.ranges)for(let j=o;j<o+n;j++){v.fromArray(f.base,3*j).applyMatrix4(D[fi]);pos.setXYZ(j,v.x,v.y,v.z)}
-    pos.needsUpdate=true;m.geometry.computeVertexNormals();m.geometry.computeBoundingSphere();m.geometry.computeBoundingBox()}
+    for(const [geo,{base,ranges}] of [[m.geometry,f],...(m.userData.pane?[[m.userData.pane.geometry,m.userData.pane.userData]]:[])]){const pos=geo.attributes.position;
+      for(const [o,n,fi] of ranges)for(let j=o;j<o+n;j++){v.fromArray(base,3*j).applyMatrix4(D[fi]);pos.setXYZ(j,v.x,v.y,v.z)}
+      pos.needsUpdate=true;geo.computeVertexNormals();geo.computeBoundingSphere();geo.computeBoundingBox()}}
   $('#foldl').hidden=!any; ghost.visible=$('#ghost').checked&&!(any&&s<1);   // the model would stand in the unfolded panel
   $('#fold_val').textContent=Math.round(s*100)+' %'; showSeamLines(); showFaces(); ST.dirty=true}
 const FOLD_STEPS=20; let nParts=0;   // the steps a folded job takes to fold up, and the parts in the build order before them

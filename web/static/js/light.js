@@ -3,7 +3,7 @@ import {state, ST} from './state.js';
 import {$, $$, esc} from './util.js';
 import {inU, toMM} from './units.js';
 import {record} from './history.js';
-import {scene, renderer, camera, parts, ghost, hemi, dl, V3} from './scene.js';
+import {scene, renderer, camera, parts, ghost, hemi, dl, V3, paper} from './scene.js';
 import {setTool} from './edit3d.js';
 
 // ---------------------------------------------------------------- light
@@ -42,6 +42,18 @@ const lamp=new THREE.Group(), bounce=new THREE.HemisphereLight(0xffd6a8,0x5a4a3c
   wallMat=new THREE.MeshStandardMaterial({color:0xf0eeea,roughness:.95,side:THREE.BackSide}), floorMat=new THREE.MeshStandardMaterial({color:0xc9c2b8,roughness:.9,side:THREE.BackSide}),
   room=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),[wallMat,wallMat,wallMat,wallMat,wallMat,floorMat]);   // faces +x −x +y −y, ceiling, floor
 let rigs=[], sig='', wasOn=false;
+// Paper in a window: lit from behind, its far face takes the share of the light the paper lets through (`paper_through`),
+// so a pane glows on the side away from the lamp. A pane casts a shadow and takes none.
+// ponytail: so a part between the lamp and a pane does not darken it; a shadow lookup on the lit side if that shows
+const through={value:.6};
+paper.onBeforeCompile=sh=>{sh.uniforms.paperThrough=through; const was=THREE.ShaderChunk.lights_lambert_pars_fragment,
+    now=was.replace('float dotNL = saturate( dot( geometryNormal, directLight.direction ) );','float paperD = dot( geometryNormal, directLight.direction ); float dotNL = paperD > 0. ? min( paperD, 1. ) : min( - paperD, 1. ) * paperThrough;');
+  if(now===was)console.error('light: the Lambert code of three.js has changed; the paper does not glow');
+  sh.fragmentShader='uniform float paperThrough;\n'+sh.fragmentShader.replace('#include <lights_lambert_pars_fragment>',now)};
+// How much of the shade is paper: the panes' share of the panels' area (the panes and what holds them)
+const ringA=r=>Math.abs(r.reduce((a,p,i)=>a+p[0]*r[(i+1)%r.length][1]-r[(i+1)%r.length][0]*p[1],0))/2, polyA=rs=>rs.reduce((a,[o,...h])=>a+ringA(o)-h.reduce((b,x)=>b+ringA(x),0),0);
+function paperShare(){let pa=0,all=0; for(const s of ST.plan?.slices||[])for(const pc of s.pieces)for(const fc of pc.facets||[]){all+=polyA(fc.rings);if(fc.paper)pa+=polyA(fc.paper.rings)}
+  return pa?Math.min(1,pa/all):0}
 room.receiveShadow=true; bounce.position.set(0,0,1); lamp.add(bounce,room); lamp.visible=false; scene.add(lamp);
 renderer.shadowMap.autoUpdate=false;   // the shadows are made again when something but the camera moved (the render loop)
 renderer.toneMappingExposure=1.5;      // used only while the light tone-maps
@@ -105,13 +117,16 @@ function disc(draw){const c=document.createElement('canvas');c.width=c.height=64
 const glowTex=disc(g=>{const r=g.createRadialGradient(32,32,0,32,32,32);r.addColorStop(0,'rgba(255,255,255,1)');r.addColorStop(.15,'rgba(255,255,255,.4)');r.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=r;g.fillRect(0,0,64,64)});
 // one light on the scene: the light, the white-hot source with its glow, and — while the Light tab is open — its
 // number and, for a spot, the outline of its cone
-function rig(l,i,small){if(!l.on)return null; const spot=l.kind==='spot', light=spot?new THREE.SpotLight(0xffffff,1,0,1,0,2):new THREE.PointLight(0xffffff,1,0,2);
+function rig(l,i,small,soft){if(!l.on)return null; const spot=l.kind==='spot', light=spot?new THREE.SpotLight(0xffffff,1,0,1,0,2):new THREE.PointLight(0xffffff,1,0,2);
   light.castShadow=true; light.shadow.normalBias=.3; light.shadow.bias=spot?-.0002:-.001; light.shadow.mapSize.setScalar(spot?2048:small?512:1024);
   const g={light,ball:new THREE.Mesh(new THREE.SphereGeometry(1,24,16),new THREE.MeshBasicMaterial({color:0xfff6e8,toneMapped:false})),
     glow:new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})),
     tag:new THREE.Sprite(new THREE.SpriteMaterial({depthTest:false,toneMapped:false,map:disc(c=>{c.fillStyle='#0f1012';c.beginPath();c.arc(32,32,28,0,7);c.fill();c.strokeStyle=MARK[i];c.lineWidth=6;c.stroke();
       c.fillStyle='#fff';c.font='bold 36px system-ui,sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText(i+1,32,34)})})),
     cone:spot?new THREE.LineSegments(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:MARK[i],depthTest:false,toneMapped:false,transparent:true,opacity:.85})):null};
+  // what the panes let through, back as even light with no shadows: the shade is a soft source, the window pattern is gone
+  // ponytail: a bulb only, and nothing stands in this light's way; a spot's light stops at the paper
+  if(soft&&!spot)light.add(g.soft=new THREE.PointLight(0xffffff,0,0,2));
   g.tag.renderOrder=20; lamp.add(light,g.ball,g.glow,g.tag); if(spot){g.cone.renderOrder=19;lamp.add(light.target,g.cone)} return g}
 function unrig(g){if(!g)return; g.light.shadow.dispose(); g.tag.material.map.dispose(); g.cone?.geometry.dispose(); lamp.remove(g.light,g.ball,g.glow,g.tag); if(g.cone)lamp.remove(g.light.target,g.cone)}
 export function applyLight(){const on=!!state.light, tool=ST.tool==='light', tab=($('section[data-tab="light"]').classList.contains('on')||tool)&&!ST.recording; $('#lamp').checked=on;
@@ -121,8 +136,9 @@ export function applyLight(){const on=!!state.light, tool=ST.tool==='light', tab
   const b=new THREE.Box3(); for(const m of parts.children)if(m.userData.group!=='B')b.expandByObject(m);   // every part, shown or not: the room stays put while the steps run
   if(b.isEmpty())b.setFromObject(ghost); if(b.isEmpty())return;
   const c=b.getCenter(new THREE.Vector3()),S=b.getSize(new THREE.Vector3()),r=S.length(),O=new THREE.Vector3(c.x,c.y,b.min.z); box={S,r};   // off too: the tab shows the light a tick would turn on
-  if(on){const L=list(), s=L.map(l=>l.on?l.kind:'-').join();
-    if(s!==sig){rigs.forEach(unrig); const small=L.filter(l=>l.on&&l.kind==='bulb').length>2; rigs=L.map((l,i)=>rig(l,i,small)); sig=s}
+  const P_=ST.plan?.params||{}, share=paperShare(); through.value=(P_.paper_through??60)/100; paper.color.set(P_.paper_color||'#fff1d0');
+  if(on){const L=list(), s=L.map(l=>l.on?l.kind:'-').join()+(share>0);
+    if(s!==sig){rigs.forEach(unrig); const small=L.filter(l=>l.on&&l.kind==='bulb').length>2; rigs=L.map((l,i)=>rig(l,i,small,share>0)); sig=s}
     // the room holds the model with air round it, and every light: one put outside the model is still inside the room
     const Rm=roomOf(); let half=r*.45*Rm.size, high=r*.8*Rm.size; for(const l of L){half=Math.max(half,Math.abs(l.pos[0])+r*.3,Math.abs(l.pos[1])+r*.3);high=Math.max(high,l.pos[2]+r*.3)}
     const K=3*(r*.9)**2/400, far=Math.hypot(2*half,2*half,high)*1.05;   // 400 lm on a wall half a room away is about as bright at any size of model
@@ -130,7 +146,7 @@ export function applyLight(){const on=!!state.light, tool=ST.tool==='light', tab
       g.light.color.set(l.color); g.light.position.copy(P); g.light.shadow.camera.far=far;
       g.ball.position.copy(P); g.ball.scale.setScalar(R); g.glow.position.copy(P); g.glow.scale.setScalar(R*3+r*.06); g.glow.material.color.set(l.color);
       g.tag.visible=tab; g.tag.position.copy(P).z+=R+r*.05; g.tag.scale.setScalar(r*.07);
-      if(l.kind==='bulb'){g.light.intensity=K*l.lm; g.light.shadow.radius=R}
+      if(l.kind==='bulb'){g.light.intensity=K*l.lm; g.light.shadow.radius=R; if(g.soft){g.soft.color.copy(g.light.color).multiply(paper.color); g.soft.intensity=K*l.lm*share*through.value}}
       else{const a=Math.min(l.angle,170)*Math.PI/360, A=l.aim==='middle'&&P.distanceTo(c)>1?c.clone():P.clone().add(new THREE.Vector3(0,0,l.aim==='down'?-1:1)), dir=A.clone().sub(P).normalize();
         // the same lumens in a narrower cone are brighter along it
         // ponytail: at most 8 times a bulb's, or a narrow spot burns the picture white; real exposure would follow the scene
@@ -144,7 +160,7 @@ export function applyLight(){const on=!!state.light, tool=ST.tool==='light', tab
     room.scale.set(half*2,half*2,high); room.position.set(c.x,c.y,b.min.z-r*.002+high/2); room.visible=Rm.show; bounce.intensity=Rm.back/100;
     wallMat.color.set(WALLS[Rm.walls][1]); Rm.floor==='walls'?floorMat.color.copy(wallMat.color).multiplyScalar(.85):floorMat.color.set(FLOOR[Rm.floor][1]);
     const g=tool&&rigs[sel]; if(g){arrows.visible=true;arrows.position.copy(g.light.position);arrows.scale.setScalar(r*.22)}}
-  for(const m of parts.children)m.castShadow=m.receiveShadow=on&&m.userData.group!=='B';
+  for(const m of parts.children){m.castShadow=m.receiveShadow=on&&m.userData.group!=='B'; if(m.userData.pane)m.userData.pane.castShadow=on}
   lamp.visible=on; renderer.shadowMap.enabled=on; renderer.toneMapping=on?THREE.AgXToneMapping:THREE.NoToneMapping;
   hemi.intensity=on?0:1.1; dl.intensity=on?0:1.2; scene.background.set(on?0x050506:0x141517);
   if(on!==wasOn){wasOn=on; for(const m of [...parts.children,room])for(const x of [m.material].flat())x.needsUpdate=true}   // the shaders gain or lose the shadow lookup

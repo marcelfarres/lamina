@@ -439,3 +439,28 @@ def test_a_light_is_moved_in_the_view_and_the_room_and_the_picture_are_settings(
         page.click("#g-light button[data-act=png]")
     assert d.value.suggested_filename.endswith("_light.png") and page.evaluate("window.__t.idle()") and not errs, errs
     page.uncheck("#lamp"); assert not tool.is_visible()
+
+def test_a_paper_pane_is_a_sheet_of_its_own_that_folds_and_glows(page):
+    """A window closed with paper: its pane is a mesh of its own on its panel, in the paper's colour, and folds with it.
+    With the light on a pane casts a shadow and takes none, its far face takes the share the paper lets through
+    (three.js's Lambert code is changed for it: an update that changes that code fails here, not silently), and a bulb
+    gets that share back as a light with no shadows."""
+    use(page, "fold_box", "folded"); errs = []; page.on("console", lambda m: errs.append(m.text) if m.type == "error" else None)
+    seen = """async () => { const m = await import(location.origin + '/static/js/scene.js'), T = await import('three'),
+      ps = __t.parts().filter(p => p.userData.pane).map(p => p.userData.pane), b = new T.Box3(); ps.forEach(p => b.expandByObject(p));
+      const L = m.scene.getObjectsByProperty('isPointLight', true).filter(l => l.intensity > 0), main = L.find(l => l.castShadow), soft = L.find(l => !l.castShadow);
+      return {n: ps.length, own: ps.every(p => p.material === m.paper && p.material !== p.parent.material), cast: ps.every(p => p.castShadow), takes: ps.some(p => p.receiveShadow),
+        color: m.paper.color.getHexString(), through: m.renderer.properties.get(m.paper).uniforms?.paperThrough?.value, high: +(b.max.z - b.min.z).toFixed(1),
+        soft: soft && main ? soft.intensity / main.intensity : 0,
+        chunk: T.ShaderChunk.lights_lambert_pars_fragment.includes('float dotNL = saturate( dot( geometryNormal, directLight.direction ) );')} }"""
+    assert page.evaluate(seen)["n"] == 0                                           # open windows: no panes
+    set_fields(page, [("p_window", 0.6), ("p_window_fill", "paper")]); settle(page)
+    set_fields(page, [("p_paper_through", 30), ("p_paper_color", "#56b4e9")]); settle(page)
+    off = page.evaluate(seen)
+    assert off["n"] > 0 and off["own"] and off["chunk"] and off["color"] == "56b4e9" and not off["cast"] and off["soft"] == 0, off
+    page.check("#lamp"); page.wait_for_timeout(600)
+    on = page.evaluate(seen)
+    assert on["cast"] and not on["takes"] and on["through"] == 0.3 and 0 < on["soft"] <= 0.3, on
+    set_fields(page, [("fold", 0)]); page.wait_for_timeout(300)
+    flat = page.evaluate(seen); assert flat["n"] == on["n"] and flat["high"] < on["high"] / 3, (flat, on)   # flat with their panels
+    assert not errs, errs
