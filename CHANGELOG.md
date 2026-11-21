@@ -143,8 +143,8 @@ inside to see it as a lamp.
   showed cardboard as blue plastic. The look now changes with the material.
 - **Teeth hold a plaque slice.** A crossed slice that stands in the plate on its own teeth, such as the cow's tail,
   showed "touches nothing". The plate holds it, so it is no longer an error.
-- **When nothing stands on the plate.** A model with a round back, such as the cow, touched the plate at one point:
-  Plaque gave the plate alone. Now it says so and offers two settings that stand.
+- **When nothing stands on the plate.** A model with a round back, such as the cow, gave the plate alone. Now Plaque
+  says so and offers two settings. A piece with no room for a spacer is left out and listed.
 
 ## 0.3.3
 
