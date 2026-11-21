@@ -11,6 +11,21 @@ from .geometry import as_multi, min_rect_angle, robust
 
 
 
+# A printed part with no room for its number carries it on a tag beside it (core/solid.py, print_tag): a chip one layer
+# high with the number raised on it, joined to the part by a thin line, to read and snap off. A printed job is nested
+# with room for the tag where it will go (core/nest.py).
+TAG_FONT = 4.0      # mm, the least a tag's letters are: bold strokes 0.64 mm, wider than one line of a 0.4 mm nozzle
+TAG_PAD = 1.0       # mm of chip round the letters
+TAG_CLEAR = 1.5     # mm from a tag to every part but its own: its line is that long at least, and PETG does not fuse across it
+
+
+def tag_room(text, font):
+    """The room a printed tag takes with its clearance, (w, h) upright. The stroke font's label box is wider than the
+    bold printed letters at the same height (X-20 at 4 mm: 18.4 against 11.2 mm), so it holds the tag's letters too."""
+    f = max(font, TAG_FONT)
+    return label_box(text, f)[0] + 2 * TAG_CLEAR, f + 2 * (TAG_PAD + TAG_CLEAR)
+
+
 def label_box(text, font):
     """The room an engraved label takes at `font` mm (the height of a capital): (w, h) — the stroke font's own width
     with a millimetre either side, never under 6 mm, and 1.4 capitals, which holds the descenders. The sheet
@@ -184,7 +199,7 @@ def place_labels(sh, font, tag="", place="part"):
         # then free space anywhere on the sheet with a line across whatever lies between, rather than on a part the
         # label would overrun, where it reads as part of the cut
         boxes = [(size, short, *label_box(text(pc, short), size)) for size, short in forms]
-        found = _beside(k, pc, boxes, sh, tree, taken) or _beside(k, pc, boxes[2:], sh, tree, taken, across=True)
+        found = beside(k, pc, boxes, sh, tree, taken) or beside(k, pc, boxes[2:], sh, tree, taken, across=True)
         if found:
             (pc.label_pos, pc.leader, rect), (pc.label_size, pc.label_short) = found[:3], found[3]
             taken.append(rect)
@@ -194,7 +209,7 @@ def place_labels(sh, font, tag="", place="part"):
             taken.append(label_rect(*pc.label_pos, *label_box(text(pc, short), size)))
 
 
-def _beside(k, pc, boxes, sh, tree, taken, across=False):
+def beside(k, pc, boxes, sh, tree, taken, across=False):
     """A free spot for a label beside part k, at the first of `boxes` — (size, short, w, h), best first — that has one
     on the nearest ring: ((x, y, rot), leader, rect, (size, short)) or None. Candidates lie on rings round the part's nested
     outline at growing distances, above the part first, the label upright or on its side, its near edge on the ring;
