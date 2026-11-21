@@ -432,6 +432,15 @@ def n040_standoff(app):                     # written by the printed-spacers bra
     app.shot("0.4.0-standoff", (0, 40, 1574, 860), [("section[data-tab=technique] .f[data-p=connect]", "printed standoffs")])
 
 
+def n040_paper_lamps(app):                   # the paper_lamp example twice: its windows open, and closed with paper
+    app.example("paper_lamp")                # it opens closed with paper: that half first, then the windows opened
+    app.view(35, 16, 1.15)
+    closed = caption(app.grab("#v3d"), "closed with paper")
+    app.set("window_fill", "open")
+    app.view(35, 16, 1.15)
+    save("0.4.0-paper-lamps", side_by_side(caption(app.grab("#v3d"), "windows open"), closed))
+
+
 def part(app, sel, x0, y0, x1, y1):         # a box inside an area, in shares of its width and height
     a, b, c, d = app.box(sel)
     return a + x0 * (c - a), b + y0 * (d - b), a + x1 * (c - a), b + y1 * (d - b)

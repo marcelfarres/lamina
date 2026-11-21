@@ -267,6 +267,8 @@ MODELS = {
     "fold_lamp": fold_lamp,
     "fold_box": fold_box,
     "fold_lantern": lambda: fold_lamp(6, 6).apply_scale(3.5),      # the lamp shade at 420 mm, for sheet: every face a part of its own
+    # a lamp from a plain solid: folded card, its windows closed with paper (the pear, as any imported model)
+    "paper_lamp": pear,
     # for the plaque
     "droplet": droplet,
     "bonsai": bonsai,

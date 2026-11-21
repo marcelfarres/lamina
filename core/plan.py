@@ -65,7 +65,10 @@ def coverage(mesh, slices, r, lat=3.0, skip=None):
     for sl in slices:
         if sl.profile is None or sl.group in ("P", "J", "W"):     # spacers, pegs and a plaque's back plate are not sections of the model
             continue
-        for M, geom in (sl.facets or [(sl.M, sl.profile)]):
+        panes = getattr(sl, "papers", None) or []                 # folded: a window closed by a pane covers the model there
+        for i, (M, geom) in enumerate(sl.facets or [(sl.M, sl.profile)]):
+            if i < len(panes) and panes[i]:
+                geom = geom.union(panes[i][0])
             loc = (np.linalg.inv(M) @ P.T).T
             idx = np.where((np.abs(loc[:, 2]) <= r) & ~covered)[0]
             if not len(idx):
@@ -205,8 +208,9 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     # checks and the 3D view are the "plans" you consult when you give up — and the export carries the key.
     codes = label_codes([pc.label for pc in pieces], f"{pathlib.Path(model_path).name}|{mode_name}") if p["label_style"] == "code" else {}
     sheet_thick = [p["thickness"]] * n_sheets           # the stock each sheet is cut from: nest keeps one per sheet
+    sheet_stock = [""] * n_sheets                       # … and what that stock is, when it is not the job's material ("paper")
     for pc in pieces:
-        sheet_thick[pc.place[0]] = pc.parent.thickness
+        sheet_thick[pc.place[0]] = pc.parent.thickness; sheet_stock[pc.place[0]] = pc.parent.stock
     sheet_out = sheet0
     if p["one_sheet"]:                              # report the strip at the length the parts and their labels actually took
         top = max([pc.placed.bounds[3] for pc in pieces] + [pc.label_pos[1] + p["font"] * 0.7 for pc in pieces if pc.label_pos], default=0.0) + p["sheet_margin"]
@@ -226,7 +230,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         "axes": [a.tolist() for a in ctx.ax], "mid": ctx.mid.tolist(),      # slicing frame (for click-placed points in the UI)
         **ctx.view,                                                          # what the technique hands the 3D view: rods, curve, axes, bounds, spacing, clip, …
         "params_used": {k: p[k] for k in ("extra_x", "extra_y", "ring_count") if k in p},   # what autofix=add changed
-        "sheets": n_sheets, "sheet": sheet_out, "sheet_thick": sheet_thick, "kerf": kerf,
+        "sheets": n_sheets, "sheet": sheet_out, "sheet_thick": sheet_thick, "sheet_stock": sheet_stock, "kerf": kerf,
         "counts": {"slices": len(slices), "parts": len(pieces), "errors": n_err, "warnings": n_warn, "faces": int(len(mesh.faces))},
         "codes": codes,                                                      # puzzle mode: engraved code → real label
         "label_tag": tag,                                                    # engraved before every label (the model's name)
@@ -325,7 +329,7 @@ def _slice_json(sl):
     return {
         "label": sl.label, "group": sl.group, "M": np.round(sl.M, 6).tolist(), "thickness": sl.thickness, "note": sl.note,
         "engages": sl.engages, "extents": [round(sl.bbox[2] - sl.bbox[0], 2), round(sl.bbox[3] - sl.bbox[1], 2)],
-        "errors": sl.errors, "warnings": sl.warnings, "fixes": sl.fixes,
+        "errors": sl.errors, "warnings": sl.warnings, "fixes": sl.fixes, **({"stock": sl.stock} if sl.stock else {}),
         "pieces": [{"label": pc.label, "place": list(pc.place), "bbox": [round(b, 3) for b in pc.bbox],
                     "facets": [{"M": np.round(M, 6).tolist(), "rings": poly_coords(g), **sl.facet_extra(i)}   # 3D view; a technique adds what its facets need (folded: hinge, bevel, t)
                                for i, (M, g) in enumerate(pc.facets)],
