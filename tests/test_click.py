@@ -190,8 +190,15 @@ def test_every_piece_of_the_lamp_is_held_and_a_narrow_frame_gets_a_smaller_click
 def test_a_seam_whose_tooth_needs_higher_walls_than_allowed_is_left_plain_and_said():
     assert "raise `snap wall`" in joint(snap_h=4.0).click_parts(math.radians(27), False)
     plan = build(ROOT / "examples" / "fold_test.stl", "folded", {**PRESET, "material_kind": "PETG", "autofix": "off", "joint": "click"})
-    said = [w for s in plan["slices"] for w in s["warnings"] if "without a click joint" in w]
-    assert any("bends more than 100°" in w for w in said) and plan["counts"]["errors"] == 0
+    said = [w for s in plan["slices"] for w in s["warnings"] if "bend past what the click joint can do" in w]
+    assert said and "seam 6: it bends 104° outward, more than 100°" in said[0] and "Glue them" in said[0] and plan["counts"]["errors"] == 0
+
+
+def test_the_bend_limits_of_the_joints_with_walls_are_100_degrees_outward_and_71_inward():
+    f = joint(); at = lambda deg, outward: f.past_bend(math.radians(deg), outward)   # noqa: E731
+    assert at(100, True) == "" and "more than 100°" in at(101, True)
+    assert at(71, False) == "" and "more than 71°" in at(72, False) and "5 mm out over the edge" in at(90, False)   # at 90° the panels meet nowhere
+    assert "raise `snap wall`" in f.click_parts(math.radians(45), False) and not isinstance(joint(snap_h=20).click_parts(math.radians(70), False), str)
 
 
 def test_the_click_joint_on_a_cut_sheet_is_an_error_and_the_seams_stay_plain():
