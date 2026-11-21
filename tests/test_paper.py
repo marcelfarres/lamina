@@ -2,7 +2,7 @@
 pane: a paper part on a cut job, a thin printed layer on a printed job. Real core.plan.build() runs, autofix off."""
 import pathlib
 import numpy as np
-from shapely.geometry import Polygon
+from shapely.geometry import Point, Polygon
 from core.mesh import flatten
 from core.plan import build
 from core.solid import proto_part
@@ -109,6 +109,11 @@ def test_a_printed_job_prints_the_window_as_a_thin_layer_on_the_bed():
         solid, _ = proto_part(pc, 2, 1, "none", 5, 0.2)
         assert solid.is_watertight and not solid.metadata["plain"]
         assert abs(solid.volume - (pc["area"] * 2 - pane * (2 - 0.2))) < 0.01 * solid.volume
+        # nothing is engraved on a pane: no seam number, and the part's own label keeps off it (0.2 mm would be cut through)
+        thin = [Polygon(r[0]) for r in pc["paper"]]
+        assert pc["kerfed_marks"] and not any(g.buffer(-0.01).contains(Point(m[0], m[1])) for m in pc["kerfed_marks"] for g in thin)
+        with_label, got = proto_part(pc, 2, 1, "groove", 5, 0.2)
+        assert got and abs(with_label.volume - solid.volume) < 60          # a label's groove, not a hole in a pane
     thick = cube(**{**job, "thickness": 1.0}, window_fill="paper", paper_t=1.0)
     assert holes(thick) == 6 and not papers(thick)            # a pane as thick as the panel: the windows stay open, and it says so
     assert any("paper thickness" in w for s in thick["slices"] for w in s["warnings"])

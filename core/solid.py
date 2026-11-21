@@ -256,6 +256,8 @@ def proto_part(pc, thickness, scale, labels, font, min_thick):
     x0, y0, x1, y1 = geom.bounds
     geom = affinity.translate(geom, -x0, -y0)
     room = geom if pc.get("cover") is None else geom.intersection(affinity.translate(shape(pc["cover"]), -x0, -y0))
+    if pc.get("paper"):                                    # a window's pane is too thin to carry a label
+        room = room.difference(affinity.translate(shape(pc["paper"]), -x0, -y0).buffer(0.5))
     t = max(thickness * scale, min_thick)
     label = label_inside(room, pc["label"], font) if labels != "none" and not room.is_empty else None
     if label is not None and labels == "hole":

@@ -275,7 +275,8 @@ class Folded(Mode):
     legend = ("P-7 = the 7th panel · every seam has a number, engraved on the tab (or beside the edge) on one panel and beside "
               "the matching edge on the other: find the same number on two parts and those two edges go together, the number "
               "reading along its edge · a cut edge with no number is an outside edge or one whose number had no room (the other "
-              "side of the seam still carries it) · S-n = the connecting strip for seam n, R-n = the angle rib for seam n · on "
+              "side of the seam still carries it) · S-n = the connecting strip for seam n, R-n = the angle rib for seam n · "
+              "W-7-3 = the paper for the third window of panel P-7, glued on the inside of its frame · on "
               "the score layer a solid line is a mountain fold, a dashed line a valley fold, seen from the face that is up on "
               "the cutter (the inside of the model unless `score side` says outside); the short score across a tab's base is "
               "where the tab folds, the rest of the outline is cut")
@@ -1069,7 +1070,7 @@ class Folded(Mode):
         # a panel collects hundreds of numbers and holes on a dense mesh: each number is boxed once, and a spot is
         # measured only against what lies within reach of it (one by one against all, it took minutes, bugs/028)
         sl.mark_boxes += [mark_box(*m[:3], mark_size(m, p["font"]), mark_rot(m)) for m in sl.marks[len(sl.mark_boxes):]]
-        clear, taken = np.array([*sl.cuts, *(ln for _, ln in sl.lines)], dtype=object), np.array(sl.mark_boxes, dtype=object)
+        clear, taken = np.array([*sl.cuts, *getattr(sl, "panes", ()), *(ln for _, ln in sl.lines)], dtype=object), np.array(sl.mark_boxes, dtype=object)
         near_clear, near_taken = STRtree(clear), STRtree(taken)
 
         def free(b):
