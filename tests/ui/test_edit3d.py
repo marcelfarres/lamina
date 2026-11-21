@@ -458,7 +458,7 @@ def test_selected_faces_are_merged_into_one_flat_face_and_unmerged(page):
     page.click('[data-faces="grow"]'); n = page.evaluate(seen)["sel"]; assert n == 4
     page.click('[data-faces="merge"]'); wait()
     s = page.evaluate(seen)
-    assert s["groups"] == 1 and 2 <= s["flat"] <= n and s["faces"] < whole["faces"] and not s["warnings"], s
+    assert s["groups"] == 1 and 2 <= s["flat"] <= n and s["faces"] <= whole["faces"] and not s["warnings"], s   # four faces round no inner corner stay four
     assert "1 merged face" in page.inner_text('.f[data-p="merged"]')
     # made again at another face size: the same place is flat, without a click
     set_fields(page, [("p_facet", 22)]); wait()
