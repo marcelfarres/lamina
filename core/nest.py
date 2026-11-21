@@ -22,7 +22,7 @@ from shapely import affinity
 from shapely.geometry import Point, box
 from shapely.ops import unary_union
 from .geometry import as_multi, min_rect_angle
-from .labels import fit_on_part, label_angles, label_box, mark_box, mark_rot, mark_size, place_labels
+from .labels import fit_on_part, label_angles, label_box, mark_box, mark_rot, mark_size, place_labels, tag_room
 from .nofit import Sheet, _convex_pieces, _fill_small_holes, _hull, _rot
 
 ROTS = (0, 90, 180, 270)
@@ -46,7 +46,8 @@ MANY = 150          # above this many pieces the rectangle packer takes over (se
 @dataclass(frozen=True)
 class NestJob:
     """What one `nest` call asks for, the same for every thickness group: the sheet (width, height), the gap between
-    parts, the margin, the kerf, whether the grain is kept, and how the labels are placed (`labels`, `font`, `tag`, `place`)."""
+    parts, the margin, the kerf, whether the grain is kept, how the labels are placed (`labels`, `font`, `tag`, `place`), and
+    whether the sheet is a printer's bed (`printed`), where a part too small for its number gets a tag beside it."""
     sheet: tuple
     gap: float
     margin: float
@@ -56,6 +57,7 @@ class NestJob:
     font: float
     tag: str
     place: str
+    printed: bool = False
 
 
 @dataclass(frozen=True)
@@ -150,13 +152,13 @@ def _rect_nest(prepared, job):
     return out
 
 
-def nest(pieces, sheet, gap, margin, kerf=0.0, labels=False, font=4.0, tag="", place="part", grain=False):
+def nest(pieces, sheet, gap, margin, kerf=0.0, labels=False, font=4.0, tag="", place="part", grain=False, printed=False):
     """Sets piece.place, .kerfed, .placed(+lines, marks), .label_pos, .leader. Returns sheet count.
 
     One sheet is one stock thickness. A part whose thickness was changed is cut from another piece of material, so
     it gets sheets of its own rather than sharing one and being cut from the wrong stock. With `grain` every part
     keeps its own frame's x along the sheet's width, turned 0° or 180° only, so the grain runs one way on all of them."""
-    job = NestJob(tuple(sheet), gap, margin, kerf, grain, labels, font, tag, place)
+    job = NestJob(tuple(sheet), gap, margin, kerf, grain, labels, font, tag, place, printed)
     by_thick = {}
     for pc in pieces:
         by_thick.setdefault((round(pc.parent.thickness, 6), pc.parent.stock), []).append(pc)   # and one stock: paper panes never share a sheet with card of their thickness
@@ -181,7 +183,15 @@ def _nest(pieces, job):
     for pc in pieces:
         pc.kerfed = as_multi(pc.geom.buffer(k, join_style=2)) if k else pc.geom
         pc.nest_shape = pc.kerfed
-        if job.labels and job.place != "on":
+        if job.printed:
+            # A printed part with no room for its number (the sheets' rule, at the box the label takes there, which
+            # holds the bold printed letters too) carries it on a tag beside it: room for the tag is kept above it,
+            # its line's length and the tag's clearance away (core/solid.py, print_tag)
+            w, h = label_box(pc.label, job.font)
+            if fit_on_part(pc.kerfed, pc.parent.cover, w, h, (), label_angles(pc.kerfed), room=min(2.0, 0.3 * job.font)) is None:
+                (x0, y0, x1, y1), (W, H) = pc.kerfed.bounds, tag_room(pc.label, job.font); cx = (x0 + x1) / 2
+                pc.nest_shape = as_multi(unary_union([pc.kerfed, box(cx - W / 2, y1 + 0.8, cx + W / 2, y1 + 0.8 + H)]))
+        elif job.labels and job.place != "on":
             # A part too small to carry even its bare name is nested with the room for that name reserved above it,
             # so the label can sit right beside the part instead of wherever the packed sheet leaves a gap. The
             # reserve is only ever a hole the nester keeps; the part's own outline is what is cut and labelled.

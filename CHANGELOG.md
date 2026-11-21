@@ -55,8 +55,8 @@ inside to see it as a lamp.
 
   ![The put a seam tool: your seams as a thick line round the back of the lion's head](web/static/news/0.4.0-seams.jpg)
 
-- **Printed panels join without glue.** Pick a joint for the seams. *click*: a tooth snaps under a bar. *snap*: a
-  printed clip, closed at one end, slides along a short wall on each panel. Try both on the new *fold_box*.
+- **Printed panels join without glue.** *click*: a tooth snaps under a bar. *snap*: a closed clip slides along a
+  wall on each panel. Both bend up to 100° out, 71° in. Try them on *fold_box*.
 
   ![The new fold_box laid flat twice: a click joint, then the short walls a snap joint's clip slides along](web/static/news/0.4.0-joints.jpg)
 
@@ -122,6 +122,11 @@ inside to see it as a lamp.
   covers them. The top layer stays clean: its name is beside it on the sheet. *Hide engravings* turns this off.
 
   ![The egg's top layer on the sheet: before, its name, arrow and dowel numbers on it; now clean, its name beside it](web/static/news/0.4.0-clean-tops.jpg)
+
+- **Every printed part has its number.** A part too small for its number prints it on a thin tag beside it,
+  joined by a line. Read it, then snap the tag off. Printed standoffs show their size the same way.
+
+  ![Small horse ribs on the print plate, each joined to a tag with its number; one tag up close](web/static/news/0.4.0-print-tags.jpg)
 
 ### Fixed
 

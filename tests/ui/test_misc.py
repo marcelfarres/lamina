@@ -412,7 +412,7 @@ def test_the_lights_are_settings_of_the_project_and_leave_the_view_as_it_was(pag
 
 def test_a_light_is_moved_in_the_view_and_the_room_and_the_picture_are_settings(page):
     """The move-a-light tool is in the tool column while the light is on: a drag of the z arrow lifts the light, a drag
-    of the light moves it across the view, a drag beside it turns the view. The room's settings and the video tick are
+    of the light moves it across the view, a drag beside it turns the view, a drag of the dot at a spot's cone aims it. The room's settings and the video tick are
     in the project; the picture button saves a PNG; none of it slices."""
     use(page, "cone", "stacked"); errs = []; page.on("pageerror", lambda e: errs.append(str(e)))
     tool = page.locator("#tools button[data-tool=light]")
@@ -432,6 +432,15 @@ def test_a_light_is_moved_in_the_view_and_the_room_and_the_picture_are_settings(
     here, _ = at(); drag(*here, 60, 0); x1, y1, _ = saved()[0][0]["pos"]; assert (x1, y1) != (0, 0)
     cam = page.evaluate("window.__t.camera.position.toArray()"); box = page.locator("#v3d canvas").bounding_box()
     drag(box["x"] + 60, box["y"] + box["height"] - 60, 50, 0); assert page.evaluate("window.__t.camera.position.toArray()") != cam
+    # a spot is aimed: by its tilt and turn, or by the dot at the end of its cone; what lamp it is like does not change
+    page.select_option("#g-light select[data-l=like]", "gu10")     # a spot shows its tilt and turn at once; moving one aims it
+    assert page.is_visible("#lt_tilt") and page.is_visible("#lt_turn") and page.input_value("#g-light select[data-l=aim]") == "up"
+    page.eval_on_selector("#lt_tilt", "e => { e.value = 90; e.dispatchEvent(new Event('input', {bubbles: true})) }")
+    spot = saved()[0][0]; assert (spot["aim"], spot["tilt"], spot["like"]) == ("free", 90, "gu10")
+    dot = page.evaluate("async () => {const m = await import(location.origin + '/static/js/scene.js'),"
+                        " d = m.scene.getObjectsByProperty('isMesh', true).find(c => c.visible && c.parent.visible && c.renderOrder === 30 && c.geometry.type === 'SphereGeometry');"
+                        " return window.__t.screen(d.position.toArray())}")
+    drag(*dot, 0, 70); spot = saved()[0][0]; assert spot["aim"] == "free" and spot["tilt"] > 90, spot
     page.keyboard.press("Escape"); assert not page.is_visible("#lighthint")
     page.select_option("#g-light select[data-l=r_floor]", "wood"); page.uncheck("#light_video")
     assert saved()[1:] == [{"show": True, "size": 2, "walls": "white", "floor": "wood", "back": 10}, False]

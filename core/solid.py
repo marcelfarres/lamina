@@ -11,12 +11,15 @@ from __future__ import annotations
 import argparse, json, pathlib, tempfile
 import numpy as np
 import trimesh
+from types import SimpleNamespace
 from shapely import affinity
-from shapely.geometry import Polygon, MultiPolygon
-from shapely.ops import unary_union
+from shapely.geometry import LineString, Point, Polygon, MultiPolygon
+from shapely.ops import nearest_points, unary_union
+from shapely.strtree import STRtree
 import shapely
 from .export import design_name, export
-from .geometry import even_odd, facet_polys, min_rect_angle
+from .geometry import even_odd, facet_polys
+from .labels import TAG_CLEAR, TAG_FONT, TAG_PAD, beside, fit_on_part, label_angles, tag_room
 from .step import step_text
 
 
@@ -112,7 +115,8 @@ def standoff_text(plan, f=1.0, u="mm") -> list:
            f"  {shape} pin, short  -> a {shape} hole. Two standoffs share it, one from each side.",
            "  pentagon pin, long  -> a pentagon hole. The pin goes through and ends flush.",
            "Print them as they lie in the file: each is two halves, flat side down, joined by a thin hinge. No supports.",
-           "Fold the two halves together, then push the pins into the holes. The holes keep the standoff closed.", "",
+           "Fold the two halves together, then push the pins into the holes. The holes keep the standoff closed.",
+           "Each has its size (S1, S2 ...) on a tag beside it, a chip on a thin line: read it, then snap the tag off.", "",
            f"{'size':<6}{'qty':<6}{'gap':<8}{'pins':<34}between"]
     end = lambda e: f"{e[0] * f:.3g} {'pentagon' if e[1] else shape}"   # noqa: E731
     for tag, gap, ends, items in standoff_kinds(plan):
@@ -127,13 +131,22 @@ def standoff_files(plan, out_dir, design, scale=1.0) -> list:
     """The print file for the standoffs, named so nobody sends it to the cutter: one 3MF, every standoff an object of
     its own named by its size (S1, S2 …), a row per size, each as standoff_print lays it. Beside it a note that says
     what it is."""
-    scene = trimesh.Scene(); y = 0.0
+    scene = trimesh.Scene(); y = 0.0; laid = []
     for tag, gap, ends, items in standoff_kinds(plan):
         m = standoff_print(plan, gap, ends).apply_scale(scale)
-        dx, dy = m.extents[:2] + 3
+        down = m.triangles[(m.face_normals[:, 2] < -0.99) & (m.triangles_center[:, 2] < 1e-3)]
+        foot = unary_union([Polygon(t[:, :2]) for t in down]).buffer(0)          # what lies on the bed
+        w, h = tag_room(tag, TAG_FONT)                                         # each with room above it for its size on a tag
+        dx, dy = max(m.extents[0] + 3, w), m.extents[1] + 3 + h
         for n in range(len(items)):
-            scene.add_geometry(m.copy().apply_translation([n % 12 * dx, y + n // 12 * dy, 0]), node_name=f"{tag} {n + 1}", geom_name=f"{tag} {n + 1}")
+            at = (n % 12 * dx, y + n // 12 * dy)
+            laid.append((f"{tag} {n + 1}", tag, m.copy().apply_translation([*at, 0]), affinity.translate(foot, *at)))
         y += ((len(items) - 1) // 12 + 1) * dy + 3
+    on = [f for *_, f in laid]
+    for k, (name, tag, q, _) in enumerate(laid):
+        mesh, foot, _ = print_tag(on, k, tag, TAG_FONT, 1e6, 1e6, 0.0)
+        on.append(foot)
+        scene.add_geometry(_joined([q, mesh]), node_name=name, geom_name=name)
     stem = f"{design} 3D-PRINT standoffs x{len(scene.geometry)}"
     f = pathlib.Path(out_dir) / f"{stem}.3mf"; f.write_bytes(scene.export(file_type="3mf"))
     note = pathlib.Path(out_dir) / f"{stem}.txt"; note.write_text("\n".join(standoff_text(plan)) + "\n", encoding="utf-8")
@@ -190,30 +203,53 @@ def text_polygons(text, height, res=8) -> MultiPolygon:
     return affinity.scale(g, k, k, origin=(0, 0))
 
 
-def label_inside(geom, text, min_h, inset=1.0):
-    """The label as polygons inside the part: at the fattest spot of its largest region (the centre of the biggest
-    inscribed circle, so away from every edge and slot), turned along the region's long axis and slid along it as
-    far as a label length when the fat spot is near an end, 1.5 × `min_h` tall where that fits and `min_h`
-    otherwise. None when even `min_h` fits nowhere: the part then gets no label and the README says so, rather
-    than a label too small to read or one cut into an edge."""
-    txt = text_polygons(text, min_h)
-    tx, ty = (txt.bounds[0] + txt.bounds[2]) / 2, (txt.bounds[1] + txt.bounds[3]) / 2
-    w = txt.bounds[2] - txt.bounds[0]
-    for g in sorted(shapely.get_parts(geom.buffer(-inset)), key=lambda g: -g.area)[:3]:
-        if g.is_empty:
-            continue
-        cx, cy = shapely.maximum_inscribed_circle(g, 0.1).coords[0]
-        along = -min_rect_angle(g)
-        for rot in (along, along + 90):
-            rot = (rot + 90) % 180 - 90                                  # never upside down
-            ux, uy = np.cos(np.radians(rot)), np.sin(np.radians(rot))
-            for f in (1.5, 1.0):
-                base = affinity.rotate(affinity.scale(txt, f, f, origin=(tx, ty)), rot, origin=(tx, ty))
-                for s in (0, -0.25, 0.25, -0.5, 0.5, -1, 1):
-                    tt = affinity.translate(base, cx - tx + s * f * w * ux, cy - ty + s * f * w * uy)
-                    if g.contains(tt):
-                        return tt
+def label_on(room, text, font):
+    """The label as polygons on the part: where the whole label fits with room all round, by the sheets' rule
+    (core.labels.fit_on_part), upright, a quarter turn or along the part, 1.5 x `font` tall where that fits and
+    `font` otherwise. None when it fits nowhere: the part then carries its number on a tag beside it (print_tag).
+    ponytail: fit_block tries two spots per region, so a label that only fits squeezed between a slot and an end
+    (a 60 x 20 bar slotted at its middle) is missed, on the sheets as here; the part then gets a tag, never no number."""
+    txt = text_polygons(text, font)
+    for f in (1.5, 1.0):
+        g = affinity.scale(txt, f, f, origin=(0, 0)); x0, y0, x1, y1 = g.bounds
+        spot = fit_on_part(room, None, x1 - x0, y1 - y0, angles=label_angles(room), room=min(2.0, 0.3 * font * f))
+        if spot:
+            x, y, ang = spot
+            return affinity.rotate(affinity.translate(g, x - (x0 + x1) / 2, y - (y0 + y1) / 2), ang, origin=(x, y))
     return None
+
+
+CHIP_H = 0.2        # mm: the tag's chip and its line are one layer (the first, the surest a printer lays down)
+LETTER_H = 0.4      # mm: the number stands two layers above the chip. A chip this thin has no depth for a groove,
+                    # and letters cut through it would lose the middles of 0, 4, 6, 8, 9, A, B, D, P and R
+LINE_W = 0.9        # mm: the line is two lines of a 0.4 mm nozzle wide (0.18 mm² of plastic: it tears by hand)
+LAP = 0.3           # mm the line runs into the part, so the two are one solid
+
+
+def print_tag(laid, k, text, font, W, H, margin):
+    """The tag for the part `laid[k]` (the outlines on one plate, earlier tags included): a chip one layer high with
+    the number raised on it, joined to the part by a line one layer high. It goes where the sheets put a label that
+    has no room on its part (core.labels.beside): the nearest free spot, above the part first, `TAG_CLEAR` from every
+    other part and tag, its line crossing none. The plate is W x H with `margin`. Returns (mesh, footprint, whether it
+    found free room); with none it goes above the part anyway, over whatever lies there, for the caller to report."""
+    f = max(font, TAG_FONT)
+    txt = text_polygons(text, f); x0, y0, x1, y1 = txt.bounds
+    w, h = x1 - x0 + 2 * TAG_PAD, y1 - y0 + 2 * TAG_PAD
+    part = laid[k]
+    found = beside(k, SimpleNamespace(placed=part), [(f, False, w + 2 * TAG_CLEAR, h + 2 * TAG_CLEAR)],
+                   SimpleNamespace(W=W, H=H, margin=margin, placed=laid), STRtree(laid), [])
+    if found:
+        (cx, cy, rot), (_, q) = found[:2]
+    else:
+        bx0, _, bx1, by1 = part.bounds; rot = 0
+        cx, cy = (bx0 + bx1) / 2, by1 + 0.8 + TAG_CLEAR + h / 2
+        q = nearest_points(part, Point(cx, cy))[0].coords[0]
+    chip = affinity.rotate(shapely.box(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2), rot, origin=(cx, cy))
+    letters = affinity.rotate(affinity.translate(txt, cx - (x0 + x1) / 2, cy - (y0 + y1) / 2), rot, origin=(cx, cy))
+    d = np.subtract(q, (cx, cy)); end = np.add(q, d / np.linalg.norm(d) * LAP)
+    foot = unary_union([chip, LineString([(cx, cy), end]).buffer(LINE_W / 2, cap_style="flat")])
+    mesh = _joined([extrude(foot, CHIP_H), *(extrude(g, CHIP_H + LETTER_H) for g in shapely.get_parts(letters) if g.area > 0)])
+    return mesh, foot, found is not None
 
 
 def has_boolean() -> bool:
@@ -248,9 +284,10 @@ def rail(a, b, into, profile) -> trimesh.Trimesh:
 
 
 def proto_part(pc, thickness, scale, labels, font, min_thick):
-    """One part flat on z = 0 at `scale`, its label (`font` mm tall at least, see label_inside) as a groove (half
+    """One part flat on z = 0 at `scale`, its label (`font` mm tall at least, see label_on) as a groove (half
     depth, 0.6 mm at most) or a hole (through) — on a stacked layer only where the layer above hides it (`cover`),
-    so the top layer prints clean. Returns the mesh and whether the part got the label it should have."""
+    so the top layer prints clean. Returns the mesh, whether the part got the label it should have (one that did not
+    gets a tag beside it, see _plate) and its outline as the mesh lies."""
     shape = lambda rings: affinity.scale(unary_union([Polygon(r[0], r[1:]) for r in rings]), scale, scale, origin=(0, 0))   # noqa: E731
     geom = shape(pc["kerfed"]).buffer(0)
     x0, y0, x1, y1 = geom.bounds
@@ -259,7 +296,7 @@ def proto_part(pc, thickness, scale, labels, font, min_thick):
     if pc.get("paper"):                                    # a window's pane is too thin to carry a label
         room = room.difference(affinity.translate(shape(pc["paper"]), -x0, -y0).buffer(0.5))
     t = max(thickness * scale, min_thick)
-    label = label_inside(room, pc["label"], font) if labels != "none" and not room.is_empty else None
+    label = label_on(room, pc["label"], font) if labels != "none" and not room.is_empty else None
     if label is not None and labels == "hole":
         geom = geom.difference(label)
     mesh = trimesh.util.concatenate([extrude(g, t) for g in shapely.get_parts(geom) if g.area > 0])
@@ -288,7 +325,7 @@ def proto_part(pc, thickness, scale, labels, font, min_thick):
         else:
             plain.append("label")
     mesh.metadata["plain"] = plain
-    return mesh, label is not None or labels == "none" or room.is_empty
+    return mesh, label is not None or labels == "none", geom
 
 
 def proto_plan(plan, scale, min_thick, offset=None):
@@ -315,21 +352,43 @@ def proto_plan(plan, scale, min_thick, offset=None):
     return build(plan["model"], plan["mode"], p), "; ".join(notes)
 
 
-def _plate(plan, scene, scale, labels, font, min_thick, dx=0.0, tag=None, plates=None):
+def _plate(plan, scene, scale, labels, font, min_thick, dx=0.0, tag=None, plates=None, around=None):
     """Every part of the plan flat in the scene as the nester laid it out (turned as it was nested, sheets stacked in
     y, `dx` along x), each its own named object. `tag` replaces the engraved text and prefixes the names (the fit
     test engraves its offset). `plates`, a dict, takes a scene per sheet instead, each sheet at the origin: a printed
-    job's sheet is one build plate. Yields (piece, mesh at the origin, mesh as placed, whether it got its label)."""
+    job's sheet is one build plate. A part with no room for its number gets a tag beside it, part of its object (see
+    print_tag). `around` keeps the outlines on each plate between calls (the fit test lays its variants on one plate).
+    Yields (piece, mesh at the origin, mesh as placed, where its number is: "part", "tag", or "over" for a tag that
+    found no free room and lies over something else)."""
     sheet_h = 0 if plates is not None else plan["sheet"][1] + 20
+    around = {} if around is None else around
+    laid = []
     for sl in plan["slices"]:
         for pc in sl["pieces"]:
-            m, labeled = proto_part({**pc, "label": tag or pc["label"]}, sl["thickness"], scale, labels, font, min_thick)
+            text = tag or pc["label"]
+            m, labeled, geom = proto_part({**pc, "label": text}, sl["thickness"], scale, labels, font, min_thick)
             si, x, y, rot = pc["place"]                       # the nested part's lower-left corner and its turn
-            q = m.copy(); q.apply_transform(trimesh.transformations.rotation_matrix(np.radians(rot), [0, 0, 1]))
-            q.apply_translation([dx + x * scale - q.bounds[0][0], (y + si * sheet_h) * scale - q.bounds[0][1], 0])
-            name = f"{tag} {pc['label']}" if tag else pc["label"]
-            (scene if plates is None else plates.setdefault(si, trimesh.Scene())).add_geometry(q, node_name=name, geom_name=name)
-            yield pc, m, q, labeled
+            turn = trimesh.transformations.rotation_matrix(np.radians(rot), [0, 0, 1])
+            q = m.copy(); q.apply_transform(turn)
+            move = (dx + x * scale - q.bounds[0][0], (y + si * sheet_h) * scale - q.bounds[0][1])
+            q.apply_translation([*move, 0])
+            on = around.setdefault(None if plates is None else si, [])
+            on.append(affinity.translate(affinity.rotate(geom, rot, origin=(0, 0)), *move))
+            laid.append((pc, m, q, labeled, si, text, on, len(on) - 1, turn, move))
+    # a printed job's plate is the bed it was nested on, with room kept for the tags; any other plate is arranged in the slicer
+    bed = (*plan["sheet"], plan["params"]["sheet_margin"]) if plates is not None else (1e6, 1e6, 0.0)
+    for pc, m, q, labeled, si, text, on, k, turn, move in laid:
+        where = "part"
+        if not labeled:
+            mesh, foot, free = print_tag(on, k, text, font, *bed)
+            on.append(foot)
+            plain = m.metadata["plain"]
+            q = _joined([q, mesh])
+            m = q.copy(); m.apply_translation([-move[0], -move[1], 0]); m.apply_transform(np.linalg.inv(turn)); m.metadata["plain"] = plain
+            where = "tag" if free else "over"
+        name = f"{tag} {pc['label']}" if tag else pc["label"]
+        (scene if plates is None else plates.setdefault(si, trimesh.Scene())).add_geometry(q, node_name=name, geom_name=name)
+        yield pc, m, q, where
 
 
 def _readme(out_dir, lines, files):
@@ -338,14 +397,23 @@ def _readme(out_dir, lines, files):
     return files
 
 
-def _unlabeled_note(unlabeled, font):
-    return f"no room for a {font:g} mm label on {len(unlabeled)} part(s): {', '.join(unlabeled)} — a smaller label size would fit them"
+def _tag_note(tagged, over, font):
+    """What the README says about the parts that carry their number on a tag."""
+    lines = []
+    if tagged or over:
+        lines.append(f"{len(tagged) + len(over)} part(s) have no room for a {max(font, TAG_FONT):g} mm number and carry it on a tag beside them: "
+                     f"{', '.join(tagged + over)}. A tag is a chip one layer high on a thin line: read the number, then snap the tag off")
+    if over:
+        lines.append(f"no free room on the plate for the tags of {len(over)} part(s): {', '.join(over)}. They lie over other parts: "
+                     "arrange the plate in the slicer before printing (a tag moves with its part)")
+    return lines
 
 
 def proto_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2, plate=True, note=None):
     """One STL per part (flat) plus plate.3mf holding every part as its own named object, and README.txt when there
     is something to say: `note` (the re-plan, see proto_plan) and the parts that had no room for a label `font` mm
-    tall. `font` is the letter height in printed millimetres whatever the scale: a label has to be read, not scaled.
+    tall, which carry it on a tag beside them. `font` is the letter height in printed millimetres whatever the scale:
+    a label has to be read, not scaled.
 
     The plate is a 3MF scene rather than one concatenated STL because a slicer treats each <object> / <build><item>
     as a separate body: OrcaSlicer and PrusaSlicer can then move, copy and arrange the parts individually.
@@ -354,14 +422,13 @@ def proto_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2
     gets plate-1.3mf, plate-2.3mf … each laid out as nested, instead of every sheet stacked into one plate no bed holds.
     """
     out_dir = pathlib.Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
-    files, unlabeled = [], []
+    files, tagged = [], {"tag": [], "over": []}
     scene = trimesh.Scene()
     plates = {} if plan["params"].get("printed") and abs(scale - 1) < 1e-9 else None
     plain = set()                                          # what could not be cut into the parts here
-    for pc, m, _, labeled in _plate(plan, scene, scale, labels, font, min_thick, plates=plates):
+    for pc, m, _, where in _plate(plan, scene, scale, labels, font, min_thick, plates=plates):
         plain.update(m.metadata.get("plain", ()))
-        if not labeled:
-            unlabeled.append(pc["label"])
+        tagged.get(where, []).append(pc["label"])
         f = out_dir / f"{pc['label']}.stl"; m.export(f); files.append(f)
     for name, sc in ([("plate", scene)] if plates is None else [(f"plate-{si + 1}", plates[si]) for si in sorted(plates)]):
         if plate and len(sc.geometry):
@@ -374,9 +441,7 @@ def proto_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2
     if plain:                                             # said, not hidden: a folded panel without its grooves does not fold
         lines.append(f"this build cannot cut solids (no manifold3d, as in the browser): the parts were exported WITHOUT their {' and '.join(sorted(plain))}. "
                      "Printed folded panels need the grooves to fold: export them from the installed app")
-    if unlabeled:
-        lines.append(_unlabeled_note(unlabeled, font))
-    return _readme(out_dir, lines, files)
+    return _readme(out_dir, lines + _tag_note(tagged["tag"], tagged["over"], font), files)
 
 
 # ---------------------------------------------------------------- fit test: the job's joints on a small stand-in, at offsets around its own
@@ -415,7 +480,7 @@ def fit_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2, 
     side by side, one STL per variant, and a README that says which is which. This dials in the print, and only the
     print: a clearance is millimetres, not a ratio, so the real material gets its own test, fit_sheets."""
     out_dir = pathlib.Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
-    files, unlabeled, tags = [], [], []
+    files, tags, tagged, around = [], [], {"tag": [], "over": []}, {}
     scene = trimesh.Scene(); dx = 0.0
     thickness = max(plan["params"]["thickness"], round(min_thick / scale, 3))   # as proto_plan: thick enough to print
     for k in range(-steps, steps + 1):
@@ -423,10 +488,9 @@ def fit_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2, 
         vp = fit_plan(plan, printed / scale, thickness=thickness)
         tag = f"{printed:.2f}"; tags.append(tag)
         placed = []
-        for pc, _, q, labeled in _plate(vp, scene, scale, labels, font, min_thick, dx, tag):
+        for pc, _, q, where in _plate(vp, scene, scale, labels, font, min_thick, dx, tag, around=around):
             placed.append(q)
-            if not labeled:
-                unlabeled.append(f"{tag} {pc['label']}")
+            tagged.get(where, []).append(f"{tag} {pc['label']}")
         v = trimesh.util.concatenate(placed); v.apply_translation([-dx, 0, 0])
         f = out_dir / f"fit_{tag}.stl"; v.export(f); files.append(f)
         dx = scene.bounds[1][0] + 10
@@ -435,9 +499,7 @@ def fit_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2, 
              f"wider than the material as printed (the print slot offset you set, {tags[steps]}, in the middle), every part engraved with its "
              "value. Print them and put each together: the loosest that slides on without forcing and still holds is the print slot offset to "
              "set (Prototyping). It says nothing about the real material at 1:1 — that is the cut-file fit test (Downloads)."]
-    if unlabeled:
-        lines.append(_unlabeled_note(unlabeled, font))
-    return _readme(out_dir, lines, files)
+    return _readme(out_dir, lines + _tag_note(tagged["tag"], tagged["over"], font), files)
 
 
 def fit_sheets(plan, out_dir, fmts=("svg", "dxf"), labels=True, step=0.1, steps=2):

@@ -74,8 +74,8 @@ def test_the_two_walls_of_a_shut_seam_meet_on_one_plane_and_the_clip_holds_both(
 
 def test_a_seam_bent_too_far_for_a_wall_to_print_is_left_plain_and_said():
     plan = build(ROOT / "examples" / "fold_test.stl", "folded", {**PRESET, "material_kind": "PETG", "autofix": "off", "joint": "snap"})
-    said = [w for s in plan["slices"] for w in s["warnings"] if "without a snap wall" in w]
-    assert any("bends more than 100°" in w for w in said) and plan["counts"]["errors"] == 0
+    said = [w for s in plan["slices"] for w in s["warnings"] if "bend past what the clip (snap) joint can do" in w]
+    assert said and "seam 13: it bends 104° outward" in said[0] and "Glue them" in said[0] and plan["counts"]["errors"] == 0
 
 
 def test_the_snap_joint_on_a_cut_sheet_is_an_error_and_the_seams_stay_plain():

@@ -130,6 +130,13 @@ narrower than the wall's foot. At an inward seam the panels meet outside the edg
 edge, leans out to that plane at 45° and follows it. A shallow seam's mitre is wider than its bend needs (it is as
 wide as the groove's flat bottom): the wall starts at the mitre and leans out to the plane in the same way.
 
+Bend limits, for both joints that stand walls on the panels (`Folded.past_bend`, bug 063). Outward, a wall leans by
+half the bend: up to 100° (`SNAP_LEAN`). Inward, the two walls start where the panels meet, out over the edge, at
+t / (1 - tan(bend / 2)) - t: up to `SNAP_REACH` (5 mm) out, which is 71° on a 2 mm sheet; at 90° they never meet.
+The click joint's tooth also needs walls taller than `snap wall` on an inward seam past 40° at the default 10.5 mm
+(up to about 70° at 20 mm): that seam is said with the wall height it needs. A seam past a limit is left plain, and
+the plan names it with its bend and the cure: glue it. The limits are in the help of the joint setting.
+
 The walls travel in the plan with each piece (`rails`, a `Rail` each: its line in the net, the direction into the
 panel, its cross-section) and `core.solid.rail` fuses them onto the panel. The 3D view draws each as a facet of its
 face. A clip is a part of its own (`K-n`, group J, 7 mm thick, `springy`: the thin-part checks pass it). The joint

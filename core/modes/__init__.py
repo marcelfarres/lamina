@@ -143,7 +143,7 @@ COMMON: list[Param] = [
       "part's frame and a short one to its right, the same two directions on every part of the model, so a part turned on the sheet "
       "or laid face down is seen at once — the engraved face is the front. Labels keep clear of them. A stacked layer with "
       "`hide engravings` gets them under the layer above, the top layer none", group="sheet", label="orientation arrows"),
-    P("font", "number", 4.0, "Height of a capital letter in the engraved labels (mm). Single-stroke lettering: the laser draws each letter as one line, not the two edges of a filled one", 1, 30, 0.5, group="sheet", unit="mm", label="label letter height"),
+    P("font", "number", 4.0, "Height of a capital letter in the engraved labels (mm). Single-stroke lettering: the laser draws each letter as one line, not the two edges of a filled one. A printed job: the printed numbers, in bold; a part too small for its number carries it on a tag beside it", 1, 30, 0.5, group="sheet", unit="mm", label="label letter height"),
     # -- fit: three things that are easy to take for one. Only the kerf is switched by `compensate`; the slot fit and the
     # corners always apply, and the form says so in each section's line (reported: "if compensate is off, it feels like
     # none of the parameters below apply")

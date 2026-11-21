@@ -129,7 +129,7 @@ export function renderReport(){
     const m=parts.children.find(c=>c.userData.slice===d.dataset.s); if(m){highlight(m);ST.fitted=true}};
   renderDownloads();
   // the link itself does the download (a navigation on the server, a blob from the worker in the browser build)
-  const prq=()=>new URLSearchParams({scale:state.printed?1:$('#pr_scale').value||1,size:state.printed?0:lenMM('#pr_size'),labels:$('#pr_labels').value,font:lenMM('#pr_font',5),min_thick:lenMM('#pr_min',1.2),offset:state.printed?state.slot_offset:lenMM('#pr_offset',0.2)});
+  const prq=()=>new URLSearchParams({scale:state.printed?1:$('#pr_scale').value||1,size:state.printed?0:lenMM('#pr_size'),labels:$('#pr_labels').value,font:state.printed?state.font:lenMM('#pr_font',5),min_thick:lenMM('#pr_min',1.2),offset:state.printed?state.slot_offset:lenMM('#pr_offset',0.2)});
   $('#pr_go').onclick=e=>{e.currentTarget.href=`api/job/${CLIENT}/${ST.job}/proto?${prq()}`;ST.countUse('export','proto-3mf')};
   $('#fit_go').onclick=e=>{const q=prq();q.set('step',lenMM('#pr_step',0.1));e.currentTarget.href=`api/job/${CLIENT}/${ST.job}/fit?${q}`;ST.countUse('export','fit-3mf')};
   // typing in a length box writes its mm back, so what the server is given never depends on the unit on show
