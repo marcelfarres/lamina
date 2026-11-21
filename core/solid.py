@@ -412,9 +412,11 @@ def _plate(plan, scene, scale, labels, font, min_thick, dx=0.0, tag=None, plates
             elif not free:
                 lost.append(t)
         if tags:
-            plain = m.metadata["plain"]
-            q = _joined([q, *tags])
-            m = q.copy(); m.apply_translation([-move[0], -move[1], 0]); m.apply_transform(np.linalg.inv(turn)); m.metadata["plain"] = plain
+            # joined where the part's file is written: manifold3d's solid is exact in float32 only in the frame it was
+            # made in, and turned back after it, edges a float32 apart closed in the part's STL (bugs/067)
+            plain = m.metadata["plain"]; back = np.linalg.inv(turn) @ trimesh.transformations.translation_matrix([-move[0], -move[1], 0])
+            m = _joined([m, *(t.copy().apply_transform(back) for t in tags)]); m.metadata["plain"] = plain
+            q = m.copy(); q.apply_transform(turn); q.apply_translation([*move, 0])
         name = f"{tag} {pc['label']}" if tag else pc["label"]
         (scene if plates is None else plates.setdefault(si, trimesh.Scene())).add_geometry(q, node_name=name, geom_name=name)
         yield pc, m, q, where, lost
