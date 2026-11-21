@@ -14,9 +14,10 @@ _dist = lambda a, b: math.hypot(a[0] - b[0], a[1] - b[1])   # noqa: E731
 
 PIN_SHORT = 0.1            # a standoff's pin in a shared hole stops this short of the layer's middle: the two never touch
 FLUSH = "pentagon"         # the shape of a hole only one standoff uses, and of the pin that goes through it
-# Under these a standoff is warned about (bug 058: Marcel's print at 3.9 mm across with 1.4 mm shared pins, "too small,
-# too thin and they pop out of the bed & too fragile"). ponytail: one print sets them; 5 and 2 mm are not proven to
-# print well, only 3.9 and 1.4 to print badly. Move them when a print says so.
+# Under these a standoff is warned about as a size no print has confirmed. ponytail: no print is behind either number
+# yet (bug 058): they are a guess at where a 0.4 mm nozzle stops making a sound pin. Two sizes are being printed, a
+# 4 mm dowel with 1.4 mm shared pins and a 6 mm dowel with 3 mm pins. Move the limits, or drop a warning, when those
+# prints say so.
 SMALL_PIN = 5.0            # mm of dowel diameter: the pin is that less the pin fit
 SHORT_PIN = 2.0            # mm a pin goes into its hole
 MIN_DOWEL = 2.0            # below this a dowel is not worth cutting for: too small to buy, too weak to locate anything
@@ -188,6 +189,8 @@ class Connectors:
         layer: aligned points) keeps the dowel hole shape, and each pin goes half way in. A hole only one standoff uses
         is cut as a pentagon instead, and its pin goes through the layer and ends flush with the far face: no hole is
         left half empty, and the shape of a hole says which end of which standoff it takes."""
+        if not self.pins:      # dowels, tabs, a plaque's spacers: no standoffs, and a plaque has none of their settings
+            return
         p = self.p
         uses = {}
         for _, *ends in self.pins:
@@ -205,16 +208,16 @@ class Connectors:
                     text = s.cutnames[k].split("-", 1)[1]              # its mark keeps clear of the new shape
                     for m in [m for m in s.marks if m[2] == text]:
                         s.marks.remove(m); hole_mark(s, new, text, p["font"])
-        # what is too small to print well, said before it is printed, with the setting that cures it
+        # a size no print has confirmed, said before it is printed, with the setting that makes it bigger
         across = self.d - p["pin_fit"]
         short = [n for e, *_ in self.pins for n, own in zip(e["pins"], e["flush"]) if not own and n < SHORT_PIN]
-        if self.pins and self.d < SMALL_PIN:
-            self.ctx.warnings.append(f"standoff pins {across:g} mm across are small to print: each prints as two halves {across / 2:.2g} mm high, "
-                                     f"which come off the bed and break. Set the dowel diameter to {SMALL_PIN:g} mm or more")
+        if self.d < SMALL_PIN:
+            self.ctx.warnings.append(f"standoff pins {across:g} mm across print as two halves {across / 2:.2g} mm high. No print has confirmed "
+                                     f"a pin this small yet: print one to check. For bigger pins, set the dowel diameter to {SMALL_PIN:g} mm or more")
         if short:
-            self.ctx.warnings.append(f"{len(short)} standoff pin(s) in shared holes are only {min(short):g} mm long: half the layer, a stub that "
-                                     "holds little and prints badly. Set dowel placement to random: then no hole is shared and every pin "
-                                     "is as long as the layer is thick. Or use thicker sheet")
+            self.ctx.warnings.append(f"{len(short)} standoff pin(s) in shared holes are {min(short):g} mm long: half the layer. No print has "
+                                     "confirmed a pin this short yet: print one to check. For longer pins, set dowel placement to random: "
+                                     "then no hole is shared and every pin is as long as the layer is thick. Or use thicker sheet")
 
     # ------------------------------------------------------------ one connector
     def cut(self, x, y, ang, tab_w):
