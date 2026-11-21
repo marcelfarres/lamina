@@ -31,7 +31,7 @@
   "wedge":     {"mode": "folded",      "params": {"thickness": 1, "joint": "tab", "facet": 0}},
   "vase":      {"mode": "stacked",     "params": {"thickness": 3, "axis": "z", "distribution": "count", "count": 18, "connect": "dowel", "dowel_d": 4, "n_points": 2,
                 "spacing_vary": true, "spacing_curve": [[0, 5], [0.12, 6], [0.3, 16], [0.5, 18], [0.72, 6], [0.9, 5], [1, 6]], "spacing_min": 3, "spacing_max": 30}},
-  "shade":     {"mode": "stacked",     "params": {"thickness": 3, "axis": "z", "space": 6, "connect": "standoff", "dowel_d": 5, "dowel_shape": "square", "n_points": 3, "material": "acrylic"}},
+  "shade":     {"mode": "stacked",     "params": {"thickness": 3, "axis": "z", "space": 6, "connect": "standoff", "dowel_d": 6, "dowel_shape": "square", "placement": "random", "n_points": 3, "material": "acrylic"}},
   "ripple":    {"mode": "interlocked", "params": {"thickness": 3, "nx": 12, "ny": 5, "spacing_vary": true,
                 "spacing_curve": [[0, 36], [0.4, 28], [0.75, 12], [1, 11]], "spacing_curve_y": [[0, 25], [1, 25]], "spacing_min": 3, "spacing_max": 40}},
   "berry":     {"mode": "radial",      "params": {"thickness": 3, "count": 10, "ring_count": 3, "smooth": 10, "spacing_vary": true,
