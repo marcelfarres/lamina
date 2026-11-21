@@ -25,9 +25,20 @@ def call(method, path, query="", form=None):
 def main(jobs):
     A.JOBS = pathlib.Path(jobs)
     modes = [m["name"] for m in json.loads(call("GET", "api/modes"))]
+    def sliced(mode, example, params):
+        form = [["client", MINE], ["mode", mode], ["params", json.dumps({"autofix": "off", **params})], ["example", example]]
+        return json.loads(call("POST", "api/slice", "", form))["plan"]
+
     for mode in modes:
         for example in ("egg", "cube"):
-            plan = json.loads(call("POST", "api/slice", "", [["client", MINE], ["mode", mode], ["params", '{"autofix":"off"}'], ["example", example]]))["plan"]
+            plan = sliced(mode, example, {})
+            if plan["counts"]["parts"] == 0 and plan["fixes"]:   # bugs/060: the egg's round back only touches a plaque's plate:
+                (fix,) = plan["fixes"]                           # the error and its one-click fixes, and each fix must stand
+                assert "nothing stands on the plate" in fix["error"], (mode, example, plan["errors"])
+                for o in fix["options"]:
+                    fixed = sliced(mode, example, o["set"])
+                    assert fixed["counts"]["parts"] > 0 and not fixed["errors"], (mode, example, o["title"], fixed["errors"])
+                plan = fixed
             assert plan["counts"]["parts"] > 0, (mode, example)
             print(f"{mode:12s} {example:5s} {plan['counts']['parts']:4d} parts  {plan['counts']['errors']} errors")
     call("GET", f"api/job/{MINE}/ex_egg/export", "fmt=svg,dxf,pdf,eps&labels=1")
