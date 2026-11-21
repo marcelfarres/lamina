@@ -119,14 +119,18 @@ down behind it. The clip is a U, 9 mm across and 7 mm long, closed at one end by
 that fills the space between its legs. Its legs are 2.4 mm thick and its top 3 mm, and each leg ends in a hook
 0.5 mm into a groove 0.7 mm deep in the back of its wall. The groove is 3.6 mm up the wall, so that a leg clears the
 other panel beside a 2 mm wall on a seam bent 100°. The plate ties the legs, so the clip cannot open: it slides on
-along the seam, its hooks running in the grooves, until the plate meets the end of the walls. It prints standing on
+along the seam, its hooks running in the grooves, until the plate meets the end of the walls. It covers 5.8 mm of its
+9 mm wall from the end it went on at. A clip that slides needs room on every face it slides on: `snap fit` across,
+and 0.3 mm (`SNAP_SLIDE`) under the groove's ledge and over the walls' tops. The first clips with a plate had
+0.05 mm under the ledge, and the clip's rounded inside corners (0.25 mm) filled it: they touched the walls and
+stuck part way on (bug 065). It prints standing on
 that plate. His second clip test (legs 1.6 mm, an open U standing on 34 mm² of the bed): "too small, too thin, they
 pop out of the bed and too fragile", and the clip opened. The plate is 90 mm² at the default `snap wall`; under
 `CLIP_AREA` (60 mm²) the plan warns and names the `snap wall` that gives a clip that size.
 
 A wall leans over its own panel by half the bend, so it prints without support up to a bend of 100° (`SNAP_LEAN`);
-a sharper seam is left plain with a warning, like a seam shorter than a wall and its margins or a window frame
-narrower than the wall's foot. At an inward seam the panels meet outside the edge: the wall starts on the panel's
+a sharper seam is left plain with a warning, like a window frame narrower than the wall's foot, or a seam with
+no clip's length (7 mm) of seam free beside a wall: a clip goes on only from there, along the seam. At an inward seam the panels meet outside the edge: the wall starts on the panel's
 edge, leans out to that plane at 45° and follows it. A shallow seam's mitre is wider than its bend needs (it is as
 wide as the groove's flat bottom): the wall starts at the mitre and leans out to the plane in the same way.
 

@@ -66,6 +66,9 @@ SNAP_LEDGE, SNAP_GROOVE = 3.6, 0.7    # the groove in a wall's back the clip hoo
                                       # that a clip's leg clears the other panel beside a 2 mm wall on a seam bent 100°
 SNAP_LEG, SNAP_BITE = 2.4, 0.5        # a clip's leg: its thickness, and how far its hook reaches into the groove
 SNAP_CROWN, SNAP_PLATE = 3.0, 1.2     # the clip's top across the two legs, and the plate that closes one end of it
+SNAP_SLIDE = 0.3                      # mm a clip has under the groove's ledge and over the walls' tops to slide along them: more than
+                                      # the 0.25 its inside corners are rounded by, and the ledge is a 0.7 mm overhang that prints low.
+                                      # At 0.05 the rounding filled it and his clips stuck part way on (bug 065)
 # Under this a clip is warned about (his first clip print: a U standing on 34 mm², "too small, too thin, they pop out
 # of the bed & too fragile"). ponytail: one print sets it; 60 is not proven to print well, only 34 to print badly
 CLIP_AREA = 60.0                      # mm² a clip stands on, on the bed: its plate
@@ -1552,13 +1555,15 @@ class Folded(Mode):
         in a hook, `SNAP_BITE` into the groove of its wall; `whole`: the outline with the space between the legs
         filled, which the plate at one end of the clip is. One shape for every seam: the walls are the same at any
         bend. The plate ties the legs, so the clip cannot open: it slides on along the seam, its hooks running in
-        the grooves, until the plate meets the end of the walls. It prints standing on that plate."""
-        p = self.p; a = SNAP_WALL + p["snap_fit"]; b = SNAP_BITE; l = SNAP_LEDGE; top = p["snap_h"] + 0.2; lo = l - 0.9; x1 = a + SNAP_LEG
+        the grooves, until the plate meets the end of the walls. So it has room on every face it slides on: `snap
+        fit` across, `SNAP_SLIDE` under the ledge and over the top. It prints standing on that plate."""
+        p = self.p; a = SNAP_WALL + p["snap_fit"]; b = SNAP_BITE; l = SNAP_LEDGE; top = p["snap_h"] + SNAP_SLIDE; lo = l - 0.9; x1 = a + SNAP_LEG
+        hook = l - SNAP_SLIDE                                 # the hook's top, under the ledge
         outer = Polygon([(-a, lo), (a, lo), (x1, lo + 1.5 * SNAP_LEG), (x1, top + SNAP_CROWN), (-x1, top + SNAP_CROWN), (-x1, lo + 1.5 * SNAP_LEG)])   # the legs' feet cut back: clear of the panels
         if whole:
             return outer
-        room = Polygon([(a, lo - 1), (a, lo), (a - b, l - 0.4), (a - b, l - 0.05), (a, l - 0.05), (a, top),
-                        (-a, top), (-a, l - 0.05), (b - a, l - 0.05), (b - a, l - 0.4), (-a, lo), (-a, lo - 1)])
+        room = Polygon([(a, lo - 1), (a, lo), (a - b, hook - 0.2), (a - b, hook), (a, hook), (a, top),
+                        (-a, top), (-a, hook), (b - a, hook), (b - a, hook - 0.2), (-a, lo), (-a, lo - 1)])
         return outer.difference(room).buffer(0.25).buffer(-0.25)       # the inside corners rounded: where a leg would crack
 
     def snap(self, j, k, sides, convex):
@@ -1579,7 +1584,10 @@ class Folded(Mode):
         # back, so there is nothing to brace; the wall is thicker instead (SNAP_WALL)
         reach = profile[-1][0]                                # how far into the panel a wall's foot goes
         n = max(1, int(L // max(p["spacing"], 2 * SNAP_LONG)))
-        why = ("the seam is too short" if L / n < SNAP_LONG + 6 else "the frame beside the window is too narrow" if room < reach + 0.8 else "")
+        # a clip goes on only along the seam, from beside a wall's end: a clip's length of seam has to be free there.
+        # ponytail: counted inside the seam; an open end (a rim) has room past it too, a closed corner none
+        free = (L / n - SNAP_LONG) / (2 if n == 1 else 1)    # beside a wall, on its roomier side
+        why = ("the seam is too short to slide a clip on" if free < SNAP_CLIP else "the frame beside the window is too narrow" if room < reach + 0.8 else "")
         if why:
             sides[0].sl.skipped.setdefault(f"snap wall ({why})", []).append(j)
             return []

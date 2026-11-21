@@ -62,7 +62,11 @@ def test_the_two_walls_of_a_shut_seam_meet_on_one_plane_and_the_clip_holds_both(
     assert wall.bounds[2] < 1e-6                                      # … and nothing of it is past the plane
     sheet = Polygon([to(q) for q in ((0, f.t), (9, f.t), (9, 0), (0.5, 0))])
     clip = affinity.translate(f.snap_clip(), 0, to(tuple(at))[1])
-    assert clip.intersection(unary_union([wall, mirror(wall), sheet, mirror(sheet)])).area < 1e-6    # it goes on without cutting into anything
+    walls, sheets = unary_union([wall, mirror(wall)]), unary_union([sheet, mirror(sheet)])
+    # it slides on along the walls, so it has room to them everywhere (bug 065: it touched them under the ledge, and his
+    # clips stuck part way on), and it still slides when a wall's ledge prints a 0.2 mm layer low
+    assert clip.distance(walls) >= f.p["snap_fit"] - 1e-6 and clip.distance(sheets) > 0
+    assert affinity.translate(clip, 0, 0.2).intersection(walls).area < 1e-9
     hook = Polygon([(-9, to(tuple(at))[1] + F.SNAP_LEDGE - 0.6), (0, to(tuple(at))[1] + F.SNAP_LEDGE - 0.6), (0, to(tuple(at))[1] + F.SNAP_LEDGE), (-9, to(tuple(at))[1] + F.SNAP_LEDGE)])
     reach = clip.intersection(hook).bounds[2]                         # how far the left leg's hook comes in under the ledge
     back_face = -F.SNAP_WALL                                          # the wall's back, where the groove is cut into it
@@ -76,6 +80,16 @@ def test_a_seam_bent_too_far_for_a_wall_to_print_is_left_plain_and_said():
     plan = build(ROOT / "examples" / "fold_test.stl", "folded", {**PRESET, "material_kind": "PETG", "autofix": "off", "joint": "snap"})
     said = [w for s in plan["slices"] for w in s["warnings"] if "bend past what the clip (snap) joint can do" in w]
     assert said and "seam 13: it bends 104° outward" in said[0] and "Glue them" in said[0] and plan["counts"]["errors"] == 0
+
+
+def test_a_seam_with_no_room_beside_its_wall_to_slide_a_clip_on_from_is_left_plain_and_said(tmp_path):
+    """A clip goes on only along the seam, from beside a wall's end. The box at 0.8: its 25 mm seams become 20 mm, a
+    clip's length (7 mm) is not free beside a 9 mm wall there; its 33 mm seams (26.4) keep their clips."""
+    small = tmp_path / "box_08.stl"; m = trimesh.load(BOX); m.apply_scale(0.8); m.export(small)
+    plan = build(small, "folded", {**PRESET, "material_kind": "PETG", "autofix": "off", "joint": "snap"})
+    said = [w for s in plan["slices"] for w in s["warnings"] if "too short to slide a clip on" in w]
+    clips = [s for s in plan["slices"] if s["group"] == "J"]
+    assert said and sum(int(w.split()[0]) for w in said) == 5 and len(clips) == 6 and plan["counts"]["errors"] == 0
 
 
 def test_the_snap_joint_on_a_cut_sheet_is_an_error_and_the_seams_stay_plain():
