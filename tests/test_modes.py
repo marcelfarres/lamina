@@ -891,9 +891,9 @@ def test_a_stack_hides_every_engraving_under_the_layer_above():
 
     top, low = layers[-1]["pieces"][0], layers[0]["pieces"][0]
     for pc, sl, grooved in ((top, layers[-1], False), (low, layers[0], True)):
-        mesh, labeled = proto_part(pc, sl["thickness"], 1.0, "groove", 5.0, 1.2)
+        mesh, labeled, _ = proto_part(pc, sl["thickness"], 1.0, "groove", 5.0, 1.2)
         solid = sum(Polygon(r[0], r[1:]).area for r in pc["kerfed"]) * sl["thickness"]
-        assert labeled, pc["label"]                                        # the clean top layer is not "a label that did not fit"
+        assert labeled == grooved, pc["label"]                             # the clean top layer has no label on it: its number goes on a tag (bug 061)
         if has_boolean():
             assert (mesh.volume < solid - 1) == grooved, pc["label"]
 
