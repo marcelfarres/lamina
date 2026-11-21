@@ -306,27 +306,72 @@ def test_solid_assembled_is_watertight_trimesh_with_positive_volume():
 
 def test_proto_label_is_readable_and_clear_of_the_slot():
     """A printed label is a groove: it has to be read, so it is never shrunk below the asked height, and it goes where
-    the part is widest, not beside the slot it slides on. A part with no room for it gets none, not a tiny one."""
+    the part is widest, not beside the slot it slides on. A part with no room for it gets none on the part, not a
+    tiny one (it carries its number on a tag beside it instead)."""
     from shapely.geometry import box
-    from core.solid import label_inside
-    slot = box(28, 10, 32, 20)
+    from core.solid import label_on
+    slot = box(40, 10, 44, 20)
     part = box(0, 0, 60, 20).difference(slot)                          # a 60 × 20 bar with a slot from the top edge
-    lab = label_inside(part, "Z-12-3", 5.0)
+    lab = label_on(part, "Z-12-3", 5.0)
     assert lab is not None
     assert lab.bounds[3] - lab.bounds[1] >= 5.0 - 1e-6                  # capitals at least 5 mm tall
     assert part.buffer(-1.0 + 1e-6).contains(lab)                        # inside, a millimetre off every edge
     assert lab.distance(slot) >= 1.0 - 1e-6                              # the slot included
-    assert label_inside(box(0, 0, 60, 6), "Z-12-3", 5.0) is None         # a 6 mm bar cannot hold 5 mm letters
+    assert label_on(box(0, 0, 60, 6), "Z-12-3", 5.0) is None             # a 6 mm bar cannot hold 5 mm letters
 
 
-def test_proto_set_says_which_parts_had_no_room_for_a_label(tmp_path):
-    plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 3, "autofix": "off"})
-    files = proto_set(plan, tmp_path, font=150)                          # "Z-1" in 150 mm letters fits no 180 mm square
+def _number(m):
+    """Where an exported part's number is, measured on its mesh: ("part", letter height) for a groove in its top face,
+    ("tag", letter height) for letters standing on a chip one layer high, (None, 0) for no number. A letter height is
+    the short side of the smallest rectangle round the letters."""
+    from shapely.geometry import MultiPoint
+    from core.solid import CHIP_H, LETTER_H
+    up, z, top = m.face_normals[:, 2] > 0.99, m.triangles_center[:, 2], m.bounds[1][2]
+    for kind, at in (("part", top - min(top / 2, 0.6)), ("tag", CHIP_H + LETTER_H)):
+        faces = m.triangles[up & (abs(z - at) < 0.01)]
+        if kind == "tag" and not (up & (abs(z - CHIP_H) < 0.01)).any():
+            continue                                                     # letters with no chip under them are not a tag
+        if len(faces):
+            r = MultiPoint(faces.reshape(-1, 3)[:, :2]).minimum_rotated_rectangle.exterior.coords
+            return kind, min(np.hypot(*np.subtract(r[1], r[0])), np.hypot(*np.subtract(r[2], r[1])))
+    return None, 0.0
+
+
+def test_every_part_of_a_printed_plate_has_a_number_on_it_or_on_a_tag(tmp_path):
+    """Bug 061: a printed part too small for its number had none, and nobody could tell where it went. Every part of
+    every plate now carries its number: a groove on the part where it fits, else raised letters on a chip one layer
+    high beside it, joined to the part by a thin line (one solid with it), on free room of the bed the nester kept
+    for it: the tag touches no other part. The small end layers and the top layer, which is left clean on purpose,
+    carry theirs on a tag."""
+    from shapely.ops import unary_union
+    from shapely.geometry import Polygon
+    from core.solid import LINE_W
+    bed = [150, 150]
+    plan = build(EXAMPLES / "egg.stl", "stacked", {"printed": True, "sheet": bed, "sheet_margin": 2, "size": [0, 0, 60], "thickness": 3,
+                                                   "autofix": "off", "font": 4})
+    files = proto_set(plan, tmp_path, font=4)
+    where, feet = {}, {}
+    for f in (f for f in files if f.name.startswith("plate-")):
+        scene = trimesh.load(f)
+        for name in scene.graph.nodes_geometry:
+            M, g = scene.graph[name]; m = scene.geometry[g].copy(); m.apply_transform(M)
+            kind, h = _number(m)
+            assert kind and h >= 4 - 0.05, (name, kind, h)                # a number, its letters 4 mm tall at least
+            assert m.body_count == 1, name                                # the tag holds on to its part
+            lo, hi = m.bounds
+            assert lo[:2].min() >= 2 - 1e-6 and (hi[:2] <= np.array(bed) - 2 + 1e-6).all(), (name, lo, hi)   # on the bed, in its margin
+            down = m.triangles[(m.face_normals[:, 2] < -0.99) & (m.triangles_center[:, 2] < 1e-3)]
+            feet[f.name, name] = unary_union([Polygon(t[:, :2]) for t in down]).buffer(0)
+            where[name] = kind
+    assert set(where) == {pc["label"] for sl in plan["slices"] for pc in sl["pieces"]}   # every part, once
+    tagged = sorted(n for n, k in where.items() if k == "tag")
+    assert plan["slices"][-1]["pieces"][0]["label"] in tagged and len(tagged) >= 2, tagged   # the clean top, and the smallest
+    for (fa, a), ga in feet.items():
+        for (fb, b), gb in feet.items():
+            if fa == fb and a < b:
+                assert ga.distance(gb) > LINE_W, (a, b)                    # no tag or line runs into another part
     readme = (tmp_path / "README.txt").read_text(encoding="utf-8")
-    assert tmp_path / "README.txt" in files
-    *lower, top = [pc["label"] for sl in plan["slices"] for pc in sl["pieces"]]
-    assert all(label in readme for label in lower)
-    assert top not in readme                                             # the top layer is clean on purpose, not short of room
+    assert all(n in readme for n in tagged) and "snap the tag off" in readme and "no free room" not in readme
 
 
 def test_a_printed_job_comes_out_as_one_plate_per_bed(tmp_path):

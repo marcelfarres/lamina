@@ -206,7 +206,9 @@ def text_polygons(text, height, res=8) -> MultiPolygon:
 def label_on(room, text, font):
     """The label as polygons on the part: where the whole label fits with room all round, by the sheets' rule
     (core.labels.fit_on_part), upright, a quarter turn or along the part, 1.5 x `font` tall where that fits and
-    `font` otherwise. None when it fits nowhere: the part then carries its number on a tag beside it (print_tag)."""
+    `font` otherwise. None when it fits nowhere: the part then carries its number on a tag beside it (print_tag).
+    ponytail: fit_block tries two spots per region, so a label that only fits squeezed between a slot and an end
+    (a 60 x 20 bar slotted at its middle) is missed, on the sheets as here; the part then gets a tag, never no number."""
     txt = text_polygons(text, font)
     for f in (1.5, 1.0):
         g = affinity.scale(txt, f, f, origin=(0, 0)); x0, y0, x1, y1 = g.bounds
