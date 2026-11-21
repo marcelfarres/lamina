@@ -72,6 +72,8 @@ CLIP_AREA = 60.0                      # mm² a clip stands on, on the bed: its p
 SNAP_CLIP, SNAP_LONG = 7.0, 9.0       # a clip's width along the seam, and the length of wall it sits on (longer walls grow into a
                                       # neighbour seam's at a corner)
 SNAP_LEAN = math.radians(50)          # a wall leans by half the seam's bend: past this it does not print without support
+SNAP_REACH = 5.0                      # an inward seam's walls start where the panels meet, out over the edge: at most this
+                                      # far (mm). It grows as t / (1 - tan(bend / 2)) - t: 71° on a 2 mm sheet; at 90° they never meet
 # The click joint (printed panels): a tooth on one panel's wall and a bar on the other's, bridged between two posts.
 # Printed flat, a part that stands on a panel is weak where it is pulled or bent across its layers, so: the one part
 # that bends is the bar, a bridge, which bends along its lines; everything else is a block on a wide foot.
@@ -104,8 +106,8 @@ MAX_PANELS = 400                      # …and parts, when `separate` makes ever
 JOINT_HELP = ("seam = plain edge (glue / sew) · tab = one glue tab · multitab = several small tabs · diamond = triangular ticks · "
               "ticked = dense small ticks along the seam · "
               "gear = rectangular teeth · tongue = tab into a slot on the other panel · puzzle = round-head tab into a matching hole · "
-              "snap = printed panels only: a short wall on the inside of each panel at the seam and a printed clip slid along the two, nothing to see from outside, no glue · "
-              "click = printed panels only: a tooth on the inside of one panel and a small bridge on the inside of the other; press the seam shut and it clicks, no loose parts, no glue · "
+              "snap = printed panels only: a short wall on the inside of each panel at the seam and a printed clip slid along the two, nothing to see from outside, no glue; seams bent up to 100° outward and 71° inward (2 mm sheet) · "
+              "click = printed panels only: a tooth on the inside of one panel and a small bridge on the inside of the other; press the seam shut and it clicks, no loose parts, no glue; seams bent up to 100° outward and 71° inward, inward past 40° with a higher `snap wall` · "
               "rivet = one hole per spacing on both panels · laced = ≥2 holes per edge on both panels (lace / zip-tie) · "
               "loops = alternating eyelet loops on both edges that interleave like hinge knuckles; one lace through all (cloth, leather, masks) · "
               "strip = holes + a separate rounded strip with matching holes bridging the two panels · "
@@ -519,7 +521,7 @@ class Folded(Mode):
                                 side.back = 0.0
         self.windows(slices)
         extra = []
-        order = list(enumerate(seams, 1))
+        order = list(enumerate(seams, 1)); self.bent = []    # the seams bent past what a click or a clip joint can do
         if p["joint"] == "click":
             self.closers = {}                                 # panel → the edges another face folds or closes over it at
             self.tight = {}                                   # panel → (it, the seams whose bar is stretched past its material's limit, how far)
@@ -578,14 +580,26 @@ class Folded(Mode):
                                f"{self.click_cap * 100:g} %). They may not go in, or break. Lower `tooth height`, `bar thickness` or "
                                "`bar support`, or print one seam to try it")
         for sl in slices:
+            past = sorted((j, why) for s2, j, why in self.bent if s2 is sl)
+            if past:                                          # bent past what the joint can do: each seam with its bend, and the cure
+                kind = "click" if p["joint"] == "click" else "clip (snap)"
+                sl.warnings.append(Issue(f"{len(past)} seam(s) left plain: they bend past what the {kind} joint can do (up to "
+                                         f"{2 * math.degrees(SNAP_LEAN):.0f}° outward and "
+                                         f"{2 * math.degrees(math.atan(1 - t / (t + SNAP_REACH))):.0f}° inward). "
+                                         + "; ".join(f"seam {j}: {why}" for j, why in past)
+                                         + ". Glue them: a plain seam's edges are cut to meet face to face", "no-joint"))
             for what, js in sl.skipped.items():
                 ids = ", ".join(map(str, sorted(set(js))[:12])) + (" …" if len(set(js)) > 12 else "")
                 if what == "seam number":
                     sl.warnings.append(f"{len(set(js))} seam number(s) left off — no room beside the edge for a legible one (seams {ids}): "
                                        f"the other side of each seam still carries it; a smaller font or a bigger facet size gives them room")
                     continue
+                cure = ("use bigger triangles or a smaller `click size`" + ("; or the clip joint, whose walls need no tooth" if "tooth needs walls" in what else "")
+                        if what.startswith("click") else
+                        "use bigger triangles" if what.startswith("snap") else
+                        "use fewer triangles (`simplify`), a bigger model, or smaller hole_d / inset / rib_w")
                 sl.warnings.append(Issue(f"{len(set(js))} seam(s) without a {what} — no room inside the triangle even after shrinking the joint (seams {ids}): "
-                                         f"use fewer triangles (`simplify`), a bigger model, or smaller hole_d / inset / rib_w", "no-joint"))
+                                         f"{cure}", "no-joint"))
             if sl.pressed:
                 kind = p.get("material_kind") or p.get("material")
                 sl.warnings.append(Issue(f"{len(sl.pressed)} seam edge(s) press up to {max(sl.pressed):.1f} mm into the next panel, beyond the "
@@ -1216,6 +1230,19 @@ class Folded(Mode):
         profile = lead + [q(0 if lead else -0.05, 0), q(H - 0.4, 0), q(H, 0.4), q(H, w - 0.4), q(H - 0.4, w), *notch, q(-foot, w)]
         return profile, at, up, back, h
 
+    def past_bend(self, bend, convex):
+        """Why no joint that stands walls on the panels (click, snap) fits a seam bent by `bend`, or \"\". Outward, a
+        wall leans over its panel by half the bend: past `SNAP_LEAN` (a bend of 100°) it does not print without
+        support. Inward, the two walls start where the panels meet, out over the edge: past `SNAP_REACH` out the
+        wall would stand on a foot taller than the joint, and at 90° the panels meet nowhere."""
+        deg = math.degrees(bend)
+        if convex:
+            most = 2 * math.degrees(SNAP_LEAN)
+            return "" if deg <= most + 1e-6 else f"it bends {deg:.0f}° outward, more than {most:.0f}°: its walls would lean too far to print"
+        most = 2 * math.degrees(math.atan(1 - self.t / (self.t + SNAP_REACH)))
+        return "" if deg <= most + 1e-6 else (f"it bends {deg:.0f}° inward, more than {most:.0f}°: its walls would start more than "
+                                             f"{SNAP_REACH:g} mm out over the edge")
+
     def click_parts(self, bend, convex, room=1e9, span=None, size=None):
         """The cross-sections of a click joint for a seam bent by `bend`, each [(u, z)] like snap_wall → a Click; or a
         sentence, when the tooth does not fit.
@@ -1350,6 +1377,9 @@ class Folded(Mode):
         # a part on a fold needs one click: the fold holds the rest. A piece on no fold (a panel of its own) needs two,
         # or it could swing out about the one
         group = self.together.get(k); locate = group is not None and self.clicked[group] >= (2 if group[0] and not group[3] else 1)
+        past = self.past_bend(bend, convex)
+        if past:                                              # no click can stand on this seam: said with its bend
+            self.bent.append((a.sl, j, past)); return []
         placed = 0
         # a seam the click does not fit, a frame too narrow beside a window or a seam too short, gets a smaller click
         # before none: his v9 lamp had a loose triangle whose two seams both missed theirs by 0.07 mm, and nothing held it
@@ -1357,12 +1387,11 @@ class Folded(Mode):
             spans = (CLICK_SPAN[0] * size, CLICK_SPAN[1] * size); post = CLICK_POST * size * p["click_post"]
             n = max(1, int(L // max(p["spacing"], 2 * (spans[1] + 2 * post))))
             longest = min(spans[1], math.floor(L / n - 3 - 2 * post))     # the bar as long as the seam lets it be
-            why = ("the seam bends more than 100°: the walls would lean too far to print" if bend / 2 > SNAP_LEAN else
-                   "the seam is too short" if longest < spans[0] else "")
+            why = "the seam is too short" if longest < spans[0] else ""
             placed = self.click_at(j, sides, convex, bend, room, size, spans, post, n, L, longest, why, group, locate, free, va, e)
             if isinstance(placed, str):
                 why, placed = placed, 0
-            if placed or bend / 2 > SNAP_LEAN:
+            if placed:
                 break
         if placed:
             self.held.append(j)
@@ -1435,14 +1464,16 @@ class Folded(Mode):
         if not (self.hinged and self.inside):
             return []
         bend = float(m.face_adjacency_angles[k]); L = sides[0].L
+        past = self.past_bend(bend, convex)
+        if past:                                              # no wall can stand on this seam: said with its bend
+            self.bent.append((sides[0].sl, j, past)); return []
         profile, at, up, back, h = self.snap_wall(bend, convex)
         room = min(min((c.distance(LineString([s.A, s.B])) for c in self.face_cuts.get(s.f, ())), default=s.h) for s in sides)
         # ponytail: no brace at the foot. Below the clip's leg a wall that leans far is still inside its panel at the
         # back, so there is nothing to brace; the wall is thicker instead (SNAP_WALL)
         reach = profile[-1][0]                                # how far into the panel a wall's foot goes
         n = max(1, int(L // max(p["spacing"], 2 * SNAP_LONG)))
-        why = ("the seam bends more than 100°: the walls would lean too far to print" if h > SNAP_LEAN else
-               "the seam is too short" if L / n < SNAP_LONG + 6 else "the frame beside the window is too narrow" if room < reach + 0.8 else "")
+        why = ("the seam is too short" if L / n < SNAP_LONG + 6 else "the frame beside the window is too narrow" if room < reach + 0.8 else "")
         if why:
             sides[0].sl.skipped.setdefault(f"snap wall ({why})", []).append(j)
             return []

@@ -120,6 +120,9 @@ inside to see it as a lamp.
 
 ### Fixed
 
+- **The click and clip bend limits.** Both joints work up to 100° outward and 71° inward. A seam past
+  that is left plain, and Lamina names it with its bend: glue it.
+
 - **Puzzle tabs on tall split parts.** A part split across its height now gets puzzle tabs, as one split across its
   width does, and every piece still fits the sheet.
 - **Cleaner seams in stiff sheet.** A small panel is no longer cut too small at a seam, and no specks are left
