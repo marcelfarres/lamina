@@ -191,7 +191,12 @@ S.curve = async () => {       // the horse is long along y; the curve follows th
     // from the right front, turning toward the head's profile (it faces about 60°): from behind the head was hidden
     await view(30, 16, 0.9, 1.0); await project("curve");
     // 10 ribs put a front leg's spine in R-5's slot path: 8, 13 and 20 come out clean
-    await techClip("curve", 30, 16, 0.9, [["8 ribs", () => set("count", 8)], ["13 ribs", () => set("count", 13)], ["20 ribs", () => set("count", 20)]]);
+    await techClip("curve", 30, 16, 0.9, [["8 ribs", () => set("count", 8)], ["13 ribs", () => set("count", 13)], ["20 ribs", () => set("count", 20)],
+        // the lamp low, in front of the horse and outside it: the ribs throw long shadows on the wall behind; then it moves round to the back
+        ["lamp in front", async () => { await set("lamp", true); await sleep(700); await lt("select[data-l=like]", "desk"); await lt("select[data-l=aim]", "middle"); await lt("#lt_lm", 1000);
+            await lt("#lt_p0", 150); await lt("#lt_p1", 200); await lt("#lt_p2", 40); }],
+        ["lamp moved", async () => { await lt("#lt_p0", -200); await lt("#lt_p1", -120); }]]);
+    await dark();
 };
 S.folded = async () => {      // the cow mesh is y-up: rotate x 90° stands it up
     await example("cow"); await mode("folded"); await tab("technique");
@@ -346,10 +351,11 @@ S.labels = async () => {      // the vase's cut sheet, close: names in the singl
     await set("viewmode", "both"); await sleep(400);
 };
 
+// what the folded lamp's preset brings of its own stock (PETG, printed, the printer's bed): a scene on it puts these back
+const LAMP_KEEP = ["material", "printed", "machine", "sheet", "kerf", "thickness", "joint", "strategy", "facet", "window", "edge_labels"];
 S.fold = async () => {        // folded panels, printed: the lamp shade from its flat net to the folded shade and back, orbiting
     // the lamp's preset brings its own stock (PETG, printed, the printer's bed): what was there is put back at the end
-    const KEEP = ["material", "printed", "machine", "sheet", "kerf", "thickness", "joint", "strategy", "facet", "window", "edge_labels"];
-    const was = await js(`JSON.stringify(Object.fromEntries(${JSON.stringify(KEEP)}.map(k=>[k,window.__t.state()[k]])))`);
+    const was = await js(`JSON.stringify(Object.fromEntries(${JSON.stringify(LAMP_KEEP)}.map(k=>[k,window.__t.state()[k]])))`);
     await example("fold_lamp"); await tab("technique");
     await set("viewmode", "only3d"); await sleep(600);
     const look = () => js("(()=>{const t=window.__t.target();return [t.x,t.y,t.z,window.__t.camera.position.distanceTo(t)]})()");
@@ -379,6 +385,35 @@ S.rings = async () => {
         ["wall 15 mm", () => set("ring_wall", 15)], ["wall 8 mm", () => set("ring_wall", 8)],
         ["pieces 150 mm at most", () => set("max_length", 150)], ["no limit", () => set("max_length", 0)]]);
     await set("ring_slices", false); await settle();
+};
+// stacked ring slices with a gap, the LED inside: the light comes out between the layers
+const ringsLight = async (name, example_, extra, sweep) => {   // sweep: the light goes up and down inside, the gap stays
+    await example(example_); await mode("stacked"); await tab("technique");
+    await params({ distribution: "distance", space: 5, connect: "dowel", dowel_d: 4, spacing_vary: false, ring_slices: true, ring_wall: 8, ...extra }); await heal();
+    await set("lamp", true); await sleep(700); await view(-40, 18, 1.0, 1.0);
+    if (!sweep) await techClip(name, -40, 18, 1.0, [["gap 9 mm", () => set("space", 9)], ["gap 5 mm", () => set("space", 5)]]);
+    else {
+        await set("viewmode", "only3d"); await sleep(600); await fit();
+        const d = await far(1.0), z0 = +(await js("document.querySelector('#lt_p2').value")); let az = -40;
+        await clip(name, 90, async i => { await lt("#lt_p2", (z0 * (1 + 0.75 * Math.sin(i * 2 * Math.PI / 90))).toFixed(1)); az += 1.2; await cam(az, 18, d); await sleep(150); });
+        await set("viewmode", "both"); await sleep(400);
+    }
+    await dark(); await example("egg");
+};
+S.rings_light = () => ringsLight("rings_light", "vase", {});
+S.rings_light_tube = () => ringsLight("rings_light_tube", "tube", { connect: "tab" }, true);
+S.radial_light = async () => {              // the pear (the droplet is a 34 mm flat disc and errors in radial) in radial slices, the LED in its centre, moved up and down inside while the view turns
+    await example("pear"); await mode("radial"); await tab("technique"); await params({ hollow: 6 }); await heal();   // a shell 6 mm thick: room inside for the light
+    for (const [c, r] of [[8, 3], [10, 3], [8, 4], [10, 4], [12, 4], [6, 3], [12, 3], [8, 2], [10, 5]]) {   // the first count that slices with no warning
+        await set("count", c); await set("ring_count", r); await settle(); const v = await verdict(); console.log("  radial_light try", c, r, v); if (/E0 W0/.test(v)) break;
+    }
+    await set("viewmode", "only3d"); await sleep(600); await set("lamp", true); await sleep(700); await fit();
+    const d = await far(1.5); let az = -60; await cam(az, 22, d); await sleep(500);
+    const z0 = +(await js("document.querySelector('#lt_p2').value"));
+    await clip("radial_light", 100, async i => {
+        await lt("#lt_p2", (z0 + 40 * Math.sin(i * 2 * Math.PI / 50)).toFixed(1)); az += 1.4; await cam(az, 22, d); await sleep(150);
+    });
+    await project("radial_light"); await dark(); await set("viewmode", "both"); await sleep(400); await example("egg");
 };
 // the band lattice on the sphere, the shape it suits: rings across x, y and z, half-lapped where they cross. In 3 mm
 // stock 4 x 4 x 4 (the default), 4 x 4 x 3 and 2 x 2 x 2 have every piece with a way in; 5 x 5 x 4 locks two. No
@@ -442,6 +477,74 @@ S.mask = async () => {
     await project("mask");
     await js("document.querySelector('[data-faces=back]').click()"); await fix({ seams: [] });
     await example("egg");
+};
+
+// ---- the light (js/light.js): the lamp lit, the Light tab's lamps, a light moved, a stack lit from the side, a room
+// a control of the Light tab, set as a user sets it (its rows carry data-l, not the p_ ids `set` looks for)
+const lt = (sel, v) => js(`(()=>{const e=document.querySelector('#g-light ${sel}');if(!e)throw new Error('no light control ${sel}');
+    if(e.type==='checkbox')e.checked=${JSON.stringify(v)};else e.value=${JSON.stringify(String(v))};e.dispatchEvent(new Event(e.type==='checkbox'?'change':'input',{bubbles:true}))})()`);
+// the light off and as a new project has it: the lights are cleared by the next model, the room is not
+const dark = async () => { await js("delete window.__t.state().room;delete window.__t.state().light_video"); await set("lamp", false); await js("document.querySelector('section[data-tab=light] button.reset').click()"); };
+// a scene on the folded lamp: its preset brings its own stock, which is put back at the end (as S.fold does)
+const withLamp = async fn => {
+    const was = await js(`JSON.stringify(Object.fromEntries(${JSON.stringify(LAMP_KEEP)}.map(k=>[k,window.__t.state()[k]])))`);
+    await example("fold_lamp"); await fn();
+    await dark(); await set("viewmode", "both"); await sleep(400); await js(`Object.assign(window.__t.state(),${was})`); await example("egg");
+};
+const far = k => js("window.__t.camera.position.distanceTo(window.__t.target())").then(d => d * k);
+S.light = () => withLamp(async () => {      // the flat net folds up into the shade, the light tick, one turn round it in its room
+    await tab("technique"); await set("viewmode", "only3d"); await sleep(600);
+    const look = () => js("(()=>{const t=window.__t.target();return [t.x,t.y,t.z,window.__t.camera.position.distanceTo(t)]})()");
+    await fit(); const v1 = await look();
+    await js("window.__t.fold(0)"); await fit(); const v0 = await look();
+    // as S.fold: start nearly face on to the inside of the flat net, where the grooves are
+    const [nx, ny, nz] = await js("(()=>{const M=window.__t.plan().slices[0].pieces[0].facets[0].M;return [-M[0][2],-M[1][2],-M[2][2]]})()");
+    const az0 = Math.atan2(ny, nx) * 180 / Math.PI - 20, el0 = Math.min(75, Math.asin(nz) * 180 / Math.PI + 25), az1 = az0 + 150, el1 = 20;
+    const ease = x => x * x * (3 - 2 * x);
+    await clip("light", 170, async i => {
+        // 0–9 the flat net · 10–64 folding up · 65–74 the shade · 75 the light goes on · 75–169 a turn, drawing back to show the room
+        const f = i < 10 ? 0 : i < 65 ? ease((i - 10) / 55) : 1, back = i < 75 ? 0 : ease(Math.min(1, (i - 75) / 30)), turn = i < 65 ? 0 : (i - 65) * 1.7;
+        if (i === 75) await set("lamp", true);
+        const [x, y, z, d] = v0.map((a, k) => a + (v1[k] - a) * f);
+        await js(`(()=>{${i <= 65 ? `window.__t.fold(${f});` : ""}window.__t.target().set(${x},${y},${z});window.__t.cam(${az0 + (az1 - az0) * f + turn},${el0 + (el1 - el0) * f},${d * (0.82 + 0.7 * back)})})()`);
+        await sleep(i === 75 ? 700 : 60);
+    });
+    await js("window.__t.fold(1)"); await project("light");
+});
+S.light_build = async () => {               // the radial bowl lit by its LED: the parts go in one by one and the shadow pattern builds up, then the slicing changes while lit
+    await example("bowl"); await mode("radial"); await params({ count: 10, ring_count: 4 }); await tab("technique");
+    await set("viewmode", "only3d"); await sleep(600); await set("lamp", true); await sleep(700); await fit();
+    const d = await far(1.5); let az = -70; const all = () => js("window.__t.parts().length"); const n0 = await all();
+    await cam(az, 26, d); await set("steps", 1); await sleep(500);
+    // B: five slicing values, all W0 (checked with the probe: 12 slices and 6 rings, or 14 and more, warn)
+    const B = [() => set("count", 8), () => set("count", 12), () => set("ring_count", 5), () => set("count", 10), () => set("ring_count", 4)];
+    await clip("light_build", 52 + 5 * 14, async i => {
+        if (i < 52) await set("steps", Math.max(1, Math.round((i + 1) * n0 / 52)));
+        else if ((i - 52) % 14 === 0) { if (i === 52) await set("steps", n0); await B[(i - 52) / 14](); await settle(); await set("steps", 999); }
+        az += 1.2; await cam(az, 26, d); await sleep(i < 52 ? 60 : 100);
+    });
+    await project("light_build"); await set("steps", 999); await dark(); await set("viewmode", "both"); await sleep(400); await example("egg");
+};
+S.light_move = () => withLamp(async () => { // the move-a-light tool: the light up its arrow, across, and back; the pattern on the walls follows
+    await tab("light"); await set("lamp", true); await fit();
+    await cam(-60, 22, await far(1.5)); await js("document.querySelector('#tools [data-tool=light]').click()"); await sleep(600);
+    const z0 = +(await js("document.querySelector('#lt_p2').value")), ease = x => x * x * (3 - 2 * x);
+    await clip("light_move", 96, async i => {
+        // 0–9 still · 10–39 up its arrow · 40–69 across · 70–95 back to the middle
+        const u = i < 10 ? 0 : i < 40 ? ease((i - 10) / 30) : 1, v = i < 40 ? 0 : i < 70 ? ease((i - 40) / 30) : 1, k = 1 - (i < 70 ? 0 : ease((i - 70) / 25));
+        await lt("#lt_p2", (z0 + 32 * u * k).toFixed(1)); await lt("#lt_p0", (26 * v * k).toFixed(1)); await lt("#lt_p1", (-14 * v * k).toFixed(1)); await sleep(120);
+    });
+    await js("document.querySelector('#tools button[data-tool=\"\"]').click()"); await project("light_move");
+});
+S.light_room = () => withLamp(async () => { // a bigger room, grey walls, a wood floor, a brighter bulb to fill it
+    await tab("light"); await set("lamp", true); await lt("#lt_lm", 800); await lt("#lt_r_size", 2.5); await lt("#lt_r_back", 25); await lt("select[data-l=r_walls]", "grey"); await lt("select[data-l=r_floor]", "wood");
+    await fit(); await cam(-60, 22, await far(1.9)); await sleep(1500); await shot("light_room");
+});
+S.light_stacked = async () => {             // light is for every technique: the stacked vase and a desk lamp beside it
+    await example("vase"); await mode("stacked"); await tab("light"); await set("lamp", true);
+    await lt("select[data-l=like]", "desk"); await lt("select[data-l=aim]", "middle"); await lt("#lt_p0", -150); await lt("#lt_p1", -120); await lt("#lt_p2", 190);
+    await fit(); await cam(-35, 18, await far(1.7)); await sleep(1500); await shot("light_stacked");
+    await dark(); await example("egg");
 };
 
 await send("Page.reload"); await sleep(4000);              // a fresh tab: the last run may have left it mid-request
