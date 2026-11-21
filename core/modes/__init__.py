@@ -212,12 +212,12 @@ ALL_ONLY = {k: v.split() for k, v in {
     "common": "shrinkwrap thicken round smooth scale_check sheet_margin gap grain one_sheet mirror_ok split tab "
               "label_model short_name label_style label_place orient_mark font notch_factor notch_angle "
               "margin center min_part trim_thin",
-    "stacked": "shift surface next_outline next_outline_offset dowel_shape spacer_dir pin_fit spacing_fix",
+    "stacked": "shift surface next_outline next_outline_offset dowel_shape spacer_dir pin_fit standoff_hinge spacing_fix",
     "radial": "axes angle spine spacing_fix",
     "curve": "branches spacing_fix",
     "interlocked": "rotate_grid extra_x extra_y spacing_fix",
     "bands": "order band_cuts nudge",
-    "folded": "min_face separate strategy max_faces inset spacing tab_h tab_angle rib_w rib_thick edge_fit score_side",   # the hinge settings show only on a printed job, and there they are needed
+    "folded": "min_face separate strategy max_faces inset spacing tab_h tab_angle snap_h click_post click_deep rib_w rib_thick edge_fit score_side",   # the hinge settings show only on a printed job, and there they are needed
     "plaque": "sink plate_size plate_offset plate_scale plate_mirror plate_rotation angle radius shift surface teeth "
               "tooth_width tooth_spacing dowel_d spacing_fix",
 }.items()}

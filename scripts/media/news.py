@@ -3,7 +3,7 @@
     uv run python scripts/media/news.py              every picture
     uv run python scripts/media/news.py 0.4.0-lamp   only these
 
-One function for each picture: n040_lamp_example makes 0.4.0-lamp-example.jpg. It opens an example, sets what the
+One function for each picture: n040_hide_dowels makes 0.4.0-hide-dowels.jpg. It opens an example, sets what the
 entry is about, crops to that area and rings the new thing with a short label (never colour alone: a thick ring with
 a dark edge, and words). The file is 900 px wide at most and under 150 KB, which tools/notes_check.py checks. The
 what-is-new dialog shows these files offline: web/static ships in the wheel and in the browser build.
@@ -236,23 +236,6 @@ def n040_bands(app):
     app.shot("0.4.0-bands", "#v3d", [])
 
 
-def n040_max_length(app):
-    app.example("head_igea", "stacked")
-    app.set("distribution", "count")
-    app.set("count", 10)
-    app.p.check("#p_ring_slices")
-    app.idle()
-    app.set("max_length", 150)
-    app.p.select_option("#viewmode", "only2d")
-    app.p.wait_for_timeout(800)
-    x0, y0, x1, y1 = app.box("#sheets")              # the sheet only, where the pieces lie (its top half is empty)
-    app.shot("0.4.0-max-length", (x0, y0 + 0.5 * (y1 - y0), x1, y1), [])
-    app.p.select_option("#viewmode", "both")
-    app.set("max_length", 0)
-    app.p.uncheck("#p_ring_slices")
-    app.idle()
-
-
 # the horse example's curve and branches in 0.3.3, before its head became a branch of its own
 HORSE_033 = {"curve": [[-119, 11], [-89, 18], [-59, 23], [-14, 10], [16, 13], [50, 22], [76, 47], [91, 76], [106, 89], [136, 83]],
              "branches": [[[-2, 46.6, -33], [-5.2, 64.5, -128]], [[40.5, 36.8, -33], [49, 25.8, -125]],
@@ -281,29 +264,21 @@ def n040_horse_head(app):
     save("0.4.0-horse-head", side_by_side(*halves))
 
 
-def n040_examples(app):
+def n040_examples(app):                     # the easier lamp and the new lantern (the new box is in the joints picture)
     halves = []
-    for ex, open_, zoom in (("fold_box", 6, 1.7), ("fold_lantern", 0, 1.15)):   # closed, the box reads as a block
+    for ex, zoom in (("fold_lamp", 1.2), ("fold_lantern", 1.15)):
         app.example(ex)
         app.view(35, 22, zoom)
-        app.p.evaluate("n => {const s = document.querySelector('#steps'); s.value = s.max - n;"
-                       " s.dispatchEvent(new Event('input'))}", open_)
-        app.p.wait_for_timeout(1200)
         halves.append(caption(app.grab("#v3d"), ex))
     save("0.4.0-examples", side_by_side(*halves))
 
 
-def n040_settings(app):
+def n040_settings(app):                     # one ring round the search box and the basic / all switch under it
     app.example("vase", "stacked")
     app.level("all")
     app.p.fill("#find", "")
-    app.shot("0.4.0-settings", (0, 40, 470, 760), [("#find", "find a setting")])
-
-
-def n040_basic(app):
-    app.example("vase", "stacked")
-    app.level("basic")
-    app.shot("0.4.0-basic", (0, 40, 470, 620), [("#level", "basic / all")])
+    f, lv = app.box("#find"), app.box("#level")
+    app.shot("0.4.0-settings", (0, 40, 470, 760), [((f[0], f[1], f[2], lv[3]), "find a setting, basic / all")])
 
 
 def n040_spacing(app):
@@ -355,12 +330,6 @@ def n040_fold(app):
     app.shot("0.4.0-fold", VIEW, [("label:has(#steps)", "steps")])
 
 
-def n040_lamp_example(app):
-    app.example("fold_lamp")
-    app.view(30, 20, 1.2)
-    app.shot("0.4.0-lamp-example", VIEW, [])
-
-
 def crossed_side(app, example, sink, settings):   # a side relief, crossed: one Y spine goes in first, X ribs onto it
     app.example(example, "plaque")
     for k, v in (("back", "-y"), ("sink", sink), ("layout", "crossed"), ("ny", 1), ("first", "y"), *settings):
@@ -373,8 +342,8 @@ def plaque_back(app):                         # the plaque settings as the examp
 
 
 def n040_first(app):
-    # the low-poly cow: at ny 1 its rail misses the lowered head (5 ribs touch nothing); at ny 2 it runs through the
-    # head, and only the last rib, at the tail, has an error
+    # the low-poly cow: at ny 2 the rail runs through the lowered head; the last rib, at the tail, crosses no rail and
+    # stands on its own teeth (bugs/059): 0 errors
     crossed_side(app, "cow", 50, (("nx", 20), ("first_height", 35), ("ny", 2)))
     app.view(65, 30, 0.75)
     app.p.evaluate("() => {const s = document.querySelector('#steps'); s.value = 9;"   # the plate, the rail, 7 ribs
@@ -461,6 +430,24 @@ def n040_standoff(app):                     # written by the printed-spacers bra
     app.p.evaluate("() => document.querySelector('section[data-tab=technique] .f[data-p=connect]').scrollIntoView({block: 'center'})")
     app.p.wait_for_timeout(300)
     app.shot("0.4.0-standoff", (0, 40, 1574, 860), [("section[data-tab=technique] .f[data-p=connect]", "printed standoffs")])
+
+
+def part(app, sel, x0, y0, x1, y1):         # a box inside an area, in shares of its width and height
+    a, b, c, d = app.box(sel)
+    return a + x0 * (c - a), b + y0 * (d - b), a + x1 * (c - a), b + y1 * (d - b)
+
+
+def n040_joints(app):                       # the printed box laid flat with each joint; they stand on the inside face
+    halves = []                             # (written by the snap-joint branch as two pictures, one picture since)
+    for joint, mark, label in (("click", (0.61, 0.47, 0.71, 0.6), "a click joint"),
+                               ("snap", (0.735, 0.42, 0.795, 0.51), "a wall for the clip")):
+        app.example("fold_box")
+        app.set("joint", joint)
+        fold_to(app, 0)
+        app.view(20, 55, 0.55)
+        halves.append(caption(app.grab(part(app, VIEW, 0.34, 0.1, 0.86, 0.69), [(part(app, VIEW, *mark), label)]), joint))
+        fold_to(app, 100)
+    save("0.4.0-joints", side_by_side(*halves))
 
 
 # ---- 0.3.3 -----------------------------------------------------------------------------------------------------
@@ -553,7 +540,7 @@ def n040_library(app):
     app.p.click("#libclose")
 
 
-def picture_name(f):                        # n040_lamp_example -> 0.4.0-lamp-example
+def picture_name(f):                        # n040_hide_dowels -> 0.4.0-hide-dowels
     v, slug = f.__name__.split("_", 1)
     return f"{v[1]}.{v[2]}.{v[3]}-{slug.replace('_', '-')}"
 

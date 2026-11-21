@@ -14,6 +14,12 @@ _dist = lambda a, b: math.hypot(a[0] - b[0], a[1] - b[1])   # noqa: E731
 
 PIN_SHORT = 0.1            # a standoff's pin in a shared hole stops this short of the layer's middle: the two never touch
 FLUSH = "pentagon"         # the shape of a hole only one standoff uses, and of the pin that goes through it
+# Under these a standoff is warned about as a size no print has confirmed. ponytail: no print is behind either number
+# yet (bug 058): they are a guess at where a 0.4 mm nozzle stops making a sound pin. Two sizes are being printed, a
+# 4 mm dowel with 1.4 mm shared pins and a 6 mm dowel with 3 mm pins. Move the limits, or drop a warning, when those
+# prints say so.
+SMALL_PIN = 5.0            # mm of dowel diameter: the pin is that less the pin fit
+SHORT_PIN = 2.0            # mm a pin goes into its hole
 MIN_DOWEL = 2.0            # below this a dowel is not worth cutting for: too small to buy, too weak to locate anything
 ABC_LOWER = ABC.lower()    # the letters of connector names, no i or o (they read as 1 and 0 when engraved small)
 
@@ -92,12 +98,10 @@ class Connectors:
         self.pins = []                                                    # standoffs: (its entry in the plan, the slice and hole of each pin)
         if self.shoulder:
             # the printed part's sections, for the 3D view and the print file: a pin for a shared hole, a pin for a
-            # flush one, and the body — round, less a flat level with the pins' lowest side, which it is printed lying on
+            # flush one, and the round body
             sec = lambda g: [[round(x, 3), round(y, 3)] for x, y in g.exterior.coords[:-1]]   # noqa: E731
             pin, flush = (dowel((0, 0), self.d - p["pin_fit"], s) for s in (p["dowel_shape"], FLUSH))
-            flat = min(pin.bounds[1], flush.bounds[1])
-            body = dowel((0, 0), 2 * self.reach).intersection(shapely.box(-self.reach, flat, self.reach, self.reach))
-            ctx.view["standoffs"] = {"pin": sec(pin), "flush": sec(flush), "body": sec(body), "items": []}
+            ctx.view["standoffs"] = {"pin": sec(pin), "flush": sec(flush), "body": sec(dowel((0, 0), 2 * self.reach)), "items": []}
         # Two holes need `min_feature` of material between their edges, the same wall this job asks for everywhere
         # else — so their centres are two of the hole's reach (the cut, with its slot offset) plus that wall apart.
         # Any less and `fits` turns the point down: points spread as far apart as they go land right on
@@ -185,6 +189,8 @@ class Connectors:
         layer: aligned points) keeps the dowel hole shape, and each pin goes half way in. A hole only one standoff uses
         is cut as a pentagon instead, and its pin goes through the layer and ends flush with the far face: no hole is
         left half empty, and the shape of a hole says which end of which standoff it takes."""
+        if not self.pins:      # dowels, tabs, a plaque's spacers: no standoffs, and a plaque has none of their settings
+            return
         p = self.p
         uses = {}
         for _, *ends in self.pins:
@@ -202,6 +208,16 @@ class Connectors:
                     text = s.cutnames[k].split("-", 1)[1]              # its mark keeps clear of the new shape
                     for m in [m for m in s.marks if m[2] == text]:
                         s.marks.remove(m); hole_mark(s, new, text, p["font"])
+        # a size no print has confirmed, said before it is printed, with the setting that makes it bigger
+        across = self.d - p["pin_fit"]
+        short = [n for e, *_ in self.pins for n, own in zip(e["pins"], e["flush"]) if not own and n < SHORT_PIN]
+        if self.d < SMALL_PIN:
+            self.ctx.warnings.append(f"standoff pins {across:g} mm across print as two halves {across / 2:.2g} mm high. No print has confirmed "
+                                     f"a pin this small yet: print one to check. For bigger pins, set the dowel diameter to {SMALL_PIN:g} mm or more")
+        if short:
+            self.ctx.warnings.append(f"{len(short)} standoff pin(s) in shared holes are {min(short):g} mm long: half the layer. No print has "
+                                     "confirmed a pin this short yet: print one to check. For longer pins, set dowel placement to random: "
+                                     "then no hole is shared and every pin is as long as the layer is thick. Or use thicker sheet")
 
     # ------------------------------------------------------------ one connector
     def cut(self, x, y, ang, tab_w):

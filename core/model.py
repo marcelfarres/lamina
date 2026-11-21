@@ -93,6 +93,7 @@ class Slice:
     errors: list = field(default_factory=list)
     fixes: list = field(default_factory=list)     # [{"error", "options": [{"title", "set"}]}] one-click fixes (checks.suggest_fixes)
     note: str = ""                      # extra text shown with the label (e.g. rib angle)
+    springy: bool = False               # a part drawn thin on purpose, to bend (a snap clip): the size and thin-spot checks pass it
 
     def piece_extra(self, pc) -> dict:
         """What this slice adds to its piece `pc` in the plan, beyond what every slice has."""
