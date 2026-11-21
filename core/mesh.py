@@ -101,6 +101,62 @@ def merge_small(mesh, least, rounds=40):
     return m
 
 
+def _ears(pts):
+    """The triangles [(i, j, k), …] that fill the simple polygon `pts` (n × 2, counter-clockwise) with every corner
+    used, by ear clipping, or None when it cannot be filled (it crosses itself)."""
+    def side(a, b, c):
+        return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+    idx, out = list(range(len(pts))), []
+    while len(idx) > 3:
+        for q in range(len(idx)):
+            i, j, k = idx[q - 1], idx[q], idx[(q + 1) % len(idx)]
+            a, b, c = pts[i], pts[j], pts[k]
+            if side(a, b, c) <= 1e-9:                         # a corner that turns in, or three in a line: no ear
+                continue
+            if any(m not in (i, j, k) and min(side(a, b, pts[m]), side(b, c, pts[m]), side(c, a, pts[m])) >= -1e-12 for m in idx):
+                continue                                      # another corner lies in it
+            out.append((i, j, k)); del idx[q]
+            break
+        else:
+            return None
+    return out + [tuple(idx)] if side(*pts[idx]) > 1e-9 else None
+
+
+def flatten(mesh, pick):
+    """The faces `pick` (a bool per face) made one flat face: the corners on their rim are moved onto the plane that
+    fits the faces best, the corners inside go, and the rim is filled again with triangles in that plane. The faces
+    next to them follow their moved corners. Returns (the new mesh, how many triangles the flat face has; they are
+    its last faces, the others keep their order), or (None, why not): the faces must be one piece with one rim.
+    ponytail: one plane through whatever is picked; half a ball becomes a disc. That is the user's choice to make."""
+    faces = mesh.faces[pick]
+    if len(faces) < 2:
+        return None, "fewer than two faces are there now"
+    e = np.concatenate([faces[:, [0, 1]], faces[:, [1, 2]], faces[:, [2, 0]]])      # directed, as the faces wind
+    _, inv, count = np.unique(np.sort(e, axis=1), axis=0, return_inverse=True, return_counts=True)
+    rim = e[count[inv.ravel()] == 1]
+    after = {int(a): int(b) for a, b in rim}
+    loop = [int(rim[0, 0])] if len(rim) else []
+    while loop and after[loop[-1]] != loop[0] and len(loop) <= len(rim):
+        loop.append(after[loop[-1]])
+    if len(loop) < 3 or len(after) != len(rim) or len(loop) != len(rim):
+        return None, "they are not one piece with one rim (several pieces, a hole in the middle, or the whole model)"
+    area = mesh.area_faces[pick]
+    n = (mesh.face_normals[pick] * area[:, None]).sum(0); n /= np.linalg.norm(n) or 1.0
+    if (mesh.face_normals[pick] @ n).min() < 0.05:
+        return None, "they turn more than a quarter turn away from each other"
+    o = (mesh.triangles_center[pick] * area[:, None]).sum(0) / area.sum()
+    v = np.array(mesh.vertices)
+    v[loop] -= ((v[loop] - o) @ n)[:, None] * n
+    u = np.cross(n, [1.0, 0, 0] if abs(n[0]) < 0.9 else [0, 1.0, 0]); u /= np.linalg.norm(u)
+    tris = _ears(np.c_[(v[loop] - o) @ u, (v[loop] - o) @ np.cross(n, u)])
+    if tris is None:
+        return None, "their rim crosses itself when it is laid flat"
+    new = trimesh.Trimesh(v, np.r_[mesh.faces[~pick], np.asarray(loop)[np.asarray(tris)]], process=False)
+    new.remove_unreferenced_vertices()
+    new.metadata.update(mesh.metadata)
+    return new, len(tris)
+
+
 def load_mesh(path, params, notes=None, surface=False):
     """The model as every later stage sees it. The last one is kept: a new project name, a sheet, a thickness reslices
     without loading and remeshing it again (a second or more of every slice, many more in the browser). `surface`:

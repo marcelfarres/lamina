@@ -26,7 +26,9 @@ MAX_SLICES = 500                      # the count slider's ceiling, and the ceil
 #   edges         edges of the model, picked in the 3D view or on a sheet   value: [[[x,y,z],[x,y,z]], …] the two ends of each
 #   curve         the spacing curve, drawn in the graph under its tick     value: [[t, s], …] t 0..1, s mm or deg
 #   faces         faces of the model, picked in the 3D view         value: [[[x,y,z],[x,y,z],[x,y,z]], …] each one's triangle, in the model file's coordinates
-LIST_TYPES = ("vec2", "vec3", "points", "lines3", "map", "labels", "chips", "curve", "edges", "faces")
+#   facesets      groups of faces, picked in the 3D view         value: [[triangle, …], …] a list of `faces` values
+#   color         a colour box                                  value: "#rrggbb"
+LIST_TYPES = ("vec2", "vec3", "points", "lines3", "map", "labels", "chips", "curve", "edges", "faces", "facesets")
 
 
 @dataclass
