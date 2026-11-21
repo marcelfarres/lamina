@@ -17,6 +17,7 @@ from .geometry import as_multi, min_rect_angle, robust
 TAG_FONT = 4.0      # mm, the least a tag's letters are: bold strokes 0.64 mm, wider than one line of a 0.4 mm nozzle
 TAG_PAD = 1.0       # mm of chip round the letters
 TAG_CLEAR = 1.5     # mm from a tag to every part but its own: its line is that long at least, and PETG does not fuse across it
+PRINT_MARK = 5.0    # mm, a seam number on a printed panel: bold strokes 1.0 mm wide (0.75 at 4 mm), two lines of a 0.4 mm nozzle
 
 
 def tag_room(text, font):
@@ -209,13 +210,14 @@ def place_labels(sh, font, tag="", place="part"):
             taken.append(label_rect(*pc.label_pos, *label_box(text(pc, short), size)))
 
 
-def beside(k, pc, boxes, sh, tree, taken, across=False):
+def beside(k, pc, boxes, sh, tree, taken, across=False, toward=None):
     """A free spot for a label beside part k, at the first of `boxes` — (size, short, w, h), best first — that has one
     on the nearest ring: ((x, y, rot), leader, rect, (size, short)) or None. Candidates lie on rings round the part's nested
     outline at growing distances, above the part first, the label upright or on its side, its near edge on the ring;
     a candidate is free when its box lies inside the sheet margin and touches no part, no label placed before it,
     and the leader from it to the part's own outline crosses no other part — unless `across`, the last resort, which
-    lets the leader run over other parts and searches the whole sheet."""
+    lets the leader run over other parts and searches the whole sheet. `toward`, a point: the candidates nearest it
+    first instead (a printed seam number's tag beside its seam, core.solid)."""
     part = pc.placed.simplify(0.5)                          # the real outline: the nesting one may hold the room reserved for this label
     W, H, m = sh.W, sh.H, sh.margin
     x0, y0, x1, y1 = pc.placed.bounds; cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
@@ -225,6 +227,8 @@ def beside(k, pc, boxes, sh, tree, taken, across=False):
             n = max(12, int(ring.length / max(4.0, min(h for *_, h in boxes) / 2)))
             pts += [ring.interpolate(i / n, normalized=True) for i in range(n)]
         pts.sort(key=lambda q: abs((math.degrees(math.atan2(q.y - cy, q.x - cx)) - 90 + 180) % 360 - 180))   # above first, below last
+        if toward is not None:
+            pts.sort(key=toward.distance)
         for size, short, w, h in boxes:
             for p in pts:
                 q = nearest_points(pc.placed, p)[0]                                   # where the leader lands: the part's own outline

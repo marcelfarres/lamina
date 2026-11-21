@@ -374,6 +374,42 @@ def test_every_part_of_a_printed_plate_has_a_number_on_it_or_on_a_tag(tmp_path):
     assert all(n in readme for n in tagged) and "snap the tag off" in readme and "no free room" not in readme
 
 
+def test_every_seam_number_of_a_printed_panel_is_on_the_print_and_readable(tmp_path):
+    """Bug 064: a printed folded panel's seam numbers were not on the print at all (marks at 0.6 of the font, too thin
+    for a nozzle; on a glue tab, which prints as the hinge skin only). Now each is cut into the panel 5 mm tall, its
+    strokes two nozzle lines wide, clear of the tabs; a seam side with no room for that carries it on a tag beside the
+    panel (a chip one layer high, the number standing on it). Measured on the exported mesh: every number the plan
+    gives is there at full height, and every seam has its number on both sides. A laser job's numbers do not change."""
+    from shapely import affinity, box, unary_union
+    from core.labels import PRINT_MARK
+    from core.solid import CHIP_H, LETTER_H
+    pre = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["fold_test"]["params"]
+    plan = build(EXAMPLES / "fold_test.stl", "folded", {**pre, "joint": "tab"})
+    pc = plan["slices"][0]["pieces"][0]
+    proto_set(plan, tmp_path)
+    scene = trimesh.load(tmp_path / "plate-1.3mf")
+    M, g = scene.graph[pc["label"]]; m = scene.geometry[g].copy(); m.apply_transform(M)
+    up, z, top = m.face_normals[:, 2] > 0.99, m.triangles_center[:, 2], m.bounds[1][2]
+    faces = lambda at: unary_union([Polygon(t[:, :2]) for t in m.triangles[up & (abs(z - at) < 0.01)]])   # noqa: E731
+    grooves, chips, letters = faces(top - min(top / 2, 0.6)), faces(CHIP_H).buffer(0.6), faces(CHIP_H + LETTER_H)
+    assert pc["marks"] and pc["seam_tags"], "the job shows both: numbers on the panel and on tags"
+    for x, y, text, rot, size in pc["marks"]:                           # on the panel: cut, full height, off the tabs
+        turn = rot + pc["place"][3]
+        cut = affinity.rotate(grooves.intersection(affinity.rotate(box(x - 8, y - 4, x + 8, y + 4), turn, origin=(x, y))), -turn, origin=(x, y))
+        assert 0.6 * size == PRINT_MARK and cut.bounds[3] - cut.bounds[1] >= PRINT_MARK - 0.05, (text, cut.bounds)
+    on_tags = [letters.intersection(n) for n in getattr(letters.buffer(1.2), "geoms", [letters.buffer(1.2)])]
+    on_tags = [n for n in on_tags if chips.contains(n.centroid)]
+    assert len(on_tags) == len(pc["seam_tags"])                          # one tag for each number with no room on the panel
+    for n in on_tags:                                                    # each standing 5 mm tall (one way or the other: 7 or 12)
+        x0, y0, x1, y1 = n.bounds
+        assert any(abs(e - PRINT_MARK) < 0.05 for e in (x1 - x0, y1 - y0)), n.bounds
+    sides = [str(mk[2]) for mk in pc["marks"]] + [str(j) for *_, j in pc["seam_tags"]]
+    assert all(sides.count(s) == 2 for s in sides), sorted(sides, key=int)   # both sides of every seam
+    laser = build(EXAMPLES / "fold_test.stl", "folded", {**pre, "joint": "tab", "printed": False, "material": "cardboard", "material_kind": "cardboard"})
+    lpc = laser["slices"][0]["pieces"][0]
+    assert "seam_tags" not in lpc and all(len(mk) < 5 or mk[4] < laser["params"]["font"] for mk in lpc["marks"])
+
+
 def test_a_printed_job_comes_out_as_one_plate_per_bed(tmp_path):
     """A printed job (PLA, PETG) was nested on the printer's bed, so each sheet is a plate: plate-1.3mf … plate-N.3mf,
     each holding that sheet's parts and fitting the bed — not one plate.3mf with every sheet stacked into a strip no

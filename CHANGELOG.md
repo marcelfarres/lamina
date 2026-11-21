@@ -118,10 +118,10 @@ inside to see it as a lamp.
 
   ![The egg's top layer on the sheet: before, its name, arrow and dowel numbers on it; now clean, its name beside it](web/static/news/0.4.0-clean-tops.jpg)
 
-- **Every printed part has its number.** A part too small for its number prints it on a thin tag beside it,
-  joined by a line. Read it, then snap the tag off. Printed standoffs show their size the same way.
+- **Every printed part has its number.** A part too small for its number prints it on a thin tag beside it: read
+  it, snap the tag off. Standoffs carry their size this way. Printed panels now carry every seam number.
 
-  ![Small horse ribs on the print plate, each joined to a tag with its number; one tag up close](web/static/news/0.4.0-print-tags.jpg)
+  ![Small horse ribs on the print plate, each joined to a tag with its number; one tag up close; a printed panel with every seam number cut in](web/static/news/0.4.0-print-tags.jpg)
 
 ### Fixed
 

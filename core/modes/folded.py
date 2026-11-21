@@ -18,7 +18,7 @@ from typing import NamedTuple
 from . import Mode, Param, register
 from ..model import Issue, Slice
 from ..geometry import as_multi, circle, min_dims, rect_along, frame_xy, poly_coords
-from ..labels import mark_box, mark_rot, mark_size
+from ..labels import PRINT_MARK, mark_box, mark_rot, mark_size, tag_room
 from ..mesh import simplify, merge_small
 import trimesh
 from ..unfold import unfold, closing_shortfall, edges_at, faces_at
@@ -198,6 +198,8 @@ class FoldedSlice(Slice):
     taken: object = None                            # the panel and the tabs it has so far (cached), what a new tab may not touch
     taken_tabs: int = -1
     thin: list = field(default_factory=list)        # printed: the glue tabs, printed only as thick as the hinge skin
+    seam_tags: list = field(default_factory=list)   # printed: [(x, y, number)] a seam number with no room on the panel, on a tag
+                                                    # beside it (core.solid) at (x, y), out from its seam, where the nester keeps room
     thin_t: float = 0.0                             # … and that thickness
     tab_t: list = field(default_factory=list)       # the thickness of each of `tab_facets` when it is not the sheet's (a thin printed tab)
     facet_t: list | None = None                     # per facet, that thickness or None
@@ -210,6 +212,7 @@ class FoldedSlice(Slice):
         for the page to mark and pick. (A folded net is one piece.)"""
         return {**({"grooves": [g.json() for g in self.grooves]} if self.grooves else {}), **({"rails": [r.json() for r in self.rails]} if self.rails else {}),
                 **({"thin": [r for g in self.thin for r in poly_coords(as_multi(g))], "thin_t": self.thin_t} if self.thin else {}),
+                **({"seam_tags": [[round(x, 3), round(y, 3), j] for x, y, j in self.seam_tags]} if self.seam_tags else {}),
                 **({"edges": self.placed_edges(pc)} if self.edges else {})}
 
     def placed_edges(self, pc):
@@ -236,6 +239,7 @@ class FoldedSlice(Slice):
         self.lines = [(style, flip(ln)) for style, ln in self.lines]
         self.edges = [(k, flip(ln)) for k, ln in self.edges]
         self.marks = [(-m[0], m[1], m[2], -mark_rot(m), *m[4:]) for m in self.marks]
+        self.seam_tags = [(-x, y, j) for x, y, j in self.seam_tags]
         self.grooves = [g._replace(a=(-g.a[0], g.a[1]), b=(-g.b[0], g.b[1])) for g in self.grooves]
         self.rails = [r._replace(a=(-r.a[0], r.a[1]), b=(-r.b[0], r.b[1]), into=(-r.into[0], r.into[1])) for r in self.rails]
         self.mark_boxes = []; self.room = None; self.taken = None
@@ -982,7 +986,8 @@ class Folded(Mode):
         first, then towards its ends, then deeper in) where the whole number lies on material clear of the cuts, the
         fold lines and the numbers already there. A short edge has no such spot for a number at the font size: it is
         tried smaller, down to MIN_NUMBER, and carries its own size to the export. A seam with no spot even then gets
-        none, and the panel says how many: a number over a fold or another number reads as neither."""
+        none, and the panel says how many: a number over a fold or another number reads as neither. A printed panel's
+        number is PRINT_MARK tall, never smaller, and one with no spot goes on a tag beside the panel (`seam_tags`)."""
         if not self.p["edge_labels"]:
             return
         p, sl = self.p, s.sl
@@ -990,28 +995,40 @@ class Folded(Mode):
         rot = math.degrees(math.atan2(d[1], d[0])) % 180
         if rot > 90:
             rot -= 180                                                      # never upside down in the panel's frame
+        # A printed panel's number is cut into the panel as its name is (core.solid), PRINT_MARK tall, the least whose
+        # strokes print; never on a tab, which prints only as thick as the hinge skin; and as far off a fold as its
+        # groove opens on the face (up to the sheet's thickness, at a right-angle fold)
+        printed = p["printed"]
         if sl.room is None or len(sl.additions) != sl.room_tabs:            # the panel with the tabs it has so far, a hair in
-            sl.room = unary_union([sl.raw, *sl.additions]).buffer(-0.3); sl.room_tabs = len(sl.additions)
+            sl.room = unary_union([sl.raw, *([] if printed else sl.additions)]).buffer(-0.3); sl.room_tabs = len(sl.additions)
         # a panel collects hundreds of numbers and holes on a dense mesh: each number is boxed once, and a spot is
         # measured only against what lies within reach of it (one by one against all, it took minutes, bugs/028)
         sl.mark_boxes += [mark_box(*m[:3], mark_size(m, p["font"]), mark_rot(m)) for m in sl.marks[len(sl.mark_boxes):]]
         clear, taken = np.array([*sl.cuts, *(ln for _, ln in sl.lines)], dtype=object), np.array(sl.mark_boxes, dtype=object)
         near_clear, near_taken = STRtree(clear), STRtree(taken)
+        off = 0.3 + (self.t if printed else 0.0)                            # mm off cuts and folds
 
         def free(b):
-            x0, y0, x1, y1 = b.bounds; reach = shapely.box(x0 - 0.3, y0 - 0.3, x1 + 0.3, y1 + 0.3)   # 0.3 mm off cuts and folds
-            return ((shapely.distance(b, clear[near_clear.query(reach)]) >= 0.3).all()
+            x0, y0, x1, y1 = b.bounds; reach = shapely.box(x0 - off, y0 - off, x1 + off, y1 + off)
+            return ((shapely.distance(b, clear[near_clear.query(reach)]) >= off).all()
                     and shapely.disjoint(b, taken[near_taken.query(b)]).all())
-        for size in [p["font"]] + [z for z in (p["font"] * 0.75, MIN_NUMBER) if z < p["font"]]:
+        for size in [PRINT_MARK / 0.6] if printed else [p["font"]] + [z for z in (p["font"] * 0.75, MIN_NUMBER) if z < p["font"]]:
             h = mark_box(0, 0, text, size).bounds[3] * 2
-            deeps = ([-(h + 0.8)] if on_tab else []) + [depth, depth + size * 0.5, depth + size]   # on the tab: 0.8 mm past the hinge
+            deeps = ([-(h + 0.8)] if on_tab and not printed else []) + [depth, depth + size * 0.5, depth + size]   # on the tab: 0.8 mm past the hinge
             for deep in deeps:
                 for along in (0.5, 0.35, 0.65, 0.22, 0.78):
                     c = A + d * (along * L) + n * (deep + h / 2 + s.back)
                     b = mark_box(float(c[0]), float(c[1]), text, size, rot)
                     if sl.room.covers(b) and free(b):
-                        sl.marks.append((float(c[0]), float(c[1]), text, round(rot, 2), *([size] if size < p["font"] else [])))
+                        sl.marks.append((float(c[0]), float(c[1]), text, round(rot, 2), *([size] if size != p["font"] else [])))
                         return
+        if printed:                     # on a tag beside the panel, straight out from the middle of the seam, past a tab
+            outline, at, go = unary_union([sl.raw, *sl.additions]), A + d * (L / 2) + n * s.back, 0.0
+            while go < 100 and outline.intersects(shapely.Point(*(at - n * go))):
+                go += 0.25
+            at = at - n * (go + 0.8 + max(tag_room(text, PRINT_MARK)) / 2)   # the middle of the room the nester keeps for it
+            sl.seam_tags.append((float(at[0]), float(at[1]), text))
+            return
         sl.skipped.setdefault("seam number", []).append(j)
 
     def fit_sizes(self, sides):

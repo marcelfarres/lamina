@@ -19,7 +19,7 @@ from shapely.strtree import STRtree
 import shapely
 from .export import design_name, export
 from .geometry import even_odd, facet_polys
-from .labels import TAG_CLEAR, TAG_FONT, TAG_PAD, beside, fit_on_part, label_angles, tag_room
+from .labels import PRINT_MARK, TAG_CLEAR, TAG_FONT, TAG_PAD, beside, fit_on_part, label_angles, mark_box, tag_room
 from .step import step_text
 
 
@@ -203,19 +203,24 @@ def text_polygons(text, height, res=8) -> MultiPolygon:
     return affinity.scale(g, k, k, origin=(0, 0))
 
 
-def label_on(room, text, font):
-    """The label as polygons on the part: where the whole label fits with room all round, by the sheets' rule
-    (core.labels.fit_on_part), upright, a quarter turn or along the part, 1.5 x `font` tall where that fits and
-    `font` otherwise. None when it fits nowhere: the part then carries its number on a tag beside it (print_tag).
+def text_at(text, height, x, y, rot):
+    """`text` as polygons `height` mm tall, centred on (x, y) and turned `rot` degrees."""
+    g = text_polygons(text, height); x0, y0, x1, y1 = g.bounds
+    return affinity.rotate(affinity.translate(g, x - (x0 + x1) / 2, y - (y0 + y1) / 2), rot, origin=(x, y))
+
+
+def label_on(room, text, font, marks=()):
+    """The label as polygons on the part: where the whole label fits with room all round, clear of the `marks`
+    (boxes) cut into it, by the sheets' rule (core.labels.fit_on_part), upright, a quarter turn or along the part,
+    1.5 x `font` tall where that fits and `font` otherwise. None when it fits nowhere: the part then carries its
+    number on a tag beside it (print_tag).
     ponytail: fit_block tries two spots per region, so a label that only fits squeezed between a slot and an end
     (a 60 x 20 bar slotted at its middle) is missed, on the sheets as here; the part then gets a tag, never no number."""
-    txt = text_polygons(text, font)
+    txt = text_polygons(text, font); x0, y0, x1, y1 = txt.bounds
     for f in (1.5, 1.0):
-        g = affinity.scale(txt, f, f, origin=(0, 0)); x0, y0, x1, y1 = g.bounds
-        spot = fit_on_part(room, None, x1 - x0, y1 - y0, angles=label_angles(room), room=min(2.0, 0.3 * font * f))
+        spot = fit_on_part(room, None, (x1 - x0) * f, (y1 - y0) * f, marks, label_angles(room), room=min(2.0, 0.3 * font * f))
         if spot:
-            x, y, ang = spot
-            return affinity.rotate(affinity.translate(g, x - (x0 + x1) / 2, y - (y0 + y1) / 2), ang, origin=(x, y))
+            return text_at(text, font * f, *spot)
     return None
 
 
@@ -226,18 +231,19 @@ LINE_W = 0.9        # mm: the line is two lines of a 0.4 mm nozzle wide (0.18 mm
 LAP = 0.3           # mm the line runs into the part, so the two are one solid
 
 
-def print_tag(laid, k, text, font, W, H, margin):
+def print_tag(laid, k, text, font, W, H, margin, toward=None):
     """The tag for the part `laid[k]` (the outlines on one plate, earlier tags included): a chip one layer high with
     the number raised on it, joined to the part by a line one layer high. It goes where the sheets put a label that
     has no room on its part (core.labels.beside): the nearest free spot, above the part first, `TAG_CLEAR` from every
-    other part and tag, its line crossing none. The plate is W x H with `margin`. Returns (mesh, footprint, whether it
-    found free room); with none it goes above the part anyway, over whatever lies there, for the caller to report."""
+    other part and tag, its line crossing none; with `toward` (x, y), the free spot nearest that point instead (a
+    seam number's tag, near its seam). The plate is W x H with `margin`. Returns (mesh, footprint, whether it found
+    free room); with none it goes beside the part anyway, over whatever lies there, for the caller to report."""
     f = max(font, TAG_FONT)
     txt = text_polygons(text, f); x0, y0, x1, y1 = txt.bounds
     w, h = x1 - x0 + 2 * TAG_PAD, y1 - y0 + 2 * TAG_PAD
     part = laid[k]
     found = beside(k, SimpleNamespace(placed=part), [(f, False, w + 2 * TAG_CLEAR, h + 2 * TAG_CLEAR)],
-                   SimpleNamespace(W=W, H=H, margin=margin, placed=laid), STRtree(laid), [])
+                   SimpleNamespace(W=W, H=H, margin=margin, placed=laid), STRtree(laid), [], toward=None if toward is None else Point(toward))
     if found:
         (cx, cy, rot), (_, q) = found[:2]
     else:
@@ -293,8 +299,13 @@ def proto_part(pc, thickness, scale, labels, font, min_thick):
     x0, y0, x1, y1 = geom.bounds
     geom = affinity.translate(geom, -x0, -y0)
     room = geom if pc.get("cover") is None else geom.intersection(affinity.translate(shape(pc["cover"]), -x0, -y0))
+    if pc.get("thin"):                                     # a printed glue tab is only the hinge skin: a name cut there does not show
+        room = room.difference(unary_union([Polygon([(x * scale - x0, y * scale - y0) for x, y in r[0]]) for r in pc["thin"]]).buffer(0.01))
     t = max(thickness * scale, min_thick)
-    label = label_on(room, pc["label"], font) if labels != "none" and not room.is_empty else None
+    # the seam numbers a printed panel carries (core.modes.folded sizes them PRINT_MARK tall), cut as its name is
+    marks = [(m[0] * scale - x0, m[1] * scale - y0, m[2], m[3], 0.6 * m[4]) for m in pc.get("kerfed_marks") or []
+             if labels != "none" and len(m) > 4 and 0.6 * m[4] >= PRINT_MARK - 1e-6]
+    label = label_on(room, pc["label"], font, [mark_box(x, y, s, h / 0.6, r) for x, y, s, r, h in marks]) if labels != "none" and not room.is_empty else None
     if label is not None and labels == "hole":
         geom = geom.difference(label)
     mesh = trimesh.util.concatenate([extrude(g, t) for g in shapely.get_parts(geom) if g.area > 0])
@@ -313,16 +324,18 @@ def proto_part(pc, thickness, scale, labels, font, min_thick):
         at = lambda q: (q[0] * scale - x0, q[1] * scale - y0)   # noqa: E731
         walls = [rail(at(r["a"]), at(r["b"]), r["into"], [(u * scale, z * scale) for u, z in r["profile"]]) for r in pc["rails"]]
         mesh = trimesh.boolean.union([mesh, *walls], engine="manifold") if has_boolean() else trimesh.util.concatenate([mesh, *walls])
-    if label is not None and labels == "groove":
+    cut = ([label] if label is not None and labels == "groove" else []) + [text_at(s, h, x, y, r) for x, y, s, r, h in marks]
+    if cut:
         depth = min(t * 0.5, 0.6)
-        groove = trimesh.util.concatenate([extrude(g, depth + 0.01) for g in shapely.get_parts(label) if g.area > 0])
+        groove = trimesh.util.concatenate([extrude(g, depth + 0.01) for c in cut for g in shapely.get_parts(c) if g.area > 0])
         groove.apply_translation([0, 0, t - depth])
         if has_boolean():
             mesh = trimesh.boolean.difference([mesh, groove], engine="manifold")   # named, or trimesh may wait on a Blender it finds
         else:
             plain.append("label")
     mesh.metadata["plain"] = plain
-    return mesh, label is not None or labels == "none", geom
+    seams = [(x * scale - x0, y * scale - y0, j) for x, y, j in pc.get("seam_tags", [])] if labels != "none" else []
+    return mesh, label is not None or labels == "none", geom, seams
 
 
 def proto_plan(plan, scale, min_thick, offset=None):
@@ -363,7 +376,7 @@ def _plate(plan, scene, scale, labels, font, min_thick, dx=0.0, tag=None, plates
     for sl in plan["slices"]:
         for pc in sl["pieces"]:
             text = tag or pc["label"]
-            m, labeled, geom = proto_part({**pc, "label": text}, sl["thickness"], scale, labels, font, min_thick)
+            m, labeled, geom, seams = proto_part({**pc, "label": text}, sl["thickness"], scale, labels, font, min_thick)
             si, x, y, rot = pc["place"]                       # the nested part's lower-left corner and its turn
             turn = trimesh.transformations.rotation_matrix(np.radians(rot), [0, 0, 1])
             q = m.copy(); q.apply_transform(turn)
@@ -371,21 +384,26 @@ def _plate(plan, scene, scale, labels, font, min_thick, dx=0.0, tag=None, plates
             q.apply_translation([*move, 0])
             on = around.setdefault(None if plates is None else si, [])
             on.append(affinity.translate(affinity.rotate(geom, rot, origin=(0, 0)), *move))
-            laid.append((pc, m, q, labeled, si, text, on, len(on) - 1, turn, move))
+            laid.append((pc, m, q, labeled, si, text, on, len(on) - 1, turn, move, seams))
     # a printed job's plate is the bed it was nested on, with room kept for the tags; any other plate is arranged in the slicer
     bed = (*plan["sheet"], plan["params"]["sheet_margin"]) if plates is not None else (1e6, 1e6, 0.0)
-    for pc, m, q, labeled, si, text, on, k, turn, move in laid:
-        where = "part"
-        if not labeled:
-            mesh, foot, free = print_tag(on, k, text, font, *bed)
-            on.append(foot)
+    for pc, m, q, labeled, si, text, on, k, turn, move, seams in laid:
+        where, lost, tags = "part", [], []
+        # its own number when it had no room on it, and a printed panel's seam numbers with no room beside their seam
+        for t, at in ([(text, None)] if not labeled else []) + [(j, turn[:2, :2] @ (x, y) + move) for x, y, j in seams]:
+            mesh, foot, free = print_tag(on, k, t, font if at is None else PRINT_MARK, *bed, toward=at)
+            on.append(foot); tags.append(mesh)
+            if at is None:
+                where = "tag" if free else "over"
+            elif not free:
+                lost.append(t)
+        if tags:
             plain = m.metadata["plain"]
-            q = _joined([q, mesh])
+            q = _joined([q, *tags])
             m = q.copy(); m.apply_translation([-move[0], -move[1], 0]); m.apply_transform(np.linalg.inv(turn)); m.metadata["plain"] = plain
-            where = "tag" if free else "over"
         name = f"{tag} {pc['label']}" if tag else pc["label"]
         (scene if plates is None else plates.setdefault(si, trimesh.Scene())).add_geometry(q, node_name=name, geom_name=name)
-        yield pc, m, q, where
+        yield pc, m, q, where, lost
 
 
 def _readme(out_dir, lines, files):
@@ -394,14 +412,16 @@ def _readme(out_dir, lines, files):
     return files
 
 
-def _tag_note(tagged, over, font):
-    """What the README says about the parts that carry their number on a tag."""
+def _tag_note(tagged, over, font, lost=()):
+    """What the README says about the parts that carry their number on a tag, and about the tags (a part's, or a
+    seam number's: `lost`, (part, seam)) that found no free room on the plate."""
     lines = []
     if tagged or over:
         lines.append(f"{len(tagged) + len(over)} part(s) have no room for a {max(font, TAG_FONT):g} mm number and carry it on a tag beside them: "
                      f"{', '.join(tagged + over)}. A tag is a chip one layer high on a thin line: read the number, then snap the tag off")
-    if over:
-        lines.append(f"no free room on the plate for the tags of {len(over)} part(s): {', '.join(over)}. They lie over other parts: "
+    if over or lost:
+        what = [*over, *(f"seam {j} of {p}" for p, j in lost)]
+        lines.append(f"no free room on the plate for {len(what)} tag(s): {', '.join(what)}. They lie over other parts: "
                      "arrange the plate in the slicer before printing (a tag moves with its part)")
     return lines
 
@@ -423,7 +443,9 @@ def proto_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2
     scene = trimesh.Scene()
     plates = {} if plan["params"].get("printed") and abs(scale - 1) < 1e-9 else None
     plain = set()                                          # what could not be cut into the parts here
-    for pc, m, _, where in _plate(plan, scene, scale, labels, font, min_thick, plates=plates):
+    lost = []
+    for pc, m, _, where, seams in _plate(plan, scene, scale, labels, font, min_thick, plates=plates):
+        lost += [(pc["label"], j) for j in seams]
         plain.update(m.metadata.get("plain", ()))
         tagged.get(where, []).append(pc["label"])
         f = out_dir / f"{pc['label']}.stl"; m.export(f); files.append(f)
@@ -438,7 +460,7 @@ def proto_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2
     if plain:                                             # said, not hidden: a folded panel without its grooves does not fold
         lines.append(f"this build cannot cut solids (no manifold3d, as in the browser): the parts were exported WITHOUT their {' and '.join(sorted(plain))}. "
                      "Printed folded panels need the grooves to fold: export them from the installed app")
-    return _readme(out_dir, lines + _tag_note(tagged["tag"], tagged["over"], font), files)
+    return _readme(out_dir, lines + _tag_note(tagged["tag"], tagged["over"], font, lost), files)
 
 
 # ---------------------------------------------------------------- fit test: the job's joints on a small stand-in, at offsets around its own
@@ -485,7 +507,7 @@ def fit_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2, 
         vp = fit_plan(plan, printed / scale, thickness=thickness)
         tag = f"{printed:.2f}"; tags.append(tag)
         placed = []
-        for pc, _, q, where in _plate(vp, scene, scale, labels, font, min_thick, dx, tag, around=around):
+        for pc, _, q, where, _ in _plate(vp, scene, scale, labels, font, min_thick, dx, tag, around=around):
             placed.append(q)
             tagged.get(where, []).append(f"{tag} {pc['label']}")
         v = trimesh.util.concatenate(placed); v.apply_translation([-dx, 0, 0])
