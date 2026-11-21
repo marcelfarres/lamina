@@ -212,7 +212,7 @@ ALL_ONLY = {k: v.split() for k, v in {
     "common": "shrinkwrap thicken round smooth scale_check sheet_margin gap grain one_sheet mirror_ok split tab "
               "label_model short_name label_style label_place orient_mark font notch_factor notch_angle "
               "margin center min_part trim_thin",
-    "stacked": "shift surface next_outline next_outline_offset dowel_shape spacer_dir pin_fit spacing_fix",
+    "stacked": "shift surface next_outline next_outline_offset dowel_shape spacer_dir pin_fit standoff_hinge spacing_fix",
     "radial": "axes angle spine spacing_fix",
     "curve": "branches spacing_fix",
     "interlocked": "rotate_grid extra_x extra_y spacing_fix",
