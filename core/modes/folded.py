@@ -588,6 +588,10 @@ class Folded(Mode):
             sides = all_sides[k]
             phi = self.interior_angle(k)
             extra += self.joint(j, k, sides, phi, convex[k])
+        if p["joint"] in ("snap", "click"):                 # the seam numbers once every wall stands, so that they keep off them all:
+            for j, k in order:                              # one cut under a wall is shut inside the panel (bugs/067)
+                for s in all_sides[k]:
+                    self.mark(s, j, p["font"] * 0.5)
         # additions (tabs) → raw; facets for the 3D view: the profile of every face in its own frame (+ folded tabs)
         if p["joint"] == "snap" and self.hinged and self.inside and slices:   # a clip too small to print well, said with what cures it
             def clip_area(h):
@@ -1096,7 +1100,9 @@ class Folded(Mode):
         # a panel collects hundreds of numbers and holes on a dense mesh: each number is boxed once, and a spot is
         # measured only against what lies within reach of it (one by one against all, it took minutes, bugs/028)
         sl.mark_boxes += [mark_box(*m[:3], mark_size(m, p["font"]), mark_rot(m)) for m in sl.marks[len(sl.mark_boxes):]]
-        clear, taken = np.array([*sl.cuts, *getattr(sl, "panes", ()), *(ln for _, ln in sl.lines)], dtype=object), np.array(sl.mark_boxes, dtype=object)
+        clear = np.array([*sl.cuts, *getattr(sl, "panes", ()), *(ln for _, ln in sl.lines)], dtype=object)
+        # … and off the walls standing on a printed panel: a number cut under one is shut inside the panel (bugs/067)
+        taken = np.array([*sl.mark_boxes, *(r.foot().buffer(0.4) for r in sl.rails)], dtype=object)
         near_clear, near_taken = STRtree(clear), STRtree(taken)
         off = 0.3 + (self.t if printed else 0.0)                            # mm off cuts and folds
 
@@ -1176,7 +1182,7 @@ class Folded(Mode):
             return self.loops(j, sides)
         if jt == "rib":
             return self.rib(j, k, sides, phi)
-        if jt == "snap":
+        if jt == "snap":                              # their numbers once every wall stands (build)
             return self.snap(j, k, sides, convex)
         if jt == "click":
             return self.click(j, k, sides, convex)
@@ -1450,8 +1456,6 @@ class Folded(Mode):
         second a bar bridged between two posts, with a block each side of where the tooth comes through. Pressed
         shut, the tooth goes under the bar and its ridge stands up behind it. No part of its own."""
         p = self.p; m = self.mesh
-        for s in sides:
-            self.mark(s, j, p["font"] * 0.5)
         if not (self.hinged and self.inside):
             return []
         bend = float(m.face_adjacency_angles[k]); L = round(sides[0].L, 3); a, b = sides    # rounded: a seam of 24.99999 mm is as long as one of 25
@@ -1570,8 +1574,6 @@ class Folded(Mode):
         """Seam j as a snap joint: a wall on the inside of each panel, face to face when the seam is shut, and a clip
         over the two for every `spacing` of seam. → the clips, parts of their own."""
         p = self.p; m = self.mesh
-        for s in sides:
-            self.mark(s, j, p["font"] * 0.5)
         if not (self.hinged and self.inside):
             return []
         bend = float(m.face_adjacency_angles[k]); L = sides[0].L

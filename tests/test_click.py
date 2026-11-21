@@ -14,6 +14,7 @@ from shapely.geometry.polygon import orient
 from shapely.ops import unary_union
 
 import core.modes.folded as F
+from core.labels import mark_box
 from core.plan import build
 from core.solid import has_boolean, proto_set
 
@@ -205,6 +206,18 @@ def test_the_click_joint_on_a_cut_sheet_is_an_error_and_the_seams_stay_plain():
     plan = build(BOX, "folded", {"facet": 0, "joint": "click", "material": "card", "thickness": 1, "autofix": "off"})
     assert any("click joint is for printed panels" in e for e in plan["errors"])
     assert not [pc for s in plan["slices"] for pc in s["pieces"] if pc.get("rails")]
+
+
+@pytest.mark.parametrize("joint", ["click", "snap"])
+def test_no_seam_number_is_cut_under_a_wall(joint):
+    """bugs/067: the numbers were placed before the walls stood, beside the seam where the walls go: all 22 lay over
+    a wall's foot, and 7 were shut inside the panel. They keep off every wall now, or go on a tag beside the panel."""
+    plan = box(joint=joint)
+    (pc,) = [pc for s in plan["slices"] for pc in s["pieces"] if pc.get("rails")]       # the panel: a snap job has its clips too
+    feet = unary_union([F.Rail(r["a"], r["b"], r["into"], r["profile"]).foot() for r in pc["rails"]])
+    marks = [mark_box(*m[:3], m[4], m[3]) for m in pc["kerfed_marks"]]
+    assert marks and not [b for b in marks if b.intersects(feet)]
+    assert len(marks) + len(pc["seam_tags"]) == 22                         # 11 seams, a number each side: none lost
 
 
 @pytest.mark.skipif(not has_boolean(), reason="needs manifold3d to fuse the walls onto the panel")
