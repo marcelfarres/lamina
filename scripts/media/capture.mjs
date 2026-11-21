@@ -458,24 +458,38 @@ const withLamp = async fn => {
     await dark(); await set("viewmode", "both"); await sleep(400); await js(`Object.assign(window.__t.state(),${was})`); await example("egg");
 };
 const far = k => js("window.__t.camera.position.distanceTo(window.__t.target())").then(d => d * k);
-S.light = () => withLamp(async () => {      // the lamp unlit, the light tick, the room: one slow turn round it
-    await tab("technique"); await set("viewmode", "only3d"); await sleep(600); await fit();
-    const d = await far(1.45); let az = -75;
-    await clip("light", 110, async i => { if (i === 18) await set("lamp", true); az += 1.6; await cam(az, 20, d); await sleep(i === 18 ? 700 : 60); });
-    await project("light");
-});
-S.lights = () => withLamp(async () => {     // the Light tab: a small LED, a frosted bulb (the pattern goes soft), a spot (its cone), a second light in blue
-    await tab("light"); await set("lamp", true); await fit();
-    const d = await far(1.5); let az = -70; await cam(az, 22, d); await sleep(800);
-    await clip("lights", 100, async i => {
-        const step = i === 16 || i === 34 || i === 56;
-        if (i === 16) await lt("select[data-l=like]", "frosted");
-        else if (i === 34) { await lt("select[data-l=like]", "gu10"); await lt("#lt_p2", 10); }
-        else if (i === 56) { await js("document.querySelector('#g-light button[data-act=add]').click()"); await lt("select[data-l=color]", "pick"); await lt("input[data-l=hex]", "#56b4e9"); await lt("#lt_p2", 90); await lt("#lt_lm", 150); }
-        az += 0.5; await cam(az, 22, d); await sleep(step ? 700 : 80);
+S.light = () => withLamp(async () => {      // the flat net folds up into the shade, the light tick, one turn round it in its room
+    await tab("technique"); await set("viewmode", "only3d"); await sleep(600);
+    const look = () => js("(()=>{const t=window.__t.target();return [t.x,t.y,t.z,window.__t.camera.position.distanceTo(t)]})()");
+    await fit(); const v1 = await look();
+    await js("window.__t.fold(0)"); await fit(); const v0 = await look();
+    // as S.fold: start nearly face on to the inside of the flat net, where the grooves are
+    const [nx, ny, nz] = await js("(()=>{const M=window.__t.plan().slices[0].pieces[0].facets[0].M;return [-M[0][2],-M[1][2],-M[2][2]]})()");
+    const az0 = Math.atan2(ny, nx) * 180 / Math.PI - 20, el0 = Math.min(75, Math.asin(nz) * 180 / Math.PI + 25), az1 = az0 + 150, el1 = 20;
+    const ease = x => x * x * (3 - 2 * x);
+    await clip("light", 170, async i => {
+        // 0–9 the flat net · 10–64 folding up · 65–74 the shade · 75 the light goes on · 75–169 a turn, drawing back to show the room
+        const f = i < 10 ? 0 : i < 65 ? ease((i - 10) / 55) : 1, back = i < 75 ? 0 : ease(Math.min(1, (i - 75) / 30)), turn = i < 65 ? 0 : (i - 65) * 1.7;
+        if (i === 75) await set("lamp", true);
+        const [x, y, z, d] = v0.map((a, k) => a + (v1[k] - a) * f);
+        await js(`(()=>{${i <= 65 ? `window.__t.fold(${f});` : ""}window.__t.target().set(${x},${y},${z});window.__t.cam(${az0 + (az1 - az0) * f + turn},${el0 + (el1 - el0) * f},${d * (0.82 + 0.7 * back)})})()`);
+        await sleep(i === 75 ? 700 : 60);
     });
-    await project("lights");
+    await js("window.__t.fold(1)"); await project("light");
 });
+S.lights = async () => {                    // the Light tab on the radial bowl: a small LED inside, a frosted bulb (the grid goes soft), a spot from above, a second light in blue
+    await example("bowl"); await mode("radial"); await heal(); await tab("light"); await set("lamp", true); await fit();
+    const d = await far(1.6); let az = -70; await cam(az, 28, d); await sleep(800);
+    const z0 = +(await js("document.querySelector('#lt_p2').value"));
+    await clip("lights", 110, async i => {
+        const step = i === 18 || i === 38 || i === 62;
+        if (i === 18) await lt("select[data-l=like]", "frosted");
+        else if (i === 38) { await lt("select[data-l=like]", "gu10"); await lt("select[data-l=aim]", "down"); await lt("#lt_p2", (z0 * 5).toFixed(0)); }
+        else if (i === 62) { await js("document.querySelector('#g-light button[data-act=add]').click()"); await lt("select[data-l=color]", "pick"); await lt("input[data-l=hex]", "#56b4e9"); await lt("#lt_lm", 300); }
+        az += 0.5; await cam(az, 28, d); await sleep(step ? 800 : 80);
+    });
+    await project("lights"); await dark(); await example("egg");
+};
 S.light_move = () => withLamp(async () => { // the move-a-light tool: the light up its arrow, across, and back; the pattern on the walls follows
     await tab("light"); await set("lamp", true); await fit();
     await cam(-60, 22, await far(1.5)); await js("document.querySelector('#tools [data-tool=light]').click()"); await sleep(600);

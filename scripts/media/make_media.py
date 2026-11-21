@@ -50,16 +50,16 @@ CLIPS = {                             # name: (crop, width, fps)
     "rings": (VIEW43, 1100, 18),      # stacked ring slices: the head solid, as rings, a wider wall, pieces 150 mm at most
     "bands": (VIEW43, 1100, 18),      # the band lattice on the sphere: 4 a family, then 2, 4 x 4 x 3, and 4 again
     "bands_build": (VIEW3D, 1000, 20),   # the 4 x 4 x 4 lattice built up in the order its pieces go in, then pulled apart
-    "light": (VIEW43, 1100, 20),      # the folded lamp unlit, the light tick, one turn round it in its room
-    "lights": (FULL, 1200, 16),       # the Light tab: LED, frosted bulb, a spot, a second light in blue
+    "light": (VIEW43, 1100, 20),      # the lamp folds up from its flat net, the light tick, one turn round it in its room
+    "lights": (FULL, 1200, 16),       # the Light tab on the radial bowl: LED, frosted bulb, a spot from above, a second light in blue
     "light_move": (FULL, 1200, 16),   # the move-a-light tool: up its arrow, across, back
     "mask": (VIEW, 1200, 16),         # folded: the lion head, a seam round its face, the back selected and removed, turned to the front
 }
 
 POSTER = {"spacing": 54,             # the frame a clip's poster is, where the first one does not show its subject (the graph opens at frame 8)
           "mask": 104,
-          "light": 60,               # lit, a quarter turn in (frames 0-17 are the unlit lamp)
-          "lights": 70,              # the spot and the blue bulb
+          "light": 110,              # lit, in its room (frames 0-74 are the net folding up)
+          "lights": 10,              # the small LED inside the bowl: the grid on the walls
           "light_move": 34,          # the light near the top of its arrow
           "rings": 44,               # the stack as rings, wall 8 mm (frames 0-29 are the solid slices)
           "bands_build": 44}         # the lattice two thirds built (frame 0 is its first band alone)
