@@ -89,21 +89,31 @@ def standoff_mesh(plan, gap, ends, half=0) -> trimesh.Trimesh:
 
 def standoff_print(plan, gap, ends) -> trimesh.Trimesh:
     """A standoff as it is printed, on z = 0, its axis along x: cut in half along its length, both halves with the cut
-    face down, side by side, joined along the body by a hinge `standoff_hinge` thick and twice that wide. Each half
-    only gets narrower as it rises, so nothing needs a support, and the layers run along the pins. Folded shut about
-    the hinge, the two halves are the standoff (the second half lies turned half a turn about the hinge line). With no
+    face down, side by side, the two bodies touching along one line on the plate and joined there over a height of
+    `standoff_hinge`. That line is the hinge: with nothing between the halves there is one place to bend, and folded
+    shut about it the two halves are the standoff, edge on edge (a strip between them bent at either of its sides and
+    closed the halves out of line: Marcel's second print). The second half lies turned half a turn about that line.
+    Each half only gets narrower as it rises, so nothing needs a support, and the layers run along the pins. With no
     gap there is no body to hinge: the pin is printed whole, on a flat side."""
     so, h = plan["standoffs"], plan["params"]["standoff_hinge"]
     if gap == 0:
         m = standoff_mesh(plan, gap, ends).apply_transform(trimesh.transformations.rotation_matrix(np.pi / 2, [1, 0, 0]))
         return m.apply_translation(-m.bounds[0])
-    R = Polygon(so["body"]).bounds[2]; w = 2 * h                      # the body's edge, the hinge's width: room for the half turn
+    R = Polygon(so["body"]).bounds[2]                                  # the body's edge: where the two halves touch
     a = standoff_mesh(plan, gap, ends, 1).apply_transform([[0, 0, 1, 0], [1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1]])
-    b = standoff_mesh(plan, gap, ends, -1).apply_transform([[0, 0, 1, 0], [-1, 0, 0, 2 * R + w], [0, -1, 0, 0], [0, 0, 0, 1]])
-    lap = 0.3                                                          # into each half, so the three are one solid
-    hinge = trimesh.creation.box([gap, w + 2 * lap, h]).apply_translation([ends[0][0] + gap / 2, R + w / 2, h / 2])
+    b = standoff_mesh(plan, gap, ends, -1).apply_transform([[0, 0, 1, 0], [-1, 0, 0, 2 * R], [0, -1, 0, 0], [0, 0, 0, 1]])
+    # two round bodies side by side meet in a line with no area: the bar fills the bottom of the valley between them,
+    # so they are one solid there, `standoff_hinge` high and nowhere wider than the bodies themselves
+    lap = 0.3
+    hinge = trimesh.creation.box([gap, 2 * lap, h]).apply_translation([ends[0][0] + gap / 2, R, h / 2])
     m = _joined([a, hinge, b])
     return m.apply_translation([0, R, 0])
+
+
+WHY_TWO_SHAPES = ("Why two shapes: a layer inside the stack has a standoff under it and one over it in the same hole, so each",
+                  "pin can go only half way in. A hole with a standoff on one side only has room for a pin through the whole",
+                  "layer, which holds better and leaves no open hole. The shape of the hole says which pin it takes: a long",
+                  "pin does not go into a shared hole, where it would push the other standoff out.")
 
 
 def standoff_text(plan, f=1.0, u="mm") -> list:
@@ -114,8 +124,9 @@ def standoff_text(plan, f=1.0, u="mm") -> list:
            "A standoff's body keeps two layers apart. A pin at each end goes into a hole:",
            f"  {shape} pin, short  -> a {shape} hole. Two standoffs share it, one from each side.",
            "  pentagon pin, long  -> a pentagon hole. The pin goes through and ends flush.",
-           "Print them as they lie in the file: each is two halves, flat side down, joined by a thin hinge. No supports.",
-           "Fold the two halves together, then push the pins into the holes. The holes keep the standoff closed.",
+           *WHY_TWO_SHAPES,
+           "Print them as they lie in the file: each is two halves, flat side down, touching along one edge. No supports.",
+           "Fold the two halves together about that edge, then push the pins into the holes. The holes keep it closed.",
            "Each has its size (S1, S2 ...) on a tag beside it, a chip on a thin line: read it, then snap the tag off.", "",
            f"{'size':<6}{'qty':<6}{'gap':<8}{'pins':<34}between"]
     end = lambda e: f"{e[0] * f:.3g} {'pentagon' if e[1] else shape}"   # noqa: E731

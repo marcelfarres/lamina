@@ -77,14 +77,16 @@ def test_a_shared_hole_takes_two_half_pins_and_a_hole_of_its_own_a_flush_pin_in_
     assert seen == {True, False}                                       # the egg has both kinds
 
 
-def test_a_standoff_prints_as_two_halves_on_a_hinge_that_fold_into_it():
+def test_a_standoff_prints_as_two_halves_that_touch_and_fold_into_it():
     """Bug 058 (Marcel's first print: "the dowels are difficult to print"). A standoff is printed cut in half along
-    its length, both halves with the cut face on the plate, joined along the body by a hinge two layers thick: one
-    closed solid, no face that hangs in the air past 45 degrees, and most of its footprint on the plate. Folded shut
-    about the hinge, the two halves are the standoff: every point of the print lies on it, the hinge strip aside."""
+    its length, both halves with the cut face on the plate: one closed solid, no face that hangs in the air past 45
+    degrees, and most of its footprint on the plate. The two bodies touch along one line and are joined there two
+    layers high. His second print had a strip between the halves: "there is a space between each half ... it bends at
+    the piece not the center of the tab", and the halves closed out of line. With no space the print is exactly two
+    bodies wide, there is one line to fold on, and folded about it every point of the print lies on the standoff."""
     plan = build(EXAMPLES / "egg.stl", "stacked", JOB)
     so, h = plan["standoffs"], plan["params"]["standoff_hinge"]
-    R = Polygon(so["body"]).bounds[2]; w = 2 * h
+    R = Polygon(so["body"]).bounds[2]; w = 0.0                         # no space between the halves
     assert h == 0.4
     for _, gap, ends, _ in standoff_kinds(plan):
         m = standoff_print(plan, gap, ends)
@@ -96,13 +98,16 @@ def test_a_standoff_prints_as_two_halves_on_a_hinge_that_fold_into_it():
         whole = standoff_mesh(plan, gap, ends)
         on_plate = a[(n[:, 2] < -0.99) & (z.max(1) < 0.01)].sum()
         assert on_plate > 0.9 * whole.area_faces[np.abs(whole.face_normals[:, 2]) < 0.01].sum() / np.pi   # both cut faces, whole
-        assert np.isclose(m.volume, whole.volume + w * h * gap, rtol=0.01)       # the standoff and its hinge
-        # fold the second half over, half a turn about the middle of the hinge, and both halves lie on the standoff
+        assert np.isclose(m.volume, whole.volume, rtol=0.002)             # the standoff: the join adds next to nothing
+        # at the top of the join the two halves are less than a tenth of a millimetre apart: a line, not a strip
+        low = m.section(plane_origin=[ends[0][0] + gap / 2, 0, 0], plane_normal=[1, 0, 0]).vertices
+        assert np.abs(low[np.abs(low[:, 2] - h) < 1e-6][:, 1] - 2 * R).max() < 0.05
+        # fold the second half over, half a turn about the line the halves touch on, and both lie on the standoff
         whole.apply_transform([[0, 0, 1, 0], [1, 0, 0, R], [0, 1, 0, 0], [0, 0, 0, 1]])
         v = m.vertices.copy()
-        far = v[:, 1] > 2 * R + w / 2
-        v[far, 1] = 4 * R + w - v[far, 1]; v[far, 2] *= -1
-        strip = (np.abs(v[:, 2]) <= h + 1e-6) & (v[:, 1] > 2 * R - 0.31)          # the hinge, and where it runs into each half
+        far = v[:, 1] > 2 * R
+        v[far, 1] = 4 * R - v[far, 1]; v[far, 2] *= -1
+        strip = (np.abs(v[:, 2]) <= h + 1e-6) & (v[:, 1] > 2 * R - 0.31)          # the join, where it runs into each half
         off = trimesh.proximity.closest_point(whole, v[~strip])[1]
         assert off.max() < 1e-3, off.max()
 
