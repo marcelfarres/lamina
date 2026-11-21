@@ -25,8 +25,8 @@ inside to see it as a lamp.
 
   [![The band sphere: three families of rings, each with its own colour and pattern; the clip builds it ▶](web/static/news/0.4.0-bands.jpg)](https://marcelfarres.github.io/lamina/media/bands_build.mp4)
 
-- **Ring slices.** Tick *ring slices* on Stacked: each slice keeps only a wall, so the stack uses about a quarter
-  of the material. Each dowel sits in a collar. Thanks to @DaveLauber: adapted from his fork.
+- **Ring slices.** Tick *ring slices* on Stacked: each slice keeps only a wall, about a quarter of the material.
+  *Max piece length* cuts long rings to fit small sheets. Thanks to @DaveLauber: adapted from his fork.
 
   [![The scanned head as a stack of rings on dowels ▶](web/static/news/0.4.0-rings.jpg)](https://marcelfarres.github.io/lamina/media/rings.mp4)
 
@@ -34,11 +34,6 @@ inside to see it as a lamp.
   posts hold the laser-cut layers apart. The print file comes in the zip, named 3D-PRINT. Try the new *shade*.
 
   ![The shade example: laser-cut layers held apart by printed standoffs](web/static/news/0.4.0-standoff.jpg)
-
-- **Shorter pieces for small sheets.** *Max piece length* cuts a long ring into pieces no longer than the length
-  you give, joined by tabs, so they fit a small sheet. Thanks to @DaveLauber: adapted from his fork.
-
-  ![The head's rings cut into pieces of 150 mm at most, nested on one sheet](web/static/news/0.4.0-max-length.jpg)
 
 - **Light your model.** Tick *light* over the 3D view to see its light and soft shadows in a room. The *Light* tab
   holds up to four bulbs and spots; drag them in the view. Saved with the project.
@@ -55,20 +50,10 @@ inside to see it as a lamp.
 
   ![The put a seam tool: your seams as a thick line round the back of the lion's head](web/static/news/0.4.0-seams.jpg)
 
-- **Printed seams that click shut.** The *click* joint for printed folded panels: a tooth on one panel snaps under
-  a bar on the other. No glue, no loose parts, nothing outside. *click size* fits it to any model.
+- **Printed panels join without glue.** Pick a joint for the seams. *click*: a tooth snaps under a bar. *snap*: a
+  printed clip, closed at one end, slides along a short wall on each panel. Try both on the new *fold_box*.
 
-  ![The box laid flat: the teeth and bars of the click joint stand on the inside of the panels](web/static/news/0.4.0-click.jpg)
-
-- **Or seams held by clips.** The *snap* joint puts a short wall on each panel inside every seam, and a small
-  printed clip slid along the two holds them. The clips print on a plate of their own.
-
-  ![The box laid flat: a short wall on each panel at every seam, for the snap joint's clips](web/static/news/0.4.0-snap.jpg)
-
-- **Two new folded examples.** *fold_box* is a box with a lid that you print flat and fold up. *fold_lantern* is a
-  plywood lantern of 72 pieces.
-
-  ![The fold_box example half folded, and the fold_lantern example](web/static/news/0.4.0-examples.jpg)
+  ![The new fold_box laid flat twice: a click joint, then the short walls a snap joint's clip slides along](web/static/news/0.4.0-joints.jpg)
 
 - **Choose which slices go in first.** *Into the plate first* picks the X or Y slices of a crossed plaque. The
   others slide onto them one by one. *First family height* makes them a low rail. Their teeth are full width.
@@ -82,15 +67,10 @@ inside to see it as a lamp.
 
 ### Changed
 
-- **Settings that are easy to read.** Full names, sections that fold, a ↺ sign to undo a change, a box over the
-  tabs that finds a setting, and help that opens under a setting's name when you click it.
+- **Settings that are easy to read.** Full names, sections that fold, ↺ to undo a change, a search box over the
+  tabs, and help that opens under a setting's name. The *basic* switch shows only what a first piece needs.
 
-  ![The Technique tab: full names, folding sections and the search box](web/static/news/0.4.0-settings.jpg)
-
-- **Basic or all settings.** A switch under the search box shows only what a first piece needs. Your result is the
-  same.
-
-  ![The basic / all switch under the search box](web/static/news/0.4.0-basic.jpg)
+  ![The Technique tab: full names, folding sections, the search box and the basic / all switch](web/static/news/0.4.0-settings.jpg)
 
 - **The spacing graph, under its tick.** Start the curve from a shape, add or move points with buttons, and see
   every slice under the curve.
@@ -120,10 +100,10 @@ inside to see it as a lamp.
 
   [![The steps slider folding the lamp shade ▶](web/static/news/0.4.0-fold.jpg)](https://marcelfarres.github.io/lamina/media/fold.mp4)
 
-- **An easier lamp.** *fold_lamp* has 30 bigger triangles and 12 seams to close, not 72 and 32. It still prints on
-  one plate.
+- **An easier lamp, and a lantern.** *fold_lamp* has 30 bigger triangles and 12 seams to close, not 72 and 32. It
+  still prints on one plate. The new *fold_lantern* is a plywood lantern of 72 pieces.
 
-  ![The fold_lamp example with its 30 triangles](web/static/news/0.4.0-lamp-example.jpg)
+  ![The fold_lamp example with its 30 triangles, and the new fold_lantern](web/static/news/0.4.0-examples.jpg)
 
 - **Small changes to folded panels.** The printed-fold settings show only on a print job. Joint settings show only
   where they apply. A fin thinner than two sheets gets a warning. A print set says which parts lost their grooves.
