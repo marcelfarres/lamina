@@ -174,9 +174,14 @@ sheet under that face is in its way: the fold would stop short. The click then s
 shortest bar, and is left out with a warning when neither helps. The check looks at the faces next to the panel,
 not at the walls that stand on them.
 
-Which seams get a click when not all can: `Folded.far` puts the seams in order, farthest from a fold of their flat
-face first. A lid hangs on one fold. The seam opposite that fold holds it shut, so it finds its place before the
+Which seams get a click when not all can: the seams between two panels come first, since they are all that holds a
+piece to the rest; then `Folded.far` puts the others in order, farthest from a fold of their flat face first. A lid hangs on one fold. The seam opposite that fold holds it shut, so it finds its place before the
 seams beside the fold, which the fold holds already.
+
+A seam a click does not fit, a frame too narrow beside a window or a seam too short, tries a smaller click before it
+is left plain: 85 % and then 70 % of `click size` (`CLICK_SMALLER`); the plan names those seams. A piece with a seam
+but no click on any of them gets a warning, since nothing would hold it. His v9 lamp had such a piece: a loose
+triangle whose two seams missed their click, one by 0.07 mm of frame, the other to a click placed first next door.
 
 One click at a time: several clicks that must go in at the same moment are hard to press shut. `Folded.closing`
 finds the seams that close in one motion and gives only one of them a click; the others get a locator, the tooth

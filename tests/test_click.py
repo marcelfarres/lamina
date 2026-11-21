@@ -46,7 +46,7 @@ def test_the_seams_of_the_box_click_with_no_part_of_their_own_and_nothing_on_the
     located = int(next(n for n in plan["notes"] if "locator" in n).split(" seam(s) close")[0].split()[-1])
     assert len(bars) >= 7 and len(fillets) == 6 * len(bars) and len(walls) == 14 * len(bars) - located
     # a click: a wall, the tooth and its ridge; a bar, two posts, two blocks, and a fillet of three steps at each end. A locator: no ridge
-    assert all(F.CLICK_SPAN[0] + 1 - 1e-3 <= math.dist(r["a"], r["b"]) <= F.CLICK_SPAN[1] + 1 + 1e-3 for r in bars)
+    assert all(F.CLICK_SPAN[0] * min(F.CLICK_SMALLER) + 1 - 1e-3 <= math.dist(r["a"], r["b"]) <= F.CLICK_SPAN[1] + 1 + 1e-3 for r in bars)   # a smaller click where a full one does not fit
     assert outline(box(joint="seam")).symmetric_difference(outline(plan)).area < 1e-6
     feet = [(F.Rail(r["a"], r["b"], r["into"], r["profile"]).foot(), tuple(round(x, 3) for x in r["into"])) for r in walls]
     assert not [1 for i, (a, na) in enumerate(feet) for b, nb in feet[i + 1:] if na != nb and a.intersection(b).area > 1e-3]   # no two seams' walls grow into one
@@ -150,7 +150,7 @@ def test_a_click_beside_a_fold_that_would_close_onto_it_takes_a_shorter_bar():
     plan = build(ROOT / "examples" / "fold_test.stl", "folded", {**PRESET, "material_kind": "PETG", "autofix": "off", "joint": "click"})
     rails = [r for s in plan["slices"] for pc in s["pieces"] for r in pc["rails"]]
     bars = sorted(round(math.dist(r["a"], r["b"]) - 1) for r in rails if len(r["profile"]) == 4 and min(z for _, z in r["profile"]) > 2.5 and math.dist(r["a"], r["b"]) > 10)
-    assert bars == [16, 16, 16, 24] and len(rails) == 14 * 4 - sum(" locator" in n for n in plan["notes"])   # no seam of the test piece closes with another
+    assert bars[-1] == 24 and 16 in bars and len(rails) == 14 * len(bars) - sum(" locator" in n for n in plan["notes"])   # the clicks beside a fold: shorter bars
 
 
 def test_a_piece_on_no_fold_gets_two_clicks_so_it_cannot_swing_out_and_the_rule_can_be_turned_off(monkeypatch):
@@ -167,6 +167,24 @@ def test_a_piece_on_no_fold_gets_two_clicks_so_it_cannot_swing_out_and_the_rule_
     assert seen.count("click") == 2 and seen.count("locator") >= 1            # put in place it closes six seams: two clicks, so it cannot swing about one
     seen.clear(); box(joint="click", seams=lid, click_together=False)
     assert "locator" not in seen and seen.count("click") >= 3                   # off: every seam that has room its own click, all at once
+
+
+def test_every_piece_of_the_lamp_is_held_and_a_narrow_frame_gets_a_smaller_click(monkeypatch):
+    # his v9 lamp: the loose triangle's two seams both lost their click (a frame 0.07 mm too narrow, a click placed
+    # before it next door), and nothing held it. Now a seam a click does not fit gets a smaller one, and the seams
+    # between two panels are placed first
+    lamp = json.loads((ROOT / "examples" / "presets.json").read_text(encoding="utf-8"))["fold_lamp"]["params"]
+    got = {}; click = F.Folded.click
+
+    def watched(self, j, k, sides, convex):
+        had = len(sides[0].sl.rails); out = click(self, j, k, sides, convex)
+        got[j] = (sides[0].sl is not sides[1].sl, len(sides[0].sl.rails) > had); return out
+    monkeypatch.setattr(F.Folded, "click", watched)
+    plan = build(ROOT / "examples" / "fold_lamp.stl", "folded", {**lamp, "material_kind": "PETG", "autofix": "off", "joint": "click"})
+    said = [str(w) for s in plan["slices"] for w in s["warnings"]]
+    assert plan["counts"]["errors"] == 0 and not [w for w in said if "has no click joint on any of its seams" in w]
+    assert [placed for between, placed in got.values() if between] == [True, True]   # the loose triangle: both its seams
+    assert sum(placed for _, placed in got.values()) >= 11 and any("made smaller to fit" in n for n in plan["notes"])
 
 
 def test_a_seam_whose_tooth_needs_higher_walls_than_allowed_is_left_plain_and_said():
