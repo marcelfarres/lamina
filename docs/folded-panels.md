@@ -111,9 +111,14 @@ of a shut seam therefore lie face to face, at any bend, and one clip shape (`Fol
 
 Why a separate clip: the two walls move apart sideways when a seam opens, so what holds them must reach round the
 back of the other wall. A part printed flat, without support, cannot grow a hook that goes over a wall and comes
-down behind it. The clip is a U printed flat, 7 mm wide. Its two legs, 1.6 mm thick, bend along the layers (2.4 %
-at the default sizes) and each ends in a hook 0.5 mm into a groove 0.7 mm deep in the back of its wall. The groove
-is 3.6 mm up the wall, so that a leg clears the other panel beside a 2 mm wall on a seam bent 100°.
+down behind it. The clip is a U, 9 mm across and 7 mm long, closed at one end by a plate 1.2 mm thick (`SNAP_PLATE`)
+that fills the space between its legs. Its legs are 2.4 mm thick and its top 3 mm, and each leg ends in a hook
+0.5 mm into a groove 0.7 mm deep in the back of its wall. The groove is 3.6 mm up the wall, so that a leg clears the
+other panel beside a 2 mm wall on a seam bent 100°. The plate ties the legs, so the clip cannot open: it slides on
+along the seam, its hooks running in the grooves, until the plate meets the end of the walls. It prints standing on
+that plate. His second clip test (legs 1.6 mm, an open U standing on 34 mm² of the bed): "too small, too thin, they
+pop out of the bed and too fragile", and the clip opened. The plate is 90 mm² at the default `snap wall`; under
+`CLIP_AREA` (60 mm²) the plan warns and names the `snap wall` that gives a clip that size.
 
 A wall leans over its own panel by half the bend, so it prints without support up to a bend of 100° (`SNAP_LEAN`);
 a sharper seam is left plain with a warning, like a seam shorter than a wall and its margins or a window frame

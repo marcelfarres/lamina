@@ -60,7 +60,11 @@ FOLDED_JOINTS = ("tab", "multitab", "diamond", "ticked", "gear", "tongue", "puzz
 SNAP_WALL = 2.0                       # mm: a wall's thickness (five 0.4 mm lines). 1.2 broke in his first print
 SNAP_LEDGE, SNAP_GROOVE = 3.6, 0.7    # the groove in a wall's back the clip hooks into: how high its ledge is, how deep it is. High enough
                                       # that a clip's leg clears the other panel beside a 2 mm wall on a seam bent 100°
-SNAP_LEG, SNAP_BITE = 1.6, 0.5        # a clip's leg: its thickness, and how far its hook reaches into the groove
+SNAP_LEG, SNAP_BITE = 2.4, 0.5        # a clip's leg: its thickness, and how far its hook reaches into the groove
+SNAP_CROWN, SNAP_PLATE = 3.0, 1.2     # the clip's top across the two legs, and the plate that closes one end of it
+# Under this a clip is warned about (his first clip print: a U standing on 34 mm², "too small, too thin, they pop out
+# of the bed & too fragile"). ponytail: one print sets it; 60 is not proven to print well, only 34 to print badly
+CLIP_AREA = 60.0                      # mm² a clip stands on, on the bed: its plate
 SNAP_CLIP, SNAP_LONG = 7.0, 9.0       # a clip's width along the seam, and the length of wall it sits on (longer walls grow into a
                                       # neighbour seam's at a corner)
 SNAP_LEAN = math.radians(50)          # a wall leans by half the seam's bend: past this it does not print without support
@@ -96,7 +100,7 @@ MAX_PANELS = 400                      # …and parts, when `separate` makes ever
 JOINT_HELP = ("seam = plain edge (glue / sew) · tab = one glue tab · multitab = several small tabs · diamond = triangular ticks · "
               "ticked = dense small ticks along the seam · "
               "gear = rectangular teeth · tongue = tab into a slot on the other panel · puzzle = round-head tab into a matching hole · "
-              "snap = printed panels only: a short wall on the inside of each panel at the seam and a printed clip pushed over the two, nothing to see from outside, no glue · "
+              "snap = printed panels only: a short wall on the inside of each panel at the seam and a printed clip slid along the two, nothing to see from outside, no glue · "
               "click = printed panels only: a tooth on the inside of one panel and a small bridge on the inside of the other; press the seam shut and it clicks, no loose parts, no glue · "
               "rivet = one hole per spacing on both panels · laced = ≥2 holes per edge on both panels (lace / zip-tie) · "
               "loops = alternating eyelet loops on both edges that interleave like hinge knuckles; one lace through all (cloth, leather, masks) · "
@@ -526,6 +530,18 @@ class Folded(Mode):
             phi = self.interior_angle(k)
             extra += self.joint(j, k, sides, phi, convex[k])
         # additions (tabs) → raw; facets for the 3D view: the profile of every face in its own frame (+ folded tabs)
+        if p["joint"] == "snap" and self.hinged and self.inside and slices:   # a clip too small to print well, said with what cures it
+            def clip_area(h):
+                keep = self.p; self.p = {**keep, "snap_h": float(h)}
+                try:
+                    return self.snap_clip(whole=True).area
+                finally:
+                    self.p = keep
+            if clip_area(p["snap_h"]) < CLIP_AREA:
+                need = next((h for h in np.arange(p["snap_h"], 20.01, 0.5) if clip_area(h) >= CLIP_AREA), 20.0)
+                slices[0].warnings.append(f"the clips stand on {clip_area(p['snap_h']):.0f} mm² on the bed and are {SNAP_CLIP:g} mm tall: small "
+                                          f"clips come off the bed and break. Set `snap wall` to {need:g} mm: the walls and the clips over them "
+                                          "grow taller, and the clips stand on more")
         if p["joint"] == "click" and self.smaller:
             ctx.notes_extra = " · ".join(x for x in [ctx.notes_extra, f"{len(self.smaller)} click joint(s) are made smaller to fit a narrow "
                                        f"frame or a short seam (seams {', '.join(map(str, sorted(self.smaller)))})"] if x)
@@ -1380,12 +1396,16 @@ class Folded(Mode):
                 break
         return placed or why
 
-    def snap_clip(self):
+    def snap_clip(self, whole=False):
         """The clip's outline, x across the two walls (0 = where they meet) and y up them: a U whose two legs each end
-        in a hook, `SNAP_BITE` into the groove of its wall. Printed flat, so its legs bend along the layers. One
-        shape for every seam: the walls are the same at any bend."""
+        in a hook, `SNAP_BITE` into the groove of its wall; `whole`: the outline with the space between the legs
+        filled, which the plate at one end of the clip is. One shape for every seam: the walls are the same at any
+        bend. The plate ties the legs, so the clip cannot open: it slides on along the seam, its hooks running in
+        the grooves, until the plate meets the end of the walls. It prints standing on that plate."""
         p = self.p; a = SNAP_WALL + p["snap_fit"]; b = SNAP_BITE; l = SNAP_LEDGE; top = p["snap_h"] + 0.2; lo = l - 0.9; x1 = a + SNAP_LEG
-        outer = Polygon([(-a, lo), (a, lo), (x1, lo + 1.5 * SNAP_LEG), (x1, top + 1.6), (-x1, top + 1.6), (-x1, lo + 1.5 * SNAP_LEG)])   # the legs' feet cut back: clear of the panels
+        outer = Polygon([(-a, lo), (a, lo), (x1, lo + 1.5 * SNAP_LEG), (x1, top + SNAP_CROWN), (-x1, top + SNAP_CROWN), (-x1, lo + 1.5 * SNAP_LEG)])   # the legs' feet cut back: clear of the panels
+        if whole:
+            return outer
         room = Polygon([(a, lo - 1), (a, lo), (a - b, l - 0.4), (a - b, l - 0.05), (a, l - 0.05), (a, top),
                         (-a, top), (-a, l - 0.05), (b - a, l - 0.05), (b - a, l - 0.4), (-a, lo), (-a, lo - 1)])
         return outer.difference(room).buffer(0.25).buffer(-0.25)       # the inside corners rounded: where a leg would crack
@@ -1412,15 +1432,16 @@ class Folded(Mode):
             return []
         fa, fb = (int(x) for x in m.face_adjacency[k]); va, vb = m.face_adjacency_edges[k]
         e = m.vertices[vb] - m.vertices[va]; e /= np.linalg.norm(e)
-        clip = self.snap_clip(); clips = []
+        clip, whole = self.snap_clip(), self.snap_clip(whole=True); clips = []
         for i in range(n):
             c = (i + 0.5) / n * L; E = m.vertices[va] + e * c
             for s in sides:
                 self.stand(s, va, e, c - SNAP_LONG / 2, c + SNAP_LONG / 2, profile)
             a = sides[0]; into = m.triangles_center[a.f] - E; into -= np.dot(into, e) * e; into /= np.linalg.norm(into); inn = -m.face_normals[a.f]
             O = E + into * at[0] + inn * at[1]                # where the two walls' fronts start, on the model
-            sl = Slice(f"K-{j}{'abcdefgh'[i] if n > 1 else ''}", "J", frame_xy(O, into * back[0] + inn * back[1], into * up[0] + inn * up[1]), SNAP_CLIP)
-            sl.raw = as_multi(clip); sl.springy = True; clips.append(sl)
+            sl = FoldedSlice(f"K-{j}{'abcdefgh'[i] if n > 1 else ''}", "J", frame_xy(O, into * back[0] + inn * back[1], into * up[0] + inn * up[1]), SNAP_CLIP)
+            sl.raw = as_multi(whole); sl.thin, sl.thin_t = [whole.difference(clip)], SNAP_PLATE   # the U on its plate: between the legs only the plate
+            sl.springy = True; clips.append(sl)
         return clips
 
     def tabs(self, j, sides, jt, convex, swapped=False):

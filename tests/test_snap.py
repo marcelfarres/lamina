@@ -67,7 +67,9 @@ def test_the_two_walls_of_a_shut_seam_meet_on_one_plane_and_the_clip_holds_both(
     reach = clip.intersection(hook).bounds[2]                         # how far the left leg's hook comes in under the ledge
     back_face = -F.SNAP_WALL                                          # the wall's back, where the groove is cut into it
     assert back_face < reach < back_face + F.SNAP_GROOVE              # the hook is in the groove: it cannot lift off
-    assert 1.5 * F.SNAP_LEG * F.SNAP_BITE / (f.p["snap_h"] + 0.2 - F.SNAP_LEDGE) ** 2 < 0.025     # a leg bends under 2.5 % going on
+    plate = f.snap_clip(whole=True).difference(f.snap_clip())
+    assert plate.area > 2 * F.SNAP_WALL * (F.SNAP_LEDGE - 1)                     # the plate fills the space between the legs: they cannot spread
+    assert f.snap_clip(whole=True).area > F.CLIP_AREA > 34                       # it stands on more than what came off the bed in his first print
 
 
 def test_a_seam_bent_too_far_for_a_wall_to_print_is_left_plain_and_said():
@@ -82,6 +84,14 @@ def test_the_snap_joint_on_a_cut_sheet_is_an_error_and_the_seams_stay_plain():
     assert not [s for s in plan["slices"] if s["group"] == "J"] and not [pc for s in plan["slices"] for pc in s["pieces"] if pc.get("rails")]
 
 
+def test_a_clip_too_small_to_print_well_is_said_with_the_wall_height_that_cures_it():
+    said = lambda plan: [w for s in plan["slices"] for w in s["warnings"] if "come off the bed" in w]   # noqa: E731
+    low = box(joint="snap", snap_h=6.0)
+    assert said(low) and "Set `snap wall` to" in said(low)[0] and not said(box(joint="snap"))
+    cure = float(said(low)[0].split("Set `snap wall` to ")[1].split(" mm")[0])
+    assert not said(box(joint="snap", snap_h=cure))
+
+
 @pytest.mark.skipif(not has_boolean(), reason="needs manifold3d to fuse the walls onto the panel")
 def test_the_print_files_are_closed_solids_with_the_walls_fused_on(tmp_path):
     plan = box(joint="snap"); files = proto_set(plan, tmp_path)
@@ -90,3 +100,6 @@ def test_the_print_files_are_closed_solids_with_the_walls_fused_on(tmp_path):
     assert 8 < panel.bounds[1][2] < 12.5                              # 2 mm of panel and the walls on it, leaning
     assert panel.volume > trimesh.load(next(f for f in proto_set(box(joint="seam"), tmp_path / "plain") if f.name == "P-1.stl")).volume + 200   # 24 walls
     assert clip.is_watertight and clip.bounds[1][2] == pytest.approx(F.SNAP_CLIP)
+    bed = clip.section(plane_origin=[0, 0, 0.1], plane_normal=[0, 0, 1]).to_2D()[0].area
+    top = clip.section(plane_origin=[0, 0, F.SNAP_CLIP - 0.1], plane_normal=[0, 0, 1]).to_2D()[0].area
+    assert bed > 1.3 * top                                                       # it stands on its plate; above it, the U

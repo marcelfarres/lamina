@@ -45,7 +45,7 @@ in the 3D view. Make a mask from any model, and light it from inside to see it a
   ![The box laid flat: the teeth and bars of the click joint stand on the inside of the panels](web/static/news/0.4.0-click.jpg)
 
 - **Or seams held by clips.** The *snap* joint puts a short wall on each panel inside every seam, and a small
-  printed clip pushed over the two holds them. The clips print on a plate of their own.
+  printed clip slid along the two holds them. The clips print on a plate of their own.
 
   ![The box laid flat: a short wall on each panel at every seam, for the snap joint's clips](web/static/news/0.4.0-snap.jpg)
 
