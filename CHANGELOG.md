@@ -50,8 +50,8 @@ inside to see it as a lamp.
 
   ![The put a seam tool: your seams as a thick line round the back of the lion's head](web/static/news/0.4.0-seams.jpg)
 
-- **Printed panels join without glue.** Pick a joint for the seams. *click*: a tooth snaps under a bar. *snap*: a
-  printed clip, closed at one end, slides along a short wall on each panel. Try both on the new *fold_box*.
+- **Printed panels join without glue.** *click*: a tooth snaps under a bar. *snap*: a closed clip slides along a
+  wall on each panel. Both bend up to 100° out, 71° in. Try them on *fold_box*.
 
   ![The new fold_box laid flat twice: a click joint, then the short walls a snap joint's clip slides along](web/static/news/0.4.0-joints.jpg)
 
@@ -119,9 +119,6 @@ inside to see it as a lamp.
   ![The egg's top layer on the sheet: before, its name, arrow and dowel numbers on it; now clean, its name beside it](web/static/news/0.4.0-clean-tops.jpg)
 
 ### Fixed
-
-- **The click and clip bend limits.** Both joints work up to 100° outward and 71° inward. A seam past
-  that is left plain, and Lamina names it with its bend: glue it.
 
 - **Puzzle tabs on tall split parts.** A part split across its height now gets puzzle tabs, as one split across its
   width does, and every piece still fits the sheet.
