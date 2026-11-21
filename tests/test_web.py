@@ -107,10 +107,14 @@ def test_the_solid_downloads_of_a_job(api):
     assert step.status_code == 200 and step.content.startswith(b"ISO-10303-21;") and ".step" in step.headers["content-disposition"]
     assert api.get(f"/api/job/{MINE}/{job}/step", params={"part": "no such"}).status_code == 404
     names = lambda r: zipfile.ZipFile(io.BytesIO(r.content)).namelist()
-    same = names(api.get(f"/api/job/{MINE}/{job}/proto", params={"scale": 1, "offset": 0}))
-    assert "plate.3mf" in same and "README.txt" not in same                     # the job as it is: nothing to say
-    thin = names(api.get(f"/api/job/{MINE}/{job}/proto", params={"scale": 0.1, "min_thick": 1.2}))
-    assert "plate.3mf" in thin and "README.txt" in thin
+    readme = lambda r: zipfile.ZipFile(io.BytesIO(r.content)).read("README.txt").decode().splitlines()
+    same = api.get(f"/api/job/{MINE}/{job}/proto", params={"scale": 1, "offset": 0})
+    # the job as it is, not planned again. Its README says one thing (bugs/068): the top layer prints clean (hidden
+    # marks), so it carries its number on a tag beside it (bugs/061)
+    (note,) = readme(same)
+    assert "plate.3mf" in names(same) and note.startswith("1 part(s) have no room") and "Z-3" in note
+    thin = api.get(f"/api/job/{MINE}/{job}/proto", params={"scale": 0.1, "min_thick": 1.2})
+    assert "plate.3mf" in names(thin) and readme(thin)[0].startswith("re-planned at")
     fit = names(api.get(f"/api/job/{MINE}/{job}/fit", params={"scale": 1, "offset": 0.2, "step": 0.05}))
     assert "plate.3mf" in fit and "README.txt" in fit and "fit_0.25.stl" in fit and "fit_0.10.stl" in fit
     cut = names(api.get(f"/api/job/{MINE}/{job}/fitcut", params={"fmt": "svg", "step": 0.1}))
