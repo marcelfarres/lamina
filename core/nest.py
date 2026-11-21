@@ -22,7 +22,7 @@ from shapely import affinity
 from shapely.geometry import Point, box
 from shapely.ops import unary_union
 from .geometry import as_multi, min_rect_angle
-from .labels import fit_on_part, label_angles, label_box, mark_box, mark_rot, mark_size, place_labels, tag_room
+from .labels import PRINT_MARK, fit_on_part, label_angles, label_box, mark_box, mark_rot, mark_size, place_labels, tag_room
 from .nofit import Sheet, _convex_pieces, _fill_small_holes, _hull, _rot
 
 ROTS = (0, 90, 180, 270)
@@ -188,9 +188,13 @@ def _nest(pieces, job):
             # holds the bold printed letters too) carries it on a tag beside it: room for the tag is kept above it,
             # its line's length and the tag's clearance away (core/solid.py, print_tag)
             w, h = label_box(pc.label, job.font)
+            room = [box(x - W / 2, y - H / 2, x + W / 2, y + H / 2) for x, y, j in getattr(pc.parent, "seam_tags", ())   # a panel's seam numbers' tags
+                    for W, H in [tag_room(j, PRINT_MARK)]]
             if fit_on_part(pc.kerfed, pc.parent.cover, w, h, (), label_angles(pc.kerfed), room=min(2.0, 0.3 * job.font)) is None:
                 (x0, y0, x1, y1), (W, H) = pc.kerfed.bounds, tag_room(pc.label, job.font); cx = (x0 + x1) / 2
-                pc.nest_shape = as_multi(unary_union([pc.kerfed, box(cx - W / 2, y1 + 0.8, cx + W / 2, y1 + 0.8 + H)]))
+                room.append(box(cx - W / 2, y1 + 0.8, cx + W / 2, y1 + 0.8 + H))
+            if room:
+                pc.nest_shape = as_multi(unary_union([pc.kerfed, *room]))
         elif job.labels and job.place != "on":
             # A part too small to carry even its bare name is nested with the room for that name reserved above it,
             # so the label can sit right beside the part instead of wherever the packed sheet leaves a gap. The

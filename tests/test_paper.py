@@ -106,13 +106,13 @@ def test_a_printed_job_prints_the_window_as_a_thin_layer_on_the_bed():
     for s in panels(plan):
         pc = s["pieces"][0]
         pane = sum(Polygon(r[0]).area for r in pc["paper"])
-        solid, _, _ = proto_part(pc, 2, 1, "none", 5, 0.2)
+        solid, _, _, _ = proto_part(pc, 2, 1, "none", 5, 0.2)
         assert solid.is_watertight and not solid.metadata["plain"]
         assert abs(solid.volume - (pc["area"] * 2 - pane * (2 - 0.2))) < 0.01 * solid.volume
         # nothing is engraved on a pane: no seam number, and the part's own label keeps off it (0.2 mm would be cut through)
         thin = [Polygon(r[0]) for r in pc["paper"]]
         assert pc["kerfed_marks"] and not any(g.buffer(-0.01).contains(Point(m[0], m[1])) for m in pc["kerfed_marks"] for g in thin)
-        with_label, got, _ = proto_part(pc, 2, 1, "groove", 5, 0.2)
+        with_label, got, _, _ = proto_part(pc, 2, 1, "groove", 5, 0.2)
         assert got and abs(with_label.volume - solid.volume) < 60          # a label's groove, not a hole in a pane
     thick = cube(**{**job, "thickness": 1.0}, window_fill="paper", paper_t=1.0)
     assert holes(thick) == 6 and not papers(thick)            # a pane as thick as the panel: the windows stay open, and it says so
