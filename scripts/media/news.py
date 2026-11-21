@@ -373,8 +373,8 @@ def plaque_back(app):                         # the plaque settings as the examp
 
 
 def n040_first(app):
-    # the low-poly cow: at ny 1 its rail misses the lowered head (5 ribs touch nothing); at ny 2 it runs through the
-    # head, and only the last rib, at the tail, has an error
+    # the low-poly cow: at ny 2 the rail runs through the lowered head; the last rib, at the tail, crosses no rail and
+    # stands on its own teeth (bugs/059): 0 errors
     crossed_side(app, "cow", 50, (("nx", 20), ("first_height", 35), ("ny", 2)))
     app.view(65, 30, 0.75)
     app.p.evaluate("() => {const s = document.querySelector('#steps'); s.value = 9;"   # the plate, the rail, 7 ribs
