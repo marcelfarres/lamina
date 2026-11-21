@@ -149,6 +149,22 @@ def test_a_piece_no_neighbour_can_hold_is_left_out_and_said_or_kept_with_its_err
     assert kept["counts"]["errors"] > 0 and not any("left out" in n for n in kept["notes"])
 
 
+def test_a_model_that_only_touches_the_plate_says_so_and_offers_a_sink_that_stands(tmp_path):
+    """A rounded back at sink 0 touches the plate at a point: no slice reaches it with room for a tooth (bugs/060: the
+    cow picked as a Plaque gave the plate alone, "W-1 floats", 100 pieces left out). The build stops with an error that
+    says so and offers the model sunk half its depth: its thinnest side to the plate, or its back as it is. Both stand."""
+    egg = trimesh.creation.icosphere(3, 1.0)
+    egg.apply_scale((60, 30, 40))                                   # 120 long, 60 deep, 80 high: thinnest across y
+    path = stl(tmp_path, egg, "egg")
+    plan = build(path, "plaque", BASE)
+    assert plan["counts"]["parts"] == 0 and len(plan["errors"]) == 1 and "nothing stands on the plate" in plan["errors"][0]
+    (fix,) = plan["fixes"]
+    assert [o["set"] for o in fix["options"]] == [{"back": "-y", "sink": 30.0}, {"sink": 40.0}]
+    for o in fix["options"]:
+        fixed = build(path, "plaque", {**BASE, **o["set"]})
+        assert fixed["counts"]["errors"] == 0 and fixed["counts"]["parts"] > 5, (o["title"], fixed["errors"])
+
+
 def test_a_radial_fan_stands_round_a_hole_with_teeth_under_every_half_slice(ball):
     plan = build(ball, "plaque", {**BASE, "layout": "radial", "planes": 8, "sink": 50, "plate": "circle"})
     assert plan["counts"]["errors"] == 0, plan["errors"]

@@ -252,6 +252,9 @@ class Plaque(Stacked):
         say(ctx, said)
         plate = Slice("W-1", "W", fr.Mp, fr.plate_t); plate.raw = as_multi(shape)
         pieces, held = self._teeth(ctx, lay, slices, plate, shape, fr)
+        if not plate.cuts:                              # no slice stands on the plate: there is nothing to hang the rest on
+            self._nothing_stands(ctx)
+            return []
         slices, extra = self._hang(ctx, lay, slices, pieces, held, fr.plate_t)
         return [plate] + self.in_order(slices, extra)
 
@@ -276,6 +279,25 @@ class Plaque(Stacked):
         up = ctx.ax[1] if k == 2 else ctx.ax[2]
         Mp = frame_xy(n_p * (z0 - plate_t / 2), np.cross(up, n_p), up)
         return Frame(Mp, n_p, up, z0, plate_t, depth, ctx.mesh.slice_plane(n_p * z0, n_p))
+
+    @staticmethod
+    def _nothing_stands(ctx):
+        """The error when no slice reaches the plate with room for a tooth (bugs/060: the cow at sink 0 touches its
+        plate with one hoof), and the settings that give the model a footprint: sunk half its depth, with its back as
+        it is and with the side it is thinnest across, which turns its biggest outline to the front."""
+        p = ctx.p; k = "xyz".index(p["back"][1])
+        depth = [float(np.ptp(ctx.mesh.vertices @ a)) for a in ctx.ax]
+        e = (f"nothing stands on the plate: at sink {p['sink']:g} mm no slice reaches it with room for a tooth, so every slice "
+             f"would float — sink the model further into the plate, or put another side of it against the plate")
+        opts = []
+        for j in dict.fromkeys((int(np.argmin(depth)), k)):  # ponytail: half the depth, a relief cut through the middle; the least sink that stands would keep more
+            back = p["back"][0] + "xyz"[j]; sink = float(round(depth[j] / 2))
+            s = {"back": back, "sink": sink} if j != k else {"sink": sink}
+            if p["layout"] == "parallel" and p["axis"] == "xyz"[j]:     # the slices cannot run along the plate's normal: across the model's length
+                s["axis"] = "xyz"[max((a for a in range(3) if a != j), key=lambda a: depth[a])]
+            opts.append({"title": (f"back of the model {back}, sink {sink:g} mm" if j != k else f"sink {sink:g} mm"), "set": s})
+        ctx.errors.append(e)
+        ctx.fixes.append({"error": e, "options": opts})
 
     def _parallel(self, ctx, fr):
         p = ctx.p; ax = "xyz".index(p["axis"]); normal = ctx.ax[ax]
