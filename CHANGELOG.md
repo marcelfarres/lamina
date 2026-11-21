@@ -141,16 +141,10 @@ inside to see it as a lamp.
   Before, it could stop past a rib's slot and leave a thin strip that can break.
 - **The 3D look follows the material.** After a printed example such as *fold_lamp*, the next example or project
   showed cardboard as blue plastic. The look now changes with the material.
-<<<<<<< HEAD
-- **A crossed plaque slice can stand on its own teeth.** A slice that crosses no slice of the other family but stands
-  in the plate on its teeth, such as the tail of the cow, showed the error "touches nothing". The plate holds it, so
-  it is no longer an error. A slice that does not reach the plate is still an error.
-=======
-- **Plaque says how to make the model stand.** A model with a round back, such as the cow, only touches the plate
-  at one point. Plaque then gave the plate alone, with the error "part floats". Now it says that nothing stands on the
-  plate and offers two settings: the model pushed into the plate by half its depth, with its thinnest side or its
-  back on the plate.
->>>>>>> fix/060-plaque-first-try
+- **Teeth hold a plaque slice.** A crossed slice that stands in the plate on its own teeth, such as the cow's tail,
+  showed "touches nothing". The plate holds it, so it is no longer an error.
+- **When nothing stands on the plate.** A model with a round back, such as the cow, touched the plate at one point:
+  Plaque gave the plate alone. Now it says so and offers two settings that stand.
 
 ## 0.3.3
 
