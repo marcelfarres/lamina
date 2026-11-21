@@ -19,9 +19,10 @@ CONNECT_HELP = ("dowel = round/square rods through holes (drawn in the 3D view),
                 "slide while it dries, and two dowels through a piece hold it where it belongs · tab = flat pieces cut from the sheet: "
                 "a peg between touching slices, or a spacer (body + tabs into slots) when `space` > 0 — keeps the distance and the "
                 "orientation · standoff = 3D-printed posts for a stack with a gap: a pin at each end goes into the layers' holes, the body "
-                "keeps them apart. A hole two standoffs share has the dowel hole shape and takes two short pins; a hole one "
-                "standoff uses is a pentagon and its pin ends flush. The print file comes in the zip, named 3D-PRINT: each standoff "
-                "is two halves joined by a hinge, to fold together · none = glue only, for a stack you are happy to line up by eye")
+                "keeps them apart. Two hole shapes, so each pin goes where it fits: inside the stack one hole takes a standoff from below "
+                "and one from above, so it keeps the dowel hole shape and each pin goes half way in; a hole with a standoff on one "
+                "side only is a pentagon, and its pin goes through the layer and ends flush. The print file comes in the zip, named "
+                "3D-PRINT: each standoff is two halves that touch along one edge, to fold together · none = glue only, for a stack you are happy to line up by eye")
 
 
 @register
@@ -81,8 +82,9 @@ class Stacked(Mode):
               unit="mm", show_if=("connect", "standoff"), label="standoff shoulder"),
         Param("pin_fit", "number", 0.1, "The standoff's pins are printed this much thinner than the dowel diameter (mm). Pins too tight: "
               "raise it. Too loose: lower it, below 0 for a press fit", -1, 1, 0.05, unit="mm", show_if=("connect", "standoff"), label="standoff pin fit"),
-        Param("standoff_hinge", "number", 0.4, "A standoff prints as two halves, flat side down, joined by a hinge this thick (mm): "
-              "two print layers. Fold the halves together to use it. Hinge breaks when folded: raise it. Too stiff to close: lower it",
+        Param("standoff_hinge", "number", 0.4, "A standoff prints as two halves, flat side down, touching along one edge. They are joined along that "
+              "edge over this height (mm): two print layers. Fold the halves together about it. Breaks when folded: raise it. Too "
+              "stiff to close: lower it",
               0.2, 2, 0.05, unit="mm", show_if=("connect", "standoff"), label="standoff hinge"),
         Param("spacer_dir", "choice", "alternate", "Orientation of pegs / spacers in the slice plane", choices=["x", "y", "alternate"], show_if=("connect", "tab"), label="spacer direction"),
         *spacing_params("slices", [("spacing_curve", "slice spacing", [[0, 10], [0.5, 10], [1, 10]])], 3, 30),

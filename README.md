@@ -470,12 +470,15 @@ does not slip through. It carries the most signal for stacked and folded work; d
   them. A standoff has a body as long as the gap and a pin at each end. The pins go into the holes of the two
   layers, so the body keeps the distance and the pins line the layers up. The shape of a hole says which pin it
   takes. A hole that two standoffs share has the dowel hole shape, and a short pin goes in from each side. A hole
-  that one standoff uses is a pentagon, and its pin goes through and ends flush with the far face. The export zip
-  holds the print file, named `3D-PRINT standoffs`, and a note with each size and where it goes. In that
-  file each standoff is cut in half along its length. The two halves lie flat side down, joined by a thin hinge,
-  and print without supports. Fold the halves together and push the pins into the holes: the holes keep the
-  standoff closed. A job with 3D-printed layers gets the same file in its print set. `shoulder` sets how wide the
-  body is, `pin_fit` how tight the pins are, `standoff_hinge` how thick the hinge is. No print has
+  that one standoff uses is a pentagon, and its pin goes through and ends flush with the far face. There are two
+  shapes because a layer inside the stack has a standoff under it and one over it in the same hole, so each pin can
+  go only half way in. A hole with a standoff on one side only has room for a pin through the whole layer, which
+  holds better and leaves no open hole. A long pin does not fit a shared hole, where it would push the other
+  standoff out. The export zip holds the print file, named `3D-PRINT standoffs`, and a note with each size and
+  where it goes. In that file each standoff is cut in half along its length. The two halves lie flat side down and
+  touch along one edge, where they are joined. They print without supports. Fold the halves together about that
+  edge and push the pins into the holes: the holes keep the standoff closed. A job with 3D-printed layers gets the same file in its print set. `shoulder` sets how wide the
+  body is, `pin_fit` how tight the pins are, `standoff_hinge` how high the two halves are joined. No print has
   confirmed small standoffs yet, so the plan warns under a 5 mm dowel diameter and when a shared pin is under 2 mm
   long: print one to check. With
   `placement` = `random` no hole is shared, and every pin is as long as the layer is thick. The `shade`

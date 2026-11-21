@@ -67,10 +67,15 @@
       long as the gap and a pin at each end. The pins go into the holes of the two layers.</li>
     <li>The shape of a hole says which pin it takes. A hole in the <b>dowel hole shape</b> is shared: a short pin
       goes in from each side. A <b>pentagon</b> hole takes one long pin, which ends flush with the far face.</li>
+    <li>Why two shapes: a layer inside the stack has a standoff under it and one over it in the same hole, so each pin
+      can go only half way in. A hole with a standoff on one side only has room for a pin through the whole layer.
+      That pin holds better and leaves no open hole. A long pin does not fit a shared hole, where it would push the
+      other standoff out.</li>
     <li>The laser cuts the sheets. The 3D printer makes the file named <b>3D-PRINT standoffs</b>. Both are in the same
       zip.</li>
-    <li>In the file each standoff is two halves, flat side down, joined by a thin hinge. Print them as they lie, with
-      no supports. Fold the halves together, then push the pins into the holes. The holes keep the standoff closed.</li>
+    <li>In the file each standoff is two halves, flat side down, touching along one edge. Print them as they lie, with
+      no supports. Fold the halves together about that edge, then push the pins into the holes. The holes keep the
+      standoff closed.</li>
     <li>No print has confirmed small standoffs yet. The app warns under a 5 mm <b>dowel diameter</b>, and when a shared
       pin is under 2 mm long: print one to check. With <b>dowel placement</b> = <b>random</b> no hole is shared: every pin is as long as the layer is thick.</li>
     <li>Pins too tight or too loose: change <b>standoff pin fit</b>. A square <b>dowel hole shape</b> stops a layer turning.</li></ul>
