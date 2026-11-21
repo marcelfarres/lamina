@@ -92,12 +92,10 @@ class Connectors:
         self.pins = []                                                    # standoffs: (its entry in the plan, the slice and hole of each pin)
         if self.shoulder:
             # the printed part's sections, for the 3D view and the print file: a pin for a shared hole, a pin for a
-            # flush one, and the body — round, less a flat level with the pins' lowest side, which it is printed lying on
+            # flush one, and the round body
             sec = lambda g: [[round(x, 3), round(y, 3)] for x, y in g.exterior.coords[:-1]]   # noqa: E731
             pin, flush = (dowel((0, 0), self.d - p["pin_fit"], s) for s in (p["dowel_shape"], FLUSH))
-            flat = min(pin.bounds[1], flush.bounds[1])
-            body = dowel((0, 0), 2 * self.reach).intersection(shapely.box(-self.reach, flat, self.reach, self.reach))
-            ctx.view["standoffs"] = {"pin": sec(pin), "flush": sec(flush), "body": sec(body), "items": []}
+            ctx.view["standoffs"] = {"pin": sec(pin), "flush": sec(flush), "body": sec(dowel((0, 0), 2 * self.reach)), "items": []}
         # Two holes need `min_feature` of material between their edges, the same wall this job asks for everywhere
         # else — so their centres are two of the hole's reach (the cut, with its slot offset) plus that wall apart.
         # Any less and `fits` turns the point down: points spread as far apart as they go land right on

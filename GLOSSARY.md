@@ -13,6 +13,8 @@ The words Lamina uses for its parts. One word for one thing.
 - **Flush pin**: the pin in a hole that only one standoff uses. The hole is a pentagon. The pin is as long as the
   layer is thick, so its end is level with the far face.
 - **Shoulder**: how much wider than the pin the body is, all round.
+- **Standoff hinge**: the thin strip that joins the two halves a standoff is printed as. The halves fold together
+  about it. Not the *skin* of a folded panel, which is the hinge of a fold in a panel.
 
 ## Plaque
 

@@ -62,18 +62,45 @@ def standoff_kinds(plan):
     return [(f"S{n + 1}", gap, ends, items) for n, ((gap, *ends), items) in enumerate(ranked)]
 
 
-def standoff_mesh(plan, gap, ends) -> trimesh.Trimesh:
+def _joined(parts) -> trimesh.Trimesh:
+    """Solids that touch or overlap as one: joined where solids can be cut here, else shells a slicer joins."""
+    return trimesh.boolean.union(parts, engine="manifold") if has_boolean() else trimesh.util.concatenate(parts)
+
+
+def standoff_mesh(plan, gap, ends, half=0) -> trimesh.Trimesh:
     """One standoff along z from z = 0: a pin, the body over the gap, a pin. `ends` gives each pin's (length, flush),
-    and a pin has the section of the hole it goes into. One solid where solids can be joined here."""
+    and a pin has the section of the hole it goes into. `half` 1 or -1 gives the half of it on that side of the plane
+    through its axis (the section's y = 0), which it is cut along to be printed."""
     so = plan["standoffs"]
     (p0, f0), (p1, f1) = ends
-    pin = lambda flush, h, z: extrude(Polygon(so["flush" if flush else "pin"]), h).apply_translation([0, 0, z])   # noqa: E731
-    parts = [pin(f0, p0, 0), pin(f1, p1, p0 + gap)]
+    side = shapely.box(-1e3, min(0, half * 1e3), 1e3, max(0, half * 1e3)) if half else None
+
+    def length(name, h, z):
+        poly = Polygon(so[name]) if side is None else Polygon(so[name]).intersection(side)
+        return extrude(poly, h).apply_translation([0, 0, z])
+    parts = [length("flush" if f0 else "pin", p0, 0), length("flush" if f1 else "pin", p1, p0 + gap)]
     if gap > 0:
-        parts.insert(1, extrude(Polygon(so["body"]), gap).apply_translation([0, 0, p0]))
-    if has_boolean():
-        return trimesh.boolean.union(parts, engine="manifold")
-    return trimesh.util.concatenate(parts)                             # shells that touch: a slicer joins them
+        parts.insert(1, length("body", gap, p0))
+    return _joined(parts)
+
+
+def standoff_print(plan, gap, ends) -> trimesh.Trimesh:
+    """A standoff as it is printed, on z = 0, its axis along x: cut in half along its length, both halves with the cut
+    face down, side by side, joined along the body by a hinge `standoff_hinge` thick and twice that wide. Each half
+    only gets narrower as it rises, so nothing needs a support, and the layers run along the pins. Folded shut about
+    the hinge, the two halves are the standoff (the second half lies turned half a turn about the hinge line). With no
+    gap there is no body to hinge: the pin is printed whole, on a flat side."""
+    so, h = plan["standoffs"], plan["params"]["standoff_hinge"]
+    if gap == 0:
+        m = standoff_mesh(plan, gap, ends).apply_transform(trimesh.transformations.rotation_matrix(np.pi / 2, [1, 0, 0]))
+        return m.apply_translation(-m.bounds[0])
+    R = Polygon(so["body"]).bounds[2]; w = 2 * h                      # the body's edge, the hinge's width: room for the half turn
+    a = standoff_mesh(plan, gap, ends, 1).apply_transform([[0, 0, 1, 0], [1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1]])
+    b = standoff_mesh(plan, gap, ends, -1).apply_transform([[0, 0, 1, 0], [-1, 0, 0, 2 * R + w], [0, -1, 0, 0], [0, 0, 0, 1]])
+    lap = 0.3                                                          # into each half, so the three are one solid
+    hinge = trimesh.creation.box([gap, w + 2 * lap, h]).apply_translation([ends[0][0] + gap / 2, R + w / 2, h / 2])
+    m = _joined([a, hinge, b])
+    return m.apply_translation([0, R, 0])
 
 
 def standoff_text(plan, f=1.0, u="mm") -> list:
@@ -84,7 +111,8 @@ def standoff_text(plan, f=1.0, u="mm") -> list:
            "A standoff's body keeps two layers apart. A pin at each end goes into a hole:",
            f"  {shape} pin, short  -> a {shape} hole. Two standoffs share it, one from each side.",
            "  pentagon pin, long  -> a pentagon hole. The pin goes through and ends flush.",
-           "Print them as they lie in the file, on their flat side. No supports.", "",
+           "Print them as they lie in the file: each is two halves, flat side down, joined by a thin hinge. No supports.",
+           "Fold the two halves together, then push the pins into the holes. The holes keep the standoff closed.", "",
            f"{'size':<6}{'qty':<6}{'gap':<8}{'pins':<34}between"]
     end = lambda e: f"{e[0] * f:.3g} {'pentagon' if e[1] else shape}"   # noqa: E731
     for tag, gap, ends, items in standoff_kinds(plan):
@@ -97,13 +125,11 @@ def standoff_text(plan, f=1.0, u="mm") -> list:
 
 def standoff_files(plan, out_dir, design, scale=1.0) -> list:
     """The print file for the standoffs, named so nobody sends it to the cutter: one 3MF, every standoff an object of
-    its own named by its size (S1, S2 …), a row per size, each lying on the flat of its body and pins: the layers
-    run along the pins, and nothing overhangs. Beside it a note that says what it is."""
+    its own named by its size (S1, S2 …), a row per size, each as standoff_print lays it. Beside it a note that says
+    what it is."""
     scene = trimesh.Scene(); y = 0.0
-    lie = trimesh.transformations.rotation_matrix(np.pi / 2, [1, 0, 0])     # the section's -y, its flat, goes down
     for tag, gap, ends, items in standoff_kinds(plan):
-        m = standoff_mesh(plan, gap, ends).apply_scale(scale).apply_transform(lie)
-        m.apply_translation(-m.bounds[0])
+        m = standoff_print(plan, gap, ends).apply_scale(scale)
         dx, dy = m.extents[:2] + 3
         for n in range(len(items)):
             scene.add_geometry(m.copy().apply_translation([n % 12 * dx, y + n // 12 * dy, 0]), node_name=f"{tag} {n + 1}", geom_name=f"{tag} {n + 1}")

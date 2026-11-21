@@ -11,7 +11,7 @@ from shapely.ops import unary_union
 from core.export import export, key_text
 from core.geometry import hole_reach
 from core.plan import build
-from core.solid import assembled, proto_set, standoff_kinds, standoff_mesh
+from core.solid import assembled, proto_set, standoff_kinds, standoff_mesh, standoff_print
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 EXAMPLES = ROOT / "examples"
@@ -77,24 +77,54 @@ def test_a_shared_hole_takes_two_half_pins_and_a_hole_of_its_own_a_flush_pin_in_
     assert seen == {True, False}                                       # the egg has both kinds
 
 
-def test_the_print_file_holds_every_standoff_lying_flat_and_the_key_says_where_each_size_goes(tmp_path):
+def test_a_standoff_prints_as_two_halves_on_a_hinge_that_fold_into_it():
+    """Bug 058 (Marcel's first print: "the dowels are difficult to print"). A standoff is printed cut in half along
+    its length, both halves with the cut face on the plate, joined along the body by a hinge two layers thick: one
+    closed solid, no face that hangs in the air past 45 degrees, and most of its footprint on the plate. Folded shut
+    about the hinge, the two halves are the standoff: every point of the print lies on it, the hinge strip aside."""
+    plan = build(EXAMPLES / "egg.stl", "stacked", JOB)
+    so, h = plan["standoffs"], plan["params"]["standoff_hinge"]
+    R = Polygon(so["body"]).bounds[2]; w = 2 * h
+    assert h == 0.4
+    for _, gap, ends, _ in standoff_kinds(plan):
+        m = standoff_print(plan, gap, ends)
+        L = gap + ends[0][0] + ends[1][0]
+        assert m.is_watertight and len(m.split()) == 1
+        assert np.allclose(m.bounds, [[0, 0, 0], [L, 4 * R + w, R]], atol=1e-3)      # two half bodies side by side, half as tall
+        n, a, z = m.face_normals, m.area_faces, m.triangles[:, :, 2]
+        assert a[(n[:, 2] < -np.cos(np.radians(45))) & (z.min(1) > 0.01)].sum() < 1e-6      # nothing for a support to hold
+        whole = standoff_mesh(plan, gap, ends)
+        on_plate = a[(n[:, 2] < -0.99) & (z.max(1) < 0.01)].sum()
+        assert on_plate > 0.9 * whole.area_faces[np.abs(whole.face_normals[:, 2]) < 0.01].sum() / np.pi   # both cut faces, whole
+        assert np.isclose(m.volume, whole.volume + w * h * gap, rtol=0.01)       # the standoff and its hinge
+        # fold the second half over, half a turn about the middle of the hinge, and both halves lie on the standoff
+        whole.apply_transform([[0, 0, 1, 0], [1, 0, 0, R], [0, 1, 0, 0], [0, 0, 0, 1]])
+        v = m.vertices.copy()
+        far = v[:, 1] > 2 * R + w / 2
+        v[far, 1] = 4 * R + w - v[far, 1]; v[far, 2] *= -1
+        strip = (np.abs(v[:, 2]) <= h + 1e-6) & (v[:, 1] > 2 * R - 0.31)          # the hinge, and where it runs into each half
+        off = trimesh.proximity.closest_point(whole, v[~strip])[1]
+        assert off.max() < 1e-3, off.max()
+
+
+def test_the_print_file_holds_every_standoff_and_the_key_says_where_each_size_goes(tmp_path):
     """The export carries the print file beside the cut files, named 3D-PRINT so it is not taken for a cut file, with
-    a note. One object per standoff, each a closed solid as long as the gap and its two pins, lying on the flat its
-    body and both pins share, so it prints without supports. A pin is smaller than its hole by the slot offset and
-    the pin fit. The assembly key lists the sizes and which pin goes in which hole."""
+    a note. One object per standoff, each a closed solid on the plate. A pin is smaller than its hole by the slot
+    offset and the pin fit. The assembly key lists the sizes, which pin goes in which hole, and how to fold one."""
     plan = build(EXAMPLES / "egg.stl", "stacked", {**JOB, "slot_offset": 0.1, "pin_fit": 0.2})
     so = plan["standoffs"]
     files = export(plan, tmp_path, ("svg",), key=True)
     n = len(so["items"])
     f, note = (next(f for f in files if f.name.endswith(f"3D-PRINT standoffs x{n}{ext}")) for ext in (".3mf", ".txt"))   # named for its machine
-    assert "pentagon pin, long" in note.read_text(encoding="utf-8")
+    said = note.read_text(encoding="utf-8")
+    assert "pentagon pin, long" in said and "Fold the two halves together" in said
     pin, flush, body = (Polygon(so[k]) for k in ("pin", "flush", "body"))
     assert np.allclose(pin.bounds, [-2.4, -2.4, 2.4, 2.4])              # 5 mm less the 0.2 fit, square as its 5.1 mm hole
-    assert np.isclose(flush.bounds[1], -2.4) and np.isclose(body.bounds[1], -2.4)      # one flat under all three
+    assert np.isclose(flush.bounds[1], -2.4)                            # the pentagon as far across as the square
     assert body.contains(pin.buffer(-0.01)) and body.contains(flush.buffer(-0.01))
     scene = trimesh.load(f)
     assert len(scene.geometry) == n
-    tall = body.bounds[3] - body.bounds[1]                              # lying: from the flat to the top of the body
+    tall = body.bounds[3]                                               # two halves, cut face down: half the body high
     assert all(g.is_watertight and np.isclose(g.bounds[0][2], 0, atol=1e-6) and np.isclose(g.bounds[1][2], tall, atol=1e-3) for g in scene.geometry.values())
     kinds = standoff_kinds(plan)
     assert [tag for tag, *_ in kinds] == [f"S{i + 1}" for i in range(len(kinds))] and sum(len(it) for *_, it in kinds) == n
