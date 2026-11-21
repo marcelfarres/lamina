@@ -149,6 +149,20 @@ def test_a_piece_no_neighbour_can_hold_is_left_out_and_said_or_kept_with_its_err
     assert kept["counts"]["errors"] > 0 and not any("left out" in n for n in kept["notes"])
 
 
+@pytest.mark.parametrize("job, gone", [({"back": "-y", "sink": 53}, []), ({"sink": 94}, ["X-74", "X-75"])], ids=["side", "deep"])
+def test_a_piece_planned_to_hang_where_no_spacer_fits_is_left_out_and_said(job, gone):
+    """The cow at 1 mm, sunk as the "nothing stands on the plate" error offers. A join between two pieces is planned on
+    their overlap, but the spacer placer found no room in X-48/X-49's (54 mm²), so X-49's piece held to nothing: "region
+    2 floats". Sunk 94 mm, X-74 and X-75 held only each other: "not connected". With `floating = join` such pieces are
+    left out and said, as the setting promises (bugs/062), and so are the spacers between them."""
+    plan = build("examples/cow.stl", "plaque", {"rotate": [90, 0, 0], "thickness": 1, **job})
+    assert plan["counts"]["errors"] == 0, [(s["label"], s["errors"]) for s in plan["slices"] if s["errors"]]
+    by = {s["label"]: s for s in plan["slices"]}
+    assert not [lab for lab in by if lab.rstrip("abcdefghijklmnopqrstuvwxyz") in gone]   # the slices, and the spacers between them (X-74a …)
+    if not gone:
+        assert any("is left out" in w for w in by["X-49"]["warnings"]), by["X-49"]["warnings"]
+
+
 def test_a_model_that_only_touches_the_plate_says_so_and_offers_a_sink_that_stands(tmp_path):
     """A rounded back at sink 0 touches the plate at a point: no slice reaches it with room for a tooth (bugs/060: the
     cow picked as a Plaque gave the plate alone, "W-1 floats", 100 pieces left out). The build stops with an error that

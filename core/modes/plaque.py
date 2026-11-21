@@ -89,6 +89,44 @@ def hang_floating(pieces, held, need, chain, cyclic=False):
     return held, joins
 
 
+def unheld(slices, plate):
+    """The pieces nothing holds once the spacers are in: no tooth in the plate, and no chain of spacers to a piece that
+    has one. `hang_floating` plans the joins on the overlaps; the spacer placer may find no room in one, and the piece
+    planned to hang there holds to nothing, with whatever hangs from it (bugs/062). Returns [(slice, piece)]."""
+    pieces = [(sl, g) for sl in slices for g in sl.raw.geoms]
+    held, at = set(), {}                                        # at: a spacer's world point → the pieces it joins
+    for k, (sl, g) in enumerate(pieces):
+        for o, c, pt in sl.links:
+            if c.intersects(g):
+                held.add(k) if o == plate else at.setdefault(tuple(np.round(pt, 3)), []).append(k)
+    near = {}
+    for ks in at.values():
+        for k in ks:
+            near.setdefault(k, set()).update(ks)
+    todo = list(held)
+    while todo:
+        for j in near.get(todo.pop(), ()):
+            if j not in held:
+                held.add(j); todo.append(j)
+    return [q for k, q in enumerate(pieces) if k not in held]
+
+
+def leave_out(lost, extra):
+    """Take the pieces in `lost` out of their slices, with the slots and names of the spacers between them and the
+    spacers themselves (nothing joins a lost piece to a held one). Returns the spacers that are left."""
+    gone = set()
+    for sl in {s.label: s for s, _ in lost}.values():
+        dead = unary_union([g for s, g in lost if s is sl])
+        sl.raw = as_multi(unary_union([g for g in sl.raw.geoms if not dead.contains(g.representative_point())]))
+        gone |= {tuple(np.round(pt, 3)) for _, c, pt in sl.links if c.intersects(dead)}
+        sl.cuts = [c for c in sl.cuts if not c.intersects(dead)]
+        sl.links = [q for q in sl.links if not q[1].intersects(dead)]
+        for k in [k for k, c in sl.cutkeys.items() if c.intersects(dead)]:
+            del sl.cutkeys[k]; sl.cutnames.pop(k, None)
+        sl.marks = [m for m in sl.marks if not dead.contains(Point(m[0], m[1]))]
+    return [e for e in extra if tuple(np.round(e.M[:3, 3], 3)) not in gone]
+
+
 def share_out(joins, need, mf, cyclic=0):
     """A piece in the middle of a chain takes spacers from both sides, and the first pair would spread its three over
     the whole piece and leave the second none. Where two joins share a piece they share it out: one much smaller
@@ -255,7 +293,7 @@ class Plaque(Stacked):
         if not plate.cuts:                              # no slice stands on the plate: there is nothing to hang the rest on
             self._nothing_stands(ctx)
             return []
-        slices, extra = self._hang(ctx, lay, slices, pieces, held, fr.plate_t)
+        slices, extra = self._hang(ctx, lay, slices, pieces, held, fr.plate_t, plate.label)
         return [plate] + self.in_order(slices, extra)
 
     @staticmethod
@@ -416,7 +454,7 @@ class Plaque(Stacked):
             ctx.errors.append(msg)
         return pieces, held
 
-    def _hang(self, ctx, lay, slices, pieces, held, plate_t):
+    def _hang(self, ctx, lay, slices, pieces, held, plate_t, plate):
         """Floating pieces: each hangs from a piece beside it that is held, by the plate or by its own neighbour, on
         spacers that the layout puts in the overlap. Returns the slices with their pieces and the spacers."""
         p = ctx.p; mf = p["min_feature"]; n = len(slices)
@@ -426,22 +464,27 @@ class Plaque(Stacked):
         holds = {slices[i].label: [as_multi(g) for g in gs] for i, gs in share_out(joins, need, mf, n * lay.cyclic).items()}   # slice → where its spacers go
         after = {sl.label: slices[(i + 1) % n].label for i, sl in enumerate(slices)}     # the slice a spacer from this one goes to
         loose = [(sl.label, g) for sl, gs, hs in zip(slices, pieces, held) for g, ok in zip(gs, hs) if not ok]
-        if loose and p["floating"] == "join":
+        join = p["floating"] == "join"
+        if join:
             pieces = [[g for g, ok in zip(gs, hs) if ok] for gs, hs in zip(pieces, held)]
-            say(ctx, f"{len(loose)} floating piece(s) left out, no slice beside them can hold them: "
-                     + ", ".join(f"{lab} ({size(g)})" for lab, g in loose[:12]) + ("…" if len(loose) > 12 else ""))
         for sl, gs in zip(slices, pieces):
             sl.raw = as_multi(unary_union(gs)) if gs else as_multi(Polygon())
         slices = [s for s in slices if not s.raw.is_empty]
-        if loose and p["floating"] == "join":                           # a piece big enough to matter is lost: the slice says so, not only the plan's notes
-            by = {s.label: s for s in slices}
+        extra = lay.spacers(self, ctx, slices, holds, after) if holds else []
+        if holds and join and (lost := unheld(slices, plate)):          # a join with no room for a spacer holds nothing
+            extra = leave_out(lost, extra)
+            loose += [(sl.label, g) for sl, g in lost]; joined -= len(lost)
+            slices = [s for s in slices if not s.raw.is_empty]
+        if loose and join:
+            say(ctx, f"{len(loose)} floating piece(s) left out, no slice beside them can hold them: "
+                     + ", ".join(f"{lab} ({size(g)})" for lab, g in loose[:12]) + ("…" if len(loose) > 12 else ""))
+            by = {s.label: s for s in slices}                           # a piece big enough to matter is lost: the slice says so, not only the plan's notes
             for lab, g in loose:
                 x0, y0, x1, y1 = g.bounds
                 if lab in by and max(x1 - x0, y1 - y0) >= p["min_part"]:
                     by[lab].warnings.append(f"a piece of this slice ({size(g)}) is left out: it does not reach the plate and no slice beside it can hold it")
         if joined:
             say(ctx, f"{joined} floating piece(s) hang from the slice beside them on spacers")
-        extra = lay.spacers(self, ctx, slices, holds, after) if holds else []
         # A hanging piece on fewer than three spacers can turn or tilt on them. It is said on its slice, where the
         # person looks for what is wrong with a part, and once in the notes with every slice it concerns.
         few = []
