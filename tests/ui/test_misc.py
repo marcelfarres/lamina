@@ -433,7 +433,8 @@ def test_a_light_is_moved_in_the_view_and_the_room_and_the_picture_are_settings(
     cam = page.evaluate("window.__t.camera.position.toArray()"); box = page.locator("#v3d canvas").bounding_box()
     drag(box["x"] + 60, box["y"] + box["height"] - 60, 50, 0); assert page.evaluate("window.__t.camera.position.toArray()") != cam
     # a spot is aimed: by its tilt and turn, or by the dot at the end of its cone; what lamp it is like does not change
-    page.select_option("#g-light select[data-l=like]", "gu10"); page.select_option("#g-light select[data-l=aim]", "free")
+    page.select_option("#g-light select[data-l=like]", "gu10")     # a spot shows its tilt and turn at once; moving one aims it
+    assert page.is_visible("#lt_tilt") and page.is_visible("#lt_turn") and page.input_value("#g-light select[data-l=aim]") == "up"
     page.eval_on_selector("#lt_tilt", "e => { e.value = 90; e.dispatchEvent(new Event('input', {bubbles: true})) }")
     spot = saved()[0][0]; assert (spot["aim"], spot["tilt"], spot["like"]) == ("free", 90, "gu10")
     dot = page.evaluate("async () => {const m = await import(location.origin + '/static/js/scene.js'),"

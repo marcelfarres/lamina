@@ -30,6 +30,10 @@ const LIKE={led:['small LED',{kind:'bulb',size:6,lm:400}],filament:['LED filamen
   gu10:['GU10 spot, 36°',{kind:'spot',angle:36,soft:25,size:50,lm:350}],desk:['desk lamp, 60°',{kind:'spot',angle:60,soft:40,size:40,lm:500}],own:['my own',{}]};
 const AIM={up:'straight up',down:'straight down',middle:'the middle of the model',free:'a direction…'};
 // a free direction: `tilt` from straight up (0) through level (90) to straight down (180), `turn` round the upright from x
+// the tilt and turn a spot has now, whatever it points at: what the two sliders show, and where a move of one starts
+const angles=l=>{if(l.aim==='free')return [l.tilt??45,l.turn??0]; if(l.aim!=='middle')return [l.aim==='down'?180:0,0];
+  const v=new THREE.Vector3(-l.pos[0],-l.pos[1],(box?box.S.z/2:0)-l.pos[2]); if(v.length()<1)return [0,0]; v.normalize();
+  return [Math.round(Math.acos(v.z)*180/Math.PI),Math.round((Math.atan2(v.y,v.x)*180/Math.PI+360)%360)]};
 const aimOf=l=>{const t=(l.tilt??45)*Math.PI/180,f=(l.turn??0)*Math.PI/180;return new THREE.Vector3(Math.sin(t)*Math.cos(f),Math.sin(t)*Math.sin(f),Math.cos(t))};
 const fresh=z=>({on:true,like:'led',kind:'bulb',angle:60,soft:30,size:6,lm:400,color:WARM,pos:[0,0,z],aim:'up'});
 const WALLS={white:['white',0xf0eeea],grey:['light grey',0xa3a19e],dark:['dark',0x3b3a38]}, FLOOR={walls:['as the walls'],wood:['wood',0x9a6a40],dark:['dark',0x2c2b2a]};
@@ -174,8 +178,8 @@ function renderTab(){const Rm=roomOf(), L=list(), on=!!state.light, u=ST.unit, l
       +(spot?row('angle','beam angle (°)','How wide the cone of a spot is, edge to edge',sl('angle',l.angle,5,160),'dep')
         +row('soft','soft edge (%)','How much of the cone fades out toward its edge: 0 is a hard circle of light',sl('soft',l.soft,0,100),'dep')
         +row('aim','points at','Where the spot points. With the move a light tool, drag the dot at the end of its cone',pick('aim',AIM,l.aim),'dep')
-        +(l.aim==='free'?row('tilt','tilt (°)','How far the spot leans from straight up: 0 is up, 90 is level, 180 is down',sl('tilt',l.tilt??45,0,180),'dep')
-          +row('turn','turn (°)','Which way the spot leans, round the upright: 0 is along x, 90 along y',sl('turn',l.turn??0,0,360),'dep'):''):'')
+        +row('tilt','tilt (°)','How far the spot leans from straight up: 0 is up, 90 is level, 180 is down. Moving it aims the spot in a direction of its own',sl('tilt',angles(l)[0],0,180),'dep')
+        +row('turn','turn (°)','Which way the spot leans, round the upright: 0 is along x, 90 along y',sl('turn',angles(l)[1],0,360),'dep'):'')
       +row('size',`source size (${u})`,'How big the part that shines is, across. A small source throws a sharp pattern, a big one a soft one',sl('size',inU(l.size),inU(1),inU(120),st))
       +row('lm','brightness (lm)','The light it gives, in lumens, as on the box of a real lamp: 400 lm is a 40 W bulb',sl('lm',l.lm,10,1600,10))
       +row('color','colour','The colour of the light: a white of a real lamp, or any colour',`<span>${pick('color',{...WHITE,pick:'a colour…'},l.color in WHITE?l.color:'pick')} <input type="color" data-l="hex" value="${esc(l.color)}" ${l.color in WHITE?'hidden':''} aria-label="the colour of the light"></span>`)
@@ -196,7 +200,8 @@ $('#g-light').addEventListener('input',e=>{const t=e.target,k=t.dataset.l; if(!k
   const l=own()[sel],v=+t.value||0;   // a slider writes its number box, which lands here
   if(t.tagName==='SELECT'){if(k==='like')Object.assign(l,LIKE[t.value][1],{like:t.value}); else if(k==='color'){if(t.value!=='pick')l.color=t.value; else if(l.color in WHITE)l.color='#ff8040'} else{l[k]=t.value;if(k==='kind')l.like='own'}
     return touch(1)}   // a choice can add or take rows: the tab is drawn again
-  if(k==='hex')l.color=t.value; else if(k[0]==='p')l.pos[+k[1]]=toMM(v); else{l[k]=k==='size'?toMM(v):v; if(k!=='tilt'&&k!=='turn'){l.like='own'; $('#g-light select[data-l=like]').value='own'}}   // where a lamp points is not what lamp it is
+  if(k==='tilt'||k==='turn'){[l.tilt,l.turn]=angles(l); l[k]=v; l.aim='free'; $('#g-light select[data-l=aim]').value='free'; return touch()}   // from where it points now, in a direction of its own
+  if(k==='hex')l.color=t.value; else if(k[0]==='p')l.pos[+k[1]]=toMM(v); else{l[k]=k==='size'?toMM(v):v; l.like='own'; $('#g-light select[data-l=like]').value='own'}
   touch()});
 $('#g-light').addEventListener('change',e=>{const t=e.target; if(t.id==='light_on'){state.light=t.checked;return touch()} if(t.id==='light_video'){state.light_video=t.checked;return touch()} if(t.dataset.r){state.room={...roomOf(),show:t.checked};return touch()} if(t.dataset.on){own()[+t.dataset.on].on=t.checked;touch(1)}});
 $('#g-light').addEventListener('click',e=>{const t=e.target,a=t.dataset.act,r=t.closest('.lrow'); if(t.dataset.on)return;

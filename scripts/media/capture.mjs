@@ -387,17 +387,23 @@ S.rings = async () => {
     await set("ring_slices", false); await settle();
 };
 // stacked ring slices with a gap, the LED inside: the light comes out between the layers
-const ringsLight = async (name, example_, extra) => {
+const ringsLight = async (name, example_, extra, sweep) => {   // sweep: the light goes up and down inside, the gap stays
     await example(example_); await mode("stacked"); await tab("technique");
     await params({ distribution: "distance", space: 5, connect: "dowel", dowel_d: 4, spacing_vary: false, ring_slices: true, ring_wall: 8, ...extra }); await heal();
     await set("lamp", true); await sleep(700); await view(-40, 18, 1.0, 1.0);
-    await techClip(name, -40, 18, 1.0, [["gap 9 mm", () => set("space", 9)], ["gap 5 mm", () => set("space", 5)]]);
+    if (!sweep) await techClip(name, -40, 18, 1.0, [["gap 9 mm", () => set("space", 9)], ["gap 5 mm", () => set("space", 5)]]);
+    else {
+        await set("viewmode", "only3d"); await sleep(600); await fit();
+        const d = await far(1.0), z0 = +(await js("document.querySelector('#lt_p2').value")); let az = -40;
+        await clip(name, 90, async i => { await lt("#lt_p2", (z0 * (1 + 0.75 * Math.sin(i * 2 * Math.PI / 90))).toFixed(1)); az += 1.2; await cam(az, 18, d); await sleep(150); });
+        await set("viewmode", "both"); await sleep(400);
+    }
     await dark(); await example("egg");
 };
 S.rings_light = () => ringsLight("rings_light", "vase", {});
-S.rings_light_tube = () => ringsLight("rings_light_tube", "tube", { connect: "tab" });
+S.rings_light_tube = () => ringsLight("rings_light_tube", "tube", { connect: "tab" }, true);
 S.radial_light = async () => {              // the pear (the droplet is a 34 mm flat disc and errors in radial) in radial slices, the LED in its centre, moved up and down inside while the view turns
-    await example("pear"); await mode("radial"); await tab("technique"); await heal();
+    await example("pear"); await mode("radial"); await tab("technique"); await params({ hollow: 6 }); await heal();   // a shell 6 mm thick: room inside for the light
     for (const [c, r] of [[8, 3], [10, 3], [8, 4], [10, 4], [12, 4], [6, 3], [12, 3], [8, 2], [10, 5]]) {   // the first count that slices with no warning
         await set("count", c); await set("ring_count", r); await settle(); const v = await verdict(); console.log("  radial_light try", c, r, v); if (/E0 W0/.test(v)) break;
     }

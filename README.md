@@ -553,7 +553,7 @@ sheets are always the same plan.
   or outside it), a source size (small is sharp, big is soft), a brightness in lumens and a colour, and can be turned
   off. With the light on, the *move a light* tool of the 3D view drags a light across the view, or along one of its three
   arrows, and aims a spot by the dot at the end of its cone. A spot points up, down, at the middle of the model, or in
-  a direction of its own (*tilt* and *turn*). *Room* sets the room: shown or not, its size, the walls, the floor, and how much light the walls give back.
+  a direction of its own: move its *tilt* or *turn* slider. *Room* sets the room: shown or not, its size, the walls, the floor, and how much light the walls give back.
   *Picture* saves the view as a PNG and says if the assembly video is lit. All of it is saved with the project and
   is a step of undo.
 - **Export tab**: the buttons first. The text about a file opens with a click on the line under its button.
