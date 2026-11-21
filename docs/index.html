@@ -133,6 +133,7 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
     <a href="#how">How it works</a>
     <a href="#techniques">Techniques</a>
     <a href="#folded">Folded panels</a>
+    <a href="#light">Light</a>
     <a href="#spacing">Spacing</a>
     <a href="#checks">Checks</a>
     <a href="#export">Export</a>
@@ -452,6 +453,61 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
       <a href="https://github.com/marcelfarres/lamina/blob/main/docs/folded-panels.md">algorithm notes</a> list what
       was taken from which paper.</p>
     </div>
+  </div>
+</div></section>
+
+<section id="light"><div class="wrap">
+  <h2>See it lit before you cut it</h2>
+  <p class="sub">Tick <i>light</i> over the 3D view. The model stands in a room, a lamp shines inside it, and the walls
+  show the light and the shadows it will throw. You see the pattern of a lamp shade before you cut one panel.</p>
+  <div class="grid g2">
+    <figure>
+      <video src="media/light.mp4" poster="media/light_poster.jpg" width="1100" height="826"
+             muted loop playsinline controls preload="none"
+             aria-label="The folded lamp shade unlit; the light tick goes on and the shade stands lit in a room; the view turns once round it"></video>
+      <figcaption>The folded lamp shade, then the same shade with its light on. The light gets weaker with distance and
+      the shadows are soft, as a real lamp gives them.</figcaption>
+    </figure>
+    <div>
+      <ul class="clean">
+        <li><b>Real lamps</b> — start from a small LED, an LED filament bulb, a frosted bulb, a GU10 spot or a desk
+            lamp, or set your own: a bulb that shines all round, or a spot with a beam angle and a soft edge.</li>
+        <li><b>The size of the source</b> — a small source throws a sharp pattern, a big one a soft glow. Brightness is
+            in lumens, as on the box of a lamp.</li>
+        <li><b>Up to four lights</b> — each with its own place, colour and on / off tick. Each light has a number,
+            in the list and in the 3D view.</li>
+        <li><b>Part of the project</b> — the lights and the room are saved with it, and every change is a step of undo.
+            A change to a light never slices the model again.</li>
+      </ul>
+    </div>
+  </div>
+  <figure style="margin-top:24px">
+    <video src="media/lights.mp4" poster="media/lights_poster.jpg" width="1200" height="690"
+           muted loop playsinline controls preload="none"
+           aria-label="The Light tab: a small LED, then a frosted bulb and the pattern goes soft, then a spot pointing up with its cone drawn, then a second light in blue"></video>
+    <figcaption>The <i>Light</i> tab, step by step: a small LED, a frosted bulb (the pattern goes soft), a spot that
+    points up, and a second light in blue above it.</figcaption>
+  </figure>
+  <figure style="margin-top:24px">
+    <video src="media/light_move.mp4" poster="media/light_move_poster.jpg" width="1200" height="690"
+           muted loop playsinline controls preload="none"
+           aria-label="The move a light tool: the light goes up its arrow, then across, then back, and the pattern on the walls follows"></video>
+    <figcaption>The <i>move a light</i> tool: drag a light, or one of its three arrows. The pattern on the walls
+    follows, and so do the numbers in the tab.</figcaption>
+  </figure>
+  <div class="grid g2" style="margin-top:24px">
+    <figure>
+      <img src="media/light_stacked.jpg" width="1800" height="745" loading="lazy"
+           alt="A stacked vase lit from the side by a desk lamp, its shadow on the wall of the room">
+      <figcaption>Not only lamps: a light can stand outside the model. Here a desk lamp lights a stacked vase from the
+      side.</figcaption>
+    </figure>
+    <figure>
+      <img src="media/light_room.jpg" width="1800" height="745" loading="lazy"
+           alt="The folded lamp in a bigger room with grey walls and a wood floor">
+      <figcaption>The room is a setting: its size, the walls, the floor, and how much light the walls give back. Save
+      the view as a picture when you like it.</figcaption>
+    </figure>
   </div>
 </div></section>
 

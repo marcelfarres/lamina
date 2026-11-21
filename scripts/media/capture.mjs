@@ -346,10 +346,11 @@ S.labels = async () => {      // the vase's cut sheet, close: names in the singl
     await set("viewmode", "both"); await sleep(400);
 };
 
+// what the folded lamp's preset brings of its own stock (PETG, printed, the printer's bed): a scene on it puts these back
+const LAMP_KEEP = ["material", "printed", "machine", "sheet", "kerf", "thickness", "joint", "strategy", "facet", "window", "edge_labels"];
 S.fold = async () => {        // folded panels, printed: the lamp shade from its flat net to the folded shade and back, orbiting
     // the lamp's preset brings its own stock (PETG, printed, the printer's bed): what was there is put back at the end
-    const KEEP = ["material", "printed", "machine", "sheet", "kerf", "thickness", "joint", "strategy", "facet", "window", "edge_labels"];
-    const was = await js(`JSON.stringify(Object.fromEntries(${JSON.stringify(KEEP)}.map(k=>[k,window.__t.state()[k]])))`);
+    const was = await js(`JSON.stringify(Object.fromEntries(${JSON.stringify(LAMP_KEEP)}.map(k=>[k,window.__t.state()[k]])))`);
     await example("fold_lamp"); await tab("technique");
     await set("viewmode", "only3d"); await sleep(600);
     const look = () => js("(()=>{const t=window.__t.target();return [t.x,t.y,t.z,window.__t.camera.position.distanceTo(t)]})()");
@@ -442,6 +443,59 @@ S.mask = async () => {
     await project("mask");
     await js("document.querySelector('[data-faces=back]').click()"); await fix({ seams: [] });
     await example("egg");
+};
+
+// ---- the light (js/light.js): the lamp lit, the Light tab's lamps, a light moved, a stack lit from the side, a room
+// a control of the Light tab, set as a user sets it (its rows carry data-l, not the p_ ids `set` looks for)
+const lt = (sel, v) => js(`(()=>{const e=document.querySelector('#g-light ${sel}');if(!e)throw new Error('no light control ${sel}');
+    if(e.type==='checkbox')e.checked=${JSON.stringify(v)};else e.value=${JSON.stringify(String(v))};e.dispatchEvent(new Event(e.type==='checkbox'?'change':'input',{bubbles:true}))})()`);
+// the light off and as a new project has it: the lights are cleared by the next model, the room is not
+const dark = async () => { await js("delete window.__t.state().room;delete window.__t.state().light_video"); await set("lamp", false); await js("document.querySelector('section[data-tab=light] button.reset').click()"); };
+// a scene on the folded lamp: its preset brings its own stock, which is put back at the end (as S.fold does)
+const withLamp = async fn => {
+    const was = await js(`JSON.stringify(Object.fromEntries(${JSON.stringify(LAMP_KEEP)}.map(k=>[k,window.__t.state()[k]])))`);
+    await example("fold_lamp"); await fn();
+    await dark(); await set("viewmode", "both"); await sleep(400); await js(`Object.assign(window.__t.state(),${was})`); await example("egg");
+};
+const far = k => js("window.__t.camera.position.distanceTo(window.__t.target())").then(d => d * k);
+S.light = () => withLamp(async () => {      // the lamp unlit, the light tick, the room: one slow turn round it
+    await tab("technique"); await set("viewmode", "only3d"); await sleep(600); await fit();
+    const d = await far(1.45); let az = -75;
+    await clip("light", 110, async i => { if (i === 18) await set("lamp", true); az += 1.6; await cam(az, 20, d); await sleep(i === 18 ? 700 : 60); });
+    await project("light");
+});
+S.lights = () => withLamp(async () => {     // the Light tab: a small LED, a frosted bulb (the pattern goes soft), a spot (its cone), a second light in blue
+    await tab("light"); await set("lamp", true); await fit();
+    const d = await far(1.5); let az = -70; await cam(az, 22, d); await sleep(800);
+    await clip("lights", 100, async i => {
+        const step = i === 16 || i === 34 || i === 56;
+        if (i === 16) await lt("select[data-l=like]", "frosted");
+        else if (i === 34) { await lt("select[data-l=like]", "gu10"); await lt("#lt_p2", 10); }
+        else if (i === 56) { await js("document.querySelector('#g-light button[data-act=add]').click()"); await lt("select[data-l=color]", "pick"); await lt("input[data-l=hex]", "#56b4e9"); await lt("#lt_p2", 90); await lt("#lt_lm", 150); }
+        az += 0.5; await cam(az, 22, d); await sleep(step ? 700 : 80);
+    });
+    await project("lights");
+});
+S.light_move = () => withLamp(async () => { // the move-a-light tool: the light up its arrow, across, and back; the pattern on the walls follows
+    await tab("light"); await set("lamp", true); await fit();
+    await cam(-60, 22, await far(1.5)); await js("document.querySelector('#tools [data-tool=light]').click()"); await sleep(600);
+    const z0 = +(await js("document.querySelector('#lt_p2').value")), ease = x => x * x * (3 - 2 * x);
+    await clip("light_move", 96, async i => {
+        // 0–9 still · 10–39 up its arrow · 40–69 across · 70–95 back to the middle
+        const u = i < 10 ? 0 : i < 40 ? ease((i - 10) / 30) : 1, v = i < 40 ? 0 : i < 70 ? ease((i - 40) / 30) : 1, k = 1 - (i < 70 ? 0 : ease((i - 70) / 25));
+        await lt("#lt_p2", (z0 + 32 * u * k).toFixed(1)); await lt("#lt_p0", (26 * v * k).toFixed(1)); await lt("#lt_p1", (-14 * v * k).toFixed(1)); await sleep(120);
+    });
+    await js("document.querySelector('#tools button[data-tool=\"\"]').click()"); await project("light_move");
+});
+S.light_room = () => withLamp(async () => { // a bigger room, grey walls, a wood floor, a brighter bulb to fill it
+    await tab("light"); await set("lamp", true); await lt("#lt_lm", 800); await lt("#lt_r_size", 2.5); await lt("#lt_r_back", 25); await lt("select[data-l=r_walls]", "grey"); await lt("select[data-l=r_floor]", "wood");
+    await fit(); await cam(-60, 22, await far(1.9)); await sleep(1500); await shot("light_room");
+});
+S.light_stacked = async () => {             // light is for every technique: the stacked vase and a desk lamp beside it
+    await example("vase"); await mode("stacked"); await tab("light"); await set("lamp", true);
+    await lt("select[data-l=like]", "desk"); await lt("select[data-l=aim]", "middle"); await lt("#lt_p0", -150); await lt("#lt_p1", -120); await lt("#lt_p2", 190);
+    await fit(); await cam(-35, 18, await far(1.7)); await sleep(1500); await shot("light_stacked");
+    await dark(); await example("egg");
 };
 
 await send("Page.reload"); await sleep(4000);              // a fresh tab: the last run may have left it mid-request
