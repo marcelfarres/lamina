@@ -104,6 +104,133 @@ face to face, with room for glue. Only outward seams are mitred: at an inward se
 tab joints (tab, multitab, diamond, ticked, gear) print their tabs as flaps of the skin alone (`thin` per piece):
 a tab as thick as the sheet would fold into the panel it glues to. The flap folds round the mitred edge onto the
 outside of the next panel. Tongue, puzzle and strip are not printed this way and keep the material error.
+
+### The snap joint: walls inside, a clip over them
+A printed model can be closed without glue and with nothing on its outside. The `snap` joint puts a wall
+(`Folded.snap_wall`) on the inside face of each panel along a seam, 2 mm thick and 9 mm long, one pair for every
+`spacing` of seam. His first print had walls 1.2 mm thick and clips with 1.0 mm legs: they broke every time. A
+longer wall grows into a neighbour seam's at a corner of the box. The front of a wall is the plane the two panels meet on: an outward seam turns about the top of its skin, so
+that plane goes through the top of the skin at half the bend, which is also the plane of the mitre. The two walls
+of a shut seam therefore lie face to face, at any bend, and one clip shape (`Folded.snap_clip`) fits every seam.
+
+Why a separate clip: the two walls move apart sideways when a seam opens, so what holds them must reach round the
+back of the other wall. A part printed flat, without support, cannot grow a hook that goes over a wall and comes
+down behind it. The clip is a U, 9 mm across and 7 mm long, closed at one end by a plate 1.2 mm thick (`SNAP_PLATE`)
+that fills the space between its legs. Its legs are 2.4 mm thick and its top 3 mm, and each leg ends in a hook
+0.5 mm into a groove 0.7 mm deep in the back of its wall. The groove is 3.6 mm up the wall, so that a leg clears the
+other panel beside a 2 mm wall on a seam bent 100°. The plate ties the legs, so the clip cannot open: it slides on
+along the seam, its hooks running in the grooves, until the plate meets the end of the walls. It prints standing on
+that plate. His second clip test (legs 1.6 mm, an open U standing on 34 mm² of the bed): "too small, too thin, they
+pop out of the bed and too fragile", and the clip opened. The plate is 90 mm² at the default `snap wall`; under
+`CLIP_AREA` (60 mm²) the plan warns and names the `snap wall` that gives a clip that size.
+
+A wall leans over its own panel by half the bend, so it prints without support up to a bend of 100° (`SNAP_LEAN`);
+a sharper seam is left plain with a warning, like a seam shorter than a wall and its margins or a window frame
+narrower than the wall's foot. At an inward seam the panels meet outside the edge: the wall starts on the panel's
+edge, leans out to that plane at 45° and follows it. A shallow seam's mitre is wider than its bend needs (it is as
+wide as the groove's flat bottom): the wall starts at the mitre and leans out to the plane in the same way.
+
+The walls travel in the plan with each piece (`rails`, a `Rail` each: its line in the net, the direction into the
+panel, its cross-section) and `core.solid.rail` fuses them onto the panel. The 3D view draws each as a facet of its
+face. A clip is a part of its own (`K-n`, group J, 7 mm thick, `springy`: the thin-part checks pass it). The joint
+needs a printed material, a hinge and `score side` inside, because the walls stand on the face that is up on the bed.
+
+### The click joint: a tooth under a bridged bar, no part of its own
+The `click` joint closes a printed seam with nothing loose. It uses the same plane as the snap joint: one panel
+gets a wall with a tooth (`CLICK_NOSE` wide) that goes through the plane, the other gets a bar beside the plane,
+bridged between two posts `CLICK_SPAN` apart. Pressed shut, the tooth goes under the bar and
+stands `tooth height` up behind it. `Folded.click_parts` makes the five cross-sections; all of them are walls in the
+plan (`rails`), so `core.solid` needs nothing new.
+
+Why a bridge: a part that grows up from a flat panel is weak where it is bent or pulled across its layers. A bar
+between two posts is printed as a bridge and bends along its lines. It is the only part that bends; the tooth is
+rigid.
+
+How the bar is sized: lifted by the tooth's height in its middle, a beam held at both ends is stretched by
+12 · lift · thickness / length², where the length is the part of the bar free to bend: its span less the ridge,
+the fillets and the support. The bar is never stretched past `CLICK_STRAIN` (6 % for PETG, 3 % for PLA). In his
+eighth print the bars stretched 6.4 % held, and one broke where they reached 8.6 and 12 %. Its span is as long as
+the seam allows, 16 to 24 mm. The bar is as thick as `bar thickness` asks (1.2 mm, never under `CLICK_THIN`: a bar
+of 0.8 mm broke in the hand). Where even a bar with nothing under it would stretch too far, the tooth is made lower,
+a layer (0.2 mm) at a time, down to `CLICK_LOW` (0.6 mm), and only then the bar thinner; the plan names the seams
+whose tooth is lower. With a tooth 1 mm high in PETG, a 24 mm bar keeps the full tooth and a 16 mm bar gets a
+0.6 mm one. A free bar is also no thicker than a hand can press shut: the force to lift a beam held at both ends is
+192 · E · I · lift / length³, under `CLICK_PRESS` (80 N, about 8 kg). Across the seam the bar is `bar depth` deep
+(2.4 mm). The depth, not the thickness, keeps the bar straight when the seam is pulled: a 2.0 mm deep bar broke in
+the eighth print. The ridge of the tooth is `CLICK_RIDGE` long, in the middle: a ridge as wide as the tooth would
+hold the bar flat over that width and bend the rest of it far too much.
+
+What the bar can still stretch goes first to a fillet at each end (`CLICK_FILLET`, 0.9 mm): three blocks under the
+bar, 0.2 mm deeper each nearer its support, fused to it. The bar thickens from 1.2 to 1.8 mm into its support
+instead of meeting it at a sharp step, which is where the bar broke. Each step reaches 0.3 mm further along the
+seam than the one below, about 55° from upright, so it prints as a ledge on the post. What is left goes to `bar
+support` (0.5 at most): the two posts grow in under the bar, which makes it stronger and stiffer. On a 24 mm bar that
+is 2.6 mm a side; a 16 mm bar gets 0.4 mm. The plan still warns when a click takes more than `CLICK_HARD` to press
+shut, with the kilos.
+
+`click size` scales the whole joint: every size in this section is for size 1. A small model takes 0.7, so that
+its short seams have room for a click. A big model takes 1.5 or 2: its seams carry more and have the room.
+`post size` scales the two posts alone: their length along the seam beyond the bar, and their ramp.
+
+What a 0.4 mm nozzle and 0.2 mm layers can print set the tooth. The first print had a ridge 0.4 mm high, measured
+up a wall that leans by half the bend: on a 94° seam that is 0.27 mm above the bed, one layer, on a top 0.5 mm
+wide. It lined the seam up and held nothing. The ridge is now 1 mm high (`tooth height`, in steps of one layer) and
+its flat top is `CLICK_LAND` wide, three lines. Its back face is square to the pull, so a pull does not lift the bar.
+
+A click also stands clear of the faces that fold or close over its panel. Shut, such a face is the panel's mirror
+image in the plane that halves the edge's angle. A corner of a post, bar or wall whose mirror image lies in the
+sheet under that face is in its way: the fold would stop short. The click then slides along its seam or takes the
+shortest bar, and is left out with a warning when neither helps. The check looks at the faces next to the panel,
+not at the walls that stand on them.
+
+Which seams get a click when not all can: the seams between two panels come first, since they are all that holds a
+piece to the rest; then `Folded.far` puts the others in order, farthest from a fold of their flat face first. A lid hangs on one fold. The seam opposite that fold holds it shut, so it finds its place before the
+seams beside the fold, which the fold holds already.
+
+A seam a click does not fit, a frame too narrow beside a window or a seam too short, tries a smaller click before it
+is left plain: 85 % and then 70 % of `click size` (`CLICK_SMALLER`); the plan names those seams. A piece with a seam
+but no click on any of them gets a warning, since nothing would hold it. His v9 lamp had such a piece: a loose
+triangle whose two seams missed their click, one by 0.07 mm of frame, the other to a click placed first next door.
+
+One click at a time: several clicks that must go in at the same moment are hard to press shut. `Folded.closing`
+finds the seams that close in one motion and gives only one of them a click; the others get a locator, the tooth
+without its ridge, which keeps the edges level and goes in with no force. It assumes an order of folding: out from
+the biggest flat part of the biggest panel; a flap (a part on one fold with nothing beyond it, like a lid) after
+the parts that carry others; of two flaps, the one with more seams on its edges; a panel of its own after the bigger
+ones. A seam closes when the later of its two parts moves. Two parts equally late, such as two walls on one bottom,
+close their seam one after the other, so both keep their clicks. The box's lid closes five seams as it folds down:
+it gets one click, opposite its fold, and locators where there is room. The fold holds the lid on one side, and the
+click opposite it stops the lid turning about it with the longest lever. A piece on no fold (a panel of its own)
+gets two clicks, or it could swing out about the one. A model folded in another order can still close two clicks at
+once, as the last wall of a ring does. `one click at a time` (`click_together`) turns the rule off: every seam its
+own click.
+
+Everything else is a plain block. The tooth is one block 10 mm wide on a 2.4 mm wall, with the one ridge. Every
+upright (the tooth's wall, the posts, the blocks under the bar) is a wedge (`Folded.braced`, `CLICK_FOOT`): its
+front, a flat top, and one slope down into the panel, so a pull on the seam does not bend a thin wall at its foot
+across its layers. A window frame too narrow for the slope gets a shorter one, down to the bare wall. A click
+slides along its seam to stand clear of the walls of the seams round the corner (`Rail.foot`), takes the shortest
+bar when that is not enough, and is left out, with a warning, when it still finds no room: two walls grown into one
+would not fold.
+
+The underside of the tooth rises as steeply as prints without support and stays 0.3 mm over the other panel's
+inside face. It is a short overhang, so it may lean 55° from upright (`CLICK_LEAN`), where a tall wall may lean 50°.
+How far the tooth reaches past the plane sets the joint's height: on a sharp seam because the other panel stands up
+there, on a shallow one because the underside rises all the way. So every part of the reach is short: the bar's
+depth, the ridge's top, and a lead-in ramp of `CLICK_LEAD` with a tip `CLICK_TIP` thick. His sixth print found the
+joint too tall to assemble; these cut 0.5 to 1.1 mm. `bar depth` 2.0 cuts about 0.3 mm more.
+
+The fronts of the tooth's wall, the posts, the bar and the blocks stand `CLICK_BACK` (0.15 mm) back from the plane.
+Shut, only the panel edges meet there. A printed face a little proud, or the steps of its layers, would otherwise
+hold the seam open by that much.
+
+A seam whose tooth needs walls higher than `snap wall` is left plain with a warning, like a seam bent over 100°, a
+seam too short for the shortest bar and its posts (about 22 mm at `click size` 1), or a window frame narrower than a
+wall's foot. A block each side of the tooth, from it to the post and
+1 mm under the bar, stops the seam from sliding along its length.
+
+Across the thickness of the sheet the tooth sits between the bar and the other panel's inside face, so the two
+edges stay level: the panel stops it one way, the bar's spring the other.
 Mountain folds are grooved from the face up on the bed, valley folds from the
 bed side. Edges between faces in one plane get no groove. The grooves travel in the plan with each piece (`grooves`, a `Groove` each: its line, flat bottom, skin, half opening and face)
 and `core/solid.py` cuts them from the printed part; the browser build has no boolean engine and exports plain parts,

@@ -5,10 +5,12 @@ Joint sizes adapt to the triangle they sit in (a hole or slot never crosses a fo
 shrink is reported per panel. Tabs are shown in the 3D view folded onto the panel they glue to."""
 from __future__ import annotations
 import math
+from collections import Counter
 import numpy as np
 import shapely
 from shapely import affinity
 from shapely.geometry import MultiPolygon, Polygon, LineString
+from shapely.geometry.polygon import orient
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
 from dataclasses import dataclass, field
@@ -21,7 +23,7 @@ from ..mesh import simplify, merge_small
 import trimesh
 from ..unfold import unfold, closing_shortfall, edges_at, faces_at
 
-JOINTS = ["seam", "tab", "multitab", "diamond", "ticked", "gear", "tongue", "puzzle", "rivet", "laced", "loops", "strip", "rib"]
+JOINTS = ["seam", "tab", "multitab", "diamond", "ticked", "gear", "tongue", "puzzle", "snap", "click", "rivet", "laced", "loops", "strip", "rib"]
 # The thickest sheet of each material that folds along a score line (mm); 0 = it does not fold at all, it cracks or
 # splits along the line (wood, MDF, acrylic, foam board, printed plastic). Sheet metal bends on a brake.
 # ponytail: rules of thumb, not measurements, and a material not listed is not checked; add it here when it matters.
@@ -58,13 +60,52 @@ MIN_NUMBER = 2.5    # the smallest font a seam number shrinks to on a short edge
 TABBED = ("tab", "multitab", "diamond", "ticked", "gear", "tongue", "puzzle")   # folded.tabs: a flap out from the edge
 # the joint sizes fit_sizes shrinks that each joint really uses: i = inset, h = hole, r = rib width
 USES = {"rivet": "ih", "laced": "ih", "strip": "ih", "loops": "h", "rib": "ir", "tongue": "i", "puzzle": "i"}
-FLAT = math.radians(1)                # two faces closer to one plane than this are one flat piece: no score between them
+# The snap joint (printed panels): a wall on the inside face of each panel along the seam, and a clip over the two.
+SNAP_WALL = 2.0                       # mm: a wall's thickness (five 0.4 mm lines). 1.2 broke in his first print
+SNAP_LEDGE, SNAP_GROOVE = 3.6, 0.7    # the groove in a wall's back the clip hooks into: how high its ledge is, how deep it is. High enough
+                                      # that a clip's leg clears the other panel beside a 2 mm wall on a seam bent 100°
+SNAP_LEG, SNAP_BITE = 2.4, 0.5        # a clip's leg: its thickness, and how far its hook reaches into the groove
+SNAP_CROWN, SNAP_PLATE = 3.0, 1.2     # the clip's top across the two legs, and the plate that closes one end of it
+# Under this a clip is warned about (his first clip print: a U standing on 34 mm², "too small, too thin, they pop out
+# of the bed & too fragile"). ponytail: one print sets it; 60 is not proven to print well, only 34 to print badly
+CLIP_AREA = 60.0                      # mm² a clip stands on, on the bed: its plate
+SNAP_CLIP, SNAP_LONG = 7.0, 9.0       # a clip's width along the seam, and the length of wall it sits on (longer walls grow into a
+                                      # neighbour seam's at a corner)
+SNAP_LEAN = math.radians(50)          # a wall leans by half the seam's bend: past this it does not print without support
+# The click joint (printed panels): a tooth on one panel's wall and a bar on the other's, bridged between two posts.
+# Printed flat, a part that stands on a panel is weak where it is pulled or bent across its layers, so: the one part
+# that bends is the bar, a bridge, which bends along its lines; everything else is a block on a wide foot.
+CLICK_SPAN, CLICK_POST = (16.0, 24.0), 3.0   # the bar's free length between its posts, least and most; a post's length along the seam
+CLICK_STRAIN = {"PETG": 0.06, "PLA": 0.03}    # the most the bar is stretched letting the tooth past, once. PETG yields at about 0.05. His
+                                      # round 8 print: bars at 6.4 % held, one broke where they reached 8.6 and 12 %
+CLICK_FILLET = 0.9                    # each end of the bar thickens into its support over this length, three steps of 0.2 mm deeper
+                                      # each: 0.3 mm a layer, a ledge from the post along the seam that prints at about 55°
+CLICK_LOW = 0.6                       # the lowest a tooth is made where its bar cannot stretch to the tooth height asked
+CLICK_STIFF = {"PETG": 2000, "PLA": 3300}     # how stiff each is (MPa): what the force to press a click shut is reckoned from
+CLICK_PRESS = 80                      # a free bar is no thicker than one that takes this to press shut (N, about 8 kg)
+CLICK_HARD = 150                      # a click reckoned to take more than this is said. Reckoned with the bar as the only part that
+                                      # gives: the panels and posts give too, so a click somewhat over CLICK_PRESS still goes in
+CLICK_THIN = 1.2                      # the thinnest bar: six layers. In his prints a bar of 0.8 mm broke in the hand
+CLICK_NOSE, CLICK_LAND = 10.0, 1.2    # the tooth's width along the seam, and the flat top of its ridge across it: three lines of a 0.4 mm nozzle
+CLICK_GAP = 0.7                       # a fully supported bar: the room the posts leave round the tooth, both sides together
+CLICK_RIDGE = 2.4                     # the ridge's length along the seam, in the middle of the tooth
+CLICK_WALL, CLICK_NECK = 2.4, 1.2     # the thickness of the wall the tooth stands on, and of the tooth where it goes under the bar
+CLICK_LEAD, CLICK_TIP = 1.2, 0.6      # the ramp in front of the ridge that lifts the bar, and the least thickness at its tip
+CLICK_LEAN = math.radians(55)         # the tooth's underside: a short overhang, so a little more than SNAP_LEAN prints
+CLICK_BACK = 0.15                     # the click's front faces stand this far back from the plane the panels meet on: shut, only
+                                      # the panel edges meet there, and a printed face a little proud does not hold the seam open
+CLICK_SMALLER = (0.85, 0.7)            # a seam a click does not fit (a narrow frame, a short seam) tries it this much smaller
+CLICK_FOOT = 4.0                      # the ramp behind every upright: how far it runs into the panel at most
+
+FLAT =math.radians(1)                # two faces closer to one plane than this are one flat piece: no score between them
 MAX_HOLES = 60                       # holes along one seam (rivet / laced / strip)
 MAX_FACES = 4000                      # triangles this can unfold and lay out in a usable time
 MAX_PANELS = 400                      # …and parts, when `separate` makes every triangle one (see build)
 JOINT_HELP = ("seam = plain edge (glue / sew) · tab = one glue tab · multitab = several small tabs · diamond = triangular ticks · "
               "ticked = dense small ticks along the seam · "
               "gear = rectangular teeth · tongue = tab into a slot on the other panel · puzzle = round-head tab into a matching hole · "
+              "snap = printed panels only: a short wall on the inside of each panel at the seam and a printed clip slid along the two, nothing to see from outside, no glue · "
+              "click = printed panels only: a tooth on the inside of one panel and a small bridge on the inside of the other; press the seam shut and it clicks, no loose parts, no glue · "
               "rivet = one hole per spacing on both panels · laced = ≥2 holes per edge on both panels (lace / zip-tie) · "
               "loops = alternating eyelet loops on both edges that interleave like hinge knuckles; one lace through all (cloth, leather, masks) · "
               "strip = holes + a separate rounded strip with matching holes bridging the two panels · "
@@ -102,10 +143,45 @@ class Groove(NamedTuple):
                 "land": round(float(self.land), 4), "skin": round(float(self.skin), 4), "wide": round(float(self.wide), 4), "top": bool(self.top)}
 
 
+class Click(NamedTuple):
+    """The cross-sections of one click joint, each [(u, z)] as a Rail takes it (see Folded.click_parts)."""
+    wall: list            # the wall the tooth stands on, on its ramp
+    teeth: list           # the tooth along the seam, [(0, to, cross-section)] each way from its middle: the ridge, then the block
+    post: list            # a post of the bar, on its ramp
+    bar: list             # the bar
+    guide: list           # the block under the bar each side of the tooth
+    reach: float          # how far a foot goes into its panel
+    thick: float          # the bar's thickness, the way it bends
+    strain: float         # how far the bar is stretched letting the tooth past
+    press: float = 0.0    # the force to press the tooth past the bar (N), the bar reckoned as a beam held at both ends
+    support: float = 0.0  # how far each post stands in under the bar
+    fillet: tuple = ()    # [(length, cross-section)] under each end of the bar, from the post's end towards the tooth
+    bite: float = 0.0     # how far the tooth stands up behind the bar
+
+
+class Rail(NamedTuple):
+    """A wall standing on a printed panel along a line of its flat net: `profile` is its cross-section, [(u, z)] with
+    u from the line into the panel along `into` and z up from the bed, the same from a to b."""
+    a: tuple
+    b: tuple
+    into: tuple
+    profile: list
+
+    def foot(self):
+        """The room the wall takes in the net, seen from above: where it stands and what it hangs over."""
+        a, b, n = (np.asarray(v, float) for v in (self.a, self.b, self.into)); us = [u for u, _ in self.profile]
+        return Polygon([a + n * min(us), b + n * min(us), b + n * max(us), a + n * max(us)])
+
+    def json(self):
+        r = lambda v: [round(float(x), 4) for x in v]         # noqa: E731
+        return {"a": r(self.a), "b": r(self.b), "into": r(self.into), "profile": [r(q) for q in self.profile]}
+
+
 @dataclass
 class FoldedSlice(Slice):
     """A folded panel: the shared Slice plus what unfolding and joining it keeps while it is built."""
     pn: object = None                   # the Panel this slice is cut from
+    rails: list = field(default_factory=list)       # printed: a Rail per wall standing on the panel (the snap joint)
     edges: list = field(default_factory=list)       # [(adjacency index, LineString)] the panel's fold and seam edges in its net, for the page to mark and pick
     additions: list = field(default_factory=list)   # tabs added to the panel's outline
     skipped: dict = field(default_factory=dict)     # what → seams whose joint found no room
@@ -130,7 +206,7 @@ class FoldedSlice(Slice):
         """What a folded panel carries beyond its outline. Printed, for core.solid to cut: a groove per fold and mitred
         seam edge, and its glue tabs with the thickness they keep. And where its fold and seam edges lie on the sheet,
         for the page to mark and pick. (A folded net is one piece.)"""
-        return {**({"grooves": [g.json() for g in self.grooves]} if self.grooves else {}),
+        return {**({"grooves": [g.json() for g in self.grooves]} if self.grooves else {}), **({"rails": [r.json() for r in self.rails]} if self.rails else {}),
                 **({"thin": [r for g in self.thin for r in poly_coords(as_multi(g))], "thin_t": self.thin_t} if self.thin else {}),
                 **({"edges": self.placed_edges(pc)} if self.edges else {})}
 
@@ -159,6 +235,7 @@ class FoldedSlice(Slice):
         self.edges = [(k, flip(ln)) for k, ln in self.edges]
         self.marks = [(-m[0], m[1], m[2], -mark_rot(m), *m[4:]) for m in self.marks]
         self.grooves = [g._replace(a=(-g.a[0], g.a[1]), b=(-g.b[0], g.b[1])) for g in self.grooves]
+        self.rails = [r._replace(a=(-r.a[0], r.a[1]), b=(-r.b[0], r.b[1]), into=(-r.into[0], r.into[1])) for r in self.rails]
         self.mark_boxes = []; self.room = None; self.taken = None
 
 @dataclass(eq=False)
@@ -215,12 +292,50 @@ class Folded(Mode):
               "much of the face it takes, 0 = none, 1 = as much as the frame allows. The frame left round it is never "
               "narrower than the minimum feature width plus the room its folds need; a face too small for that stays whole", 0, 1, 0.05, label="windows in faces"),
         Param("joint", "choice", "laced", JOINT_HELP, choices=JOINTS, section="Joining — how panels meet at a seam"),
-        Param("hole_d", "number", 2.5, "Hole diameter for rivet / laced / strip (mm); shrinks where the triangle is small", 0.5, 30, 0.1, unit="mm", label="hole diameter"),
-        Param("inset", "number", 4.0, "Distance from the seam to the hole centres / slots / second bend (mm); shrinks where the triangle is small", 0.5, 100, 0.5, unit="mm", label="distance from seam"),
-        Param("spacing", "number", 20.0, "Hole spacing along a seam (mm); laced makes ≥ 2 per edge, rivet ≥ 1", 2, 500, 1, unit="mm", label="hole spacing"),
-        Param("tab_h", "number", 10.0, "Tab height for tab / multitab / diamond / gear / tongue / puzzle (mm)", 1, 100, 0.5, unit="mm", label="tab height"),
-        Param("tab_angle", "number", 30, "Side angle of trapezoid tabs (deg)", 0, 80, 5, unit="deg", label="tab side angle"),
-        Param("rib_w", "number", 12.0, "Rib joint: arm width above the panel and tab width through the slot (mm); shrinks where the triangle is small", 2, 100, 0.5, unit="mm", label="rib width"),
+        # each of these shows only with the joints that read it: the rest of the time it would do nothing
+        Param("hole_d", "number", 2.5, "Hole diameter for rivet / laced / strip / loops (mm); shrinks where the triangle is small", 0.5, 30, 0.1, unit="mm",
+              label="hole diameter", show_if=("joint", ["rivet", "laced", "strip", "loops"])),
+        Param("inset", "number", 4.0, "Distance from the seam to the hole centres (rivet / laced / strip), the rib slots, the tongue's second bend "
+              "or the puzzle hole (mm); shrinks where the triangle is small", 0.5, 100, 0.5, unit="mm", label="distance from seam",
+              show_if=("joint", ["rivet", "laced", "strip", "rib", "tongue", "puzzle"])),
+        Param("spacing", "number", 20.0, "One hole (rivet / laced / strip), click or clip every this much along a seam (mm); laced makes ≥ 2 per "
+              "edge, the others ≥ 1", 2, 500, 1, unit="mm", label="spacing along a seam", show_if=("joint", ["rivet", "laced", "strip", "click", "snap"])),
+        Param("tab_h", "number", 10.0, "Tab height for tab / multitab / diamond / ticked / gear / tongue / puzzle (mm)", 1, 100, 0.5, unit="mm", label="tab height",
+              show_if=("joint", ["tab", "multitab", "diamond", "ticked", "gear", "tongue", "puzzle"])),
+        Param("tab_angle", "number", 30, "Side angle of the trapezoid tabs of tab / multitab / tongue (deg)", 0, 80, 5, unit="deg", label="tab side angle",
+              show_if=("joint", ["tab", "multitab", "tongue"])),
+        Param("snap_h", "number", 10.5, "Snap and click joints: how high the walls stand on the inside of the panels (mm). Snap: higher walls give "
+              "the clip longer legs, which go on more easily. Click: the most a wall may stand; a seam whose tooth needs more is left plain", 6, 20, 0.5,
+              unit="mm", show_if=("joint", ["snap", "click"]), label="snap wall"),
+        Param("snap_fit", "number", 0.1, "Snap joint: the room between a clip and the two walls it holds, on each side (mm). Click joint: the "
+              "room between the tooth and the bar. Does not go on: more. Loose: less, down to 0. Print one seam first and set it for your "
+              "printer and filament", 0, 1, 0.05, unit="mm", show_if=("joint", ["snap", "click"]), label="snap fit"),
+        Param("click_size", "number", 1.0, "Click joint: the size of the whole joint. Every one of its sizes goes with it: 0.7 for a small "
+              "model whose seams are too short for it (a click needs a seam of about 22 mm at size 1), 1.5 or 2 for a big model, where "
+              "the seams carry more and have the room", 0.6, 3, 0.1, show_if=("joint", ["click"]), label="click size"),
+        Param("click_post", "number", 0.5, "Click joint: the size of the two posts that carry the bar: their length along the seam beyond "
+              "the bar, and how far their ramp runs into the panel. 1 = 3 mm and 4 mm. Posts break off: more", 0.3, 2, 0.1,
+              show_if=("joint", ["click"]), label="post size"),
+        Param("click_bite", "number", 1.0, "Click joint: how far the tooth stands up behind the bar (mm): what holds the seam shut. "
+              "Comes apart: higher. The bar turns white or breaks when the seam is pressed shut: lower. A higher tooth lifts the bar "
+              "further, so a short bar is then made thinner", 0.4, 2, 0.2, unit="mm", show_if=("joint", ["click"]), label="tooth height"),
+        Param("click_bar", "number", 1.2, "Click joint: the bar's thickness, the way it bends when the tooth goes under it (mm). A stiff "
+              "filament (PLA): thinner. A soft one, or bars that break: thicker. Where a bar is too short to bend that far, its tooth "
+              "is made lower, down to 0.6 mm, before the bar is made thinner", 1.2, 3, 0.2, unit="mm", show_if=("joint", ["click"]), label="bar thickness"),
+        Param("click_deep", "number", 2.4, "Click joint: the bar's depth across the seam (mm): what keeps it straight when the seam is "
+              "pulled. The bar bows out and lets the tooth go: deeper. A deeper bar needs a wider frame beside a window", 1.2, 5, 0.2,
+              unit="mm", show_if=("joint", ["click"]), label="bar depth"),
+        Param("click_together", "bool", True, "Click joint: seams that close in the same motion, like the edges of a lid as it "
+              "folds down, get one click; the others get a locator, the tooth without its ridge, which keeps the edges level and "
+              "goes in with no force. A piece on no fold gets two clicks, so it cannot swing out. Off: every seam its own "
+              "click, all to press in at once", show_if=("joint", ["click"]), label="one click at a time"),
+        Param("click_solid", "number", 0.5, "Click joint: how much of the bar is solid down to the panel. 0 = the bar is a free bridge from "
+              "post to post and springs up to let the tooth past. 1 = the posts grow in under the bar as far as the tooth, and only "
+              "the piece of bar over the tooth is free: much stronger, but that short piece cannot spring, so the seam has to give "
+              "somewhere else to shut. Bars break or bow: more. Does not go in: less, or a lower tooth. Above 0 the bar is as thick "
+              "as `bar thickness` says, and Lamina warns when it would be stretched too far", 0, 1, 0.1, show_if=("joint", ["click"]), label="bar support"),
+        Param("rib_w", "number", 12.0, "Rib joint: arm width above the panel and tab width through the slot (mm); shrinks where the triangle is small", 2, 100, 0.5, unit="mm", label="rib width",
+              show_if=("joint", "rib")),
         Param("rib_thick", "number", 0.0, "Rib material thickness (mm) when the ribs are cut from a different sheet; 0 = same as the panels. Slots in the panels follow it", 0, 20, 0.1, unit="mm", show_if=("joint", "rib"), label="rib thickness"),
         Param("edge_fit", "choice", "inner", "Where two panels meet at a seam. inner = at their inside edges: every outward seam "
               "edge is cut back by thickness × tan(bend / 2), so stiff sheet (metal, wood, acrylic) closes instead of its "
@@ -257,7 +372,10 @@ class Folded(Mode):
         self.styles = ("dashed", "dotted") if p["perforate"] else SCORE     # a mountain and a valley fold line
         # … and its glue tabs as flaps of the skin alone: a tab as thick as the sheet would fold into the panel it glues to
         self.thin_tabs = self.hinged and p["joint"] in THIN_TABS
-        self.mitres = self.hinged and (p["joint"] == "seam" or self.thin_tabs)     # seam edges cut to half the bend, face to face
+        self.mitres = self.hinged and (p["joint"] in ("seam", "snap", "click") or self.thin_tabs)     # seam edges cut to half the bend, face to face
+        if p["joint"] in ("snap", "click") and not (self.hinged and self.inside):
+            ctx.errors.append(f"the {p['joint']} joint is for printed panels: it needs a printed material, a `hinge` above 0 and `score side` inside "
+                              "(its walls stand on the face that is up on the bed). The seams are left plain")
         # Bound the face count itself, not the facet size. `facet` 0 means "keep every triangle", which made
         # target_faces return 0 and skipped this guard entirely — the one route into unfold() with no limit, so a
         # scanned mesh of 200 000 faces never came back and the server looked hung. Whichever way the count was
@@ -401,11 +519,64 @@ class Folded(Mode):
                                 side.back = 0.0
         self.windows(slices)
         extra = []
-        for j, k in enumerate(seams, 1):
+        order = list(enumerate(seams, 1))
+        if p["joint"] == "click":
+            self.closers = {}                                 # panel → the edges another face folds or closes over it at
+            self.tight = {}                                   # panel → (it, the seams whose bar is stretched past its material's limit, how far)
+            self.together = self.closing(slices, seams) if p["click_together"] else {}   # seam → the part that closes it with other seams
+            self.clicked, self.located, self.lowered = Counter(), [], []   # part → the clicks it has; the seams given a locator; given a lower tooth
+            self.smaller, self.held = [], []                  # the seams given a smaller click; the seams given a click or a locator
+            for k in [k for sl in slices for k in self.creases(sl.pn)] + list(seams):
+                if convex[k]:
+                    va, vb = mesh.face_adjacency_edges[k]; a, b = (self.side(owner[int(f)], int(f), va, vb) for f in mesh.face_adjacency[k])
+                    for own, other in ((a, b), (b, a)):
+                        over = Polygon([((np.array(q) - other.A) @ other.d, (np.array(q) - other.A) @ other.n) for q in other.tri.exterior.coords[:-1]]).buffer(0.5); shapely.prepare(over)
+                        self.closers.setdefault(id(own.sl), []).append((k, own, math.radians(self.interior_angle(k)) / 2, over))
+        if p["joint"] == "click":                           # a click takes room: where two cannot both stand, the one farthest from a fold does
+            # first the seams between two panels: they are all that holds a piece to the rest (his v9 lamp's loose
+            # triangle lost a seam to a click placed before it on the panel next door); then by how far from a fold
+            order.sort(key=lambda jk: (all_sides[jk[1]][0].sl is all_sides[jk[1]][1].sl, -self.far(jk[1], all_sides[jk[1]])))
+        for j, k in order:
             sides = all_sides[k]
             phi = self.interior_angle(k)
             extra += self.joint(j, k, sides, phi, convex[k])
         # additions (tabs) → raw; facets for the 3D view: the profile of every face in its own frame (+ folded tabs)
+        if p["joint"] == "snap" and self.hinged and self.inside and slices:   # a clip too small to print well, said with what cures it
+            def clip_area(h):
+                keep = self.p; self.p = {**keep, "snap_h": float(h)}
+                try:
+                    return self.snap_clip(whole=True).area
+                finally:
+                    self.p = keep
+            if clip_area(p["snap_h"]) < CLIP_AREA:
+                need = next((h for h in np.arange(p["snap_h"], 20.01, 0.5) if clip_area(h) >= CLIP_AREA), 20.0)
+                slices[0].warnings.append(f"the clips stand on {clip_area(p['snap_h']):.0f} mm² on the bed and are {SNAP_CLIP:g} mm tall: small "
+                                          f"clips come off the bed and break. Set `snap wall` to {need:g} mm: the walls and the clips over them "
+                                          "grow taller, and the clips stand on more")
+        if p["joint"] == "click" and self.smaller:
+            ctx.notes_extra = " · ".join(x for x in [ctx.notes_extra, f"{len(self.smaller)} click joint(s) are made smaller to fit a narrow "
+                                       f"frame or a short seam (seams {', '.join(map(str, sorted(self.smaller)))})"] if x)
+        if p["joint"] == "click" and self.hinged and self.inside:   # a piece with a seam but no click on any: nothing holds it
+            for sl in slices:
+                mine = sorted(j for j, k in order if any(s.sl is sl for s in all_sides[k]))
+                if mine and not set(mine) & set(self.held):
+                    sl.warnings.append(Issue(f"{sl.label} has no click joint on any of its seams ({', '.join(map(str, mine))}): nothing "
+                                             "holds it to the rest. Make the windows smaller (`windows in faces`), use bigger "
+                                             "triangles, or a smaller `click size`", "no-joint"))
+        if p["joint"] == "click" and self.lowered:
+            ctx.notes_extra = " · ".join(x for x in [ctx.notes_extra, f"{len(self.lowered)} click joint(s) on short seams have a lower tooth, "
+                                       f"so their bar is not stretched past what {p.get('material_kind') or p.get('material')} takes: they "
+                                       f"hold less (seams {', '.join(map(str, sorted(self.lowered)))})"] if x)
+        if p["joint"] == "click" and self.located:
+            ctx.notes_extra = " · ".join(x for x in [ctx.notes_extra, f"{len(self.located)} seam(s) close in the same motion as one "
+                                       "with a click: they have a locator, the tooth without its ridge, so only one click goes in at "
+                                       f"a time (seams {', '.join(map(str, sorted(self.located)))})"] if x)
+        for sl, js, far in getattr(self, "tight", {}).values() if p["joint"] == "click" else ():
+            press, strain = max(far)
+            sl.warnings.append(f"{len(set(js))} click joint(s) are stiff: about {press / 9.81:.0f} kg to press one shut, and its bar must stretch "
+                               f"{strain * 100:.0f} % to let the tooth past ({p.get('material_kind') or p.get('material')} takes about "
+                               f"{self.click_cap * 100:g} %). They may not go in, or break. Lower `tooth height`, `bar thickness` or "
+                               "`bar support`, or print one seam to try it")
         for sl in slices:
             for what, js in sl.skipped.items():
                 ids = ", ".join(map(str, sorted(set(js))[:12])) + (" …" if len(set(js)) > 12 else "")
@@ -463,8 +634,8 @@ class Folded(Mode):
         self.check_folds(ctx, panels, seams)
         if len(ctx.errors) == said:                           # a sheet that does not fold at all has said so: how far it folds is moot
             self.check_closing(slices)
-        ctx.notes_extra = (f"unfolded {len(mesh.faces)} triangles into {n_panels} panel(s), {len(seams)} seams"
-                           + (f"; {int(gone.sum())} faces removed" if gone.any() else ""))
+        ctx.notes_extra = " · ".join(x for x in [f"unfolded {len(mesh.faces)} triangles into {n_panels} panel(s), {len(seams)} seams"
+                                                 + (f"; {int(gone.sum())} faces removed" if gone.any() else ""), ctx.notes_extra] if x)   # the joints' notes after it
         # A piece of the surface the removed faces cut off from the rest is still cut, as panels of its own: said, never dropped
         parts = trimesh.graph.connected_components(mesh.face_adjacency, nodes=np.arange(len(mesh.faces)))
         cut_off = len(parts) - len(trimesh.graph.connected_components(whole.face_adjacency, nodes=np.arange(len(whole.faces)))) if gone.any() else 0
@@ -699,6 +870,73 @@ class Folded(Mode):
                                                  "note": "rigid panels, each rib cut at its seam's angle and slotted in from the back"}]}]
 
     # ---------------------------------------------------------------- helpers
+    @property
+    def click_cap(self):
+        """The most a click's bar may be stretched letting the tooth past, for the job's material."""
+        return CLICK_STRAIN.get(self.p.get("material_kind") or self.p.get("material"), 0.03)
+
+    def closing(self, slices, seams):
+        """Which seams close in one motion → {seam: the flat part that closes it}, for the parts that close two or more.
+        Folding goes out from the biggest flat part of the biggest panel: a part folds after the one it hangs from,
+        a flap (a part on one fold with nothing beyond it, like a lid) after the parts that carry others, since it caps
+        the shape, of two flaps the one with more seams on its edges, and a panel of its own after the bigger ones. A seam closes when the later of its two parts moves,
+        and every seam that part closes moves with it: a lid on its fold, a loose wall put in place. Two parts as
+        late as each other (two walls on one bottom) close their seam one after the other: not together.
+        ponytail: the order is assumed, not known; a model folded another way may close other seams together."""
+        m = self.mesh; when = {}
+        for rank, sl in enumerate(sorted(slices, key=lambda sl: -sum(m.area_faces[f] for f in sl.pn.faces))):
+            part = {f: f for f in sl.pn.faces}               # the flat parts: faces joined by folds that do not bend
+
+            def top(f, part=part):
+                while part[f] != f:
+                    f = part[f]
+                return f
+            bent = []
+            for k in sl.pn.folds:
+                a, b = (int(f) for f in m.face_adjacency[k])
+                if m.face_adjacency_angles[k] < FLAT:
+                    part[top(a)] = top(b)
+                else:
+                    bent.append((a, b))
+            area, nb = {}, {}
+            for f in sl.pn.faces:
+                area[top(f)] = area.get(top(f), 0.0) + m.area_faces[f]
+            for a, b in bent:
+                nb.setdefault(top(a), set()).add(top(b)); nb.setdefault(top(b), set()).add(top(a))
+            depth = {max(area, key=area.get): 0}; todo = list(depth)   # out from the biggest part, one fold at a time
+            while todo:
+                q = todo.pop(0)
+                for r in nb.get(q, ()):
+                    if r not in depth:
+                        depth[r] = depth[q] + 1; todo.append(r)
+            root = next(iter(depth))
+            for f in sl.pn.faces:
+                q = top(f); when[f] = (rank, q != root and len(nb.get(q, ())) == 1, depth[q], q)
+        edges = Counter(when[int(f)][3] for k in seams for f in m.face_adjacency[k])     # part → the seams on its edges
+        when = {f: (r, flap, edges[q] if flap else 0, d, q) for f, (r, flap, d, q) in when.items()}
+        later = {}
+        for k in seams:
+            a, b = (when[int(f)] for f in m.face_adjacency[k])
+            if a[:4] != b[:4]:
+                later[k] = max(a, b)
+        count = Counter(later.values())
+        return {k: q for k, q in later.items() if count[q] > 1}
+
+    def far(self, k, sides):
+        """How far seam k is from the folds of the flat faces it closes (mm, from its middle to the middle of the
+        nearest fold; the farther of its two sides). A lid hangs on one fold: the seam opposite is where it is held
+        shut, the seams beside the fold are held by the fold already."""
+        m = self.mesh; mid = m.vertices[m.face_adjacency_edges[k]].mean(axis=0); best = 0.0
+        for s in sides:
+            plate, folds = {s.f}, [(k2, set(map(int, m.face_adjacency[k2]))) for k2 in s.sl.pn.folds]
+            flat = [fs for k2, fs in folds if m.face_adjacency_angles[k2] < FLAT]
+            while any(len(fs & plate) == 1 and not plate.update(fs) for fs in flat):   # the triangles of one flat face
+                pass
+            d = [np.linalg.norm(mid - m.vertices[m.face_adjacency_edges[k2]].mean(axis=0)) for k2, fs in folds
+                 if m.face_adjacency_angles[k2] >= FLAT and fs & plate]
+            best = max(best, round(float(min(d)), 1) if d else 0.0)
+        return best
+
     def creases(self, pn):
         """The panel's edges that are bent. The triangles of one flat face (a rectangle's diagonal, a hexagon's
         spokes) are joined edges too, but there is nothing to fold there and so nothing to score."""
@@ -815,6 +1053,10 @@ class Folded(Mode):
             return self.loops(j, sides)
         if jt == "rib":
             return self.rib(j, k, sides, phi)
+        if jt == "snap":
+            return self.snap(j, k, sides, convex)
+        if jt == "click":
+            return self.click(j, k, sides, convex)
         if jt != "seam":
             self.tabs(j, sides, jt, convex)
         else:
@@ -948,6 +1190,275 @@ class Folded(Mode):
         sl.raw = as_multi(rib)
         sl.marks.append((float(L * 0.5), float(t / 2 + w * 0.5), str(j)))
         return [sl]
+
+    def snap_wall(self, bend, convex, H=None, w=SNAP_WALL, groove=True):
+        """The cross-section of a snap wall for a seam bent by `bend`, [(u, z)]: u from the seam edge into the panel, z
+        up from the outer face. Its front is the seam's own plane, where the two panels meet (the mitre of an outward
+        seam, carried on upwards), so the two walls of a seam lie face to face; its back has the groove the clip hooks
+        into. Also the point its front starts at and the two directions it is drawn in: up the front, and into the wall.
+        The click joint asks for walls of its own height `H` and thickness `w`, without the groove."""
+        t = self.t; H = self.p["snap_h"] if H is None else H
+        if convex:                                            # it leans over its own panel by half the bend
+            # the panels turn about the top of the skin and meet on the plane through it at half the bend. The mitre
+            # ends on that plane, or short of it (a shallow seam's mitre is as wide as the groove's flat bottom, a
+            # fold stop opens it further): the wall then starts at the mitre and leans out to the plane first
+            wide = float(self.notch(bend)); h = bend / 2; tan = math.tan(h)
+            z1 = max(t, (wide + t + self.skin * tan) / (1 + tan))
+            at = np.array([(z1 - self.skin) * tan, z1]); up = np.array([math.sin(h), math.cos(h)]); back = np.array([math.cos(h), -math.sin(h)])
+            lead = [(wide, t - 0.05)] if z1 > t + 1e-9 else []; foot = max(0.05, (z1 - w * math.sin(h) - t + 0.05) / math.cos(h))
+        else:                                                 # an inward seam: the panels meet outside the edge, the wall leans out to there
+            h = bend / 2; z1 = t / (1 - math.tan(h))
+            at = np.array([-z1 * math.tan(h), z1]); up = np.array([-math.sin(h), math.cos(h)]); back = np.array([math.cos(h), math.sin(h)])
+            lead = [(0.0, t - 0.05)]; foot = (z1 + w * math.sin(h) - t + 0.05) / math.cos(h)
+        q = lambda s, m: tuple(float(x) for x in at + up * s + back * m)   # noqa: E731
+        g, l = SNAP_GROOVE, SNAP_LEDGE
+        notch = [q(l, w), q(l, w - g), q(l - 0.5, w - g), q(l - 1.0, w)] if groove else []
+        profile = lead + [q(0 if lead else -0.05, 0), q(H - 0.4, 0), q(H, 0.4), q(H, w - 0.4), q(H - 0.4, w), *notch, q(-foot, w)]
+        return profile, at, up, back, h
+
+    def click_parts(self, bend, convex, room=1e9, span=None, size=None):
+        """The cross-sections of a click joint for a seam bent by `bend`, each [(u, z)] like snap_wall → a Click; or a
+        sentence, when the tooth does not fit.
+        Drawn in the seam's own terms: s up the plane the panels meet on, m across it. The tooth goes through that
+        plane, under the bar, and its ridge stands up behind it. Its underside rises as steeply as prints without
+        support (`CLICK_LEAN`) and stays clear of the other panel. The further the tooth reaches past the plane, the
+        taller the joint: on a sharp seam because the other panel stands up there, on a shallow one because the
+        underside rises all the way. Every part of the reach is kept short for that. The fronts stand `CLICK_BACK`
+        back from the plane.
+        The bar is a bridge between its two posts, `span` apart. Lifted by the tooth's height in its middle it is
+        stretched 12 · lift · thickness / span² (a beam held at both ends), so it is as thick as `bar thickness`
+        asks, or thinner where that would stretch it past its material's `CLICK_STRAIN` or take more than `CLICK_PRESS`
+        to press shut: a short bar is a thin one.
+        What holds a shut seam is the bar's depth across it, not its thickness. The ridge is `CLICK_RIDGE` long, in the middle of
+        the tooth: a ridge as wide as the tooth would hold the bar flat over that width and bend the rest of it far
+        too much. The bar bends over its span less the ridge.
+        Every upright is a plain wedge (`braced`) as far as the panel has `room`."""
+        k = self.p["click_size"] if size is None else size   # every size of the click is for size 1 and goes with it
+        t = self.t; fit = self.p["snap_fit"]; D = self.p["click_deep"] * k; bite = self.p["click_bite"] * k; h = bend / 2
+        span = CLICK_SPAN[0] * k if span is None else span
+        wall, at, up, back, _ = self.snap_wall(bend, convex, 1.0, CLICK_WALL * k, False)
+        q = lambda s, m: tuple(float(x) for x in at + up * s + back * m)   # noqa: E731
+        c = CLICK_BACK
+        sw = lambda H, w: [(u + back[0] * c, z + back[1] * c) for u, z in self.snap_wall(bend, convex, H, w, False)[0]]   # noqa: E731  a wall of the click, set back
+        slope = math.tan(math.pi / 2 - CLICK_LEAN - (h if convex else -h))     # the printable underside, seen from the plane
+        # under the tooth, d past the plane: over the slope that prints, and 0.3 mm over the other panel's inside face
+        clear = lambda d: (t + 0.3 - at[1] - back[1] * d) / up[1]   # noqa: E731
+        low = lambda d: max(clear(d), max(0.0, clear(0)) + d * slope)   # noqa: E731
+        d1 = c + D + fit; d2 = d1 + (CLICK_LAND + CLICK_LEAD) * k   # the back of the bar, where the ridge stands up; the tooth's tip
+        neck = max(low(0) + CLICK_NECK * k, low(d1) + CLICK_NECK * k, low(d2) + (CLICK_TIP + 0.3) * k)   # the top of the tooth's neck
+        sb = neck + fit + 0.05                              # the bar's underside
+        # The bar is never stretched past its material's limit: strain = 12 · lift · thickness / free length², with the
+        # free length the span less the ridge, the fillets and the support. It keeps the thickness asked; where even a
+        # bar with no support would stretch too far, the tooth is made lower, a layer at a time, down to `CLICK_LOW`,
+        # and only then the bar thinner. What the bar can give besides goes to a fillet at each end, where it meets its
+        # support, and then to the support, up to `bar support`
+        solid, cap, cost = self.p["click_solid"], self.click_cap, CLICK_STIFF.get(self.p.get("material_kind") or self.p.get("material"), 2500)
+        whole = span - CLICK_RIDGE * k                       # the length a bar with nothing under it bends over
+        side = (span - (CLICK_NOSE + CLICK_GAP) * k) / 2     # from a post to the tooth, each side
+        high = lambda x, b: at[1] + up[1] * (sb + max(x, b)) - t   # noqa: E731  how far a bar this thick, or the tooth's wall, stands over the panel
+        fits = []
+        for x in np.round(np.arange(self.p["click_bar"] * k, CLICK_THIN * k - 0.01, -0.2), 2):     # in layers
+            b = round(min(bite, math.floor(cap * whole ** 2 / (12 * x) / (0.2 * k) + 1e-6) * 0.2 * k), 4)
+            if b < CLICK_LOW * k - 1e-9:
+                continue
+            spare = whole - math.sqrt(12 * b * x / cap)       # what the bar can give to fillets and support
+            fl = min(CLICK_FILLET * k, side, spare); sup = max(0.0, min(solid * side, side - fl, (spare - fl) / 2))
+            free = whole - fl - 2 * sup
+            press = 16 * cost * D * x ** 3 * b / free ** 3   # 192 E I lift / length³, I = depth · thickness³ / 12
+            if solid or press <= CLICK_PRESS * k * k:        # a free bar is no thicker than a hand presses shut
+                fits.append((float(x), b, fl, sup, free, press))
+        if not fits:
+            return f"a bar {span:g} mm long cannot bend far enough for a tooth even {CLICK_LOW * k:g} mm high: a longer seam, or a smaller `click size`"
+        tb, bite, fl, sup, free, force = next((f for f in fits if high(f[0], f[1]) <= self.p["snap_h"]), (None,) * 6)
+        if tb is None:
+            return f"the tooth needs walls {high(*fits[-1][:2]):.1f} mm high: raise `snap wall`"
+        top = sb + tb; under = [q(low(d), -d) for d in np.linspace(-c, d2, 9)]
+
+        def tooth(ridge):                                     # the wall with the tooth on it, its ridge this far up behind the bar
+            head = [q(neck - 0.3, -d2), q(sb + ridge, -d1 - CLICK_LAND * k), q(sb + ridge, -d1), q(neck, -d1)] if ridge > 0 else [q(neck - 0.3, -d2), q(neck, -d2 + 0.6)]
+            return [tuple(x) for x in orient(Polygon(wall).buffer(0).union(Polygon([q(low(-c), c + 0.3), *under, *head, q(neck, c + 0.3)]))).exterior.coords[:-1]]
+        wall = self.braced(sw(sb + bite, CLICK_WALL * k), room, CLICK_FOOT * k)
+        teeth = [(0.0, CLICK_RIDGE * k / 2, tooth(bite)), (0.0, CLICK_NOSE * k / 2, tooth(0))]     # the ridge inside the block: one solid
+        foot = CLICK_FOOT * k * self.p["click_post"]         # the posts' ramp: as deep as `post size` asks
+        post = self.braced(sw(top, D), room, foot)
+        guide = self.braced(sw(max(sb - 1.2, 0.9), D), room, foot)
+        bar = [q(sb, c), q(top, c), q(top, c + D), q(sb, c + D)]
+        # the fillet: three blocks under each end of the bar, a layer deeper each nearer the post, fused to the bar, so it
+        # thickens into its support instead of meeting it at a sharp step, where his round 8 bar broke
+        fillet = tuple((fl * j / 3, [q(sb - 0.2 * k * (4 - j), c), q(sb + 0.05, c), q(sb + 0.05, c + D), q(sb - 0.2 * k * (4 - j), c + D)])
+                       for j in (1, 2, 3)) if fl > 0.1 else ()
+        reach = max(u for prof in (wall, post) for u, z in prof if z < t + 0.1)
+        return Click(wall, teeth, post, bar, guide, reach, tb, 12 * bite * tb / free ** 2, force, sup, fillet, bite)
+
+    def braced(self, wall, room, reach=CLICK_FOOT):
+        """A wall (its cross-section as snap_wall draws it, without a groove) as a plain wedge: its front, a flat top,
+        and one slope from the back of its top down to the panel, `reach` past its foot and never nearer than
+        0.8 mm to the end of the `room`. A shut seam pulls on the wall and would bend a thin one across its layers at
+        its foot: the wedge gives it a foot several times as deep. With no room for the slope it keeps its own back."""
+        low, front, back, foot = (np.array(wall[k]) for k in (-6, -5, -2, -1))  # the foot and top of its front, the top and foot of its back
+        up = (front - low) / np.linalg.norm(front - low); front, back = front + up * 0.4, back + up * 0.4      # its corners, square
+        to = min(max(foot[0] + reach, back[0] + 1.5), room - 0.8)          # a wall that leans far over its panel has its foot deep already
+        end = (to, foot[1]) if to >= max(foot[0], back[0]) + 0.8 else tuple(foot)
+        return [*wall[:-5], tuple(float(x) for x in front), tuple(float(x) for x in back), tuple(float(x) for x in end)]
+
+    def stand(self, s, va, e, c0, c1, profile):
+        """A wall on side s of a seam, from c0 to c1 along it: a Rail in the plan, a facet in the 3D view."""
+        m = self.mesh; E = m.vertices[va] + e * (c0 + c1) / 2
+        s.sl.rails.append(Rail(tuple(s.A + s.d * c0), tuple(s.A + s.d * c1), tuple(s.n), profile))
+        into = m.triangles_center[s.f] - E; into -= np.dot(into, e) * e; into /= np.linalg.norm(into)     # into the face, square to the seam
+        M = frame_xy(E, into, -m.face_normals[s.f]); M[:3, 3] += M[:3, 2] * self.t / 2      # x into the panel, y into the model, z along the seam; the half sheet every facet is sunk by, taken back
+        s.sl.tab_facets.append((M, as_multi(Polygon(profile).buffer(0)))); s.sl.tab_of.append(s.f); s.sl.tab_t.append(c1 - c0)
+
+    def click(self, j, k, sides, convex):
+        """Seam j as a click joint, once for every `spacing` of seam: on the first panel a wall with a tooth, on the
+        second a bar bridged between two posts, with a block each side of where the tooth comes through. Pressed
+        shut, the tooth goes under the bar and its ridge stands up behind it. No part of its own."""
+        p = self.p; m = self.mesh
+        for s in sides:
+            self.mark(s, j, p["font"] * 0.5)
+        if not (self.hinged and self.inside):
+            return []
+        bend = float(m.face_adjacency_angles[k]); L = round(sides[0].L, 3); a, b = sides    # rounded: a seam of 24.99999 mm is as long as one of 25
+        room = min(min((c.distance(LineString([s.A, s.B])) for c in self.face_cuts.get(s.f, ())), default=s.h) for s in sides)
+        va, vb = m.face_adjacency_edges[k]; e = m.vertices[vb] - m.vertices[va]; e /= np.linalg.norm(e)
+        # the walls that stand on the two pieces already (other seams, round the corner), and the faces that fold
+        # or close over them: a click slides along its seam to stand clear of both, takes a shorter bar when that
+        # is not enough, and is left out when it still finds no room. Two walls grown into one would not fold,
+        # and a post in the way of the next face stops its fold short
+        taken = {id(s.sl): unary_union([r.foot() for r in s.sl.rails]).buffer(0.4) for s in sides}
+        near = {id(s.sl): [c for c in self.closers.get(id(s.sl), ()) if c[0] != k and
+                           LineString([c[1].A, c[1].B]).distance(LineString([s.A, s.B])) < 20] for s in sides}
+
+        def shut(s, c0, c1, prof):
+            """Whether a wall on side s, c0 to c1 along the seam, is in the way of a face that folds or closes over
+            its panel. Shut, that face is this panel's mirror image in the plane that halves the edge's angle,
+            through the top of the skin: a point of the wall whose mirror image is in the sheet, under that face."""
+            pts = np.array(Polygon(prof).exterior.segmentize(0.5).coords); pts = pts[pts[:, 1] > self.t + 0.3]      # its outline, above the panel
+            along = np.append(np.arange(c0, c1, 2.0), c1)
+            for _, o, half, over in near[id(s.sl)]:
+                u = np.array([math.cos(half), math.sin(half)])
+                at = (s.A - o.A)[None, None] + s.d[None, None] * along[:, None, None] + s.n[None, None] * pts[None, :, :1]   # every point, in the net
+                d = at @ o.n; w = np.stack([d, np.broadcast_to(pts[:, 1] - self.skin, d.shape)], axis=-1)
+                w = 2 * (w @ u)[..., None] * u - w                    # mirrored: across the edge and up from its panel's outer face
+                hit = (d > 0) & (w[..., 1] + self.skin < self.t + 0.4)
+                if hit.any() and shapely.contains_xy(over, (at @ o.d)[hit], w[..., 0][hit]).any():
+                    return True
+            return False
+        free = lambda s, c0, c1, prof: not shut(s, c0, c1, prof) and not Rail(tuple(s.A + s.d * c0), tuple(s.A + s.d * c1), tuple(s.n), prof).foot().intersects(taken[id(s.sl)])   # noqa: E731
+        # a seam that closes with others in one motion gets the click only if none of them has it yet: the rest get
+        # a locator, the tooth without its ridge, which keeps the edges level and goes in with no force
+        # a part on a fold needs one click: the fold holds the rest. A piece on no fold (a panel of its own) needs two,
+        # or it could swing out about the one
+        group = self.together.get(k); locate = group is not None and self.clicked[group] >= (2 if group[0] and not group[3] else 1)
+        placed = 0
+        # a seam the click does not fit, a frame too narrow beside a window or a seam too short, gets a smaller click
+        # before none: his v9 lamp had a loose triangle whose two seams both missed theirs by 0.07 mm, and nothing held it
+        for size in (p["click_size"], *(p["click_size"] * f for f in CLICK_SMALLER)):
+            spans = (CLICK_SPAN[0] * size, CLICK_SPAN[1] * size); post = CLICK_POST * size * p["click_post"]
+            n = max(1, int(L // max(p["spacing"], 2 * (spans[1] + 2 * post))))
+            longest = min(spans[1], math.floor(L / n - 3 - 2 * post))     # the bar as long as the seam lets it be
+            why = ("the seam bends more than 100°: the walls would lean too far to print" if bend / 2 > SNAP_LEAN else
+                   "the seam is too short" if longest < spans[0] else "")
+            placed = self.click_at(j, sides, convex, bend, room, size, spans, post, n, L, longest, why, group, locate, free, va, e)
+            if isinstance(placed, str):
+                why, placed = placed, 0
+            if placed or bend / 2 > SNAP_LEAN:
+                break
+        if placed:
+            self.held.append(j)
+            if size < p["click_size"] - 1e-9:
+                self.smaller.append(j)
+        if not placed:
+            a.sl.skipped.setdefault(f"click joint ({why or 'no room beside the joints and folds next to it'})", []).append(j)
+        return []
+
+    def click_at(self, j, sides, convex, bend, room, size, spans, post, n, L, longest, why, group, locate, free, va, e):
+        """Seam j's clicks at one size: the longest bar the seam takes, then the shortest, each slid along the seam to
+        stand clear of what is there. → how many it placed, or the sentence why none fits."""
+        p = self.p; a, b = sides; placed = 0
+        for span in ([] if why else sorted({longest, spans[0]}, reverse=True)):
+            parts = self.click_parts(bend, convex, room, span, size)
+            why = parts if isinstance(parts, str) else "the frame beside the window is too narrow" if room < parts.reach + 0.8 else ""
+            if why:
+                break
+            half, tooth, long = span / 2, CLICK_NOSE * size / 2, span + 2 * post
+
+            def pieces(c, parts=parts, half=half, tooth=tooth):   # noqa: B023   # what a click centred c along the seam stands on each side
+                out = [(a, c - tooth - 3 * size, c + tooth + 3 * size, parts.wall), (b, c - half - 0.5, c + half + 0.5, parts.bar)]   # the bar: half a millimetre into each post
+                out += [(a, c - x1, c + x1, prof) for _, x1, prof in parts.teeth[1 if locate else 0:]]
+                for sign in (-1, 1):
+                    out.append((b, *sorted((c + sign * (half - parts.support), c + sign * (half + post))), parts.post))   # the post, and what of it is under the bar
+                    out += [(b, *sorted((c + sign * (half - parts.support - length), c + sign * (half - parts.support + 0.3))), prof) for length, prof in parts.fillet]   # 0.3 into the post: two faces on one plane leave the solid open
+                    out.append((b, *sorted((c + sign * (tooth + 0.25), c + sign * (half + 0.5))), parts.guide))     # a block from the tooth to the post, under the bar
+                return out
+            for i in range(n):
+                lo, hi = i / n * L + long / 2 + 1.5, (i + 1) / n * L - long / 2 - 1.5
+                for c in sorted(np.arange(lo, hi + 1e-9, 1.0), key=lambda c, lo=lo, hi=hi: abs(c - (lo + hi) / 2)):
+                    if all(free(*q) for q in pieces(c)):
+                        for q in pieces(c):
+                            self.stand(q[0], va, e, *q[1:])
+                        placed += 1
+                        if locate:
+                            self.located.append(j)
+                        else:                                 # a click with a lower tooth is still the group's click
+                            if group is not None:
+                                self.clicked[group] += 1
+                            if parts.bite < p["click_bite"] * size - 1e-6:
+                                self.lowered.append(j)
+                        if not locate and parts.press > CLICK_HARD * size * size:
+                            self.tight.setdefault(id(a.sl), (a.sl, [], []))[1].append(j); self.tight[id(a.sl)][2].append((parts.press, parts.strain))
+                        break
+            if placed:
+                break
+        return placed or why
+
+    def snap_clip(self, whole=False):
+        """The clip's outline, x across the two walls (0 = where they meet) and y up them: a U whose two legs each end
+        in a hook, `SNAP_BITE` into the groove of its wall; `whole`: the outline with the space between the legs
+        filled, which the plate at one end of the clip is. One shape for every seam: the walls are the same at any
+        bend. The plate ties the legs, so the clip cannot open: it slides on along the seam, its hooks running in
+        the grooves, until the plate meets the end of the walls. It prints standing on that plate."""
+        p = self.p; a = SNAP_WALL + p["snap_fit"]; b = SNAP_BITE; l = SNAP_LEDGE; top = p["snap_h"] + 0.2; lo = l - 0.9; x1 = a + SNAP_LEG
+        outer = Polygon([(-a, lo), (a, lo), (x1, lo + 1.5 * SNAP_LEG), (x1, top + SNAP_CROWN), (-x1, top + SNAP_CROWN), (-x1, lo + 1.5 * SNAP_LEG)])   # the legs' feet cut back: clear of the panels
+        if whole:
+            return outer
+        room = Polygon([(a, lo - 1), (a, lo), (a - b, l - 0.4), (a - b, l - 0.05), (a, l - 0.05), (a, top),
+                        (-a, top), (-a, l - 0.05), (b - a, l - 0.05), (b - a, l - 0.4), (-a, lo), (-a, lo - 1)])
+        return outer.difference(room).buffer(0.25).buffer(-0.25)       # the inside corners rounded: where a leg would crack
+
+    def snap(self, j, k, sides, convex):
+        """Seam j as a snap joint: a wall on the inside of each panel, face to face when the seam is shut, and a clip
+        over the two for every `spacing` of seam. → the clips, parts of their own."""
+        p = self.p; m = self.mesh
+        for s in sides:
+            self.mark(s, j, p["font"] * 0.5)
+        if not (self.hinged and self.inside):
+            return []
+        bend = float(m.face_adjacency_angles[k]); L = sides[0].L
+        profile, at, up, back, h = self.snap_wall(bend, convex)
+        room = min(min((c.distance(LineString([s.A, s.B])) for c in self.face_cuts.get(s.f, ())), default=s.h) for s in sides)
+        # ponytail: no brace at the foot. Below the clip's leg a wall that leans far is still inside its panel at the
+        # back, so there is nothing to brace; the wall is thicker instead (SNAP_WALL)
+        reach = profile[-1][0]                                # how far into the panel a wall's foot goes
+        n = max(1, int(L // max(p["spacing"], 2 * SNAP_LONG)))
+        why = ("the seam bends more than 100°: the walls would lean too far to print" if h > SNAP_LEAN else
+               "the seam is too short" if L / n < SNAP_LONG + 6 else "the frame beside the window is too narrow" if room < reach + 0.8 else "")
+        if why:
+            sides[0].sl.skipped.setdefault(f"snap wall ({why})", []).append(j)
+            return []
+        fa, fb = (int(x) for x in m.face_adjacency[k]); va, vb = m.face_adjacency_edges[k]
+        e = m.vertices[vb] - m.vertices[va]; e /= np.linalg.norm(e)
+        clip, whole = self.snap_clip(), self.snap_clip(whole=True); clips = []
+        for i in range(n):
+            c = (i + 0.5) / n * L; E = m.vertices[va] + e * c
+            for s in sides:
+                self.stand(s, va, e, c - SNAP_LONG / 2, c + SNAP_LONG / 2, profile)
+            a = sides[0]; into = m.triangles_center[a.f] - E; into -= np.dot(into, e) * e; into /= np.linalg.norm(into); inn = -m.face_normals[a.f]
+            O = E + into * at[0] + inn * at[1]                # where the two walls' fronts start, on the model
+            sl = FoldedSlice(f"K-{j}{'abcdefgh'[i] if n > 1 else ''}", "J", frame_xy(O, into * back[0] + inn * back[1], into * up[0] + inn * up[1]), SNAP_CLIP)
+            sl.raw = as_multi(whole); sl.thin, sl.thin_t = [whole.difference(clip)], SNAP_PLATE   # the U on its plate: between the legs only the plate
+            sl.springy = True; clips.append(sl)
+        return clips
 
     def tabs(self, j, sides, jt, convex, swapped=False, scale=1.0):
         """Tabs on side a of seam j, glued to side b. A tab that would land on its own panel (a concave net) is tried

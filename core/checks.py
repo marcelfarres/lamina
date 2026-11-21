@@ -47,6 +47,8 @@ def check_slice(sl, p):
         sl.errors.append(Issue(f"{what} cut the part into {len(regions)} loose regions (was {raw_n}) — move this slice a little (offset), "
                                f"lower the notch ratio, use fewer crossing slices, or make the connection holes smaller", "cut-apart"))
     for i, reg in enumerate(regions):
+        if sl.springy:
+            continue
         tag = f"region {i + 1}" if len(regions) > 1 else "part"
         small, large = min_dims(reg)
         glued_island = sl.group == "S" and len(regions) > 1        # stacked islands (ears, horns) are kept: glue them carefully

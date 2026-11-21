@@ -55,6 +55,16 @@ inside to see it as a lamp.
 
   ![The put a seam tool: your seams as a thick line round the back of the lion's head](web/static/news/0.4.0-seams.jpg)
 
+- **Printed seams that click shut.** The *click* joint for printed folded panels: a tooth on one panel snaps under
+  a bar on the other. No glue, no loose parts, nothing outside. *click size* fits it to any model.
+
+  ![The box laid flat: the teeth and bars of the click joint stand on the inside of the panels](web/static/news/0.4.0-click.jpg)
+
+- **Or seams held by clips.** The *snap* joint puts a short wall on each panel inside every seam, and a small
+  printed clip slid along the two holds them. The clips print on a plate of their own.
+
+  ![The box laid flat: a short wall on each panel at every seam, for the snap joint's clips](web/static/news/0.4.0-snap.jpg)
+
 - **Two new folded examples.** *fold_box* is a box with a lid that you print flat and fold up. *fold_lantern* is a
   plywood lantern of 72 pieces.
 
@@ -115,8 +125,8 @@ inside to see it as a lamp.
 
   ![The fold_lamp example with its 30 triangles](web/static/news/0.4.0-lamp-example.jpg)
 
-- **Small changes to folded panels.** The printed-fold settings show only on a print job. A fin thinner than two
-  sheets gets a warning. A print set says which parts lost their grooves.
+- **Small changes to folded panels.** The printed-fold settings show only on a print job. Joint settings show only
+  where they apply. A fin thinner than two sheets gets a warning. A print set says which parts lost their grooves.
 
 - **A better horse.** Its head is a branch: a spine with ribs across it, not a flat slab. In Curve, ribs stay square
   to a slim neck on any model. A turned head can have a branch too.

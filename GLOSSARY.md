@@ -62,6 +62,15 @@ The words Lamina uses for its parts. One word for one thing.
   edges are on the model's edge.
 - **Cut-back**: the strip taken off a seam edge so that stiff panels do not occupy the same corner.
 - **Window**: an opening cut in a face, the shape of the face. The **frame** is what is left round it.
+- **Snap wall**: a short wall that stands on the inside face of a printed panel along a seam. The two walls of a
+  seam lie face to face when the seam is shut. The joint is *snap*.
+- **Clip**: the small printed part that is pushed over the two snap walls of a seam and holds them together.
+- **Tooth**: the rigid hook on the inside of one panel at a seam. It goes under the bar of the other panel and
+  stands up behind it. The joint is *click*.
+- **Bar**: the small beam on the inside of the other panel, printed as a bridge between two posts. It springs up to
+  let the tooth past.
+- **Locator**: a click without the tooth's ridge. It keeps the edges of a seam level but does not hold the seam shut.
+  A seam gets one when it closes in the same motion as another seam that has a click, as on a lid.
 - **Removed face**: a face the user took off the surface. It is not cut and belongs to no panel. A removed face stays
   removed when the faces are made again. Used to keep part of the surface, for example a mask from a head.
   Not a *window*, which opens a face and leaves its frame.
