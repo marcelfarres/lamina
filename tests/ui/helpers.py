@@ -148,3 +148,12 @@ ON_PART = """label => {
     if (Math.hypot(x - mx, y - my) < d && window.__t.hitAt(x, y) === label) { best = [x, y]; d = Math.hypot(x - mx, y - my) }
   return best;
 }"""
+
+
+EDGE_ON_MODEL = """kind => {
+  // the middle of an edge of this kind on the model, facing the camera, nearest the middle of the view: {k, x, y}
+  const cam = __t.camera, V3 = cam.position.constructor, r = __t.canvas().getBoundingClientRect(); let best = null;
+  for (const e of __t.plan().edges3d) { if (e[1] !== kind) continue; const mid = new V3(...e[2]).add(new V3(...e[3])).multiplyScalar(.5), to = mid.clone().sub(cam.position);
+    if (new V3(...e[4]).dot(to) > -0.5 * to.length()) continue; const q = mid.clone().project(cam), x = r.left + (q.x + 1) / 2 * r.width, y = r.top + (1 - q.y) / 2 * r.height;
+    const d = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2)); if (!best || d < best.d) best = {k: e[0], x, y, d} }
+  return best }"""

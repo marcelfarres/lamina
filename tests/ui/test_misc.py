@@ -171,6 +171,25 @@ def test_the_notes_show_their_pictures(page, server):
             page.click("#news_go")
 
 
+def test_what_is_new_opens_on_this_version_and_every_picture_in_it_loads(page):
+    """Marcel's interface test, step 1: help ▾ → What is new opens on the version the app is (pyproject.toml), and
+    every picture of the real CHANGELOG.md is in the dialog and loads (the tests above serve a changelog of their
+    own). The pictures load lazily, as the dialog is scrolled: here all at once."""
+    import tomllib
+    version = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
+    pictures = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").count("![")
+    menu(page, "#newsbtn"); page.wait_for_selector("#newsdlg[open]")
+    try:
+        heads = page.eval_on_selector_all("#news_body h5", "els => els.map(e => e.textContent)")
+        assert heads[0].endswith(version), heads[:2]
+        page.eval_on_selector_all("#news_body img", "is => is.forEach(i => { i.loading = 'eager' })")
+        page.wait_for_function("[...document.querySelectorAll('#news_body img')].every(i => i.complete)", timeout=60_000)
+        imgs = page.eval_on_selector_all("#news_body img", "is => is.map(i => [i.getAttribute('src'), i.naturalWidth])")
+        assert len(imgs) == pictures > 0 and all(w > 0 for _, w in imgs), [s for s, w in imgs if not w]
+    finally:
+        page.click("#news_go")
+
+
 def test_the_wheel_zooms_back_out(page, server):
     """Wheel in, wheel out the same notches: the camera is back where it was. At a pixel ratio under 1 (a browser
     zoomed out) one notch put the camera on the point it turns about and zooming out made it NaN; a fast flick sent
@@ -361,13 +380,19 @@ def test_a_tool_in_the_3d_view_does_what_the_key_does(page):
 def test_a_connector_left_out_is_counted_and_the_export_text_opens_on_a_click(page):
     """Two dowel points typed 3 mm apart cannot both be cut: the dowels left out are a warning the count shows, with a
     ring in the 3D view for each place. (The vase example itself cuts every dowel since bug 046.) On the Export tab the
-    text about a file is behind its own line, and the parts table opens on its heading."""
+    download buttons come first (step 12 of Marcel's interface test): every file's button is on its own line with the
+    text about it after it, closed; the text and the parts table open on a click. (A printed job opens its print plates'
+    section, results.js: it stays open for the job after it, so it is not checked here.)"""
     use(page, "vase", "stacked")
     page.evaluate("() => window.__t.applyFix({dowels: [[0, 0], [3, 0]]})"); settle(page); pl = plan(page)
     assert pl["warnings"] and "left out" in pl["warnings"][0], (pl["warnings"], pl["notes"])
     assert pl["counts"]["warnings"] >= 1 and len(pl["left_out"]) == int(pl["warnings"][0].split("connector")[0])
     assert page.locator("#msgs .msg.warn").first.inner_text().startswith("⚠ WARNING")
-    page.click('nav button[data-t="export"]'); info = page.locator("#dl details.info").first
+    page.click('nav button[data-t="export"]')
+    rows = page.evaluate("""() => [...document.querySelectorAll('#dl .r')].map(r => [r.firstElementChild.tagName,
+        !!r.querySelector('details.info'), !r.querySelector('details[open]'), !!r.firstElementChild.offsetParent])""")
+    assert rows and all(r == ["A", True, True, True] for r in rows if r[1]) and all(r[0] == "A" and r[3] for r in rows), rows
+    info = page.locator("#dl details.info").first
     assert not info.locator(".hint").is_visible(); info.locator("summary").click(); assert info.locator(".hint").is_visible()
     assert not page.locator("#parts table").is_visible(); page.click("#parts_fold > summary"); assert page.locator("#parts table").is_visible()
 
