@@ -163,14 +163,107 @@ class _Step:
         faces = [*walls, self.face(top_loops, on_top, up, ref), self.face(bottom_loops, on_bottom, -up, ref)]
         return self.add(f"MANIFOLD_SOLID_BREP('{_text(name)}',{self.add(f'''CLOSED_SHELL('',({','.join(faces)}))''')})")
 
+    def shell(self, name, V, F):
+        """One closed triangle mesh (V, F), one piece of material, as a solid with flat faces. Its surface round the
+        outside is its closed shell; a hollow inside it (a folded box closes its panels round air) has a surface of its
+        own, which STEP writes as a void: a closed shell facing into the hollow, taken the other way (BREP_WITH_VOIDS).
+        The outside is the surface that encloses a positive volume."""
+        import trimesh
+        # an edge shorter than MIN_EDGE (a union leaves some of 1e-8 mm where solids cross) would be written as one
+        # point twice: its ends become one vertex, and the triangles on it, left without area, go
+        V, F = np.asarray(V, float), np.asarray(F)
+        half = np.concatenate([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]])
+        one = trimesh.graph.connected_component_labels(half[np.linalg.norm(V[half[:, 0]] - V[half[:, 1]], axis=1) < MIN_EDGE], node_count=len(V))
+        first = np.empty(one.max() + 1, int); first[one[::-1]] = np.arange(len(V))[::-1]
+        F = first[one][F]
+        F = F[(F[:, 0] != F[:, 1]) & (F[:, 1] != F[:, 2]) & (F[:, 2] != F[:, 0])]
+        part = trimesh.graph.connected_component_labels(trimesh.Trimesh(V, F, process=False).face_adjacency, node_count=len(F))
+        surfaces = sorted((F[part == k] for k in range(part.max() + 1)),
+                          key=lambda f: -np.einsum("ij,ij->", V[f[:, 0]], np.cross(V[f[:, 1]], V[f[:, 2]])))
+        outside = self.add(f"CLOSED_SHELL('',({','.join(self.faces(V, surfaces[0]))}))")
+        if len(surfaces) == 1:
+            return self.add(f"MANIFOLD_SOLID_BREP('{_text(name)}',{outside})")
+        voids = [self.add(f"ORIENTED_CLOSED_SHELL('',*,{self.add(f'''CLOSED_SHELL('',({','.join(self.faces(V, f[:, ::-1]))}))''')},.F.)") for f in surfaces[1:]]
+        return self.add(f"BREP_WITH_VOIDS('{_text(name)}',{outside},({','.join(voids)}))")
 
-def step_text(plan, part=None, name="lamina") -> str:
+    def faces(self, V, F):
+        """A closed triangle surface as flat faces: the triangles that lie side by side in one plane are one face
+        (trimesh's facets). A face's edges are those of its triangles that no other of its triangles has, walked the
+        way its triangles turn, so its outline runs counter-clockwise seen from the side its normal points to and its
+        holes the other way; the outline is the loop with the largest area. Faces that meet share their vertices and
+        edges, as a closed shell needs."""
+        import trimesh
+        mesh = trimesh.Trimesh(V, F, process=False)
+        groups, normals = [list(g) for g in mesh.facets], list(mesh.facets_normal)
+        lone = np.setdiff1d(np.arange(len(F)), np.concatenate(groups) if groups else [])
+        # A triangle with no area (a union leaves a few where solids cross) has no plane of its own: its corners lie on
+        # its longest edge, so it joins the face across that edge. Until then it has no face (-1).
+        flat = mesh.area_faces < 1e-12 * max(mesh.scale, 1.0) ** 2
+        groups += [[i] for i in lone if not flat[i]]; normals += list(mesh.face_normals[[i for i in lone if not flat[i]]])
+        group = np.full(len(F), -1); [group.__setitem__(g, k) for k, g in enumerate(groups)]
+        across = {}
+        for t, (a, b, c) in enumerate(F.tolist()):
+            for e in ((a, b), (b, c), (c, a)):
+                across[e] = t
+        waiting = [t for t in np.flatnonzero(flat) if group[t] < 0]
+        while waiting:                                   # ponytail: a run of flat triangles joins from its far end inward
+            left = []
+            for t in waiting:
+                a, b, c = F[t]; (p, q) = max(((a, b), (b, c), (c, a)), key=lambda e: np.linalg.norm(V[e[1]] - V[e[0]]))
+                k = group[across[(q, p)]]
+                if k < 0:
+                    left.append(t); continue
+                group[t] = k; groups[k].append(t)
+            if len(left) == len(waiting):
+                raise ValueError(f"{len(left)} triangles of no area with no face beside them")
+            waiting = left
+        verts, edges, faces = {}, {}, []
+
+        def vertex(i):
+            if i not in verts:
+                verts[i] = self.vertex(V[i])
+            return verts[i]
+
+        def edge(a, b):                                  # one EDGE_CURVE per pair, from the lower vertex: walked both ways
+            k = (min(a, b), max(a, b))
+            if k not in edges:
+                edges[k] = self.edge(vertex(k[0]), vertex(k[1]))
+            return edges[k], a < b
+        for g, n in zip(groups, normals):
+            tri = F[g]
+            half = np.concatenate([tri[:, [0, 1]], tri[:, [1, 2]], tri[:, [2, 0]]]).tolist()
+            inside, nxt = set(map(tuple, half)), {}
+            for a, b in half:
+                if (b, a) not in inside:
+                    nxt.setdefault(a, []).append(b)
+            loops = []
+            while nxt:                                   # ponytail: at a corner two loops touch, either way on is taken
+                start = a = next(iter(nxt)); lp = []
+                while True:
+                    lp.append(a); b = nxt[a].pop()
+                    if not nxt[a]:
+                        del nxt[a]
+                    if b == start:
+                        break
+                    a = b
+                loops.append(lp)
+            area = [float(n @ np.cross(V[lp], V[np.roll(lp, -1)]).sum(0)) for lp in loops]
+            loops = [loops[i] for i in np.argsort(area)[::-1]]
+            out = loops[0]
+            faces.append(self.face([self.loop([edge(lp[i], lp[(i + 1) % len(lp)]) for i in range(len(lp))]) for lp in loops],
+                                   vertex(out[0]), n, _unit(V[out[1]] - V[out[0]])))
+        return faces
+
+
+def step_text(plan, part=None, name="lamina", lumps=None) -> str:
     """The assembled model (or the one part labelled `part`) as a STEP file: one solid per flat piece of a part,
-    named with the part's label, each where it sits in the assembly."""
+    named with the part's label, each where it sits in the assembly. With `lumps` (core.solid.one_body: the model
+    fused, a closed mesh per piece of it that touches no other) one solid per lump instead, named after the model."""
     s, name = _Step(), _text(name)
     shape, context, frame = s.product(name)
-    solids = [b for sl in plan["slices"] for pc in sl["pieces"] if part is None or pc["label"] == part
-              for poly, M, own in facet_polys(pc) if (b := s.prism(pc["label"], poly, M, own or sl["thickness"]))]
+    solids = ([s.shell(name, V, F) for V, F in lumps] if lumps is not None else
+              [b for sl in plan["slices"] for pc in sl["pieces"] if part is None or pc["label"] == part
+               for poly, M, own in facet_polys(pc) if (b := s.prism(pc["label"], poly, M, own or sl["thickness"]))])
     shown = s.add(f"ADVANCED_BREP_SHAPE_REPRESENTATION('',({','.join([frame, *solids])}),{context})")
     s.add(f"SHAPE_DEFINITION_REPRESENTATION({shape},{shown})")
     return HEAD.format(name=name) + "".join(f"#{i}={row};\n" for i, row in enumerate(s.rows, 1)) + "ENDSEC;\nEND-ISO-10303-21;\n"

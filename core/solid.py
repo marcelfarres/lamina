@@ -4,6 +4,7 @@ which opens in OrcaSlicer / PrusaSlicer as one named object per part, ready to a
 it needs (write_3mf).
 
     uv run python -m core.solid working-files/egg.json --out working-files/egg_assembled.stl [--part X-3]
+    uv run python -m core.solid working-files/egg.json --out working-files/egg.step --body      (one solid)
     uv run python -m core.solid working-files/egg.json --out working-files/egg_assembled.step     # solids for CAD (core/step.py)
     uv run python -m core.solid working-files/egg.json --proto working-files/egg_proto --scale 0.5 --labels groove
     uv run python -m core.solid working-files/egg.json --fit working-files/egg_fit --step 0.1     # 5 slot offsets to try first
@@ -21,7 +22,7 @@ from shapely.ops import nearest_points, unary_union
 from shapely.strtree import STRtree
 import shapely
 from .export import design_name, export
-from .geometry import even_odd, facet_polys
+from .geometry import dowel, even_odd, facet_polys
 from .labels import PRINT_MARK, TAG_CLEAR, TAG_FONT, TAG_PAD, beside, fit_on_part, label_angles, mark_box, tag_room
 from .step import step_text
 
@@ -168,21 +169,55 @@ def standoff_files(plan, out_dir, design, scale=1.0) -> list:
     return [f, note]
 
 
+def _frame(x, z, at) -> np.ndarray:
+    """The frame with its x and z axes along `x` and `z` (z square to x first), its origin at `at`."""
+    z = np.asarray(z, float) / np.linalg.norm(z); x = np.asarray(x, float) - z * (np.asarray(x, float) @ z); x /= np.linalg.norm(x)
+    M = np.eye(4); M[:3, :3] = np.c_[x, np.cross(z, x), z]; M[:3, 3] = at
+    return M
+
+
+def _standoffs(plan) -> list:
+    return [standoff_mesh(plan, e["gap"], list(zip(e["pins"], e["flush"]))).apply_transform(_frame(e["x"], e["z"], np.array(e["at"]) - np.array(e["z"]) * e["pins"][0]))
+            for e in (plan.get("standoffs") or {}).get("items", [])]
+
+
 def assembled(plan, part=None) -> trimesh.Trimesh:
     ms = [piece_mesh(pc, sl["thickness"]) for sl in plan["slices"] for pc in sl["pieces"] if part is None or pc["label"] == part]
-    for e in (plan.get("standoffs") or {}).get("items", []) if part is None else []:
-        x, z = np.array(e["x"]), np.array(e["z"])
-        M = np.eye(4); M[:3, :3] = np.c_[x, np.cross(z, x), z]; M[:3, 3] = np.array(e["at"]) - z * e["pins"][0]
-        ms.append(standoff_mesh(plan, e["gap"], list(zip(e["pins"], e["flush"]))).apply_transform(M))
+    ms += _standoffs(plan) if part is None else []
     return trimesh.util.concatenate(ms) if ms else trimesh.Trimesh()
 
 
-def solid_bytes(plan, part=None, fmt="stl") -> bytes:
-    """The assembled model, or the one part labelled `part`, as a file: `step` is solids for CAD (core/step.py),
-    anything else a mesh in that format. LookupError when the plan has no such part."""
+WELD = 0.02         # mm every part of the one body is grown by: parts that touch along a line, or a float's width apart, fuse
+
+
+def one_body(plan) -> list:
+    """The assembled model as one solid for CAD (the STEP's one body): every part, standoff and dowel fused by
+    manifold3d in float64 (trimesh's union casts to float32, bugs/067). Each part is grown by WELD, so parts that touch
+    only along a line (a fold, a slot's bottom) or a hair apart fuse, and each dowel fills its hole, so a stack whose
+    layers stand apart is one solid through its dowels. [(vertices, triangles)] per lump: a part that touches nothing
+    stays a solid of its own, as one closed shell cannot hold two."""
+    import manifold3d as mf                               # here: the browser build has none (has_boolean)
+    p, ms = plan["params"], _standoffs(plan)
+    for sl in plan["slices"]:
+        for pc in sl["pieces"]:
+            for poly, M, own in facet_polys(pc):
+                t = (own or sl["thickness"]) + 2 * WELD
+                ms.append(extrude(poly.buffer(WELD, join_style=2), t).apply_translation([0, 0, -t / 2]).apply_transform(M))
+    for a, b, d, _, x, *_ in plan.get("rods") or []:     # a dowel as wide as its hole, from one end to the other
+        ms.append(extrude(dowel((0, 0), d + p.get("slot_offset", 0.0), p["dowel_shape"]), float(np.linalg.norm(np.subtract(b, a)))).apply_transform(_frame(x, np.subtract(b, a), a)))
+    whole = mf.Manifold.batch_boolean([mf.Manifold(mf.Mesh64(vert_properties=np.asarray(m.vertices, float), tri_verts=np.ascontiguousarray(m.faces, dtype=np.uint64)))
+                                       for m in ms], mf.OpType.Add)
+    return [(np.asarray(k.vert_properties)[:, :3], np.asarray(k.tri_verts, dtype=np.int64)) for k in (lump.to_mesh64() for lump in whole.decompose())]
+
+
+def solid_bytes(plan, part=None, fmt="stl", body=False) -> bytes:
+    """The assembled model, or the one part labelled `part`, as a file: `step` is solids for CAD (core/step.py), with
+    `body` the whole model fused into one solid (one_body), anything else a mesh in that format. LookupError when the
+    plan has no such part."""
     if part and part not in {pc["label"] for sl in plan["slices"] for pc in sl["pieces"]}:
         raise LookupError(f"no part {part} in this plan")
-    data = step_text(plan, part, design_name(plan)) if fmt == "step" else assembled(plan, part).export(file_type=fmt)
+    data = (step_text(plan, part, design_name(plan), one_body(plan) if body and not part else None) if fmt == "step"
+            else assembled(plan, part).export(file_type=fmt))
     return data if isinstance(data, bytes) else data.encode()         # STEP and some mesh formats (OBJ, OFF) are text
 
 
@@ -637,6 +672,7 @@ def fit_sheets(plan, out_dir, fmts=("svg", "dxf"), labels=True, step=0.1, steps=
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("plan"); ap.add_argument("--out"); ap.add_argument("--part")
+    ap.add_argument("--body", action="store_true", help="with --out x.step: the whole model fused into one solid")
     ap.add_argument("--proto", help="output dir for the prototyping set"); ap.add_argument("--scale", type=float, default=1.0)
     ap.add_argument("--fit", help="output dir for the fit test: the job's joints on a small stand-in at 5 slot offsets"); ap.add_argument("--step", type=float, default=0.1)
     ap.add_argument("--labels", choices=["none", "groove", "hole"], default="groove"); ap.add_argument("--min-thick", type=float, default=1.2)
@@ -658,7 +694,7 @@ def main(argv=None):
     else:
         fmt = pathlib.Path(a.out).suffix[1:].lower()
         try:
-            pathlib.Path(a.out).write_bytes(solid_bytes(plan, a.part, "step" if fmt == "stp" else fmt))
+            pathlib.Path(a.out).write_bytes(solid_bytes(plan, a.part, "step" if fmt == "stp" else fmt, a.body))
         except LookupError as e:
             ap.error(str(e))
         print(a.out)

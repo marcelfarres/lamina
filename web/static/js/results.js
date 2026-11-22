@@ -82,7 +82,9 @@ export function renderDownloads(){ // the labels checkbox applies to every cut f
   // every file says what it is for: eight buttons in a row left the reader to know which program wants which format
   const rows=r=>r.map(([t,u,use])=>`<div class="r"><a href="${u}">${t}</a>${use?`<details class="info"><summary>what is it for?</summary><span class="hint">${use}</span></details>`:''}</div>`).join('');
   const more=[['assembled STL',`${b}/stl`,'the whole model built from its parts, as one 3D file: to look at it or render it in another program'],
-    ['assembled STEP',`${b}/step`,'the same model as true solids, for CAD (Fusion, FreeCAD, Onshape): every part a body with flat faces, not a triangle mesh'],
+    ['STEP: parts',`${b}/step`,'the same model as true solids, for CAD (Fusion, FreeCAD, Onshape): every part a body with flat faces, not a triangle mesh'],
+    // one body needs the solids library the browser build has none of (core.solid.one_body)
+    ...(document.documentElement.dataset.static?[]:[['STEP: one body',`${b}/step?body=1`,'the whole model as one solid with flat faces, for CAD: every part, standoff and dowel joined where they touch (grown by 0.02 mm so they do). A part that touches nothing stays a body of its own']]),
     ['plan.json',`jobs/${CLIENT}/${ST.job}/plan.json`,'everything Lamina worked out, for scripts and other tools']];
   $('#dl_title').textContent=state.printed?'The parts':'2 · The parts';
   // standoffs: which file is for which machine. Printed layers: one more file in the print set

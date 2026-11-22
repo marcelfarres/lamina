@@ -106,6 +106,8 @@ def test_the_solid_downloads_of_a_job(api):
     step = api.get(f"/api/job/{MINE}/{job}/step")                                 # the same as solids, for CAD
     assert step.status_code == 200 and step.content.startswith(b"ISO-10303-21;") and ".step" in step.headers["content-disposition"]
     assert api.get(f"/api/job/{MINE}/{job}/step", params={"part": "no such"}).status_code == 404
+    one = api.get(f"/api/job/{MINE}/{job}/step", params={"body": 1})                # the whole model fused: one solid
+    assert one.status_code == 200 and "onebody.step" in one.headers["content-disposition"] and one.content.count(b"MANIFOLD_SOLID_BREP(") == 1
     names = lambda r: zipfile.ZipFile(io.BytesIO(r.content)).namelist()
     readme = lambda r: zipfile.ZipFile(io.BytesIO(r.content)).read("README.txt").decode().splitlines()
     same = api.get(f"/api/job/{MINE}/{job}/proto", params={"scale": 1, "offset": 0})
