@@ -81,7 +81,8 @@ outside of a valley (concave) fold.
 
 `score side` picks the face that is up on the cutter, and so the face that carries the scores and the seam numbers.
 A seam number that reads as another number upside down (6 and 9, 16 and 91, 68 and 89) has a dot after it, as
-Pepakura marks them: `6.` is a 6 whichever way the panel is turned.
+Pepakura marks them: `6.` is a 6 whichever way the panel is turned. The dot is 1 mm across on a laser sheet (rings a
+kerf apart, burned into one dot) and on a print, less on a number made smaller to fit a short edge.
 `inside` (the default) mirrors the net: the scores and numbers are inside the model and the outside stays clean.
 `outside` lays the net as seen from outside, for a paper model printed on its outer side. Mountain and valley are
 read from the face that is up: seen from inside, a convex edge is a valley fold.
