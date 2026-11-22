@@ -137,6 +137,23 @@ def width(text, size) -> float:
     return sum(GLYPHS[c][0] for c in plain(text)) * size / CAP
 
 
+DOT = 1.0         # mm across a seam number's dot, as on a print; at most 0.45 of its digits' height, on a number made small
+RING = 0.15       # mm between the rings that fill it: about a laser's kerf, so the burn closes into one dot
+
+
+def bold_dot(st, size) -> list[list[tuple[float, float]]]:
+    """The '.' of a seam number (core.labels.seam_text) drawn as a dot DOT mm across: rings RING apart round
+    the middle of the glyph's own '.' stroke `st`, which is a point of 2 units, 0.3 mm on a 3 mm number, too small
+    to see (Marcel, 2026-11-22: "A bigger dot on the laser"). It keeps within 0.1 mm of the '.' advance and of the baseline (room
+    checks keep 0.3 mm clear)."""
+    cx, cy = (sum(p[i] for p in st[:-1]) / (len(st) - 1) for i in (0, 1))
+    r, out = min(DOT, 0.45 * size) / 2, []
+    while r > 0:
+        out.append([(cx + r * math.cos(a * math.pi / 8), cy + r * math.sin(a * math.pi / 8)) for a in range(17)])
+        r -= RING
+    return out
+
+
 def strokes(text, size, x=0.0, y=0.0, rot=0.0, anchor="middle") -> list[list[tuple[float, float]]]:
     """The polylines that draw `text` at `size` mm, turned `rot` degrees counter-clockwise about (x, y). The text is
     centred on y between its cap line and its descender line — the middle of the box label_box measures — and on x

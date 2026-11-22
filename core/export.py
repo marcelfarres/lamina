@@ -21,7 +21,7 @@ import shapely
 from ezdxf import units as dxfunits
 from shapely import affinity
 from shapely.geometry import MultiPolygon, Polygon, box
-from .font import strokes as glyphs
+from .font import bold_dot, strokes as glyphs
 from .geometry import as_multi, poly_coords
 from .labels import label_box, label_rect, mark_rot, mark_size
 
@@ -195,7 +195,9 @@ def texts(items, font):
     lines in every format, so what the laser engraves never depends on a font the machine's software has."""
     for it in items:
         for m in it.marks:
-            yield str(m[2]), glyphs(str(m[2]), mark_size(m, font) * 0.6, m[0], m[1], it.rot + mark_rot(m)), None
+            t, size = str(m[2]), mark_size(m, font) * 0.6
+            sts = glyphs(t, size, m[0], m[1], it.rot + mark_rot(m))
+            yield t, (sts[:-1] + bold_dot(sts[-1], size) if t.endswith(".") else sts), None   # a seam number's dot, bold
         if it.label_pos:
             x, y, rot = it.label_pos
             yield it.label, glyphs(it.label, it.size or font, x, y, rot), it.leader

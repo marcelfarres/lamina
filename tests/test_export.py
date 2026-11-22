@@ -413,7 +413,9 @@ def test_every_seam_number_of_a_printed_panel_is_on_the_print_and_readable(tmp_p
 def test_a_seam_number_that_reads_as_another_upside_down_has_a_dot(tmp_path):
     """A seam number 6 turned along its edge reads as 9 (Marcel, 2026-11-22: "Add a dot after 6 and 9", as Pepakura
     does). Every number that turned reads as another gets a dot after it, on the laser sheet and on the print; the
-    rest stay plain. Measured on the exported sheet: the dot is one more stroke in the number's engraving."""
+    rest stay plain. Measured on the exported sheet: the laser's dot is 1 mm across, filled
+    with rings a kerf apart (Marcel: "A bigger dot on the laser": the font's '.' was a 0.3 mm point), less on a
+    short edge whose number was made smaller."""
     from core.font import strokes
     from core.labels import seam_text
     assert [seam_text(j) for j in (6, 9, 16, 91, 68, 18, 106)] == ["6.", "9.", "16.", "91.", "68.", "18.", "106."]
@@ -429,8 +431,12 @@ def test_a_seam_number_that_reads_as_another_upside_down_has_a_dot(tmp_path):
     sheets = list(tmp_path.glob(f"{design_name(plan)} sheet*.svg"))
     paths = [p for s in sheets for p in etree.parse(str(s)).xpath('//svg:path[@data-text="6." or @data-text="9."]', namespaces=SVG_NS)]
     assert paths
+    across = []
     for p in paths:
-        assert p.get("d").count("M") == len(strokes(p.get("data-text")[0], 3.0)) + 1, p.get("data-text")
+        subs = [np.array(re.findall(r"-?\d+\.\d+", s), float).reshape(-1, 2) for s in p.get("d").split("M")[1:]]
+        dot = np.vstack(subs[len(strokes(p.get("data-text")[0], 3.0)):])   # after the digit's strokes: the dot's rings
+        across.append(max(np.ptp(dot @ [np.cos(a), np.sin(a)]) for a in np.linspace(0, np.pi, 9)))
+    assert all(0.6 < a < 1.05 for a in across) and max(across) > 0.95, across
 
 
 def test_a_printed_job_comes_out_as_one_plate_per_bed(tmp_path):
