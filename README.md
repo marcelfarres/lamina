@@ -523,7 +523,10 @@ does not slip through. It carries the most signal for stacked and folded work; d
   as one STL per part plus a 3MF that OrcaSlicer or PrusaSlicer opens as separate named objects. The label is bold,
   at least the letter height you ask for in printed millimetres (5 mm by default, whatever the scale), and sits
   where the part is widest, away from slots and edges; a part with no room for it gets none and README.txt in the
-  zip names it.
+  zip names it. Each object in the 3MF carries the print settings it needs, measured on its mesh: a layer height
+  that makes its thin tops (a tag's chip, a hinge skin, a pane) whole layers over a 0.2 mm first layer, and thick
+  bridges with no support where it has a bridge (a click joint's bar). OrcaSlicer applies them when it opens the
+  file. The first layer height is set for the whole plate, so README.txt asks for it.
 - **Fit tests** before the model: five small assemblies with the job's joints (its thickness, connectors, and every
   radial half-slice, since that is what wedges) at slot offsets of ±1, ±2 steps around the current one, each part
   marked with its offset. Cut or print, assemble: the loosest that still holds is the offset to set. There are two,
@@ -563,7 +566,8 @@ sheets are always the same plan.
   arrows, and aims a spot by the dot at the end of its cone. A spot points up, down, at the middle of the model, or in
   a direction of its own: move its *tilt* or *turn* slider. *Room* sets the room: shown or not, its size, the walls, the floor, and how much light the walls give back.
   *Picture* saves the view as a PNG and says if the assembly video is lit. All of it is saved with the project and
-  is a step of undo.
+  is a step of undo. An example or a model that opens turns the light off (a big model drawn lit is slow on a
+  computer without a graphics card); *reset tab* puts every Light setting back and turns the light off too.
 - **Export tab**: the buttons first. The text about a file opens with a click on the line under its button.
 - **Top bar**: project name, open and save, a *version* menu, undo and redo, and a *help* menu with the guide, the
   release notes, the links and *clear my data*.

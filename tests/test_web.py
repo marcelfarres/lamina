@@ -110,8 +110,9 @@ def test_the_solid_downloads_of_a_job(api):
     readme = lambda r: zipfile.ZipFile(io.BytesIO(r.content)).read("README.txt").decode().splitlines()
     same = api.get(f"/api/job/{MINE}/{job}/proto", params={"scale": 1, "offset": 0})
     # the job as it is, not planned again. Its README says one thing (bugs/068): the top layer prints clean (hidden
-    # marks), so it carries its number on a tag beside it (bugs/061)
-    (note,) = readme(same)
+    # marks), so it carries its number on a tag beside it (bugs/061); then the print settings written into the plate
+    note, *settings = readme(same)
+    assert "plate.3mf carries the print settings" in settings[0]
     assert "plate.3mf" in names(same) and note.startswith("1 part(s) have no room") and "Z-3" in note
     thin = api.get(f"/api/job/{MINE}/{job}/proto", params={"scale": 0.1, "min_thick": 1.2})
     assert "plate.3mf" in names(thin) and readme(thin)[0].startswith("re-planned at")

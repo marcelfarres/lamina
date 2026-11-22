@@ -2,7 +2,7 @@
 two-family technique (a radial job's ring slices, an interlocked job's Y slices) carries a stripe pattern the first
 does not, under every look, the band lattice's third family stripes the other way, and a part with errors carries a
 net of dark lines on top of its red. The library's picture of the model does not change with the lamp."""
-from .helpers import ON_PART, settle, use
+from .helpers import ON_PART, ROOT, example, settle, state, use
 
 KINDS = """() => window.__t.parts().filter(m => m.userData.group !== 'B').map(m => ({group: m.userData.group,
   bad: m.userData.bad, striped: !!m.material.map, net: m.children.some(c => c.material?.wireframe)}))"""
@@ -82,3 +82,23 @@ def test_the_library_picture_does_not_depend_on_the_lamp(page):
         assert page.evaluate("() => [document.querySelector('#lamp').checked, window.__t.lamp(), document.querySelector('#light_on').checked]") == [True, True, True]
     finally:
         page.evaluate(LAMP, False)
+
+
+LIT = "() => [document.querySelector('#lamp').checked, window.__t.lamp(), !!window.__t.state().light]"
+
+
+def test_the_light_goes_off_when_a_model_opens(page):
+    """An example or an upload opens with the light off, and the Light tab's reset turns it off: the tick was kept,
+    and a big model drawn lit with its shadows is slow without a graphics card (bugs/071). The room goes back too."""
+    page.evaluate(LAMP, True)
+    assert page.evaluate(LIT) == [True, True, True]
+    example(page, "vase")
+    assert page.evaluate(LIT) == [False, False, False]
+    page.evaluate(LAMP, True)
+    page.set_input_files("#file", str(ROOT / "examples" / "pear.stl")); settle(page)
+    assert page.evaluate(LIT) == [False, False, False]
+    page.evaluate(LAMP, True)
+    page.evaluate("() => { window.__t.state().room = {show: false} }")
+    page.click('nav button[data-t="light"]'); page.click('button.reset[data-reset="light"]')
+    assert page.evaluate(LIT) == [False, False, False]
+    assert "room" not in state(page)

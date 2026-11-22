@@ -6,7 +6,7 @@ import sys
 for name in ("rtree", "fast_simplification", "manifold3d", "mapbox_earcut", "embreex", "triangle"):
     sys.modules[name] = None                            # import → ImportError, as in Pyodide
 
-import json, pathlib
+import io, json, pathlib, zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -45,7 +45,9 @@ def main(jobs):
     call("GET", f"api/job/{MINE}/ex_egg/export", "fmt=svg&per_piece=1")
     call("GET", f"api/job/{MINE}/ex_egg/stl")
     assert call("GET", f"api/job/{MINE}/ex_egg/step").count(b"MANIFOLD_SOLID_BREP('") > 0
-    call("GET", f"api/job/{MINE}/ex_egg/proto", "scale=0.5&labels=groove")
+    proto = zipfile.ZipFile(io.BytesIO(call("GET", f"api/job/{MINE}/ex_egg/proto", "scale=0.5&labels=groove")))
+    plate = zipfile.ZipFile(io.BytesIO(proto.read("plate.3mf")))
+    assert b'key="layer_height"' in plate.read("Metadata/model_settings.config")   # the print settings, without manifold3d too
     call("GET", f"jobs/{MINE}/ex_egg/model.stl")
     data = (ROOT / "examples" / "pear.stl").read_bytes()   # an upload: not watertight, so it goes through the shrinkwrap
     for mode in modes:

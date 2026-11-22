@@ -442,10 +442,33 @@ def test_every_seam_number_of_a_printed_panel_is_on_the_print_and_readable(tmp_p
         x0, y0, x1, y1 = n.bounds
         assert any(abs(e - PRINT_MARK) < 0.05 for e in (x1 - x0, y1 - y0)), n.bounds
     sides = [str(mk[2]) for mk in pc["marks"]] + [str(j) for *_, j in pc["seam_tags"]]
-    assert all(sides.count(s) == 2 for s in sides), sorted(sides, key=int)   # both sides of every seam
+    assert all(sides.count(s) == 2 for s in sides), sorted(sides, key=lambda s: int(s.rstrip(".")))   # both sides of every seam
     laser = build(EXAMPLES / "fold_test.stl", "folded", {**pre, "joint": "tab", "printed": False, "material": "cardboard", "material_kind": "cardboard"})
     lpc = laser["slices"][0]["pieces"][0]
     assert "seam_tags" not in lpc and all(len(mk) < 5 or mk[4] < laser["params"]["font"] for mk in lpc["marks"])
+
+
+def test_a_seam_number_that_reads_as_another_upside_down_has_a_dot(tmp_path):
+    """A seam number 6 turned along its edge reads as 9 (Marcel, 2026-11-22: "Add a dot after 6 and 9", as Pepakura
+    does). Every number that turned reads as another gets a dot after it, on the laser sheet and on the print; the
+    rest stay plain. Measured on the exported sheet: the dot is one more stroke in the number's engraving."""
+    from core.font import strokes
+    from core.labels import seam_text
+    assert [seam_text(j) for j in (6, 9, 16, 91, 68, 18, 106)] == ["6.", "9.", "16.", "91.", "68.", "18.", "106."]
+    assert [seam_text(j) for j in (8, 69, 96, 88, 10, 60, 25, 7)] == ["8", "69", "96", "88", "10", "60", "25", "7"]
+    pre = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["fold_test"]["params"]
+    laser = {"printed": False, "material": "cardboard", "material_kind": "cardboard"}
+    for plan in (build(EXAMPLES / "fold_test.stl", "folded", {**pre, "joint": "tab"}),                 # printed (the preset)
+                 build(EXAMPLES / "fold_test.stl", "folded", {**pre, "joint": "tab", **laser})):
+        texts = [str(mk[2]) for sl in plan["slices"] for pc in sl["pieces"] for mk in pc["marks"]]
+        texts += [str(j) for sl in plan["slices"] for pc in sl["pieces"] for *_, j in pc.get("seam_tags", [])]
+        assert {"6.", "9."} <= set(texts) and all(t == seam_text(int(t.rstrip("."))) for t in texts), sorted(texts)
+    export(plan, tmp_path, fmts=("svg",))                                # the laser job's sheet
+    sheets = list(tmp_path.glob(f"{design_name(plan)} sheet*.svg"))
+    paths = [p for s in sheets for p in etree.parse(str(s)).xpath('//svg:path[@data-text="6." or @data-text="9."]', namespaces=SVG_NS)]
+    assert paths
+    for p in paths:
+        assert p.get("d").count("M") == len(strokes(p.get("data-text")[0], 3.0)) + 1, p.get("data-text")
 
 
 def test_a_printed_job_comes_out_as_one_plate_per_bed(tmp_path):
@@ -512,6 +535,83 @@ def test_proto_set_3mf_reloads_with_one_named_geometry_per_part(tmp_path):
     assert len(scene.geometry) == plan["counts"]["parts"]
     expected_labels = {pc["label"] for sl in plan["slices"] for pc in sl["pieces"]}
     assert set(scene.geometry.keys()) == expected_labels
+
+
+def _print_settings(f):
+    """The settings per object a written 3MF carries, {object name: {key: value}}, read as OrcaSlicer reads them:
+    Metadata/model_settings.config, each <object id> one of the model's objects, named as that object is."""
+    z = zipfile.ZipFile(f)
+    assert z.namelist().count("Metadata/model_settings.config") == 1
+    model = etree.fromstring(z.read("3D/3dmodel.model"))
+    names = {o.get("id"): o.get("name") for o in model.iter("{*}object")}
+    out = {}
+    for o in etree.fromstring(z.read("Metadata/model_settings.config")).iter("object"):
+        meta = {m.get("key"): m.get("value") for m in o.iter("metadata")}
+        assert meta.pop("name") == names[o.get("id")]
+        out[names[o.get("id")]] = meta
+    return out
+
+
+def test_a_print_plate_carries_the_settings_each_part_needs(tmp_path):
+    """Marcel (2026-11-22): a print that needs a layer height, or bridges, to succeed has to say so in the file. Each
+    object of the 3MF carries the settings its mesh needs, where OrcaSlicer reads them: the click joint's bar is a
+    bridge between two posts, so its panel gets thick bridges and no support under it; every part gets a layer height
+    that makes its flat tops (a 2 mm panel, a 0.4 mm hinge skin, a 0.2 mm chip) whole layers over a 0.2 mm first one.
+    The snap joint's 0.7 mm ledge is a short overhang that prints: no bridge settings. The README says it all."""
+    from core.solid import FIRST, THIN
+    pre = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["fold_box"]["params"]
+    for joint, bridged in (("click", True), ("snap", False)):
+        plan = build(EXAMPLES / "fold_box.stl", "folded", {**pre, "material_kind": "PETG", "autofix": "off", "joint": joint})
+        out = tmp_path / joint
+        proto_set(plan, out)
+        for f in sorted(out.glob("plate-*.3mf")):
+            got, scene = _print_settings(f), trimesh.load(f)
+            assert set(got) == set(scene.geometry)                         # every object, by its name
+            for name, s in got.items():
+                assert s["layer_height"] == "0.2", (f.name, name, s)
+                m = scene.geometry[name]
+                up = (m.face_normals[:, 2] > 0.99) & (m.triangles_center[:, 2] > 0.01)
+                z, area = m.triangles_center[up, 2].round(2), m.area_faces[up]
+                tops = np.append(z[z <= THIN], z[area.argmax()])           # the thin tops and the main face (the walls' own steps are free)
+                assert np.allclose((tops - FIRST) / 0.2, np.round((tops - FIRST) / 0.2), atol=0.03), (name, tops)
+                panel = name.startswith("P")
+                assert ("thick_bridges" in s) == (bridged and panel), (joint, name, s)
+                if "thick_bridges" in s:
+                    assert s["thick_bridges"] == "1" and s["enable_support"] == "0"
+        readme = (out / "README.txt").read_text(encoding="utf-8")
+        assert "Layer height 0.2 mm" in readme and "first layer height to 0.2 mm" in readme
+        assert ("Thick bridges on and supports off" in readme) == bridged
+
+
+def test_every_print_3mf_carries_its_settings(tmp_path):
+    """The fit test's plate and the standoffs' file are written the same way as the part plates: each 3MF carries its
+    objects' settings and still opens as the same named objects; the standoffs' note says what was set."""
+    from core.solid import fit_set, standoff_files
+    plan = build(EXAMPLES / "cube.stl", "stacked", {"thickness": 3, "autofix": "off"})
+    fit_set(plan, tmp_path / "fit", scale=0.5)
+    got = _print_settings(tmp_path / "fit" / "plate.3mf")
+    assert set(got) == set(trimesh.load(tmp_path / "fit" / "plate.3mf").geometry) and all(s.get("layer_height") for s in got.values())
+    job = {"space": 8, "connect": "standoff", "dowel_d": 5, "dowel_shape": "square", "thickness": 3, "autofix": "off"}
+    f, note = standoff_files(build(EXAMPLES / "egg.stl", "stacked", job), tmp_path, "egg")
+    got = _print_settings(f)
+    assert set(got) == set(trimesh.load(f).geometry) and {s["layer_height"] for s in got.values()} == {"0.2"}
+    assert not any("thick_bridges" in s for s in got.values())             # the halves only narrow as they rise
+    assert "Layer height 0.2 mm for every part" in note.read_text(encoding="utf-8")
+
+
+def test_a_part_no_layer_height_fits_is_said_not_set(tmp_path):
+    """A layer height is written only where it makes the part whole layers: 3 mm parts at x0.5 print 1.5 mm, which
+    0.1 mm layers over a 0.2 mm first one make; at x0.457 they print 1.37 mm, which none of the heights make. Those
+    parts get no layer height, and the README names them instead of hiding it."""
+    plan = build(EXAMPLES / "cube.stl", "stacked", {"thickness": 3, "autofix": "off"})
+    proto_set(plan, tmp_path / "half", scale=0.5)
+    assert {s["layer_height"] for s in _print_settings(tmp_path / "half" / "plate.3mf").values()} == {"0.1"}
+    proto_set(plan, tmp_path / "odd", scale=0.457)
+    got, labels = _print_settings(tmp_path / "odd" / "plate.3mf"), [pc["label"] for sl in plan["slices"] for pc in sl["pieces"]]
+    bare = [n for n in labels if "layer_height" not in got.get(n, {})]
+    assert bare
+    readme = (tmp_path / "odd" / "README.txt").read_text(encoding="utf-8")
+    assert "a whole number of layers" in readme and all(n in readme for n in bare)
 
 
 def _step_rows(text):

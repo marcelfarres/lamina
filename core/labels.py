@@ -18,6 +18,15 @@ TAG_FONT = 4.0      # mm, the least a tag's letters are: bold strokes 0.64 mm, w
 TAG_PAD = 1.0       # mm of chip round the letters
 TAG_CLEAR = 1.5     # mm from a tag to every part but its own: its line is that long at least, and PETG does not fuse across it
 PRINT_MARK = 5.0    # mm, a seam number on a printed panel: bold strokes 1.0 mm wide (0.75 at 4 mm), two lines of a 0.4 mm nozzle
+TURNED = str.maketrans("69", "96")   # 0, 1 and 8 turned upside down are themselves, in the stroke font and in Arial Bold
+
+
+def seam_text(j) -> str:
+    """A seam number as engraved: a dot after it when, turned upside down along its edge, it reads as another number
+    (6 and 9, 16 and 91, 68 and 89, 18 and 81), as Pepakura marks them. 69, 96, 88 and 8 read the same both ways, and
+    60 turned reads 09, which no seam is: none of these gets a dot."""
+    s = str(j); t = s[::-1].translate(TURNED)
+    return s + "." if set(s) <= set("01689") and t != s and t[0] != "0" else s
 
 
 def tag_room(text, font):

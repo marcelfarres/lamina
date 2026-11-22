@@ -15,10 +15,10 @@ inside to see it as a lamp.
 
   ![The library page: a project's revisions, each with open, export and delete](web/static/news/0.4.0-library.jpg)
 
-- **Hide dowels.** New for stacked slices: each dowel goes only where the layers above and below cover its hole, so a
-  tapering model shows no open holes on its steps. The end layers still show theirs.
+- **New joins for stacked layers.** *Hide dowels* puts each dowel only where the layers above and below cover its
+  hole, so no holes show on the steps. *Connect with standoff*: 3D-printed posts hold the layers apart. Try *shade*.
 
-  ![A stacked vase twice: three open dowel holes ringed on its steps, then none with hide dowels on](web/static/news/0.4.0-hide-dowels.jpg)
+  ![Above, the stacked vase with three open dowel holes ringed, then none with hide dowels on; below, the new shade on printed standoffs](web/static/news/0.4.0-stacked-joins.jpg)
 
 - **Band lattice.** A new technique: rings across x, y and z that slot together, best on round or boxy shapes.
   Lamina names any piece that cannot slide in. Thanks to @DaveLauber: adapted from his fork.
@@ -30,19 +30,13 @@ inside to see it as a lamp.
 
   [![The scanned head as a stack of rings on dowels ▶](web/static/news/0.4.0-rings.jpg)](https://marcelfarres.github.io/lamina/media/rings.mp4)
 
-- **Printed standoffs and dowel pins.** On Stacked, set a gap and *connect with* to *standoff*: 3D-printed posts
-  hold the laser-cut layers apart. Their print file, 3D-PRINT, is in the zip. A printed stack gets its dowel pins.
-  Try *shade*.
-
-  ![The shade example: laser-cut layers held apart by printed standoffs](web/static/news/0.4.0-standoff.jpg)
-
 - **Paper lamps.** On Folded Panels, set *windows are* to *closed with paper*: a paper part for each window, or
   a thin printed layer. *Merge* makes faces one flat face; a flat side gets one window. Try *paper_lamp*.
 
   ![The paper_lamp example twice: its windows open, then closed with paper](web/static/news/0.4.0-paper-lamps.jpg)
 
-- **Light your model.** Tick *light* over the 3D view to see its light and soft shadows in a room. The *Light* tab
-  holds up to four bulbs and spots; drag them in the view. Saved with the project.
+- **Light your model.** Tick *light* over the 3D view: soft shadows in a room. The *Light* tab holds up to four
+  bulbs and spots; drag them in the view. Saved with the project; a new model opens unlit.
 
   ![The Light tab beside the lit lamp: the bulb's light and soft shadows on the room's walls](web/static/news/0.4.0-lamp.jpg)
 
@@ -88,7 +82,8 @@ inside to see it as a lamp.
 
   ![The tool column at the left of the 3D view](web/static/news/0.4.0-tools.jpg)
 
-- **A short Export tab.** The download buttons come first. The rest opens with a click.
+- **A short Export tab.** The download buttons come first. The rest opens with a click. A printed stack's print
+  set holds its dowel pins, each named on a tag.
 
   ![The Export tab, with the download buttons first](web/static/news/0.4.0-export.jpg)
 
@@ -103,6 +98,7 @@ inside to see it as a lamp.
   ![A dowel warning, and the rings in the 3D view where the dowels found no room](web/static/news/0.4.0-warnings.jpg)
 
 - **Watch it fold up.** On a folded job, the steps slider ends by folding the panels from flat to the model.
+  Folded settings show only where they apply, and a fin thinner than two sheets gets a warning.
 
   [![The steps slider folding the lamp shade ▶](web/static/news/0.4.0-fold.jpg)](https://marcelfarres.github.io/lamina/media/fold.mp4)
 
@@ -110,9 +106,6 @@ inside to see it as a lamp.
   still prints on one plate. The new *fold_lantern* is a plywood lantern of 72 pieces.
 
   ![The fold_lamp example with its 30 triangles, and the new fold_lantern](web/static/news/0.4.0-examples.jpg)
-
-- **Small changes to folded panels.** The printed-fold settings show only on a print job. Joint settings show only
-  where they apply. A fin thinner than two sheets gets a warning. A print set says which parts lost their grooves.
 
 - **A better horse.** Its head is a branch: a spine with ribs across it, not a flat slab. In Curve, ribs stay square
   to a slim neck on any model. A turned head can have a branch too.
@@ -124,8 +117,8 @@ inside to see it as a lamp.
 
   ![The egg's top layer on the sheet: before, its name, arrow and dowel numbers on it; now clean, its name beside it](web/static/news/0.4.0-clean-tops.jpg)
 
-- **Every printed part has its number.** A part too small for its number prints it on a thin tag beside it: read
-  it, snap the tag off. Standoffs carry their size this way. Printed panels now carry every seam number.
+- **Print files that print right.** Each printed part carries its number, on a thin tag if it is small: snap it
+  off. The 3MF gives each part its layer height, bridges and supports; OrcaSlicer applies them, README.txt lists them.
 
   ![Small horse ribs on the print plate, each joined to a tag with its number; one tag up close; a printed panel with every seam number cut in](web/static/news/0.4.0-print-tags.jpg)
 
@@ -142,8 +135,8 @@ inside to see it as a lamp.
 - **Examples open without warnings.** The blob, berry, cow, cow_spot, figure, head_igea, hook, horse, horse_statue,
   lion_head, pyramid, ripple, snowman, tall_bar, torus and twisted examples open clean, ready to cut. The cow is now a
   low-poly cow made for folding.
-- **Folded nets keep tabs and numbers.** Every tab seam keeps its tab, a seam number on a short edge is engraved
-  smaller instead of left off, and coverage reads the same in any card thickness.
+- **Folded nets keep tabs and numbers.** Every tab seam keeps its tab; a seam number on a short edge is engraved
+  smaller, not left off; coverage reads the same in any card thickness. 6, 9 and the like get a dot.
 - **Smallest face takes sharp faces too.** With *smallest face* set, a sharp face is merged as well, so a folded panel
   no longer ends in a thin tip.
 - **Fewer false warnings on stacked models.** An island with no dowel no longer warns when the next layer outline is
