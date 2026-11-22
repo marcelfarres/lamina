@@ -46,34 +46,57 @@ def test_nothing_of_the_joint_is_on_the_face_that_shows():
     assert plain.symmetric_difference(snap).area < 1e-6
 
 
-@pytest.mark.parametrize("bend,outward", [(5, True), (30, True), (60, True), (94, True), (100, True), (15, False), (40, False)])
-def test_the_two_walls_of_a_shut_seam_meet_on_one_plane_and_the_clip_holds_both(bend, outward):
-    f = F.Folded(); f.p = {"snap_h": next(q.default for q in F.Folded.params if q.name == "snap_h"), "snap_fit": 0.1}; f.t, f.skin, f.land, f.stop, f.hinged = 2.0, 0.4, 0.4, 0.0, True
+SNAP_H = next(q.default for q in F.Folded.params if q.name == "snap_h")
+
+
+def shut(bend, outward, fit=0.1, snap_h=SNAP_H):
+    """A seam bent `bend` degrees, shut: its two walls and two panel edges, and the clip on them, as the seam puts
+    them. Panel A lies to the left of the plane the panels meet on (x = 0), the model's inside up. An outward seam
+    turns about the top of its skin (what the mitre is cut for), an inward one about its outer edge.
+    → (the joint, wall A, its lean, its front at three heights, the clip, both walls, both panels, the clip's height)"""
+    f = F.Folded(); f.p = {"snap_h": snap_h, "snap_fit": fit}; f.t, f.skin, f.land, f.stop, f.hinged = 2.0, 0.4, 0.4, 0.0, True
     b = math.radians(bend); profile, at, up, back, lean = f.snap_wall(b, outward)
-    assert lean <= F.SNAP_LEAN + 1e-9                                 # prints without support
-    # the seam shut: panel A to the left of the plane the panels meet on (x = 0), the model's inside up. An outward
-    # seam turns about the top of its skin (what the mitre is cut for), an inward one about its outer edge
     phi = math.pi - b if outward else math.pi + b; c, s = math.cos(phi / 2), math.sin(phi / 2)
     u = np.array([-s, c]); z = np.array([c, s]); pivot = f.skin if outward else 0.0
     to = lambda q: tuple(u * q[0] + z * (q[1] - pivot))               # noqa: E731
     wall = Polygon([to(q) for q in profile]); mirror = lambda g: affinity.scale(g, -1, 1, origin=(0, 0))   # noqa: E731
     front = [to(tuple(at + up * h))[0] for h in (0.0, 3.0, 6.0)]
+    sheet = Polygon([to(q) for q in ((0, f.t), (9, f.t), (9, 0), (0.5, 0))])
+    y = to(tuple(at))[1]
+    return f, wall, lean, front, affinity.translate(f.snap_clip(), 0, y), unary_union([wall, mirror(wall)]), unary_union([sheet, mirror(sheet)]), y
+
+
+@pytest.mark.parametrize("bend,outward", [(5, True), (30, True), (60, True), (94, True), (100, True), (15, False), (40, False)])
+def test_the_two_walls_of_a_shut_seam_meet_on_one_plane_and_the_clip_holds_both(bend, outward):
+    f, wall, lean, front, clip, walls, sheets, y = shut(bend, outward)
+    assert lean <= F.SNAP_LEAN + 1e-9                                 # prints without support
     assert max(abs(x) for x in front) < 1e-6                          # its front is that plane: the two walls lie face to face
     assert wall.bounds[2] < 1e-6                                      # … and nothing of it is past the plane
-    sheet = Polygon([to(q) for q in ((0, f.t), (9, f.t), (9, 0), (0.5, 0))])
-    clip = affinity.translate(f.snap_clip(), 0, to(tuple(at))[1])
-    walls, sheets = unary_union([wall, mirror(wall)]), unary_union([sheet, mirror(sheet)])
     # it slides on along the walls, so it has room to them everywhere (bug 065: it touched them under the ledge, and his
     # clips stuck part way on), and it still slides when a wall's ledge prints a 0.2 mm layer low
     assert clip.distance(walls) >= f.p["snap_fit"] - 1e-6 and clip.distance(sheets) > 0
     assert affinity.translate(clip, 0, 0.2).intersection(walls).area < 1e-9
-    hook = Polygon([(-9, to(tuple(at))[1] + F.SNAP_LEDGE - 0.6), (0, to(tuple(at))[1] + F.SNAP_LEDGE - 0.6), (0, to(tuple(at))[1] + F.SNAP_LEDGE), (-9, to(tuple(at))[1] + F.SNAP_LEDGE)])
+    hook = Polygon([(-9, y + F.SNAP_LEDGE - 0.6), (0, y + F.SNAP_LEDGE - 0.6), (0, y + F.SNAP_LEDGE), (-9, y + F.SNAP_LEDGE)])
     reach = clip.intersection(hook).bounds[2]                         # how far the left leg's hook comes in under the ledge
     back_face = -F.SNAP_WALL                                          # the wall's back, where the groove is cut into it
     assert back_face < reach < back_face + F.SNAP_GROOVE              # the hook is in the groove: it cannot lift off
     plate = f.snap_clip(whole=True).difference(f.snap_clip())
     assert plate.area > 2 * F.SNAP_WALL * (F.SNAP_LEDGE - 1)                     # the plate fills the space between the legs: they cannot spread
     assert f.snap_clip(whole=True).area > F.CLIP_AREA > 34                       # it stands on more than what came off the bed in his first print
+
+
+@pytest.mark.parametrize("fit", [0.1, 0.2])
+@pytest.mark.parametrize("snap_h", [SNAP_H, 14.0])
+def test_a_clip_slides_on_with_room_for_a_ledge_a_layer_low_and_a_wall_top_half_a_layer_high(fit, snap_h):
+    """Bug 065: a clip slides on along its two walls, so it needs room to them on every face it runs on. Across, the
+    room is `snap fit`. Up and down, it is what printing makes of the walls: the groove's ledge is a 0.7 mm overhang
+    that prints up to one 0.2 mm layer low, and a wall's top lands on the nearest layer, up to half a layer high.
+    At every fit and wall height the clip has that room, measured on the clip and the walls as a shut seam puts them
+    (the walls are the same at every bend)."""
+    _, _, _, _, clip, walls, _, _ = shut(40, True, fit, snap_h)
+    assert clip.distance(walls) == pytest.approx(fit, abs=1e-6)
+    assert affinity.translate(clip, 0, 0.2).intersection(walls).area < 1e-9     # the ledge a layer low: the hook still under it
+    assert affinity.translate(clip, 0, -0.1).intersection(walls).area < 1e-9    # the tops half a layer high: the crown still over them
 
 
 def test_a_seam_bent_too_far_for_a_wall_to_print_is_left_plain_and_said():
@@ -104,6 +127,31 @@ def test_a_clip_too_small_to_print_well_is_said_with_the_wall_height_that_cures_
     assert said(low) and "Set `snap wall` to" in said(low)[0] and not said(box(joint="snap"))
     cure = float(said(low)[0].split("Set `snap wall` to ")[1].split(" mm")[0])
     assert not said(box(joint="snap", snap_h=cure))
+
+
+@pytest.mark.skipif(not has_boolean(), reason="needs manifold3d to join each tag to its clip")
+def test_every_clip_lies_on_the_bed_with_its_number_on_a_tag(tmp_path):
+    """The box's clips print on a plate of their own. Each is too small for its number cut in, so it carries it on a
+    tag joined to it, one solid (bug 061), and the README names it. The panel and every clip lie on the bed, inside
+    its margin."""
+    from core.solid import CHIP_H, LETTER_H
+    plan = box(joint="snap"); files = proto_set(plan, tmp_path)
+    bed, margin = np.array(plan["params"]["sheet"], float), plan["params"]["sheet_margin"]
+    clips = {pc["label"] for s in plan["slices"] if s["group"] == "J" for pc in s["pieces"]}
+    seen = {}
+    for f in (f for f in files if f.name.startswith("plate-")):
+        scene = trimesh.load(f)
+        for name in scene.graph.nodes_geometry:
+            M, g = scene.graph[name]; m = scene.geometry[g].copy(); m.apply_transform(M); lo, hi = m.bounds
+            assert m.is_watertight and m.body_count == 1, name
+            assert lo[:2].min() >= margin - 1e-6 and (hi[:2] <= bed - margin + 1e-6).all(), (name, lo, hi)
+            seen[name] = m
+    assert len(clips) == 12 and clips | {"P-1"} == set(seen)
+    for k in clips:
+        m = seen[k]; up, z = m.face_normals[:, 2] > 0.99, m.triangles_center[:, 2]
+        assert m.area_faces[up & (np.abs(z - (CHIP_H + LETTER_H)) < 0.01)].sum() > 2, k      # its number, standing on the tag
+    readme = (tmp_path / "README.txt").read_text(encoding="utf-8")
+    assert all(k in readme for k in clips) and "no free room" not in readme
 
 
 @pytest.mark.skipif(not has_boolean(), reason="needs manifold3d to fuse the walls onto the panel")

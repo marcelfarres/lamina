@@ -4,19 +4,21 @@ import json
 import pathlib
 
 import numpy as np
+import pytest
 import trimesh
 from shapely.geometry import Point, Polygon
 from shapely.ops import unary_union
 
-from core.export import export, key_text
+from core.export import design_name, export, key_text
 from core.geometry import hole_reach
 from core.plan import build
-from core.solid import assembled, proto_set, standoff_kinds, standoff_mesh, standoff_print
+from core.solid import assembled, proto_set, standoff_files, standoff_kinds, standoff_mesh, standoff_print
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 EXAMPLES = ROOT / "examples"
 # by distance: a layer, then 8 mm of air. Square holes, so a shared hole (4 corners) is told from a flush one (5)
 JOB = {"space": 8, "connect": "standoff", "dowel_d": 5, "dowel_shape": "square", "thickness": 3, "autofix": "off"}
+SHADE = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["shade"]["params"]   # the example he prints: flush pins both ends
 
 
 def local(sl, at):
@@ -77,14 +79,16 @@ def test_a_shared_hole_takes_two_half_pins_and_a_hole_of_its_own_a_flush_pin_in_
     assert seen == {True, False}                                       # the egg has both kinds
 
 
-def test_a_standoff_prints_as_two_halves_that_touch_and_fold_into_it():
+@pytest.mark.parametrize("example,job", [("egg", JOB), ("shade", SHADE)], ids=["egg", "shade"])
+def test_a_standoff_prints_as_two_halves_that_touch_and_fold_into_it(example, job):
     """Bug 058 (Marcel's first print: "the dowels are difficult to print"). A standoff is printed cut in half along
     its length, both halves with the cut face on the plate: one closed solid, no face that hangs in the air past 45
     degrees, and most of its footprint on the plate. The two bodies touch along one line and are joined there two
     layers high. His second print had a strip between the halves: "there is a space between each half ... it bends at
     the piece not the center of the tab", and the halves closed out of line. With no space the print is exactly two
-    bodies wide, there is one line to fold on, and folded about it every point of the print lies on the standoff."""
-    plan = build(EXAMPLES / "egg.stl", "stacked", JOB)
+    bodies wide, there is one line to fold on, and folded about it every point of the print lies on the standoff.
+    On a job with square holes and shared pins, and on the shade example as it opens."""
+    plan = build(EXAMPLES / f"{example}.stl", "stacked", job)
     so, h = plan["standoffs"], plan["params"]["standoff_hinge"]
     R = Polygon(so["body"]).bounds[2]; w = 0.0                         # no space between the halves
     assert h == 0.4
@@ -162,6 +166,25 @@ def test_the_print_file_holds_every_standoff_and_the_key_says_where_each_size_go
     assert "3D PRINT" in key and "The sheet files are for the cutter" in key and "Z-1 / Z-2" in key and "Dowels" not in key
     parts = sum(pc["area"] * sl["thickness"] for sl in plan["slices"] for pc in sl["pieces"])
     assert np.isclose(assembled(plan).volume, parts + total, rtol=1e-3)   # the assembled model has them in place
+
+
+def test_every_standoff_of_the_shade_carries_its_size_on_a_tag_and_touches_no_other(tmp_path):
+    """The shade's print file: each object is one standoff with its size (S1 …) standing on a tag joined to it, one
+    closed solid, so the size stays with its part on the bed; and no object runs into another."""
+    from core.solid import CHIP_H, LETTER_H, LINE_W
+    plan = build(EXAMPLES / "shade.stl", "stacked", SHADE)
+    f = next(f for f in standoff_files(plan, tmp_path, design_name(plan)) if f.suffix == ".3mf")
+    kinds = {tag: standoff_print(plan, gap, ends).volume for tag, gap, ends, _ in standoff_kinds(plan)}
+    scene, feet = trimesh.load(f), []
+    for name in scene.graph.nodes_geometry:
+        M, g = scene.graph[name]; m = scene.geometry[g].copy(); m.apply_transform(M)
+        up, z = m.face_normals[:, 2] > 0.99, m.triangles_center[:, 2]
+        assert m.is_watertight and m.body_count == 1 and m.volume > kinds[name.split()[0]] + 1, name   # the standoff and its tag, one solid
+        assert m.area_faces[up & (np.abs(z - (CHIP_H + LETTER_H)) < 0.01)].sum() > 2, name           # letters standing on the chip
+        down = m.triangles[(m.face_normals[:, 2] < -0.99) & (m.triangles_center[:, 2] < 1e-3)]
+        feet.append(unary_union([Polygon(t[:, :2]) for t in down]).buffer(0))
+    assert len(feet) == len(plan["standoffs"]["items"])
+    assert all(a.distance(b) > LINE_W for i, a in enumerate(feet) for b in feet[i + 1:])
 
 
 def test_a_printed_job_gets_its_standoffs_in_the_print_set(tmp_path):

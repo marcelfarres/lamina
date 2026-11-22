@@ -101,6 +101,27 @@ def test_a_short_bar_keeps_its_thickness_and_gets_a_lower_tooth_and_one_that_can
     assert "cannot bend far enough" in at(F.CLICK_SPAN[0], material_kind="PLA")
 
 
+@pytest.mark.parametrize("example", ["fold_box", "fold_lamp"])
+@pytest.mark.parametrize("material", ["PETG", "PLA"])
+def test_every_bar_a_real_job_reckons_is_stretched_no_further_than_its_material_takes(monkeypatch, example, material):
+    """His round 8 print: bars stretched 6.4 % held in PETG, one broke where they reached 8.6 and 12 %. The tests above
+    reckon one click on its own; here a whole job does, through its seams, with its own material and the smaller
+    sizes it tries where the full size does not fit. Every bar it reckons stays within its material's stretch, is at
+    least `CLICK_THIN` thick and has a tooth at least `CLICK_LOW` high, each at the size it was tried at."""
+    seen, real = [], F.Folded.click_parts
+
+    def spy(self, bend, convex, room=1e9, span=None, size=None):
+        c = real(self, bend, convex, room, span, size); seen.append((c, self.p["click_size"] if size is None else size)); return c
+    monkeypatch.setattr(F.Folded, "click_parts", spy)
+    pre = json.loads((ROOT / "examples" / "presets.json").read_text(encoding="utf-8"))[example]["params"]
+    plan = build(ROOT / "examples" / f"{example}.stl", "folded", {**pre, "material_kind": material, "autofix": "off", "joint": "click"})
+    clicks = [(c, k) for c, k in seen if not isinstance(c, str)]
+    assert clicks and sum(len(pc.get("rails") or []) for s in plan["slices"] for pc in s["pieces"]) > 10   # reckoned, and placed
+    for c, k in clicks:
+        assert c.strain <= F.CLICK_STRAIN[material] + 1e-9, (k, c.strain)
+        assert c.thick >= F.CLICK_THIN * k - 1e-9 and c.bite >= F.CLICK_LOW * k - 1e-9, (k, c.thick, c.bite)
+
+
 def test_bar_support_takes_only_what_the_bar_can_still_stretch_and_the_fillet_comes_first():
     b = math.radians(40); at = lambda solid: joint(click_bar=1.2, click_solid=solid).click_parts(b, True, span=F.CLICK_SPAN[1])   # noqa: E731
     free, held, most = at(0.0), at(0.5), at(1.0)
