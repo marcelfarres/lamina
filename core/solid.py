@@ -184,11 +184,12 @@ def pin_print(plan, length) -> trimesh.Trimesh:
     return m.apply_translation(-m.bounds[0])
 
 
-def pin_files(plan, out_dir) -> list:
+def pin_files(plan, out_dir, written=None) -> list:
     """A printed stacked job's dowel pins, on the printer's bed as its layers are: pins-1.3mf, pins-2.3mf … nested as
     the plates are, every pin an object named after its dowel (Z-3a: dowel a between Z-3 and Z-4, as the assembly key
     and the marks by its holes say), its name on a tag beside it. One pin per dowel: a straight one through several
-    layers is one long pin, as long as the key says, less PIN_END."""
+    layers is one long pin, as long as the key says, less PIN_END. Each file carries its pins' print settings
+    (write_3mf: a pin's thickness on the bed is its fit in the hole); `written` ({file name: settings}) takes them."""
     from .model import Piece, Slice                      # here: core.model is the planner's, not needed for a laser job's files
     from .nest import nest
     p, pins = plan["params"], []
@@ -212,7 +213,9 @@ def pin_files(plan, out_dir) -> list:
             tag, foot, _ = print_tag(laid, k, name, TAG_FONT, *plan["sheet"], p["sheet_margin"])
             laid.append(foot)
             scene.add_geometry(_joined([q, tag]), node_name=name, geom_name=name)
-        f = pathlib.Path(out_dir) / f"pins-{si + 1}.3mf"; f.write_bytes(scene.export(file_type="3mf")); files.append(f)
+        f = pathlib.Path(out_dir) / f"pins-{si + 1}.3mf"; needs = write_3mf(scene, f); files.append(f)
+        if written is not None:
+            written[f.name] = needs
     return files
 
 
@@ -604,7 +607,7 @@ def proto_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2
             files.append(f)
     if plan.get("standoffs"):                              # the connectors of the printed layers: a file of their own
         files += standoff_files(plan, out_dir, design_name(plan), scale)
-    pins = pin_files(plan, out_dir) if plates is not None else []   # a printed job's dowels: printed too, on beds of their own
+    pins = pin_files(plan, out_dir, written) if plates is not None else []   # a printed job's dowels: printed too, on beds of their own
     files += pins
     lines = ([note] if note else []) + (pin_note(plan) if pins else [])
     if plain:                                             # said, not hidden: a folded panel without its grooves does not fold
