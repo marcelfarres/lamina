@@ -1,7 +1,7 @@
 name: media
 
 # The landing page's stills and clips, recorded from the app itself on every release, so they always show the
-# version people download. A pre-commit hook would be the wrong place: a full recording takes a quarter of an hour.
+# version people download. A pre-commit hook would be the wrong place: a full recording takes well over half an hour.
 # Run it by hand from the Actions tab too, with a few scene names to redo only those (e.g. "axes lobes").
 on:
   push:
@@ -23,7 +23,9 @@ concurrency:
 jobs:
   record:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # 0.3.3's set took 18–31 min; 0.4.0's, with its lit clips drawn in software GL, ran past 60 (070). record.py
+    # prints each scene's line with its minute, so a run that still ends here shows which scene it was on
+    timeout-minutes: 150
     env:
       # a tag push records main, where the site deploys from; a run by hand records the branch it was started on — a
       # release branch before its tag, so a scene that ends on errors on Linux stops the release instead of following it
