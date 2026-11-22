@@ -18,7 +18,7 @@ from typing import NamedTuple
 from . import Mode, Param, register
 from ..model import Issue, Slice
 from ..geometry import as_multi, circle, min_dims, rect_along, frame_xy, poly_coords
-from ..labels import PRINT_MARK, mark_box, mark_rot, mark_size, tag_room
+from ..labels import PRINT_MARK, mark_box, mark_rot, mark_size, seam_text, tag_room
 from ..mesh import simplify, merge_small, flatten
 import trimesh
 from ..unfold import unfold, closing_shortfall, edges_at, faces_at
@@ -380,7 +380,7 @@ class Folded(Mode):
               "sheet shows its edge (seam, rivet and laced joints; the others use inner); outer = both edges reach the "
               "model's edge (edges you bevel yourself). Joints with a tab or loop on the edge, and printed panels (mitred "
               "instead), are not cut back", choices=["inner", "through", "outer"], label="how seams meet"),
-        Param("edge_labels", "bool", True, "Engrave the seam number beside every joint on both panels, so mating edges can be found", label="seam numbers"),
+        Param("edge_labels", "bool", True, "Engrave the seam number beside every joint on both panels, so mating edges can be found. A number that reads as another upside down (6, 9, 16 …) has a dot after it", label="seam numbers"),
         Param("perforate", "bool", False, "Fold lines as dashed perforation instead of a continuous score (thick material)", label="dashed fold lines", section="Folds — how the sheet bends"),
         Param("score_side", "choice", "inside", "The face of the sheet that is up on the cutter, and so carries the scores and "
               "seam numbers: inside = the net is mirrored, they end up inside the model and the outside stays one clean "
@@ -1087,7 +1087,7 @@ class Folded(Mode):
         if not self.p["edge_labels"]:
             return
         p, sl = self.p, s.sl
-        text = str(j); A, d, n, L = s.A, s.d, s.n, s.L
+        text = seam_text(j); A, d, n, L = s.A, s.d, s.n, s.L
         rot = math.degrees(math.atan2(d[1], d[0])) % 180
         if rot > 90:
             rot -= 180                                                      # never upside down in the panel's frame
@@ -1247,7 +1247,7 @@ class Folded(Mode):
         sl = Slice(f"S-{j}", "J", np.eye(4), self.t, note=f"{phi:.0f}°")
         sl.raw = as_multi(strip); sl.cuts = holes
         sl.lines.append(("solid" if convex else "dashed", LineString([(-Ls / 2 + Wd / 2, 0), (Ls / 2 - Wd / 2, 0)])))
-        sl.marks.append((0.0, 0.0 - inset * 0.35, str(j)))
+        sl.marks.append((0.0, 0.0 - inset * 0.35, seam_text(j)))
         prof = as_multi(strip.difference(unary_union(holes)))
         big = Ls + Wd
         sl.facets = []
@@ -1317,7 +1317,7 @@ class Folded(Mode):
             self.add_cut(s, sl_); self.mark(s, j, inset - s.back + tab + p["font"] * 0.45)   # mark() adds the cut-back itself
         sl = Slice(f"R-{j}", "J", M, tr, note=f"{phi:.0f}°")
         sl.raw = as_multi(rib)
-        sl.marks.append((float(L * 0.5), float(t / 2 + w * 0.5), str(j)))
+        sl.marks.append((float(L * 0.5), float(t / 2 + w * 0.5), seam_text(j)))
         return [sl]
 
     def snap_wall(self, bend, convex, H=None, w=SNAP_WALL, groove=True):

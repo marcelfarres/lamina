@@ -141,8 +141,8 @@ inside to see it as a lamp.
 - **Examples open without warnings.** The blob, berry, cow, cow_spot, figure, head_igea, hook, horse, horse_statue,
   lion_head, pyramid, ripple, snowman, tall_bar, torus and twisted examples open clean, ready to cut. The cow is now a
   low-poly cow made for folding.
-- **Folded nets keep tabs and numbers.** Every tab seam keeps its tab, a seam number on a short edge is engraved
-  smaller instead of left off, and coverage reads the same in any card thickness.
+- **Folded nets keep tabs and numbers.** Every tab seam keeps its tab; a seam number on a short edge is engraved
+  smaller, not left off; coverage reads the same in any card thickness. 6, 9 and the like get a dot.
 - **Smallest face takes sharp faces too.** With *smallest face* set, a sharp face is merged as well, so a folded panel
   no longer ends in a thin tip.
 - **Fewer false warnings on stacked models.** An island with no dowel no longer warns when the next layer outline is
