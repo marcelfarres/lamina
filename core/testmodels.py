@@ -170,6 +170,27 @@ def fold_lamp(rings=3, around=5, height=120.0):
     return trimesh.Trimesh(v / 3, faces, process=False)   # the export scales every model × 3
 
 
+def paper_lamp(n=3, height=300.0):
+    """A lamp for folded card with paper windows: three regular dodecahedra stacked face to face, each turned a tenth of
+    a turn against the one below so the pentagons they share match; the shared pentagons go, so it is one closed
+    surface of 32 regular pentagons. Every pentagon is three triangles in one plane: one flat piece, one window, and
+    every paper the same pentagon. 300 mm tall as exported."""
+    ico = trimesh.creation.icosahedron()
+    d = trimesh.Trimesh(ico.triangles_center, process=False).convex_hull      # its dual: the dodecahedron
+    d.apply_transform(trimesh.geometry.align_vectors(d.facets_normal[0], [0, 0, 1]))   # standing on a pentagon
+    d.apply_translation(-d.bounds.mean(0))
+    h = d.extents[2]
+    v = np.vstack([trimesh.transformations.transform_points(d.vertices, trimesh.transformations.rotation_matrix(k * np.pi / 5, [0, 0, 1]))
+                   + [0, 0, k * h] for k in range(n)])
+    m = trimesh.Trimesh(v, np.vstack([d.faces + k * len(d.vertices) for k in range(n)]), process=False)
+    m.merge_vertices(digits_vertex=6)
+    z, up = m.triangles_center[:, 2], np.abs(m.face_normals[:, 2]) > 0.999
+    m.update_faces(~(up & np.any([np.isclose(z, (k - 0.5) * h, atol=1e-6) for k in range(1, n)], axis=0)))   # the shared pentagons are inside
+    m.remove_unreferenced_vertices(); trimesh.repair.fix_normals(m)
+    m.apply_translation(-m.bounds.mean(0)); m.apply_scale(height / m.extents[2])
+    return trimesh.Trimesh(m.vertices / 3, m.faces)       # the export scales every model × 3
+
+
 def droplet():
     """Rings on still water after a drop, for the plaque's radial layout: long, soft waves that fade a little toward
     the rim and sink smoothly to almost nothing at it, on a disc. A profile turned about z. Nothing stands in the middle: a radial fan leaves a hole there, and
@@ -267,8 +288,8 @@ MODELS = {
     "fold_lamp": fold_lamp,
     "fold_box": fold_box,
     "fold_lantern": lambda: fold_lamp(6, 6).apply_scale(3.5),      # the lamp shade at 420 mm, for sheet: every face a part of its own
-    # a lamp from a plain solid: folded card, its windows closed with paper (the pear, as any imported model)
-    "paper_lamp": pear,
+    # a lamp of folded card, its windows closed with paper: three dodecahedra, one window per pentagon
+    "paper_lamp": paper_lamp,
     # for the plaque
     "droplet": droplet,
     "bonsai": bonsai,

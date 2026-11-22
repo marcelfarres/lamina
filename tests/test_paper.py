@@ -94,6 +94,7 @@ def test_a_cut_job_gets_a_paper_part_for_every_window_on_sheets_of_paper(tmp_pat
         side = Polygon(paper["rings"][0][0])
         assert paper["t"] == 0.2 and paper["z"] == -1.0       # against the inside face of the 1 mm panel
         assert abs(side.area - pane["pieces"][0]["area"]) < 0.1 and max(cut) < side.area < min(cut) * 1.5   # reaches over its window, on to the frame
+        assert paper["part"] == pane["label"]                 # the 3D view shows where the paper part goes
     files = [f.name for f in export(plan, tmp_path, fmts=("svg",))]
     assert any("paper" in n for n in files) and any("card" in n for n in files)
 
@@ -117,3 +118,48 @@ def test_a_printed_job_prints_the_window_as_a_thin_layer_on_the_bed():
     thick = cube(**{**job, "thickness": 1.0}, window_fill="paper", paper_t=1.0)
     assert holes(thick) == 6 and not papers(thick)            # a pane as thick as the panel: the windows stay open, and it says so
     assert any("paper thickness" in w for s in thick["slices"] for w in s["warnings"])
+
+
+def lamp(**params):
+    import json
+    preset = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["paper_lamp"]["params"]
+    return build(EXAMPLES / "paper_lamp.stl", "folded", {**preset, "autofix": "off", **params})
+
+
+def tab_area_in_windows(plan):
+    """How much of the glue tabs (mm²) lies over a window of the face it is glued to, in the closed model. A window is
+    its pane less the 4 mm the pane reaches over the frame (a window across several faces is a hole in none of them)."""
+    import numpy as np
+    from shapely.ops import unary_union
+    facets = [(np.array(fc["M"]), fc) for s in plan["slices"] for pc in s["pieces"] for fc in pc["facets"]]
+    holes = [(M, [Polygon(r[0]).buffer(-3.95 if fc["paper"]["z"] < 0 else 0, join_style="mitre") for r in fc["paper"]["rings"]]) for M, fc in facets if "paper" in fc]
+    tabs = [(M, fc) for M, fc in facets if fc.get("hinge") and fc["hinge"][1:7] == [0, 0, 0, 0, 0, 1]]   # a tab rides on its face
+    assert tabs and holes
+    area = 0.0
+    for Mt, tab in tabs:
+        for Mh, hs in holes:
+            if abs(Mt[:3, 2] @ Mh[:3, 2]) > 0.999 and abs((Mt[:3, 3] - Mh[:3, 3]) @ Mh[:3, 2]) < 5:      # in the plane of that face
+                for rings in tab["rings"]:
+                    w = (np.c_[np.array(rings[0]), np.zeros(len(rings[0])), np.ones(len(rings[0]))] @ Mt.T) @ np.linalg.inv(Mh).T
+                    area += Polygon(w[:, :2]).buffer(0).intersection(unary_union(hs)).area
+    return area
+
+
+def test_the_paper_lamp_has_one_window_and_one_paper_shape_per_pentagon():
+    """Three dodecahedra, 32 pentagons less the one at the bottom, opened for the bulb: every strategy keeps each
+    pentagon whole (no seam across a flat side), so 31 windows and 31 papers, all the same pentagon."""
+    for strategy in ("auto", "flat", "strip", "area"):
+        plan = lamp(strategy=strategy)
+        papers_ = [s for s in plan["slices"] if s["label"].startswith("W-")]
+        assert plan["counts"]["errors"] == plan["counts"]["warnings"] == 0, strategy
+        assert holes(plan) == 31 and len(papers_) == 31 and plan["faces3d"]["removed"] == 3, strategy
+        assert len({round(s["pieces"][0]["area"], 1) for s in papers_}) == 1, strategy
+
+
+def test_no_glue_tab_reaches_into_a_window():
+    """A tab is glued to the frame of the face it folds under: never over the window (the pear lamp had 41 of its 45
+    tabs partly over a window, and the 3D view drew dark lines where a tab and the pane lay in one plane)."""
+    for plan in (lamp(), lamp(window=0.9), lamp(printed=True, material="PLA", thickness=2, hinge=0.4, sheet=[325, 320]),
+                 cube(joint="tab", window_fill="paper"), cube(joint="multitab", window_fill="paper")):
+        assert plan["counts"]["errors"] == 0
+        assert tab_area_in_windows(plan) < 0.5

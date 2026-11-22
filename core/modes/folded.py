@@ -21,7 +21,7 @@ from ..geometry import as_multi, circle, min_dims, rect_along, frame_xy, poly_co
 from ..labels import PRINT_MARK, mark_box, mark_rot, mark_size, seam_text, tag_room
 from ..mesh import simplify, merge_small, flatten
 import trimesh
-from ..unfold import unfold, closing_shortfall, edges_at, faces_at
+from ..unfold import unfold, closing_shortfall, edges_at, faces_at, FLAT
 
 JOINTS = ["seam", "tab", "multitab", "diamond", "ticked", "gear", "tongue", "puzzle", "snap", "click", "rivet", "laced", "loops", "strip", "rib"]
 # The thickest sheet of each material that folds along a score line (mm); 0 = it does not fold at all, it cracks or
@@ -102,8 +102,8 @@ CLICK_BACK = 0.15                     # the click's front faces stand this far b
 CLICK_SMALLER = (0.85, 0.7)            # a seam a click does not fit (a narrow frame, a short seam) tries it this much smaller
 CLICK_FOOT = 4.0                      # the ramp behind every upright: how far it runs into the panel at most
 
+TAB_CLEAR = 0.5                      # how far the tip of a glue tab stays from the window of the face it is glued to (mm)
 PANE_OVER = 4.0                      # how far a paper pane reaches over the frame round its window, to glue it (mm)
-FLAT =math.radians(1)                # two faces closer to one plane than this are one flat piece: no score between them
 MAX_HOLES = 60                       # holes along one seam (rivet / laced / strip)
 MAX_FACES = 4000                      # triangles this can unfold and lay out in a usable time
 MAX_PANELS = 400                      # …and parts, when `separate` makes every triangle one (see build)
@@ -239,7 +239,7 @@ class FoldedSlice(Slice):
         facet's outer face along the facet's normal (0 = level with the outside, below 0 = further in)}."""
         h, b, ft, pa = (xs[i] if xs else None for xs in (self.hinges, self.bevels, self.facet_t, self.papers))
         return {**({"hinge": h} if h else {}), **({"bevel": b} if b else {}), **({"t": ft} if ft else {}),
-                **({"paper": {"rings": poly_coords(as_multi(pa[0])), "t": pa[1], "z": round(pa[2], 4)}} if pa else {})}
+                **({"paper": {"rings": poly_coords(as_multi(pa[0])), "t": pa[1], "z": round(pa[2], 4), **({"part": pa[3]} if pa[3] else {})}} if pa else {})}
 
     def mirror(self):
         """The slice seen from its other face: everything it holds in flat-net coordinates turned over (x → −x), and
@@ -798,14 +798,38 @@ class Folded(Mode):
             out.setdefault(top(f), []).append(f)
         return list(out.values())
 
+    def outline(self, pn, fs):
+        """The outline of the flat piece `fs` in the panel's layout, drawn through its corners from its rim edges (the
+        edges only one of its faces has). Not a union of its triangles: laid out one by one they meet only to rounding,
+        and a union left two of the tower lamp's 32 pentagons in pieces, a mitred buffer out and back left one empty."""
+        nxt, at = {}, {}
+        for f in fs:
+            fv = [int(v) for v in self.mesh.faces[f]]
+            for i in range(3):
+                at[fv[i]] = pn.tri[f][i]; nxt[(fv[i], fv[(i + 1) % 3])] = fv[(i + 1) % 3]
+        rim = {a: b for (a, b) in nxt if (b, a) not in nxt}       # an edge two of its faces share runs both ways
+        loops = []
+        while rim:
+            a = next(iter(rim)); loop = [a]
+            while (b := rim.pop(loop[-1], None)) is not None and b != a:
+                loop.append(b)
+            loops.append(Polygon([at[v] for v in loop]))
+        loops.sort(key=lambda q: -q.area)
+        return Polygon(loops[0].exterior, [q.exterior for q in loops[1:]]) if loops else Polygon()
+
     def windows(self, slices, frames):
         """A window in every flat piece of a panel (`window` > 0): the piece set in by a frame, cut out. The frame is what
         the share asks for, and at least the minimum feature width plus what the widest groove on the piece's edges
         takes. A flat piece is one face, or the several faces of one flat side: they get one window between them.
         With `window_fill` = paper a pane closes each window. Cut: the window is cut out, and the pane is a part of its
         own, PANE_OVER bigger than its window all round (less on a narrow frame), glued inside the frame: returned, a
-        slice each. Printed: the window is not cut out but printed `paper_t` thick on the bed (FoldedSlice.panes)."""
+        slice each. Printed: the window is not cut out but printed `paper_t` thick on the bed (FoldedSlice.panes).
+        A glue tab folds in under the face across its seam and is glued to the frame: the frame keeps room for a tab
+        worth gluing (twice the minimum feature width), and tabs() makes no tab taller than the frame it lies under, less
+        TAB_CLEAR, so no tab reaches into a window (the pear lamp's 41 of 45 did: half their glue was over the opening,
+        and in the 3D view a tab and the pane, both against the inside face, flickered as dark lines on the paper)."""
         share = self.p["window"]; self.paper = {}             # face → the pane the 3D view shows on its facet
+        self.framed = {}                                      # face → the width of its window's frame
         if not share:
             return []
         m = self.mesh; room = self.back.copy()                # what a cut-back seam edge already took
@@ -826,21 +850,22 @@ class Folded(Mode):
             pn = sl.pn; n = 0
             pieces = []
             for fs in self.flats(pn):
-                whole = Polygon(pn.tri[fs[0]]) if len(fs) == 1 else unary_union([Polygon(pn.tri[f]) for f in fs]).buffer(1e-4, join_style="mitre").buffer(-1e-4, join_style="mitre")
-                pieces += [(fs, whole)] if whole.geom_type == "Polygon" else [([f], Polygon(pn.tri[f])) for f in fs]
+                whole = Polygon(pn.tri[fs[0]]) if len(fs) == 1 else self.outline(pn, fs)
+                pieces += [(fs, whole)] if whole.is_valid and not whole.is_empty else [([f], Polygon(pn.tri[f])) for f in fs]
             for fs, piece in pieces:
                 r = 2 * piece.area / piece.length             # a triangle's inscribed circle's radius
                 h = [2 * Polygon(pn.tri[f]).area / max(np.linalg.norm(np.diff(np.vstack([pn.tri[f], pn.tri[f][:1]]), axis=0), axis=1)) for f in fs]   # the least height of each face
                 edge = max(room[f] for f in fs)
-                frame = max((1 - share) * r, 1.35 * p["min_feature"] + edge + max(map(joint, h)))      # a third over: the thin-spot check measures to the hair (at 1.25 five frames of the lamp were flagged)
+                frame = max((1 - share) * r, 1.35 * p["min_feature"] + edge + max(map(joint, h)),
+                            edge + 2 * p["min_feature"] + TAB_CLEAR if p["joint"] in TABBED else 0)   # room for a tab worth gluing      # a third over: the thin-spot check measures to the hair (at 1.25 five frames of the lamp were flagged)
                 hole = piece.buffer(-frame, join_style="mitre")
                 if hole.is_empty or hole.geom_type != "Polygon" or 2 * hole.area / hole.length < p["min_feature"] / 2:
                     continue                                                        # no room for a window worth cutting
                 for f in fs:
-                    self.face_cuts.setdefault(f, []).append(hole)
+                    self.face_cuts.setdefault(f, []).append(hole); self.framed[f] = frame
                 if printed:
                     sl.panes.append(hole); sl.pane_t = pt
-                    self.paper[fs[0]] = (pn.to_local(fs[0], hole), pt, 0.0 if self.inside else pt - t)   # on the bed: the face that is not up
+                    self.paper[fs[0]] = (pn.to_local(fs[0], hole), pt, 0.0 if self.inside else pt - t, None)   # on the bed: the face that is not up
                     continue
                 sl.cuts.append(hole)
                 if paper:
@@ -848,7 +873,7 @@ class Folded(Mode):
                     pane = pn.to_local(f, hole.buffer(min(PANE_OVER, 0.6 * (frame - edge)), join_style="mitre").intersection(piece.buffer(-edge - 0.2, join_style="mitre")))
                     M = frames[f].copy(); M[:3, 3] -= M[:3, 2] * (t + pt / 2)     # against the inside face of the panel
                     ps = Slice(f"W-{sl.label[2:]}-{n}", "J", M, pt, note="paper"); ps.raw = as_multi(pane); ps.facets = []; ps.stock = "paper"; ps.springy = True   # paper: a sharp corner of a pane is no thin spot
-                    panes.append(ps); self.paper[f] = (pane, pt, -t)
+                    panes.append(ps); self.paper[f] = (pane, pt, -t, ps.label)   # the paper part that goes there, for the 3D view to show
         return panes
 
     def corners(self, owner):
@@ -1614,7 +1639,8 @@ class Folded(Mode):
         shortens a flap that meets the net). Only when none of those has room is the seam left plain, with a warning."""
         p = self.p; t = self.t; a, b = sides
         inset, _, _ = self.fit_sizes(sides)
-        L = a.L; h = min(p["tab_h"], L * 0.6, b.h * 0.6) * scale; A, d, n = a.A, a.d, a.n
+        L = a.L; A, d, n = a.A, a.d, a.n
+        h = min(min(p["tab_h"], L * 0.6, b.h * 0.6) * scale, self.framed.get(b.f, math.inf) - TAB_CLEAR)   # no taller than the frame it is glued to
         out = -n                                        # tabs protrude away from the panel
         tan = math.tan(math.radians(p["tab_angle"]))
 

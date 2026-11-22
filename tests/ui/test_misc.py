@@ -483,7 +483,7 @@ def test_a_paper_pane_is_a_sheet_of_its_own_that_folds_and_glows(page):
     seen = """async () => { const m = await import(location.origin + '/static/js/scene.js'), T = await import('three'),
       ps = __t.parts().filter(p => p.userData.pane).map(p => p.userData.pane), b = new T.Box3(); ps.forEach(p => b.expandByObject(p));
       const L = m.scene.getObjectsByProperty('isPointLight', true).filter(l => l.intensity > 0), main = L.find(l => l.castShadow), soft = L.find(l => !l.castShadow);
-      return {n: ps.length, own: ps.every(p => p.material === m.paper && p.material !== p.parent.material), cast: ps.every(p => p.castShadow), takes: ps.some(p => p.receiveShadow),
+      return {n: ps.length, own: ps.every(p => p.material[0] === m.paper && p.material[1] === m.hatched && p.material[0] !== p.parent.material), cast: ps.every(p => p.castShadow), takes: ps.some(p => p.receiveShadow),
         color: m.paper.color.getHexString(), through: m.renderer.properties.get(m.paper).uniforms?.paperThrough?.value, high: +(b.max.z - b.min.z).toFixed(1),
         soft: soft && main ? soft.intensity / main.intensity : 0,
         chunk: T.ShaderChunk.lights_lambert_pars_fragment.includes('float dotNL = saturate( dot( geometryNormal, directLight.direction ) );')} }"""

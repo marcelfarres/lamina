@@ -447,13 +447,15 @@ def n040_stacked_joins(app):                # one entry, two pictures: hidden do
 
 
 def n040_paper_lamps(app):                   # the paper_lamp example twice: its windows open, and closed with paper
+    def middle():                            # the lamp is tall and slim: the middle of the 3D view, not all of it
+        x0, y0, x1, y1 = app.box("#v3d"); w = (x1 - x0) * 0.32
+        return ((x0 + x1) / 2 - w / 2, y0 + 70, (x0 + x1) / 2 + w / 2, y1 - 30)   # under the sliders over the view
     app.example("paper_lamp")                # it opens closed with paper: that half first, then the windows opened
-    app.view(35, 16, 1.15)
-    closed = caption(app.grab("#v3d"), "closed with paper")
+    app.view(35, 12, 1.0)
+    closed = caption(app.grab(middle()), "closed with paper")
     app.set("window_fill", "open")
-    app.view(35, 16, 1.15)
-    save("0.4.0-paper-lamps", side_by_side(caption(app.grab("#v3d"), "windows open"), closed))
-
+    app.view(35, 12, 1.0)
+    save("0.4.0-paper-lamps", side_by_side(caption(app.grab(middle()), "windows open"), closed))
 
 def part(app, sel, x0, y0, x1, y1):         # a box inside an area, in shares of its width and height
     a, b, c, d = app.box(sel)
