@@ -70,6 +70,10 @@ inside to see it as a lamp.
 
   ![The egg's spine is a comb of thin fingers: in acrylic, which cracks, the warning asks for 1.5 times the sheet](web/static/news/0.4.0-material.jpg)
 
+- **Print files carry their print settings.** Each part in a 3D-print file says the layer height that prints its
+  tags, hinges and panes right. A part with a click joint asks for thick bridges and no supports. OrcaSlicer applies
+  them when it opens the file. README.txt lists them, and the first layer height you set yourself.
+
 ### Changed
 
 - **Settings that are easy to read.** Full names, sections that fold, ↺ to undo a change, a search box over the
