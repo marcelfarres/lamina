@@ -7,6 +7,7 @@ import {$, status} from './util.js';
 import {highlight, deselect, drawGizmo} from './edit3d.js';
 import {renderSeams, showSeamLines} from './seams.js';
 import {renderFaces, showFaces, hatched} from './faces.js';
+export {hatched};
 
 // ---------------------------------------------------------------- 3D view
 export const view=$('#v3d'), renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(devicePixelRatio); view.appendChild(renderer.domElement);
