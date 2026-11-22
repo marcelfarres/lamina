@@ -6,7 +6,7 @@ import {COLORS, LOOKS, PLANE_IDX, STRIPED} from './catalog.js';
 import {$, status} from './util.js';
 import {highlight, deselect, drawGizmo} from './edit3d.js';
 import {renderSeams, showSeamLines} from './seams.js';
-import {renderFaces, showFaces} from './faces.js';
+import {renderFaces, showFaces, hatched} from './faces.js';
 
 // ---------------------------------------------------------------- 3D view
 export const view=$('#v3d'), renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(devicePixelRatio); view.appendChild(renderer.domElement);
@@ -124,10 +124,6 @@ const STRIPES=stripes(Math.PI/4), ACROSS=stripes(-Math.PI/4), stripesOf=g=>g==='
 // The light (a lamp inside the model, a spot beside it: js/light.js) is set again when the parts move or change.
 // The paper of the panes that close a folded panel's windows: one look for them all (js/light.js gives it its colour and its glow)
 export const paper=new THREE.MeshLambertMaterial({color:0xfff1d0});
-// Selected, never by colour alone: stripes in screen pixels, the same on every face (selected faces, a paper part's window)
-export const hatched=new THREE.ShaderMaterial({transparent:true,side:THREE.DoubleSide,depthWrite:false,
-  vertexShader:'void main(){gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
-  fragmentShader:'void main(){gl_FragColor=vec4(0.94,0.89,0.26,mod(gl_FragCoord.x+gl_FragCoord.y,10.0)<4.0?0.95:0.3);}'});
 // The window a paper part goes in, hatched on its pane (null: none). Its pane's triangles are drawn in the second material
 export function markPane(label){for(const m of parts.children){const p=m.userData.pane;if(!p)continue;p.geometry.clearGroups();
   p.userData.ranges.forEach(([o,n],j)=>p.geometry.addGroup(o,n,label&&p.userData.labels[j]===label?1:0))}ST.dirty=true}

@@ -4,7 +4,7 @@ import {$, $$} from './util.js';
 import {act} from './history.js';
 import {schedule} from './form.js';
 import {deselect} from './edit3d.js';
-import {scene, parts, ray, camera, renderer, V3, hatched} from './scene.js';
+import {scene, parts, ray, camera, renderer, V3} from './scene.js';
 import {foldUp, seamsFolded, sameEnds} from './seams.js';
 
 // ---------------------------------------------------------------- selecting and removing faces (folded panels)
@@ -19,6 +19,11 @@ import {foldUp, seamsFolded, sameEnds} from './seams.js';
 // a click on one puts it back.
 // Three looks, never colour alone: selected = hatched, removed = a dashed outline, the user's seam = a thick line.
 // As in seams.js, nothing here reaches into another module before initFaces().
+// stripes in screen pixels, the same on every face; the 3D view hatches a paper part's window with it too (scene.js:
+// it is made here, where it is used at load, and scene.js only draws with it: the two modules import each other)
+export const hatched=new THREE.ShaderMaterial({transparent:true,side:THREE.DoubleSide,depthWrite:false,
+  vertexShader:'void main(){gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
+  fragmentShader:'void main(){gl_FragColor=vec4(0.94,0.89,0.26,mod(gl_FragCoord.x+gl_FragCoord.y,10.0)<4.0?0.95:0.3);}'});
 const geo=()=>new THREE.BufferGeometry();
 const selFill=new THREE.Mesh(geo(),hatched), selRim=new THREE.LineSegments(geo(),new THREE.LineBasicMaterial({color:0xF0E442}));
 const ghostRim=new THREE.LineSegments(geo(),new THREE.LineDashedMaterial({color:0xE69F00}));
