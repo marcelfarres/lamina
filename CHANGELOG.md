@@ -36,9 +36,9 @@ inside to see it as a lamp.
   ![The shade example: laser-cut layers held apart by printed standoffs](web/static/news/0.4.0-standoff.jpg)
 
 - **Paper lamps.** On Folded Panels, set *windows are* to *closed with paper*: a paper part for each window, or
-  a thin printed layer. *Merge* makes faces one flat face; a flat side gets one window. Try *paper_lamp*.
+  a thin printed layer. *Merge* makes faces one flat face; a flat side keeps one window. Try *paper_lamp*.
 
-  ![The paper_lamp example twice: its windows open, then closed with paper](web/static/news/0.4.0-paper-lamps.jpg)
+  ![The paper_lamp example, three dodecahedra, twice: its pentagon windows open, then closed with paper](web/static/news/0.4.0-paper-lamps.jpg)
 
 - **Light your model.** Tick *light* over the 3D view to see its light and soft shadows in a room. The *Light* tab
   holds up to four bulbs and spots; drag them in the view. Saved with the project.

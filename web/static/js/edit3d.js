@@ -5,7 +5,7 @@ import {$, $$, status} from './util.js';
 import {bounds, show, UNIT, toMM, inU, fmtLen, niceStep} from './units.js';
 import {renderFields} from './form.js';
 import {slice} from './slice.js';
-import {renderer, ray, camera, gizmo, guides, parts, rings, mat4, V3, cubeHit, controls, placeRod, ghost, applyExplode, viewFrom} from './scene.js';
+import {renderer, ray, camera, gizmo, guides, parts, rings, mat4, V3, cubeHit, controls, placeRod, ghost, applyExplode, viewFrom, markPane} from './scene.js';
 import {hlSheet} from './results.js';
 import {seamClick, setSeamMode} from './seams.js';
 import {faceClick, setFaceMode} from './faces.js';
@@ -91,7 +91,7 @@ export function drawGizmo(m){
   ST.dirty=true;
 }
 const slicePlan=l=>ST.plan.slices.find(x=>x.label===l)||(ST.plan.bounds3d||[]).find(x=>x.label===l);
-export function highlight(m){for(const c of parts.children)c.material.emissive.set(c.userData.slice===m.userData.slice?0x664400:0x000000);ST.selected=m.userData.slice;drawGizmo(m);ST.dirty=true;
+export function highlight(m){markPane(null);for(const c of parts.children)c.material.emissive.set(c.userData.slice===m.userData.slice?0x664400:0x000000);ST.selected=m.userData.slice;drawGizmo(m);ST.dirty=true;
   const g=k=>state[k]?.[ST.selected], synthetic='JPB'.includes(m.userData.group), bound=m.userData.group==='B', ext=Math.max(...ST.plan.bbox), s=ST.plan.slices.find(x=>x.label===ST.selected);
   // the same show / bounds as the form, so a slice's thickness reads and steps exactly like the thickness field
   const row=(k,lab,v,p,u)=>{const b=bounds(p);return `<div class="row"><span>${lab}</span><input type="range" id="r_${k}" min="${b.min}" max="${b.max}" step="${b.step}" value="${show(p,v)}"><input type="number" id="n_${k}" step="${b.step}" value="${show(p,v)}"><span class="hint" style="grid-column:2/4">${u}</span></div>`};
@@ -120,7 +120,10 @@ function preview(k,v){ // live feedback while sliding, before the re-slice
 function commit(k,v){setEdit(k,k==='offset'||k==='thick'||k==='wall'||k==='cut_shift'?toMM(v):v,k==='thick'?state.thickness:k==='wall'?state.ring_wall:0)}
 // ring slices: a slice can have its own wall, set here like its thickness (stacked with `ring_slices` on, and the band lattice)
 const walled=()=>ST.mode.params.some(p=>p.name==='wall')&&(state.ring_slices||!ST.mode.params.some(p=>p.name==='ring_slices'))
-export function deselect(){ST.selected=null;$('#sel').hidden=true;gizmo.clear();for(const c of parts.children)c.material.emissive.set(0);hlSheet(null);ST.dirty=true}
+// A paper part (W-7-3) is no part of the 3D view: it is shown where it goes, its window hatched on its panel
+export function showPane(label){const m=parts.children.find(c=>c.userData.pane?.userData.labels.includes(label));if(!m)return;
+  highlight(m);markPane(label);hlSheet(label);status(`${$('#status').textContent.replace(/ · selected.*$/,'')} · selected ${label}: the paper for the window hatched on ${m.userData.slice}, glued on the inside of its frame`)}
+export function deselect(){markPane(null);ST.selected=null;$('#sel').hidden=true;gizmo.clear();for(const c of parts.children)c.material.emissive.set(0);hlSheet(null);ST.dirty=true}
 // stored as given: rounding here to 0.01 mm turned 1/16 in (1.5875 mm) into 1.59 mm; toPrecision(12) only drops float noise
 function setEdit(k,v,neutral=0){state[k]=state[k]||{};if(Math.abs(v-neutral)>1e-9)state[k][ST.selected]=+v.toPrecision(12);else delete state[k][ST.selected];
   keepPivot(); syncEdits(); slice()}

@@ -41,6 +41,12 @@ Greedy spanning tree with a priority per edge:
    every free edge of the panel keeps the room of its flap (the trapezoid the tab is drawn as, `tab_h` high, at most
    0.6 of the edge): the face is refused when it would lie in that room, or when its own free edges would have
    none. Without it the cow example had 40 of its 217 seams with no room for a tab on either side.
+   A face of a flat piece (faces in one plane, joined edge to edge across edges that bend less than 1°, and not
+   across a seam the user chose: a box side, a pentagon of a dodecahedron) is laid with the rest of its piece, and
+   every test above holds for all of them or none is laid (`flat_pieces`, `lay_flat`). So no seam cuts across a flat
+   side, and the side keeps one window. A flat piece too big for the sheet is laid face by face, as before. On the
+   `paper_lamp` example (three dodecahedra, 32 pentagons) the panels used to cut 6 to 20 pentagons in two, depending
+   on the strategy and the tab room; now none, and it takes 5 panels instead of 10.
 4. Repeat until nothing can be attached; start the next panel.
 5. `auto` runs flat, strip, area and two randomised flat orders, and keeps the fewest panels / most compact result.
 
@@ -306,6 +312,13 @@ It needs the ray engine's rtree, which the browser build has not.
 `window` opens every face with a hole of its own shape, for a lamp shade or a lantern. The frame left around it is
 what the share asks for and never less than 1.35 × the minimum feature width, plus what the face's grooves or
 cut-back edges take, plus the reach of the joint's holes or slots. A face too small for that stays whole.
+With a joint that puts a glue flap on the edge (tab, multitab, diamond, ticked, gear, tongue, puzzle), a tab is glued
+to the frame of the face it folds under, never over its window: the frame is at least twice the minimum feature width
+(and `TAB_CLEAR`, 0.5 mm) wide, room for a tab worth gluing, and `tabs` makes no tab taller than that face's frame less
+`TAB_CLEAR`. Before, on the first paper lamp (the pear), 41 of its 45 tabs reached into a window: half their glue was
+over the opening, and in the 3D view the tab and the pane, both against the inside face, drew dark stair-stepped
+lines across the paper. On the new lamp the 10 mm tabs are 8.8 mm under a 9.3 mm frame. `tests/test_paper.py`
+measures the tab area over the windows in the closed model: 1017 mm² on the lamp without the limit, 0 with it.
 The example `fold_lamp` uses it: a twisted, swelling tube of 30 triangles (about 58 × 29 mm each, 12 seams to close), printed in 2 mm PETG on one
 plate. It had 72 triangles of 38 × 19 mm and 32 seams at first: too many and too small to put together by hand.
 The lantern keeps the 72: at 420 mm they are big enough.
@@ -313,7 +326,12 @@ The lantern keeps the 72: at 420 mm they are big enough.
 A window belongs to a flat piece, not to a triangle. The faces of a panel that are joined across an edge with no
 bend (under 1°, the same rule that leaves such an edge without a score) are one flat piece, and get one window
 between them. The side of a box is two triangles and gets one square window. Before 0.4.0 it got two triangles.
-A flat piece cut by a seam is two pieces and gets two windows.
+A flat piece is not cut by a seam the program chooses (see Unfolding); one cut by a seam the user chose is two
+pieces and gets two windows. Its outline is drawn through its rim corners (`outline`), not as a union of its
+triangles: laid out one by one they meet only to rounding, and a union left pentagons in pieces.
+The example `paper_lamp` is three regular dodecahedra stacked face to face (32 pentagons, 300 mm tall) in 1 mm card
+with `window` 0.7, `windows are` paper, tab joints and the bottom pentagon removed for the bulb: 5 panels, 31
+windows and 31 papers, all the same regular pentagon, so any paper fits any window.
 
 ### Panes: windows closed with paper
 `window_fill` = `paper` closes each window with a pane, so the light shines through it. `paper_t` is its thickness.
@@ -334,8 +352,13 @@ A flat piece cut by a seam is two pieces and gets two windows.
 - Coverage counts a pane as covered surface.
 - A pane passes the thin-spot check: a sharp corner of a paper triangle does not break off.
 
-Not done: a number on the frame that says which pane goes where. The 3D view does not show the pane parts as parts
-of their own; it shows the pane on its panel.
+Glue the papers in first, then close the seams: a tab lies over the paper's margin inside the frame.
+
+No number on the frame says which paper goes where (Marcel's choice). The 3D view shows it: each facet's `paper` key
+names its paper part (`part`, cut job only), and selecting a paper part (on the sheet, in the parts table or in the
+list of findings) selects its panel and hatches its window there (`showPane`, `markPane`: the pane mesh draws that
+pane's triangles in the `hatched` material, so the mark folds with the panel). The paper parts are not drawn as parts
+of their own. On the `paper_lamp` example every paper is the same pentagon, so any paper fits any window.
 
 ## Merged faces
 `merged` holds groups of faces the user merged. Each group becomes one flat face (`flatten`, `core/mesh.py`), after

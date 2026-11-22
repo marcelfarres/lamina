@@ -124,10 +124,17 @@ const STRIPES=stripes(Math.PI/4), ACROSS=stripes(-Math.PI/4), stripesOf=g=>g==='
 // The light (a lamp inside the model, a spot beside it: js/light.js) is set again when the parts move or change.
 // The paper of the panes that close a folded panel's windows: one look for them all (js/light.js gives it its colour and its glow)
 export const paper=new THREE.MeshLambertMaterial({color:0xfff1d0});
+// Selected, never by colour alone: stripes in screen pixels, the same on every face (selected faces, a paper part's window)
+export const hatched=new THREE.ShaderMaterial({transparent:true,side:THREE.DoubleSide,depthWrite:false,
+  vertexShader:'void main(){gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
+  fragmentShader:'void main(){gl_FragColor=vec4(0.94,0.89,0.26,mod(gl_FragCoord.x+gl_FragCoord.y,10.0)<4.0?0.95:0.3);}'});
+// The window a paper part goes in, hatched on its pane (null: none). Its pane's triangles are drawn in the second material
+export function markPane(label){for(const m of parts.children){const p=m.userData.pane;if(!p)continue;p.geometry.clearGroups();
+  p.userData.ranges.forEach(([o,n],j)=>p.geometry.addGroup(o,n,label&&p.userData.labels[j]===label?1:0))}ST.dirty=true}
 export function render3D(modelUrl){
   parts.clear(); let i=0; for(const t of [STRIPES,ACROSS])t.repeat.setScalar(20/Math.max(...ST.plan.bbox));
   for(const s of ST.plan.slices)for(const pc of s.pieces){
-    const geos=[],own=[],panes=[],pown=[];   // own: the facet each solid was extruded from, for the fold slider (pown: each pane's)
+    const geos=[],own=[],panes=[],pown=[],plab=[];   // own: the facet each solid was extruded from, for the fold slider (pown: each pane's; plab: its paper part)
     pc.facets.forEach((fc,fi)=>{for(const r of fc.rings){
       // a printed panel's face is drawn as it is exported: in layers, each set in from its grooved edges by what the V takes at that height
       const t=fc.t||s.thickness,n=fc.bevel?6:1,skin=ST.plan.params.hinge||0;   // fc.t: a thin printed tab
@@ -137,7 +144,7 @@ export function render3D(modelUrl){
         const g=new THREE.ExtrudeGeometry(shape([ext,...r.slice(1)]),{depth:t/n,bevelEnabled:false});g.translate(0,0,-t/2+j*t/n);g.applyMatrix4(mat4(fc.M));geos.push(g);own.push(fi)}}
       // the pane over its window (fc.paper: rings in the facet's frame, t, z = its outer face from the facet's): a solid of
       // its own, in paper, that folds with its facet
-      for(const r of fc.paper?.rings||[]){const T=s.thickness,g=new THREE.ExtrudeGeometry(shape(r),{depth:fc.paper.t,bevelEnabled:false});g.translate(0,0,T/2+fc.paper.z-fc.paper.t);g.applyMatrix4(mat4(fc.M));panes.push(g);pown.push(fi)}});
+      for(const r of fc.paper?.rings||[]){const T=s.thickness,g=new THREE.ExtrudeGeometry(shape(r),{depth:fc.paper.t,bevelEnabled:false});g.translate(0,0,T/2+fc.paper.z-fc.paper.t);g.applyMatrix4(mat4(fc.M));panes.push(g);pown.push(fi);plab.push(fc.paper.part||null)}});
     if(!geos.length)continue;
     const m=new THREE.Mesh(mergeGeos(geos),new THREE.MeshStandardMaterial({color:COLORS[s.group]||0xaaaaaa,roughness:.7,metalness:.05,map:stripesOf(s.group)}));
     m.userData={slice:s.label,piece:pc.label,group:s.group,i:i++,origin:new THREE.Vector3(s.M[0][3],s.M[1][3],s.M[2][3]),normal:new THREE.Vector3(s.M[0][2],s.M[1][2],s.M[2][2]),bad:s.errors.length>0};
@@ -150,7 +157,7 @@ export function render3D(modelUrl){
     const folds=(geo,gs,of)=>{let o=0;return {base:geo.attributes.position.array.slice(),ranges:gs.map((g,j)=>{const n=g.index?g.index.count:g.attributes.position.count,r=[o,n,of[j]];o+=n;return r})}};
     if(pc.facets.some(f=>f.hinge))m.userData.fold={...folds(m.geometry,geos,own),hinges:pc.facets.map(f=>f.hinge||null)};
     // the panes of the panel: one mesh in the paper's look, that moves, shows and folds with the panel; a click goes through to the panel
-    if(panes.length){const p=new THREE.Mesh(mergeGeos(panes),paper);p.raycast=()=>{};p.userData=folds(p.geometry,panes,pown);m.add(p);m.userData.pane=p}
+    if(panes.length){const p=new THREE.Mesh(mergeGeos(panes),[paper,hatched]);p.raycast=()=>{};p.userData={...folds(p.geometry,panes,pown),labels:plab};p.userData.ranges.forEach(([o,n])=>p.geometry.addGroup(o,n,0));m.add(p);m.userData.pane=p}
     parts.add(m);
   }
   // the plane between two lobes, or at a branch's joint, is a part too — translucent, outside the build order (i = -1 keeps it on every
