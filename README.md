@@ -364,7 +364,7 @@ time (one uvicorn worker each, about 300 MB). Lamina still has no login of its o
 proxy's authentication if the server is reachable from the internet.
 
 The page resumes the tab's session, or opens the `blob` example on a first visit. The library shows every bundled
-example: [examples/](examples/README.md) holds 35 of them, and each opens on the technique and parameters that suit
+example: [examples/](examples/README.md) holds 38 of them, and each opens on the technique and parameters that suit
 it ([examples/presets.json](examples/presets.json) — the shape standing the right way up, sliced without an error; a
 test keeps that true). The same pipeline runs headless, so it can be scripted:
 
