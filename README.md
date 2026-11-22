@@ -563,7 +563,8 @@ sheets are always the same plan.
   arrows, and aims a spot by the dot at the end of its cone. A spot points up, down, at the middle of the model, or in
   a direction of its own: move its *tilt* or *turn* slider. *Room* sets the room: shown or not, its size, the walls, the floor, and how much light the walls give back.
   *Picture* saves the view as a PNG and says if the assembly video is lit. All of it is saved with the project and
-  is a step of undo.
+  is a step of undo. An example or a model that opens turns the light off (a big model drawn lit is slow on a
+  computer without a graphics card); *reset tab* puts every Light setting back and turns the light off too.
 - **Export tab**: the buttons first. The text about a file opens with a click on the line under its button.
 - **Top bar**: project name, open and save, a *version* menu, undo and redo, and a *help* menu with the guide, the
   release notes, the links and *clear my data*.

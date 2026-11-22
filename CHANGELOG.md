@@ -40,8 +40,8 @@ inside to see it as a lamp.
 
   ![The paper_lamp example twice: its windows open, then closed with paper](web/static/news/0.4.0-paper-lamps.jpg)
 
-- **Light your model.** Tick *light* over the 3D view to see its light and soft shadows in a room. The *Light* tab
-  holds up to four bulbs and spots; drag them in the view. Saved with the project.
+- **Light your model.** Tick *light* over the 3D view: soft shadows in a room. The *Light* tab holds up to four
+  bulbs and spots; drag them in the view. Saved with the project; a new model opens unlit.
 
   ![The Light tab beside the lit lamp: the bulb's light and soft shadows on the room's walls](web/static/news/0.4.0-lamp.jpg)
 
