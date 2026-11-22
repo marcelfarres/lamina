@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-from .helpers import settle, plan, set_fields, still, ON_PART, state, use
+from .helpers import EDGE_ON_MODEL, settle, plan, set_fields, still, ON_PART, state, use
 
 
 @pytest.mark.timeout(900)
@@ -311,11 +311,7 @@ def test_a_seam_is_chosen_on_the_model_or_on_a_sheet_and_shows_on_both(page):
     views; a seam of the user's is marked on the model and on both panel edges it lies on; a click on it gives it back;
     a drag along an edge paints a seam, and turns nothing: in this tool the right button turns the view."""
     # the middle of an edge of one kind: on the model (facing the camera, nearest the middle of the view) and on a sheet
-    on_model = """kind => { const cam = __t.camera, V3 = cam.position.constructor, r = __t.canvas().getBoundingClientRect(); let best = null;
-      for (const e of __t.plan().edges3d) { if (e[1] !== kind) continue; const mid = new V3(...e[2]).add(new V3(...e[3])).multiplyScalar(.5), to = mid.clone().sub(cam.position);
-        if (new V3(...e[4]).dot(to) > -0.5 * to.length()) continue; const q = mid.clone().project(cam), x = r.left + (q.x + 1) / 2 * r.width, y = r.top + (1 - q.y) / 2 * r.height;
-        const d = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2)); if (!best || d < best.d) best = {k: e[0], x, y, d} }
-      return best }"""
+    on_model = EDGE_ON_MODEL
     on_sheet = """kind => { const K = new Map(__t.plan().edges3d.map(e => [e[0], e[1]]));
       const l = [...document.querySelectorAll('#sheets line.hit')].find(l => K.get(+l.dataset.k) === kind); l.scrollIntoView({block: 'center'});
       const b = l.getBoundingClientRect(); return {k: +l.dataset.k, x: b.left + b.width / 2, y: b.top + b.height / 2} }"""
