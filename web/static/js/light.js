@@ -254,5 +254,5 @@ const px=(P,rc)=>{const q=P.clone().project(camera);return [rc.left+(q.x+1)/2*rc
   cv.addEventListener('pointerup',ev=>{if(!pull)return; ev.stopImmediatePropagation(); const p=pull; pull=null; if(!p.moved&&p.i!==sel){sel=p.i;shown='';applyLight()}},true)}
 $('#lamp').onchange=e=>{state.light=e.target.checked;touch(1)};
 // what the other modules ask of the light, through ST (they are loaded before this one): () the parts or the tab on
-// show changed, ('reset') the tab's reset button
-ST.light=what=>{if(what==='reset'){delete state.lights;sel=0;return touch(1)} applyLight()};
+// show changed, ('reset') the tab's reset button: everything the tab holds back to its default, the light off too
+ST.light=what=>{if(what==='reset'){for(const k of ['light','lights','room','light_video'])delete state[k];sel=0;return touch(1)} applyLight()};
