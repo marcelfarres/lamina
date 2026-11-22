@@ -523,7 +523,10 @@ does not slip through. It carries the most signal for stacked and folded work; d
   as one STL per part plus a 3MF that OrcaSlicer or PrusaSlicer opens as separate named objects. The label is bold,
   at least the letter height you ask for in printed millimetres (5 mm by default, whatever the scale), and sits
   where the part is widest, away from slots and edges; a part with no room for it gets none and README.txt in the
-  zip names it.
+  zip names it. Each object in the 3MF carries the print settings it needs, measured on its mesh: a layer height
+  that makes its thin tops (a tag's chip, a hinge skin, a pane) whole layers over a 0.2 mm first layer, and thick
+  bridges with no support where it has a bridge (a click joint's bar). OrcaSlicer applies them when it opens the
+  file. The first layer height is set for the whole plate, so README.txt asks for it.
 - **Fit tests** before the model: five small assemblies with the job's joints (its thickness, connectors, and every
   radial half-slice, since that is what wedges) at slot offsets of ±1, ±2 steps around the current one, each part
   marked with its offset. Cut or print, assemble: the loosest that still holds is the offset to set. There are two,

@@ -1,6 +1,7 @@
 """3D solids from a plan (pure trimesh): assembled model, one part, or a prototyping set — every part flat for
 3D printing at a chosen scale, with its label engraved as a groove or cut through. The set includes plate.3mf,
-which opens in OrcaSlicer / PrusaSlicer as one named object per part, ready to arrange.
+which opens in OrcaSlicer / PrusaSlicer as one named object per part, ready to arrange, each with the print settings
+it needs (write_3mf).
 
     uv run python -m core.solid working-files/egg.json --out working-files/egg_assembled.stl [--part X-3]
     uv run python -m core.solid working-files/egg.json --out working-files/egg_assembled.step     # solids for CAD (core/step.py)
@@ -8,7 +9,9 @@ which opens in OrcaSlicer / PrusaSlicer as one named object per part, ready to a
     uv run python -m core.solid working-files/egg.json --fit working-files/egg_fit --step 0.1     # 5 slot offsets to try first
 """
 from __future__ import annotations
-import argparse, json, pathlib, tempfile
+import argparse, io, json, pathlib, re, tempfile, zipfile
+from html import unescape
+from xml.sax.saxutils import quoteattr
 import numpy as np
 import trimesh
 from types import SimpleNamespace
@@ -159,8 +162,9 @@ def standoff_files(plan, out_dir, design, scale=1.0) -> list:
         on.append(foot)
         scene.add_geometry(_joined([q, mesh]), node_name=name, geom_name=name)
     stem = f"{design} 3D-PRINT standoffs x{len(scene.geometry)}"
-    f = pathlib.Path(out_dir) / f"{stem}.3mf"; f.write_bytes(scene.export(file_type="3mf"))
-    note = pathlib.Path(out_dir) / f"{stem}.txt"; note.write_text("\n".join(standoff_text(plan)) + "\n", encoding="utf-8")
+    f = pathlib.Path(out_dir) / f"{stem}.3mf"; needs = write_3mf(scene, f)
+    note = pathlib.Path(out_dir) / f"{stem}.txt"
+    note.write_text("\n".join(standoff_text(plan) + ["", *_settings_note({f.name: needs})]) + "\n", encoding="utf-8")
     return [f, note]
 
 
@@ -276,6 +280,76 @@ def has_boolean() -> bool:
     except ImportError:
         return False
     return True
+
+
+# ---------------------------------------------------------------- print settings each object of a 3MF needs
+FIRST = 0.2         # mm: the first layer of a 0.4 mm nozzle's profiles, which the layer heights below count from.
+                    # It is set for the whole plate, so the file cannot carry it: the README asks for it
+LAYERS = (0.2, 0.16, 0.12, 0.1, 0.08)   # mm, 0.2 first: chips, panes and hinge skins are made in steps of it
+THIN = 1.0          # mm: a flat top this low is a few layers, and half a layer off shows (a chip, a pane, a hinge skin)
+BRIDGE_LEAN = 55    # degrees from vertical: an underside flatter than this is a bridge (a click joint's bar), not an
+                    # overhang that prints (a click tooth's 55°, a leaning wall's 45°)
+SPAN = 1.0          # mm: an underside narrower than this prints as a plain overhang (a snap groove's 0.7 mm ledge)
+
+
+def print_needs(m) -> dict:
+    """The slicer settings one object needs, measured on its mesh as it lies on the bed, as OrcaSlicer's per-object
+    keys: a layer height that makes its flat tops a whole number of layers over the first one (its thin ones always,
+    its main face too where one height does both), and thick bridges with no support under a bridge."""
+    nz, z = m.face_normals[:, 2], m.triangles_center[:, 2]
+    up = (nz > 0.99) & (z > 0.01)
+    levels, inv = np.unique(z[up].round(2), return_inverse=True)
+    area = np.bincount(inv, m.area_faces[up], len(levels))
+    levels, area = levels[area > 0.5], area[area > 0.5]                 # a sliver sets no layer height
+    fits = lambda need: next((h for h in LAYERS if (abs((need - FIRST) / h - np.round((need - FIRST) / h)) * h < 0.006).all()), None)   # noqa: E731
+    out = {}
+    if len(levels):
+        thin = levels[levels <= THIN]
+        h = fits(np.append(thin, levels[area.argmax()])) or (fits(thin) if len(thin) else None)
+        if h:
+            out["layer_height"] = f"{h:g}"
+    under = (nz < -np.sin(np.radians(BRIDGE_LEAN)) - 1e-3) & (z > 0.05)
+    if under.any() and not unary_union([Polygon(t[:, :2]) for t in m.triangles[under]]).buffer(0).buffer(-SPAN / 2).is_empty:
+        out.update(thick_bridges="1", enable_support="0")
+    return out
+
+
+def write_3mf(scene, f) -> dict:
+    """The scene as a 3MF at `f`, each object's print_needs in Metadata/model_settings.config, where OrcaSlicer reads
+    an object's own settings (with or without the rest of a project). Returns {object name: its settings}."""
+    needs = {n: print_needs(m) for n, m in scene.geometry.items()}
+    buf = io.BytesIO(scene.export(file_type="3mf"))
+    with zipfile.ZipFile(buf, "a", zipfile.ZIP_DEFLATED) as z:
+        ids = {unescape(n.decode()): i.decode() for i, n in re.findall(rb'<object id="(\d+)" name="([^"]*)"', z.read("3D/3dmodel.model"))}
+        objs = "".join(f'<object id="{ids[n]}"><metadata key="name" value={quoteattr(n)}/>'
+                       + "".join(f'<metadata key="{k}" value="{v}"/>' for k, v in s.items()) + "</object>" for n, s in needs.items() if s)
+        z.writestr("Metadata/model_settings.config", f'<?xml version="1.0" encoding="UTF-8"?>\n<config>{objs}</config>\n')
+    pathlib.Path(f).write_bytes(buf.getvalue())
+    return needs
+
+
+def _settings_note(written) -> list:
+    """What the README says about the settings written into each 3MF ({file name: write_3mf's result})."""
+    lines = []
+    for name, needs in written.items():
+        if not needs:
+            continue
+        heights, bridged = {}, [n for n, s in needs.items() if "thick_bridges" in s]
+        for n, s in needs.items():
+            heights.setdefault(s.get("layer_height"), []).append(n)
+        say = lambda names, every=len(needs): "every part" if len(names) == every else ", ".join(names)   # noqa: E731
+        lines.append(f"{name} carries the print settings each part needs. OrcaSlicer applies them when it opens the file. "
+                     + ". ".join([f"Layer height {h} mm for {say(ns)}" for h, ns in heights.items() if h]
+                                 + [f"Thick bridges on and supports off for {say(bridged)}: each has a bridge (a click joint's bar), "
+                                    "and a support under it would fill the joint"] * bool(bridged)) + ".")
+        if None in heights:
+            lines.append(f"no layer height of {', '.join(f'{h:g}' for h in LAYERS)} mm makes {say(heights[None])} a whole number of layers: "
+                         "they print up to half a layer thinner or thicker.")
+    if lines:
+        lines.append(f"Set the first layer height to {FIRST:g} mm for the whole plate (the usual value for a 0.4 mm nozzle): a 3MF cannot "
+                     "carry it, and the layer heights above count from it. Bambu Studio can drop settings per part when it imports "
+                     "a file it did not save: check them there.")
+    return lines
 
 
 def vee(a, b, land, skin, wide, top, t) -> trimesh.Trimesh:
@@ -445,8 +519,8 @@ def _tag_note(tagged, over, font, lost=()):
 def proto_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2, plate=True, note=None):
     """One STL per part (flat) plus plate.3mf holding every part as its own named object, and README.txt when there
     is something to say: `note` (the re-plan, see proto_plan) and the parts that had no room for a label `font` mm
-    tall, which carry it on a tag beside them. `font` is the letter height in printed millimetres whatever the scale:
-    a label has to be read, not scaled.
+    tall, which carry it on a tag beside them, and the print settings each plate carries (write_3mf). `font` is the
+    letter height in printed millimetres whatever the scale: a label has to be read, not scaled.
 
     The plate is a 3MF scene rather than one concatenated STL because a slicer treats each <object> / <build><item>
     as a separate body: OrcaSlicer and PrusaSlicer can then move, copy and arrange the parts individually.
@@ -465,10 +539,11 @@ def proto_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2
         plain.update(m.metadata.get("plain", ()))
         tagged.get(where, []).append(pc["label"])
         f = out_dir / f"{pc['label']}.stl"; m.export(f); files.append(f)
+    written = {}
     for name, sc in ([("plate", scene)] if plates is None else [(f"plate-{si + 1}", plates[si]) for si in sorted(plates)]):
         if plate and len(sc.geometry):
             f = out_dir / f"{name}.3mf"
-            f.write_bytes(sc.export(file_type="3mf"))
+            written[f.name] = write_3mf(sc, f)
             files.append(f)
     if plan.get("standoffs"):                              # the connectors of the printed layers: a file of their own
         files += standoff_files(plan, out_dir, design_name(plan), scale)
@@ -476,7 +551,7 @@ def proto_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2
     if plain:                                             # said, not hidden: a folded panel without its grooves does not fold
         lines.append(f"this build cannot cut solids (no manifold3d, as in the browser): the parts were exported WITHOUT their {' and '.join(sorted(plain))}. "
                      "Printed folded panels need the grooves to fold: export them from the installed app")
-    return _readme(out_dir, lines + _tag_note(tagged["tag"], tagged["over"], font, lost), files)
+    return _readme(out_dir, lines + _tag_note(tagged["tag"], tagged["over"], font, lost) + _settings_note(written), files)
 
 
 # ---------------------------------------------------------------- fit test: the job's joints on a small stand-in, at offsets around its own
@@ -529,12 +604,12 @@ def fit_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2, 
         v = trimesh.util.concatenate(placed); v.apply_translation([-dx, 0, 0])
         f = out_dir / f"fit_{tag}.stl"; v.export(f); files.append(f)
         dx = scene.bounds[1][0] + 10
-    f = out_dir / "plate.3mf"; f.write_bytes(scene.export(file_type="3mf")); files.append(f)
+    f = out_dir / "plate.3mf"; written = {f.name: write_3mf(scene, f)}; files.append(f)
     lines = [f"Print fit test for the {plan['mode']} job at x{scale:.3g}: {len(tags)} small assemblies with its joints, slots {', '.join(tags)} mm "
              f"wider than the material as printed (the print slot offset you set, {tags[steps]}, in the middle), every part engraved with its "
              "value. Print them and put each together: the loosest that slides on without forcing and still holds is the print slot offset to "
              "set (Prototyping). It says nothing about the real material at 1:1 — that is the cut-file fit test (Downloads)."]
-    return _readme(out_dir, lines + _tag_note(tagged["tag"], tagged["over"], font), files)
+    return _readme(out_dir, lines + _tag_note(tagged["tag"], tagged["over"], font) + _settings_note(written), files)
 
 
 def fit_sheets(plan, out_dir, fmts=("svg", "dxf"), labels=True, step=0.1, steps=2):

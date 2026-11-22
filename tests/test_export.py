@@ -476,6 +476,83 @@ def test_proto_set_3mf_reloads_with_one_named_geometry_per_part(tmp_path):
     assert set(scene.geometry.keys()) == expected_labels
 
 
+def _print_settings(f):
+    """The settings per object a written 3MF carries, {object name: {key: value}}, read as OrcaSlicer reads them:
+    Metadata/model_settings.config, each <object id> one of the model's objects, named as that object is."""
+    z = zipfile.ZipFile(f)
+    assert z.namelist().count("Metadata/model_settings.config") == 1
+    model = etree.fromstring(z.read("3D/3dmodel.model"))
+    names = {o.get("id"): o.get("name") for o in model.iter("{*}object")}
+    out = {}
+    for o in etree.fromstring(z.read("Metadata/model_settings.config")).iter("object"):
+        meta = {m.get("key"): m.get("value") for m in o.iter("metadata")}
+        assert meta.pop("name") == names[o.get("id")]
+        out[names[o.get("id")]] = meta
+    return out
+
+
+def test_a_print_plate_carries_the_settings_each_part_needs(tmp_path):
+    """Marcel (2026-11-22): a print that needs a layer height, or bridges, to succeed has to say so in the file. Each
+    object of the 3MF carries the settings its mesh needs, where OrcaSlicer reads them: the click joint's bar is a
+    bridge between two posts, so its panel gets thick bridges and no support under it; every part gets a layer height
+    that makes its flat tops (a 2 mm panel, a 0.4 mm hinge skin, a 0.2 mm chip) whole layers over a 0.2 mm first one.
+    The snap joint's 0.7 mm ledge is a short overhang that prints: no bridge settings. The README says it all."""
+    from core.solid import FIRST, THIN
+    pre = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["fold_box"]["params"]
+    for joint, bridged in (("click", True), ("snap", False)):
+        plan = build(EXAMPLES / "fold_box.stl", "folded", {**pre, "material_kind": "PETG", "autofix": "off", "joint": joint})
+        out = tmp_path / joint
+        proto_set(plan, out)
+        for f in sorted(out.glob("plate-*.3mf")):
+            got, scene = _print_settings(f), trimesh.load(f)
+            assert set(got) == set(scene.geometry)                         # every object, by its name
+            for name, s in got.items():
+                assert s["layer_height"] == "0.2", (f.name, name, s)
+                m = scene.geometry[name]
+                up = (m.face_normals[:, 2] > 0.99) & (m.triangles_center[:, 2] > 0.01)
+                z, area = m.triangles_center[up, 2].round(2), m.area_faces[up]
+                tops = np.append(z[z <= THIN], z[area.argmax()])           # the thin tops and the main face (the walls' own steps are free)
+                assert np.allclose((tops - FIRST) / 0.2, np.round((tops - FIRST) / 0.2), atol=0.03), (name, tops)
+                panel = name.startswith("P")
+                assert ("thick_bridges" in s) == (bridged and panel), (joint, name, s)
+                if "thick_bridges" in s:
+                    assert s["thick_bridges"] == "1" and s["enable_support"] == "0"
+        readme = (out / "README.txt").read_text(encoding="utf-8")
+        assert "Layer height 0.2 mm" in readme and "first layer height to 0.2 mm" in readme
+        assert ("Thick bridges on and supports off" in readme) == bridged
+
+
+def test_every_print_3mf_carries_its_settings(tmp_path):
+    """The fit test's plate and the standoffs' file are written the same way as the part plates: each 3MF carries its
+    objects' settings and still opens as the same named objects; the standoffs' note says what was set."""
+    from core.solid import fit_set, standoff_files
+    plan = build(EXAMPLES / "cube.stl", "stacked", {"thickness": 3, "autofix": "off"})
+    fit_set(plan, tmp_path / "fit", scale=0.5)
+    got = _print_settings(tmp_path / "fit" / "plate.3mf")
+    assert set(got) == set(trimesh.load(tmp_path / "fit" / "plate.3mf").geometry) and all(s.get("layer_height") for s in got.values())
+    job = {"space": 8, "connect": "standoff", "dowel_d": 5, "dowel_shape": "square", "thickness": 3, "autofix": "off"}
+    f, note = standoff_files(build(EXAMPLES / "egg.stl", "stacked", job), tmp_path, "egg")
+    got = _print_settings(f)
+    assert set(got) == set(trimesh.load(f).geometry) and {s["layer_height"] for s in got.values()} == {"0.2"}
+    assert not any("thick_bridges" in s for s in got.values())             # the halves only narrow as they rise
+    assert "Layer height 0.2 mm for every part" in note.read_text(encoding="utf-8")
+
+
+def test_a_part_no_layer_height_fits_is_said_not_set(tmp_path):
+    """A layer height is written only where it makes the part whole layers: 3 mm parts at x0.5 print 1.5 mm, which
+    0.1 mm layers over a 0.2 mm first one make; at x0.457 they print 1.37 mm, which none of the heights make. Those
+    parts get no layer height, and the README names them instead of hiding it."""
+    plan = build(EXAMPLES / "cube.stl", "stacked", {"thickness": 3, "autofix": "off"})
+    proto_set(plan, tmp_path / "half", scale=0.5)
+    assert {s["layer_height"] for s in _print_settings(tmp_path / "half" / "plate.3mf").values()} == {"0.1"}
+    proto_set(plan, tmp_path / "odd", scale=0.457)
+    got, labels = _print_settings(tmp_path / "odd" / "plate.3mf"), [pc["label"] for sl in plan["slices"] for pc in sl["pieces"]]
+    bare = [n for n in labels if "layer_height" not in got.get(n, {})]
+    assert bare
+    readme = (tmp_path / "odd" / "README.txt").read_text(encoding="utf-8")
+    assert "a whole number of layers" in readme and all(n in readme for n in bare)
+
+
 def _step_rows(text):
     """A STEP file's DATA section as {reference: entity}, and the two readers the tests need: what kind of entity a
     reference names, and the references it holds in turn."""
