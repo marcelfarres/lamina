@@ -40,8 +40,8 @@ inside to see it as a lamp.
 
   ![The paper_lamp example, three dodecahedra, twice: its pentagon windows open, then closed with paper](web/static/news/0.4.0-paper-lamps.jpg)
 
-- **Light your model.** Tick *light* over the 3D view to see its light and soft shadows in a room. The *Light* tab
-  holds up to four bulbs and spots; drag them in the view. Saved with the project.
+- **Light your model.** Tick *light* over the 3D view: soft shadows in a room. The *Light* tab holds up to four
+  bulbs and spots; drag them in the view. Saved with the project; a new model opens unlit.
 
   ![The Light tab beside the lit lamp: the bulb's light and soft shadows on the room's walls](web/static/news/0.4.0-lamp.jpg)
 
@@ -141,8 +141,8 @@ inside to see it as a lamp.
 - **Examples open without warnings.** The blob, berry, cow, cow_spot, figure, head_igea, hook, horse, horse_statue,
   lion_head, pyramid, ripple, snowman, tall_bar, torus and twisted examples open clean, ready to cut. The cow is now a
   low-poly cow made for folding.
-- **Folded nets keep tabs and numbers.** Every tab seam keeps its tab, a seam number on a short edge is engraved
-  smaller instead of left off, and coverage reads the same in any card thickness.
+- **Folded nets keep tabs and numbers.** Every tab seam keeps its tab; a seam number on a short edge is engraved
+  smaller, not left off; coverage reads the same in any card thickness. 6, 9 and the like get a dot.
 - **Smallest face takes sharp faces too.** With *smallest face* set, a sharp face is merged as well, so a folded panel
   no longer ends in a thin tip.
 - **Fewer false warnings on stacked models.** An island with no dowel no longer warns when the next layer outline is

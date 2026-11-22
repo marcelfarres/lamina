@@ -102,7 +102,8 @@ async function init(){
   // labels — axis lines, curve points, dowels, per-slice edits — so they are cleared from the form *and* from the
   // per-technique memory. Without the second half, opening a model that slices stacked and then switching to radial
   // restored the fan of axes placed on some earlier model, instead of the single centred axis radial starts from.
-  const newModel=()=>{ST.job=null;ST.srcFile=null;ST.fitted=false;deselect();
+  // The light goes off too: drawn lit with its shadows, a big model is slow on a computer without a graphics card (bugs/071)
+  const newModel=()=>{ST.job=null;ST.srcFile=null;ST.fitted=false;deselect();delete state.light;
     for(const m of Object.values(memo))for(const k of MODEL_BOUND)delete m[k];
     for(const p of allParams())if(MODEL_BOUND.includes(p.name))state[p.name]=structuredClone(p.default);
     for(const k of MODEL_BOUND)if(!allParams().some(p=>p.name===k))delete state[k];   // another technique's: gone entirely

@@ -404,10 +404,33 @@ def test_every_seam_number_of_a_printed_panel_is_on_the_print_and_readable(tmp_p
         x0, y0, x1, y1 = n.bounds
         assert any(abs(e - PRINT_MARK) < 0.05 for e in (x1 - x0, y1 - y0)), n.bounds
     sides = [str(mk[2]) for mk in pc["marks"]] + [str(j) for *_, j in pc["seam_tags"]]
-    assert all(sides.count(s) == 2 for s in sides), sorted(sides, key=int)   # both sides of every seam
+    assert all(sides.count(s) == 2 for s in sides), sorted(sides, key=lambda s: int(s.rstrip(".")))   # both sides of every seam
     laser = build(EXAMPLES / "fold_test.stl", "folded", {**pre, "joint": "tab", "printed": False, "material": "cardboard", "material_kind": "cardboard"})
     lpc = laser["slices"][0]["pieces"][0]
     assert "seam_tags" not in lpc and all(len(mk) < 5 or mk[4] < laser["params"]["font"] for mk in lpc["marks"])
+
+
+def test_a_seam_number_that_reads_as_another_upside_down_has_a_dot(tmp_path):
+    """A seam number 6 turned along its edge reads as 9 (Marcel, 2026-11-22: "Add a dot after 6 and 9", as Pepakura
+    does). Every number that turned reads as another gets a dot after it, on the laser sheet and on the print; the
+    rest stay plain. Measured on the exported sheet: the dot is one more stroke in the number's engraving."""
+    from core.font import strokes
+    from core.labels import seam_text
+    assert [seam_text(j) for j in (6, 9, 16, 91, 68, 18, 106)] == ["6.", "9.", "16.", "91.", "68.", "18.", "106."]
+    assert [seam_text(j) for j in (8, 69, 96, 88, 10, 60, 25, 7)] == ["8", "69", "96", "88", "10", "60", "25", "7"]
+    pre = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["fold_test"]["params"]
+    laser = {"printed": False, "material": "cardboard", "material_kind": "cardboard"}
+    for plan in (build(EXAMPLES / "fold_test.stl", "folded", {**pre, "joint": "tab"}),                 # printed (the preset)
+                 build(EXAMPLES / "fold_test.stl", "folded", {**pre, "joint": "tab", **laser})):
+        texts = [str(mk[2]) for sl in plan["slices"] for pc in sl["pieces"] for mk in pc["marks"]]
+        texts += [str(j) for sl in plan["slices"] for pc in sl["pieces"] for *_, j in pc.get("seam_tags", [])]
+        assert {"6.", "9."} <= set(texts) and all(t == seam_text(int(t.rstrip("."))) for t in texts), sorted(texts)
+    export(plan, tmp_path, fmts=("svg",))                                # the laser job's sheet
+    sheets = list(tmp_path.glob(f"{design_name(plan)} sheet*.svg"))
+    paths = [p for s in sheets for p in etree.parse(str(s)).xpath('//svg:path[@data-text="6." or @data-text="9."]', namespaces=SVG_NS)]
+    assert paths
+    for p in paths:
+        assert p.get("d").count("M") == len(strokes(p.get("data-text")[0], 3.0)) + 1, p.get("data-text")
 
 
 def test_a_printed_job_comes_out_as_one_plate_per_bed(tmp_path):
