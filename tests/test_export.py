@@ -405,7 +405,11 @@ def test_a_printed_stacked_job_prints_one_pin_per_dowel(tmp_path):
     for name, ((wide, long), z) in pins.items():
         assert abs(wide - 2.8) < 1e-3 and abs(z - 2.8) < 1e-6, (name, wide, z)   # 3 mm dowel less 0.2 fit, both ways
         assert abs(long - (rods[name]["length"] - PIN_END)) < 1e-3, (name, long, rods[name]["length"])
-    assert "pins-N.3mf" in (tmp_path / "README.txt").read_text(encoding="utf-8")
+    readme = (tmp_path / "README.txt").read_text(encoding="utf-8")
+    assert "pins-N.3mf" in readme
+    for f in (f for f in files if f.name.startswith("pins-")):                # their print settings, as every 3MF has them:
+        assert {s.get("layer_height") for s in _print_settings(f).values()} == {"0.2"}   # 2.8 mm on the bed is 0.2 + 13 layers
+        assert f"{f.name} carries the print settings" in readme
     aligned = build(EXAMPLES / "egg.stl", "stacked", {**job, "sheet": bed, "placement": "aligned"})
     straight = rods_of(aligned)
     assert len(straight) < len(aligned["rods"])                                # dowels through several layers
