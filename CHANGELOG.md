@@ -15,10 +15,10 @@ inside to see it as a lamp.
 
   ![The library page: a project's revisions, each with open, export and delete](web/static/news/0.4.0-library.jpg)
 
-- **Hide dowels.** New for stacked slices: each dowel goes only where the layers above and below cover its hole, so a
-  tapering model shows no open holes on its steps. The end layers still show theirs.
+- **New joins for stacked layers.** *Hide dowels* puts each dowel only where the layers above and below cover its
+  hole, so no holes show on the steps. *Connect with standoff*: 3D-printed posts hold the layers apart. Try *shade*.
 
-  ![A stacked vase twice: three open dowel holes ringed on its steps, then none with hide dowels on](web/static/news/0.4.0-hide-dowels.jpg)
+  ![Above, the stacked vase with three open dowel holes ringed, then none with hide dowels on; below, the new shade on printed standoffs](web/static/news/0.4.0-stacked-joins.jpg)
 
 - **Band lattice.** A new technique: rings across x, y and z that slot together, best on round or boxy shapes.
   Lamina names any piece that cannot slide in. Thanks to @DaveLauber: adapted from his fork.
@@ -29,11 +29,6 @@ inside to see it as a lamp.
   *Max piece length* cuts long rings to fit small sheets. Thanks to @DaveLauber: adapted from his fork.
 
   [![The scanned head as a stack of rings on dowels ▶](web/static/news/0.4.0-rings.jpg)](https://marcelfarres.github.io/lamina/media/rings.mp4)
-
-- **Printed standoffs for stacked layers.** On Stacked, set a gap and *connect with* to *standoff*: 3D-printed
-  posts hold the laser-cut layers apart. The print file comes in the zip, named 3D-PRINT. Try the new *shade*.
-
-  ![The shade example: laser-cut layers held apart by printed standoffs](web/static/news/0.4.0-standoff.jpg)
 
 - **Paper lamps.** On Folded Panels, set *windows are* to *closed with paper*: a paper part for each window, or
   a thin printed layer. *Merge* makes faces one flat face; a flat side gets one window. Try *paper_lamp*.
@@ -70,10 +65,6 @@ inside to see it as a lamp.
 
   ![The egg's spine is a comb of thin fingers: in acrylic, which cracks, the warning asks for 1.5 times the sheet](web/static/news/0.4.0-material.jpg)
 
-- **Print files carry their print settings.** Each part in a 3D-print file says the layer height that prints its
-  tags, hinges and panes right. A part with a click joint asks for thick bridges and no supports. OrcaSlicer applies
-  them when it opens the file. README.txt lists them, and the first layer height you set yourself.
-
 ### Changed
 
 - **Settings that are easy to read.** Full names, sections that fold, ↺ to undo a change, a search box over the
@@ -106,6 +97,7 @@ inside to see it as a lamp.
   ![A dowel warning, and the rings in the 3D view where the dowels found no room](web/static/news/0.4.0-warnings.jpg)
 
 - **Watch it fold up.** On a folded job, the steps slider ends by folding the panels from flat to the model.
+  Folded settings show only where they apply, and a fin thinner than two sheets gets a warning.
 
   [![The steps slider folding the lamp shade ▶](web/static/news/0.4.0-fold.jpg)](https://marcelfarres.github.io/lamina/media/fold.mp4)
 
@@ -113,9 +105,6 @@ inside to see it as a lamp.
   still prints on one plate. The new *fold_lantern* is a plywood lantern of 72 pieces.
 
   ![The fold_lamp example with its 30 triangles, and the new fold_lantern](web/static/news/0.4.0-examples.jpg)
-
-- **Small changes to folded panels.** The printed-fold settings show only on a print job. Joint settings show only
-  where they apply. A fin thinner than two sheets gets a warning. A print set says which parts lost their grooves.
 
 - **A better horse.** Its head is a branch: a spine with ribs across it, not a flat slab. In Curve, ribs stay square
   to a slim neck on any model. A turned head can have a branch too.
@@ -127,8 +116,8 @@ inside to see it as a lamp.
 
   ![The egg's top layer on the sheet: before, its name, arrow and dowel numbers on it; now clean, its name beside it](web/static/news/0.4.0-clean-tops.jpg)
 
-- **Every printed part has its number.** A part too small for its number prints it on a thin tag beside it: read
-  it, snap the tag off. Standoffs carry their size this way. Printed panels now carry every seam number.
+- **Print files that print right.** Each printed part carries its number, on a thin tag if it is small: snap it
+  off. The 3MF gives each part its layer height, bridges and supports; OrcaSlicer applies them, README.txt lists them.
 
   ![Small horse ribs on the print plate, each joined to a tag with its number; one tag up close; a printed panel with every seam number cut in](web/static/news/0.4.0-print-tags.jpg)
 

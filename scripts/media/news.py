@@ -3,7 +3,7 @@
     uv run python scripts/media/news.py              every picture
     uv run python scripts/media/news.py 0.4.0-lamp   only these
 
-One function for each picture: n040_hide_dowels makes 0.4.0-hide-dowels.jpg. It opens an example, sets what the
+One function for each picture: n040_lamp makes 0.4.0-lamp.jpg. It opens an example, sets what the
 entry is about, crops to that area and rings the new thing with a short label (never colour alone: a thick ring with
 a dark edge, and words). The file is 900 px wide at most and under 150 KB, which tools/notes_check.py checks. The
 what-is-new dialog shows these files offline: web/static ships in the wheel and in the browser build.
@@ -125,6 +125,16 @@ def side_by_side(*imgs):
     for i in imgs:
         out.paste(i, (x, 0))
         x += i.width + 8
+    return out
+
+
+def above(*imgs):                           # pictures one over another, each made the full width first
+    imgs = [i.resize((W, round(i.height * W / i.width)), Image.LANCZOS) for i in imgs]
+    out = Image.new("RGB", (W, sum(i.height for i in imgs) + 8 * (len(imgs) - 1)), "#141517")
+    y = 0
+    for i in imgs:
+        out.paste(i, (0, y))
+        y += i.height + 8
     return out
 
 
@@ -401,7 +411,7 @@ OPEN = """() => {const n = l => +String(l).split('-')[1], rods = window.__t.plan
     return !hit || hit !== 'gizmo' && n(hit) <= n(top) ? [x, y] : null}).filter(Boolean)}"""       # no layer hit = the rod's own end, seen in its hole
 
 
-def n040_hide_dowels(app):
+def hide_dowels(app):                       # the vase with its open holes, then none: one half of the stacked-joins picture
     sheet = app.p.input_value("#p_thickness")                    # the sheet as it was, for the pictures after this one
     app.example("vase", "stacked")
     app.tick("spacing_vary", False)                                # layers that touch: a gap shows every hole anyway
@@ -418,18 +428,22 @@ def n040_hide_dowels(app):
         cx = (x0 + x1) / 2
         img = app.grab((cx - 330, y0 + 40, cx + 330, y1 - 40), marks)
         shots.append(caption(img, f"hide dowels on: {len(holes) or 'no'} open holes on the steps" if on else f"before: {len(holes)} open holes on the steps"))
-    save("0.4.0-hide-dowels", side_by_side(*shots))
     app.tick("hide_dowels", False)
     app.set("thickness", sheet)
     app.p.select_option("#viewmode", "both")
+    return side_by_side(*shots)
 
 
-def n040_standoff(app):                     # written by the printed-spacers branch, pasted here (one writer)
+def standoff(app):                          # the shade on printed standoffs (written by the printed-spacers branch)
     app.example("shade", "stacked")
     app.view(40, 10, 0.8)
     app.p.evaluate("() => document.querySelector('section[data-tab=technique] .f[data-p=connect]').scrollIntoView({block: 'center'})")
     app.p.wait_for_timeout(300)
-    app.shot("0.4.0-standoff", (0, 40, 1574, 860), [("section[data-tab=technique] .f[data-p=connect]", "printed standoffs")])
+    return app.grab((0, 40, 1574, 860), [("section[data-tab=technique] .f[data-p=connect]", "printed standoffs")])
+
+
+def n040_stacked_joins(app):                # one entry, two pictures: hidden dowels over printed standoffs
+    save("0.4.0-stacked-joins", above(hide_dowels(app), standoff(app)))
 
 
 def n040_paper_lamps(app):                   # the paper_lamp example twice: its windows open, and closed with paper
@@ -549,7 +563,7 @@ def n040_library(app):
     app.p.click("#libclose")
 
 
-def picture_name(f):                        # n040_hide_dowels -> 0.4.0-hide-dowels
+def picture_name(f):                        # n040_stacked_joins -> 0.4.0-stacked-joins
     v, slug = f.__name__.split("_", 1)
     return f"{v[1]}.{v[2]}.{v[3]}-{slug.replace('_', '-')}"
 
