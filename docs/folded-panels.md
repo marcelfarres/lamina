@@ -359,8 +359,9 @@ Glue the papers in first, then close the seams: a tab lies over the paper's marg
 No number on the frame says which paper goes where (Marcel's choice). The 3D view shows it: each facet's `paper` key
 names its paper part (`part`, cut job only), and selecting a paper part (on the sheet, in the parts table or in the
 list of findings) selects its panel and hatches its window there (`showPane`, `markPane`: the pane mesh draws that
-pane's triangles in the `hatched` material, so the mark folds with the panel). The paper parts are not drawn as parts
-of their own. On the `paper_lamp` example every paper is the same pentagon, so any paper fits any window.
+pane's triangles in the `hatched` material, so the mark folds with the panel). A plain click on a window's paper in
+the 3D view does the same for its paper part (`paneAt`: the panes take no hits of their own, so a drag and the seam
+and face tools go through them to the panel). The paper parts are not drawn as parts of their own. On the `paper_lamp` example every paper is the same pentagon, so any paper fits any window.
 
 ## Merged faces
 `merged` holds groups of faces the user merged. Each group becomes one flat face (`flatten`, `core/mesh.py`), after

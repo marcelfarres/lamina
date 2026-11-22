@@ -123,6 +123,12 @@ const walled=()=>ST.mode.params.some(p=>p.name==='wall')&&(state.ring_slices||!S
 // A paper part (W-7-3) is no part of the 3D view: it is shown where it goes, its window hatched on its panel
 export function showPane(label){const m=parts.children.find(c=>c.userData.pane?.userData.labels.includes(label));if(!m)return;
   highlight(m);markPane(label);hlSheet(label);status(`${$('#status').textContent.replace(/ · selected.*$/,'')} · selected ${label}: the paper for the window hatched on ${m.userData.slice}, glued on the inside of its frame`)}
+// The paper part whose pane the last ray (hit) meets before it meets a part `h`, or null. The panes take no hit of their
+// own (a drag, the seam and the face tools go through them to the panel): only a plain click asks here.
+function paneAt(h){let best=null;
+  for(const m of parts.children){const p=m.userData.pane;if(!p||!m.visible)continue;const hs=[];THREE.Mesh.prototype.raycast.call(p,ray,hs);
+    for(const x of hs)if(x.distance<(h?h.distance:Infinity)&&(!best||x.distance<best.d)){const v=3*x.faceIndex,j=p.userData.ranges.findIndex(([o,n])=>v>=o&&v<o+n);best={d:x.distance,l:p.userData.labels[j]}}}
+  return best?.l||null}
 export function deselect(){markPane(null);ST.selected=null;$('#sel').hidden=true;gizmo.clear();for(const c of parts.children)c.material.emissive.set(0);hlSheet(null);ST.dirty=true}
 // stored as given: rounding here to 0.01 mm turned 1/16 in (1.5875 mm) into 1.59 mm; toPrecision(12) only drops float noise
 function setEdit(k,v,neutral=0){state[k]=state[k]||{};if(Math.abs(v-neutral)>1e-9)state[k][ST.selected]=+v.toPrecision(12);else delete state[k][ST.selected];
@@ -333,5 +339,6 @@ renderer.domElement.addEventListener('pointerup',ev=>{const k=keys(ev);
       if(list.length>1||lineParam()==='branches'){state[lineParam()]=dropLine(i);renderFields();slice()}
       else status('the last axis stays — alt-click the model to add another first');}return}
   if(h&&h.object.userData.cp!==undefined){if(k.altKey){const list=curveList();if(list.length>2){list.splice(h.object.userData.cp,1);state.curve=list;renderFields();slice()}}return}   // alt-click a dot: remove it (a curve keeps two)
+  const pa=k.altKey?null:paneAt(h);if(pa){showPane(pa);return}   // a click on a window's paper: its paper part
   if(h&&k.altKey)togglePoint(h,k.shiftKey);else if(h)highlight(h.object);else deselect()});
 
