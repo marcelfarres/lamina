@@ -588,7 +588,8 @@ sheets are always the same plan.
 - **Material, machine, sheet**: 21 materials — paper, card, cardboard, greyboard, plywood, MDF, basswood, balsa,
   acrylic, polypropylene, foam board, EVA foam, steel, stainless steel, aluminium, brass, copper, leather, fabric, and
   PLA and PETG to 3D-print the parts at full size (whole layers for thicknesses, print beds for sheets: picking one
-  ticks **3D printed**, the page counts plates and the Export tab offers one 3MF per plate instead of cut files). The
+  ticks **3D printed**, the page counts plates and the Export tab offers one 3MF per plate instead of cut files; a
+  stacked job's dowels come as printed pins in `pins-1.3mf`, each `pin_fit` thinner than the dowel and named on a tag). The
   material sets its stock thicknesses (sheet steel by Manufacturers' Standard Gauge and stainless by its own gauge
   table, copper by ounces per square foot, chipboard by points, plate, plywood, acrylic and model wood by fraction of
   an inch, each shown in mm and decimal inches), the sheet sizes it comes in (4 × 8 and 5 × 10 ft, A-series, balsa

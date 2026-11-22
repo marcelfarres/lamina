@@ -77,7 +77,7 @@ export function renderDownloads(){ // the labels checkbox applies to every cut f
   // a printed job has nothing to cut: the plates are under Print, and the cut files and their fit test step aside
   for(const el of $$('.cutonly,.protoonly'))el.hidden=state.printed;
   $('#pr_title').textContent=state.printed?'Print plates':'Prototyping (3D print)'; if(state.printed)$('#pr_fold').open=true;   // a printed job: the plates are the files
-  $('#pr_go').textContent=state.printed?`download print plates (plate-1.3mf … plate-${ST.plan.sheets}.3mf, one per bed, + one STL per part)`
+  $('#pr_go').textContent=state.printed?`download print plates (plate-1.3mf … plate-${ST.plan.sheets}.3mf, one per bed, + one STL per part${ST.plan.rods?.length?' + pins-1.3mf, the dowel pins':''})`
     :'download prototype set (plate.3mf for OrcaSlicer + one STL per part)';
   // every file says what it is for: eight buttons in a row left the reader to know which program wants which format
   const rows=r=>r.map(([t,u,use])=>`<div class="r"><a href="${u}">${t}</a>${use?`<details class="info"><summary>what is it for?</summary><span class="hint">${use}</span></details>`:''}</div>`).join('');

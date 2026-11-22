@@ -30,8 +30,9 @@ inside to see it as a lamp.
 
   [![The scanned head as a stack of rings on dowels ▶](web/static/news/0.4.0-rings.jpg)](https://marcelfarres.github.io/lamina/media/rings.mp4)
 
-- **Printed standoffs for stacked layers.** On Stacked, set a gap and *connect with* to *standoff*: 3D-printed
-  posts hold the laser-cut layers apart. The print file comes in the zip, named 3D-PRINT. Try the new *shade*.
+- **Printed standoffs and dowel pins.** On Stacked, set a gap and *connect with* to *standoff*: 3D-printed posts
+  hold the laser-cut layers apart. Their print file, 3D-PRINT, is in the zip. A printed stack gets its dowel pins.
+  Try *shade*.
 
   ![The shade example: laser-cut layers held apart by printed standoffs](web/static/news/0.4.0-standoff.jpg)
 

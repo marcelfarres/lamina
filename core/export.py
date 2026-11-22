@@ -420,6 +420,19 @@ GROUPS = {"S": "stacked slice", "X": "X slice", "Y": "Y slice", "R": "radial hal
           "F": "folded panel", "J": "joint part", "P": "peg / spacer"}
 
 
+def rods_of(plan) -> dict:
+    """The plan's dowels by name, {name: {lo, hi, d, length}}: a rod per pair of slices, and a straight one through
+    several keeps its name, so it is one rod from the first slice it joins to the last. Its length is between its two
+    ends farthest apart: the far faces of its outer slices. The assembly key lists them; a printed job prints them."""
+    rods = {}
+    for r in plan.get("rods") or []:
+        if len(r) >= 8:
+            e = rods.setdefault(r[5], {"lo": r[6], "d": r[2], "pts": []}); e["hi"] = r[7]; e["pts"] += [r[0], r[1]]
+    for e in rods.values():
+        e["length"] = max(math.dist(a, b) for a in e["pts"] for b in e["pts"]); del e["pts"]
+    return rods
+
+
 def key_text(plan):
     """What the labels mean, which part is which, and the order the 3D view builds them in — written beside the cut
     files so the plan survives the walk from the machine to the bench. In puzzle mode what is engraved is a code that
@@ -456,17 +469,14 @@ def key_text(plan):
             step += 1
             out.append(f"{step:>4}  " + (f"{codes.get(pc['label'], '--'):<7}" if codes else "")
                        + f"{pc['label']:<12}{what:<20}{centre:<24}{onto[:60]}")
-    rods = {}
-    for r in plan.get("rods") or []:                  # a rod per pair of slices; a straight one through several keeps its name
-        if len(r) >= 8:
-            e = rods.setdefault(r[5], {"lo": r[6], "d": r[2], "pts": []}); e["hi"] = r[7]; e["pts"] += [r[0], r[1]]
+    rods = rods_of(plan)
     if rods:
         out += ["", "Dowels — named after the lower of the two slices each joins and a letter: Z-3a is dowel a between Z-3 and Z-4,",
-                "and the mark 3a is engraved beside its hole on both slices. Cut each rod to its length.", "",
+                "and the mark 3a is engraved beside its hole on both slices. "
+                + ("Print the pins: the pins file of the print set, each named on a tag." if p.get("printed") else "Cut each rod to its length."), "",
                 f"{'dowel':<10}{'from':<10}{'to':<10}{'length':<12}diameter"]
         for name, e in rods.items():
-            length = max(math.dist(a, b) for a in e["pts"] for b in e["pts"])   # the ends along one line: the two farthest apart
-            out.append(f"{name:<10}{e['lo']:<10}{e['hi']:<10}{length * f:<12.3g}{e['d'] * f:.3g} {u}")
+            out.append(f"{name:<10}{e['lo']:<10}{e['hi']:<10}{e['length'] * f:<12.3g}{e['d'] * f:.3g} {u}")
     if plan.get("standoffs"):
         from .solid import standoff_text                # here, not at the top: core.solid imports this module
         out += ["", *standoff_text(plan, f, u)]

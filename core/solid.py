@@ -17,8 +17,8 @@ from shapely.geometry import LineString, Point, Polygon, MultiPolygon
 from shapely.ops import nearest_points, unary_union
 from shapely.strtree import STRtree
 import shapely
-from .export import design_name, export
-from .geometry import even_odd, facet_polys
+from .export import design_name, export, rods_of
+from .geometry import dowel, even_odd, facet_polys
 from .labels import PRINT_MARK, TAG_CLEAR, TAG_FONT, TAG_PAD, beside, fit_on_part, label_angles, mark_box, tag_room
 from .step import step_text
 
@@ -162,6 +162,63 @@ def standoff_files(plan, out_dir, design, scale=1.0) -> list:
     f = pathlib.Path(out_dir) / f"{stem}.3mf"; f.write_bytes(scene.export(file_type="3mf"))
     note = pathlib.Path(out_dir) / f"{stem}.txt"; note.write_text("\n".join(standoff_text(plan)) + "\n", encoding="utf-8")
     return [f, note]
+
+
+PIN_END = 0.4       # mm a printed dowel pin is shorter than its holes: a pin a hair long would keep two layers apart
+
+
+def pin_print(plan, length) -> trimesh.Trimesh:
+    """A printed job's dowel pin as it is printed: on z = 0, its axis along x, its section the dowel's less `pin_fit`,
+    PIN_END shorter than the holes it fills. It lies on a flat side, so nothing needs a support: a round pin has one cut
+    on it, 0.7 of its width wide; a vslot pin is the hslot pin turned a quarter, which is how it goes in."""
+    p = plan["params"]; d = p["dowel_d"] - p["pin_fit"]; shape = {"vslot": "hslot"}.get(p["dowel_shape"], p["dowel_shape"])
+    sec = dowel((0, 0), d, shape)
+    if shape == "round":
+        sec = sec.intersection(shapely.box(-d, -0.35 * d, d, d))
+    # ponytail: a cross pin lies on the end of one arm, its side arms in the air (1 mm at a 3 mm dowel); a square one prints clean
+    m = extrude(sec, length - PIN_END).apply_transform([[0, 0, 1, 0], [1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1]])
+    return m.apply_translation(-m.bounds[0])
+
+
+def pin_files(plan, out_dir) -> list:
+    """A printed stacked job's dowel pins, on the printer's bed as its layers are: pins-1.3mf, pins-2.3mf … nested as
+    the plates are, every pin an object named after its dowel (Z-3a: dowel a between Z-3 and Z-4, as the assembly key
+    and the marks by its holes say), its name on a tag beside it. One pin per dowel: a straight one through several
+    layers is one long pin, as long as the key says, less PIN_END."""
+    from .model import Piece, Slice                      # here: core.model is the planner's, not needed for a laser job's files
+    from .nest import nest
+    p, pins = plan["params"], []
+    for name, e in rods_of(plan).items():
+        m = pin_print(plan, e["length"])
+        pc = Piece(name, MultiPolygon([shapely.box(0, 0, *m.extents[:2])]), Slice(name, "P", np.eye(4), m.extents[2]))
+        pins.append((pc, m))
+    if not pins:
+        return []
+    nest([pc for pc, _ in pins], plan["sheet"], p["gap"], p["sheet_margin"], font=TAG_FONT, printed=True)
+    plates, on = {}, {}
+    for pc, m in pins:                                   # turned and moved as the nester placed its outline
+        si, x, y, rot = pc.place
+        q = m.copy().apply_transform(trimesh.transformations.rotation_matrix(np.radians(rot), [0, 0, 1]))
+        q.apply_translation([x - q.bounds[0][0], y - q.bounds[0][1], 0])
+        on.setdefault(si, []).append(pc.placed); plates.setdefault(si, []).append((pc.label, q))
+    files = []
+    for si in sorted(plates):
+        scene, laid = trimesh.Scene(), on[si]
+        for k, (name, q) in enumerate(plates[si]):
+            tag, foot, _ = print_tag(laid, k, name, TAG_FONT, *plan["sheet"], p["sheet_margin"])
+            laid.append(foot)
+            scene.add_geometry(_joined([q, tag]), node_name=name, geom_name=name)
+        f = pathlib.Path(out_dir) / f"pins-{si + 1}.3mf"; f.write_bytes(scene.export(file_type="3mf")); files.append(f)
+    return files
+
+
+def pin_note(plan) -> list:
+    """What the README says about the pins file."""
+    p, n = plan["params"], len(rods_of(plan))
+    return [f"{n} dowel pin(s) in pins-N.3mf: {p['dowel_d'] - p['pin_fit']:g} mm across ({p['dowel_shape']} dowel {p['dowel_d']:g} mm "
+            f"less pin fit {p['pin_fit']:g}), each {PIN_END:g} mm shorter than its holes, lying on a flat side: no supports. "
+            "Each is named on a tag as the assembly key names it (Z-3a: dowel a between Z-3 and Z-4): read it, then snap the tag off. "
+            "Too tight or too loose: change pin fit"]
 
 
 def assembled(plan, part=None) -> trimesh.Trimesh:
@@ -472,7 +529,9 @@ def proto_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2
             files.append(f)
     if plan.get("standoffs"):                              # the connectors of the printed layers: a file of their own
         files += standoff_files(plan, out_dir, design_name(plan), scale)
-    lines = [note] if note else []
+    pins = pin_files(plan, out_dir) if plates is not None else []   # a printed job's dowels: printed too, on beds of their own
+    files += pins
+    lines = ([note] if note else []) + (pin_note(plan) if pins else [])
     if plain:                                             # said, not hidden: a folded panel without its grooves does not fold
         lines.append(f"this build cannot cut solids (no manifold3d, as in the browser): the parts were exported WITHOUT their {' and '.join(sorted(plain))}. "
                      "Printed folded panels need the grooves to fold: export them from the installed app")
