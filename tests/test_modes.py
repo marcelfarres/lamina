@@ -821,7 +821,7 @@ def test_a_dense_net_numbers_its_seams_in_seconds_not_minutes():
     (1340 while the 346 edges inside its flat faces still counted as seams, bugs/039)."""
     plan = build(EXAMPLES / "cube.stl", "folded", {"thickness": 6, "thicken": 50})
     marks = [m for sl in plan["slices"] for pc in sl["pieces"] for m in pc["marks"]]
-    assert len(marks) > 700 and all(m[2].isdigit() for m in marks)
+    assert len(marks) > 700 and all(m[2].rstrip(".").isdigit() for m in marks)
 
 
 def test_orientation_arrows_are_two_lines_inside_every_part_clear_of_its_marks():
