@@ -109,7 +109,9 @@ def flat_pieces(mesh, local, chosen, max_dims):
     """The flat pieces of the model: faces that lie in one plane and are joined edge to edge (no edge between them bends
     by FLAT or more, and none is a seam the user chose). A panel takes a flat piece whole or not at all, so no seam cuts
     across a flat side (a box side, a pentagon of a dodecahedron) and the side keeps one window. A flat piece that does
-    not fit the sheet is left as single faces: it cannot be one part.
+    not fit the sheet is left as single faces: it cannot be one part. So is one whose faces meet along a line where
+    they share no edge (a corner of one on the edge of another: the bracket's base, cut by a boolean), since a net lays
+    two faces edge to edge only where they join on the model (bug 072).
     Returns (face → the faces of its flat piece, face → its flat edges inside the piece)."""
     adj, ang = mesh.face_adjacency, mesh.face_adjacency_angles
     edges_of = defaultdict(list)
@@ -126,9 +128,25 @@ def flat_pieces(mesh, local, chosen, max_dims):
             small, large = min_dims(shapely.MultiPoint(np.vstack([t for _, _, t, _ in laid.values()])))
             if small > min(max_dims) or large > max(max_dims):
                 continue
+        if touching(mesh, laid):
+            continue
         for f in laid:
             piece[f] = list(laid)
     return piece, edges_of
+
+
+def touching(mesh, laid):
+    """Whether two faces of a laid-out flat piece lie edge to edge (over 1 mm, away from a shared corner) where they
+    share no edge: the test unfold_once makes of every face it lays."""
+    fs = list(laid); polys = [Polygon(laid[f][2]) for f in fs]; tree = shapely.STRtree(polys)
+    faces = mesh.faces; mates = {(int(a), int(b)) for a, b in mesh.face_adjacency} | {(int(b), int(a)) for a, b in mesh.face_adjacency}
+    for i, f in enumerate(fs):
+        fat = polys[i].buffer(0.01)
+        for j in tree.query(fat):
+            g = fs[int(j)]
+            if int(j) > i and (f, g) not in mates and contact(polys[j], fat, [laid[g][2][list(faces[g]).index(v)] for v in faces[g] if v in faces[f]]) > 1.0:
+                return True
+    return False
 
 
 def lay_flat(mesh, local, edges_of, start, R, t):
@@ -148,20 +166,20 @@ def lay_flat(mesh, local, edges_of, start, R, t):
     return out
 
 
-def unfold_once(mesh, split, max_faces, max_dims, weights, local, chosen=frozenset(), flap=0.0):
+def unfold_once(mesh, split, max_faces, max_dims, weights, local, chosen=frozenset(), flap=0.0, whole=False):
     """`chosen`: the adjacency indices of the seams the user chose. No panel grows across one. `flap` (mm): a joint
     with a glue flap needs room for it outside the edge, on one panel or the other: every free edge of a panel keeps
     that room clear, so no face is laid where a flap must go and no face is laid whose own free edges have no room
     (a cow grown without it had 40 of its 217 seams with no room for a tab on either side). 0 = no flaps.
-    A face of a flat piece (flat_pieces) comes with the rest of its piece, and every test below holds for all of them
-    or none is laid."""
+    `whole`: a face of a flat piece (flat_pieces) comes with the rest of its piece, and every test below holds for all
+    of them or none is laid."""
     adj, aedges = mesh.face_adjacency, mesh.face_adjacency_edges
     nb = defaultdict(list)
     for k, (a, b) in enumerate(adj):
         if k in chosen:
             continue
         nb[a].append((weights[k], b, k)); nb[b].append((weights[k], a, k))
-    piece, edges_of = ({}, {}) if split else flat_pieces(mesh, local, chosen, max_dims)
+    piece, edges_of = flat_pieces(mesh, local, chosen, max_dims) if whole and not split else ({}, {})
     visited, panels, tree = set(), [], set()
     faces = [list(f) for f in mesh.faces]
 
@@ -294,11 +312,13 @@ def unfold_once(mesh, split, max_faces, max_dims, weights, local, chosen=frozens
     return panels, seams
 
 
-def unfold(mesh, split=False, max_faces=0, max_dims=None, strategy="flat", chosen=frozenset(), flap=0.0):
+def unfold(mesh, split=False, max_faces=0, max_dims=None, strategy="flat", chosen=frozenset(), flap=0.0, whole_flat=False):
     """→ (frames, local, panels, seams). seams = adjacency indices that are NOT folds (need a joint).
     chosen: adjacency indices that must be seams (the user's choice): the panels are laid out round them.
     strategy: flat | strip | area | auto (best of all, plus two randomised runs; only for ≤ 800 faces).
-    flap: room (mm) a glue flap needs outside every free edge, see unfold_once."""
+    flap: room (mm) a glue flap needs outside every free edge, see unfold_once.
+    whole_flat: every flat side is laid out whole or not at all (flat_pieces), for one window per side. Only where it
+    matters: on a lion head with 20 flat pairs and no windows it unfolded differently and opened with 4 warnings (072)."""
     frames, local = face_frames(mesh)
     if split:
         panels, seams = unfold_once(mesh, True, max_faces, max_dims, edge_weights(mesh, "flat"), local)
@@ -307,7 +327,7 @@ def unfold(mesh, split=False, max_faces=0, max_dims=None, strategy="flat", chose
     best = None
     for strat, seed in runs:
         w = edge_weights(mesh, strat, np.random.default_rng(seed) if seed else None)
-        panels, seams = unfold_once(mesh, False, max_faces, max_dims, w, local, chosen, flap)
+        panels, seams = unfold_once(mesh, False, max_faces, max_dims, w, local, chosen, flap, whole_flat)
         # fewest panels, then most compact (union area / bounding-rectangle area, summed)
         compact = sum(pn.union.area / max(np.prod(min_dims(pn.union)), 1e-9) for pn in panels) / len(panels)
         score = (len(panels), -compact)
