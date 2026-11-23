@@ -719,6 +719,38 @@ def test_step_reads_back_as_valid_solids_in_a_cad_kernel(tmp_path):
         assert abs(sum(b.Volume() for b in solids) - want) < 1e-6 * want
 
 
+def test_step_one_body_fuses_the_whole_model_into_one_closed_solid(tmp_path):
+    """Marcel, 2026-11-22: his STEP files had "over 100,000 parts", and he asked for "A choice on the STEP button":
+    STEP: one body, every part, standoff and dowel fused into one solid. A stack whose layers stand apart is one solid
+    through its dowels, a folded net one through its folds, slotted slices one through their slots. Read from the
+    text: one solid named after the model (a folded box with the air inside it as a void), every edge walked once each way, its box the assembly's grown by the weld.
+    In OpenCascade, when the CAD extra is there: one valid solid, with at least the parts' volume (nothing lost)."""
+    import pytest
+    from core.geometry import facet_polys
+    from core.solid import WELD, one_body
+    from core.step import step_text
+    try:
+        import cadquery as cq
+    except ImportError:
+        cq = None
+    for mode, prm in (("stacked", {"distribution": "count", "count": 3}), ("folded", {}), ("interlocked", {"nx": 2, "ny": 2}), ("radial", {})):
+        plan = build(EXAMPLES / "cube.stl", mode, {**prm, "autofix": "off"})
+        text = step_text(plan, name="cube", lumps=one_body(plan))
+        assert re.findall(r"(?:MANIFOLD_SOLID_BREP|BREP_WITH_VOIDS)\('([^']*)'", text) == ["cube"], mode   # a closed box: with its hollow as a void
+        walked = re.findall(r"ORIENTED_EDGE\('',\*,\*,(#\d+),\.([TF])\.\)", text)
+        assert sorted(walked) == sorted((e, d) for e in re.findall(r"(#\d+)=EDGE_CURVE", text) for d in "TF"), mode
+        pts = np.array([[float(x) for x in m.split(",")] for m in re.findall(r"CARTESIAN_POINT\('',\(([^)]*)\)\)", text)])
+        lo, hi = assembled(plan).bounds                                   # grown by WELD, up to 5 WELD at a sharp mitred corner
+        assert (pts.min(0) <= lo + 1e-6).all() and (pts.min(0) >= lo - 5 * WELD).all() and (pts.max(0) >= hi - 1e-6).all() and (pts.max(0) <= hi + 5 * WELD).all(), mode
+        if cq:
+            (tmp_path / "it.step").write_text(text, encoding="ascii")
+            (solid,) = cq.importers.importStep(str(tmp_path / "it.step")).solids().vals()
+            parts = sum(g.area * (own or sl["thickness"]) for sl in plan["slices"] for pc in sl["pieces"] for g, _, own in facet_polys(pc))
+            assert solid.isValid() and solid.Volume() > parts, (mode, solid.Volume(), parts)
+    if cq is None:
+        pytest.skip("checked from the text only: the CAD kernel is an extra (uv sync --extra cad)")
+
+
 def test_the_command_line_writes_step_and_refuses_what_it_cannot_write(tmp_path):
     """`--out x.step` writes solids named after the design, as the download does. A part that is not in the plan,
     or no output at all, is an error said in words: it was an empty file that looked fine, and a crash."""

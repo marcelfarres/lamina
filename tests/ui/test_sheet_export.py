@@ -327,7 +327,8 @@ def test_every_control_does_what_it_says_and_every_download_holds_the_plan(page,
     assert len(stl) == 84 + 50 * int.from_bytes(stl[80:84], "little") and int.from_bytes(stl[80:84], "little") > 100, "the STL is not whole"
     one = get(links["assembled STL"] + "?part=" + sorted(labels)[0]).body()     # one part alone, as the parts table offers it
     assert len(one) == 84 + 50 * int.from_bytes(one[80:84], "little") and 0 < len(one) < len(stl)
-    assert get(links["assembled STEP"]).body().count(b"MANIFOLD_SOLID_BREP('") >= len(labels), "the STEP misses parts"
+    assert get(links["STEP: parts"]).body().count(b"MANIFOLD_SOLID_BREP('") >= len(labels), "the STEP misses parts"
+    assert 1 <= get(links["STEP: one body"]).body().count(b"MANIFOLD_SOLID_BREP('") < len(labels), "the one body is not fused"
     assert json.loads(get(links["plan.json"]).body())["counts"]["parts"] == p["counts"]["parts"]
     fit = zip_of(get(links[next(t for t in links if t.startswith("fit test SVG"))]).body())
     assert "README.txt" in fit.namelist() and len({n.split("/")[0] for n in fit.namelist() if "/" in n}) == 5
@@ -362,3 +363,14 @@ def test_every_control_does_what_it_says_and_every_download_holds_the_plan(page,
     assert plan(page)["counts"]["errors"] == 0, plan(page)["errors"]
     page.remove_listener("dialog", answer)
     assert not page.errors, page.errors
+
+
+def test_the_one_body_step_warns_on_folded_panels(page):
+    """Marcel, 2026-11-22: STEP: one body on every technique, and on a Folded Panels job a plain warning that the file
+    may not open as a valid solid in CAD (CAD rejected the fused panels of 6 of 8 folded examples). A stacked job has
+    the row and no warning."""
+    warning = "() => document.querySelector('#dl_step_body .warn')?.textContent || ''"
+    use(page, "fold_box"); page.click('nav button[data-t="export"]')
+    assert page.is_visible("#dl_step_body") and "may not open as a valid solid in CAD" in page.evaluate(warning)
+    use(page, "vase"); page.click('nav button[data-t="export"]')
+    assert page.is_visible("#dl_step_body") and page.evaluate(warning) == ""

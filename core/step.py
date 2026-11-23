@@ -20,6 +20,7 @@ ENDSEC;
 DATA;
 """
 MIN_EDGE = 1e-6     # mm: the shortest edge written; ten times what the 7 decimals of a coordinate tell apart
+ACCURACY = 1e-5     # mm: the file's distance accuracy (UNCERTAINTY_MEASURE_WITH_UNIT): points nearer are one to a CAD kernel
 
 
 def _text(s) -> str:
@@ -163,14 +164,120 @@ class _Step:
         faces = [*walls, self.face(top_loops, on_top, up, ref), self.face(bottom_loops, on_bottom, -up, ref)]
         return self.add(f"MANIFOLD_SOLID_BREP('{_text(name)}',{self.add(f'''CLOSED_SHELL('',({','.join(faces)}))''')})")
 
+    def shell(self, name, V, F):
+        """A closed triangle mesh (V, F) as solids with flat faces, a list. A surface that encloses a positive volume is
+        the outside of a solid. One piece of material (a lump of one_body) has one, and a hollow inside it (a folded box
+        closes its panels round air) has a surface of its own, which STEP writes as a void: a closed shell facing into
+        the hollow, taken the other way (BREP_WITH_VOIDS). Several outsides with no hollow (a standoff's pin, body and
+        pin where nothing joins them, in the browser build) are a solid each."""
+        import trimesh
+        # an edge shorter than MIN_EDGE (a union leaves some of 1e-8 mm where solids cross) would be written as one
+        # point twice: its ends become one vertex, and the triangles on it, left without area, go
+        V, F = np.asarray(V, float), np.asarray(F)
+        half = np.concatenate([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]])
+        one = trimesh.graph.connected_component_labels(half[np.linalg.norm(V[half[:, 0]] - V[half[:, 1]], axis=1) < MIN_EDGE], node_count=len(V))
+        first = np.empty(one.max() + 1, int); first[one[::-1]] = np.arange(len(V))[::-1]
+        F = first[one][F]
+        F = F[(F[:, 0] != F[:, 1]) & (F[:, 1] != F[:, 2]) & (F[:, 2] != F[:, 0])]
+        part = trimesh.graph.connected_component_labels(trimesh.Trimesh(V, F, process=False).face_adjacency, node_count=len(F))
+        surfaces = [F[part == k] for k in range(part.max() + 1)]
+        volume = [np.einsum("ij,ij->", V[f[:, 0]], np.cross(V[f[:, 1]], V[f[:, 2]])) for f in surfaces]
+        outsides = [f for f, v in zip(surfaces, volume) if v > 0]
+        hollows = [f for f, v in zip(surfaces, volume) if v <= 0]
+        if hollows and len(outsides) > 1:                # one_body gives one lump at a time: it never happens there
+            raise ValueError(f"{name}: hollows inside {len(outsides)} solids, and which one holds which is not known")
+        closed = lambda f: self.add(f"CLOSED_SHELL('',({','.join(self.faces(V, f))}))")   # noqa: E731
+        if not outsides:                                 # a crumb a union splits off, with no volume: nothing to write
+            return []
+        if not hollows:
+            return [self.add(f"MANIFOLD_SOLID_BREP('{_text(name)}',{closed(f)})") for f in outsides]
+        voids = [self.add(f"ORIENTED_CLOSED_SHELL('',*,{closed(f[:, ::-1])},.F.)") for f in hollows]
+        return [self.add(f"BREP_WITH_VOIDS('{_text(name)}',{closed(outsides[0])},({','.join(voids)}))")]
 
-def step_text(plan, part=None, name="lamina") -> str:
+    def faces(self, V, F):
+        """A closed triangle surface as flat faces: the triangles that lie side by side in one plane are one face
+        (trimesh's facets). A face's edges are those of its triangles that no other of its triangles has, walked the
+        way its triangles turn, so its outline runs counter-clockwise seen from the side its normal points to and its
+        holes the other way; the outline is the loop with the largest area. Faces that meet share their vertices and
+        edges, as a closed shell needs."""
+        import trimesh
+        mesh = trimesh.Trimesh(V, F, process=False)
+        # A sliver (a union leaves some where solids cross) has no plane of its own worth the name: its third corner is
+        # less than ACCURACY from its longest edge, so within the file's accuracy it lies on that edge, and it joins
+        # the face across it. A face made of slivers only is no face. Until it joins one, a triangle has none (-1).
+        side = np.linalg.norm(V[F[:, [1, 2, 0]]] - V[F], axis=2).max(1)
+        flat = 2 * mesh.area_faces < ACCURACY * np.maximum(side, 1e-300)
+        kept = [k for k, g in enumerate(mesh.facets) if not flat[g].all()]
+        groups, normals = [list(mesh.facets[k]) for k in kept], [mesh.facets_normal[k] for k in kept]
+        lone = np.setdiff1d(np.arange(len(F)), np.concatenate(groups) if groups else [])
+        groups += [[i] for i in lone if not flat[i]]; normals += list(mesh.face_normals[[i for i in lone if not flat[i]]])
+        group = np.full(len(F), -1); [group.__setitem__(g, k) for k, g in enumerate(groups)]
+        across = {}
+        for t, (a, b, c) in enumerate(F.tolist()):
+            for e in ((a, b), (b, c), (c, a)):
+                across[e] = t
+        waiting = [t for t in np.flatnonzero(flat) if group[t] < 0]
+        while waiting:                                   # a run of slivers joins from its far end inward
+            left = []
+            for t in waiting:                            # all three corners lie on one line: across its longest edge first
+                a, b, c = F[t]
+                k = next((k for p, q in sorted(((a, b), (b, c), (c, a)), key=lambda e: -np.linalg.norm(V[e[1]] - V[e[0]]))
+                          if (k := group[across[(q, p)]]) >= 0), -1)
+                if k < 0:
+                    left.append(t); continue
+                group[t] = k; groups[k].append(t)
+            if len(left) == len(waiting):
+                raise ValueError(f"{len(left)} slivers with no face beside them")
+            waiting = left
+        verts, edges, faces = {}, {}, []
+
+        def vertex(i):
+            if i not in verts:
+                verts[i] = self.vertex(V[i])
+            return verts[i]
+
+        def edge(a, b):                                  # one EDGE_CURVE per pair, from the lower vertex: walked both ways
+            k = (min(a, b), max(a, b))
+            if k not in edges:
+                edges[k] = self.edge(vertex(k[0]), vertex(k[1]))
+            return edges[k], a < b
+        for g, n in zip(groups, normals):
+            tri = F[g]
+            half = np.concatenate([tri[:, [0, 1]], tri[:, [1, 2]], tri[:, [2, 0]]]).tolist()
+            inside, nxt = set(map(tuple, half)), {}
+            for a, b in half:
+                if (b, a) not in inside:
+                    nxt.setdefault(a, []).append(b)
+            loops = []
+            while nxt:                                   # ponytail: at a corner two loops touch, either way on is taken
+                start = a = next(iter(nxt)); lp = []
+                while True:
+                    lp.append(a); b = nxt[a].pop()
+                    if not nxt[a]:
+                        del nxt[a]
+                    if b == start:
+                        break
+                    a = b
+                loops.append(lp)
+            area = [float(n @ np.cross(V[lp], V[np.roll(lp, -1)]).sum(0)) for lp in loops]
+            loops = [loops[i] for i in np.argsort(area)[::-1]]
+            out = loops[0]
+            faces.append(self.face([self.loop([edge(lp[i], lp[(i + 1) % len(lp)]) for i in range(len(lp))]) for lp in loops],
+                                   vertex(out[0]), n, _unit(V[out[1]] - V[out[0]])))
+        return faces
+
+
+def step_text(plan, part=None, name="lamina", lumps=None, meshes=()) -> str:
     """The assembled model (or the one part labelled `part`) as a STEP file: one solid per flat piece of a part,
-    named with the part's label, each where it sits in the assembly."""
-    s, name = _Step(), _text(name)
-    shape, context, frame = s.product(name)
-    solids = [b for sl in plan["slices"] for pc in sl["pieces"] if part is None or pc["label"] == part
-              for poly, M, own in facet_polys(pc) if (b := s.prism(pc["label"], poly, M, own or sl["thickness"]))]
+    named with the part's label, each where it sits in the assembly, then the parts given as closed meshes, `meshes`
+    [(label, V, F)] (a standoff), each as its solid. With `lumps` (core.solid.one_body: the model fused, a closed mesh
+    per piece of it that touches no other) one solid per lump instead, named after the model."""
+    s = _Step()
+    shape, context, frame = s.product(_text(name))
+    solids = ([b for V, F in lumps for b in s.shell(name, V, F)] if lumps is not None else
+              [b for sl in plan["slices"] for pc in sl["pieces"] if part is None or pc["label"] == part
+               for poly, M, own in facet_polys(pc) if (b := s.prism(pc["label"], poly, M, own or sl["thickness"]))]
+              + [b for label, V, F in meshes for b in s.shell(label, V, F)])
     shown = s.add(f"ADVANCED_BREP_SHAPE_REPRESENTATION('',({','.join([frame, *solids])}),{context})")
     s.add(f"SHAPE_DEFINITION_REPRESENTATION({shape},{shown})")
-    return HEAD.format(name=name) + "".join(f"#{i}={row};\n" for i, row in enumerate(s.rows, 1)) + "ENDSEC;\nEND-ISO-10303-21;\n"
+    return HEAD.format(name=_text(name)) + "".join(f"#{i}={row};\n" for i, row in enumerate(s.rows, 1)) + "ENDSEC;\nEND-ISO-10303-21;\n"
