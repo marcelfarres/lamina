@@ -91,7 +91,7 @@ export function renderDownloads(){ // the labels checkbox applies to every cut f
   // what the labels on the parts mean, before the cut rather than after it
   $('#legend').innerHTML=`${(ST.mode.legend||'every part carries its own label').replace(/ · /g,'<br>')}`
     +(state.label_style==='code'?'<br><b>puzzle mode:</b> the parts are engraved with codes instead — assembly-key.txt maps them back':'');
-  const p=ST.plan, printed=state.printed, nso=p.standoffs?.items.length||0, mix=nso&&!printed, [ico,KIND]=machineKind(state.machine);
+  const p=ST.plan, printed=state.printed, nso=p.standoffs?.items.length||0, mix=nso&&!printed, [ico,KIND,MK]=machineKind(state.machine);
   const fit=p.fit_test!==false;          // a joint the slot offset sizes (Mode.fit_test); a plan saved before the field has one
   const rods=p.rods?.length?rodStats().n:0;
   // the print set and the print fit test: a printed job is printed as it is, full size, at its own slot offset and label size
@@ -108,9 +108,12 @@ export function renderDownloads(){ // the labels checkbox applies to every cut f
   if(ne){$('#x_errors').innerHTML=`<b>⚠ WARNING</b> · This plan has ${ne} error${ne>1?'s':''}: some parts do not go together, or the machine cannot make them. Correct ${ne>1?'them':'it'} before you cut or print. <button class="small">show the errors</button>`;
     $('#x_errors button').onclick=()=>showTab('checks')}
   // every file says what it is for: eight buttons in a row left the reader to know which program wants which format.
-  // A row: [text, link, what it is for, its id, a warning shown under it]. A main row is the one file a machine needs:
-  // outlined, what it is for on hover. The steps are numbered as they show
-  const rows=(r,main)=>r.map(([t,u,use,id,warn])=>`<div class="r"${id?` id="${id}"`:''}><a href="${u}"${main?` class="main" title="${use||''}"`:''}>${t}</a>${use&&!main?`<details class="info"><summary>what is it for?</summary><span class="hint">${use}</span></details>`:''}${warn?`<div class="msg warn"><b>⚠ WARNING</b> · ${warn}</div>`:''}</div>`).join('');
+  // A row: [text, link, what it is for, its id, a warning shown under it, the machine]. A main row is the one file a
+  // machine needs: outlined, marked with its machine (data-machine: the tour finds it), what it is for written under it.
+  // The steps are numbered as they show
+  const rows=(r,main)=>r.map(([t,u,use,id,warn,mk])=>`<div class="r"${id?` id="${id}"`:''}><a href="${u}"${main?` class="main" data-machine="${mk}"`:''}>${t}</a>`
+    +(use?main?`<div class="hint">${use}</div>`:`<details class="info"><summary>what is it for?</summary><span class="hint">${use}</span></details>`:'')
+    +`${warn?`<div class="msg warn"><b>⚠ WARNING</b> · ${warn}</div>`:''}</div>`).join('');
   let n=0; const num=t=>`${++n} · ${t}`;
   const more=[['assembled STL',`${b}/stl`,'the whole model built from its parts, as one 3D file: to look at it or render it in another program'],
     ['STEP: parts',`${b}/step`,'the same model as true solids, for CAD (Fusion, FreeCAD, Onshape): every part a body with flat faces, not a triangle mesh','dl_step'],
@@ -130,13 +133,13 @@ export function renderDownloads(){ // the labels checkbox applies to every cut f
   // 2 · the files: one main button per machine, the other formats and the options folded under it
   $('#dl_title').textContent=num(printed?'The print files':'The files, by machine');
   const plates=p.sheets>2?`plate-1 … plate-${p.sheets}`:[...Array(p.sheets).keys()].map(i=>`plate-${i+1}`).join(', ');
-  $('#dl').innerHTML=printed?rows([[`print set (.zip) · ${plates}${rods?`, ${rods} dowel pins`:''}${nso?`, ${nso} standoffs`:''}, README`,`${b}/proto?${pq}`,'a 3MF per plate for the slicer, every part with the settings it needs, and one STL per part','pr_go']],true)
-    :rows([[`${ico} ${KIND} · sheets SVG + DXF (.zip)`,`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&grouped=${G}${U}`,'the usual one, a zip with one file per sheet: laser software opens the SVGs (LightBurn, xTool Creative Space, Glowforge), CAM the DXFs (Fusion, VCarve, SheetCAM)']],true);
+  $('#dl').innerHTML=printed?rows([[`print set (.zip) · ${plates}${rods?`, ${rods} dowel pins`:''}${nso?`, ${nso} standoffs`:''}, README`,`${b}/proto?${pq}`,'A 3MF per plate for the slicer, every part with the settings it needs, one STL per part, and README.txt: read it first.','pr_go','',MK]],true)
+    :rows([[`${ico} ${KIND} · sheets SVG + DXF (.zip)`,`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&grouped=${G}${U}`,`An SVG and a DXF for each sheet${K?', the assembly key':''} and README.txt: read it first. Laser software opens the SVGs (LightBurn, xTool Creative Space, Glowforge), CAM the DXFs (Fusion, VCarve, SheetCAM).`,'','',MK]],true);
   $('#dl_other').innerHTML=printed?'':rows([
     ['sheets PDF (one page per sheet)',`${b}/export?fmt=pdf&labels=${L}&key=${K}${U}`,'print it at 100 % to cut by hand or check the sizes; Glowforge and LightBurn open it too'],
     ['sheets EPS',`${b}/export?fmt=eps&labels=${L}&key=${K}${U}`,'for CorelDRAW, Illustrator and laser drivers that ask for EPS'],
     ['one file per piece SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&per_piece=1&grouped=${G}${U}`,'every part on its own, not nested: to nest them yourself (Deepnest, your laser software) or cut them one at a time']]);
-  $('#dl_print').innerHTML=mix?rows([[`⬢ 3D PRINTER · ${nso} standoffs (3MF)`,`${b}/standoffs`,'every standoff an object of its own, named by its size (S1, S2 …); the note in the sheets zip says which size goes where','dl_standoffs']],true):'';
+  $('#dl_print').innerHTML=mix?rows([[`⬢ 3D PRINTER · ${nso} standoffs (3MF)`,`${b}/standoffs`,'One 3MF for the slicer, every standoff an object of its own, named by its size (S1, S2 …). The note in the sheets zip says which size goes where.','dl_standoffs','','printer']],true):'';
   // 3 · build it: the key on its own, what goes where
   $('#build_title').textContent=num('Build it');
   $('#key_go').innerHTML=`<a href="${b}/key?units=${ST.unit}">assembly key (.txt) · which ${nso?'standoff':rods?(printed?'pin':'dowel'):'part'} goes where</a>`;

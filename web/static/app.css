@@ -141,6 +141,7 @@ h2 button.reset{float:right;text-transform:none;letter-spacing:0;font-size:11px;
 .dl{display:flex;flex-wrap:wrap;gap:6px}.dl.rows{flex-direction:column}.dl .r{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin-bottom:4px}.dl a{padding:6px 10px;border:1px solid var(--line);border-radius:4px;text-decoration:none;color:var(--ink);font-size:12px;background:var(--panel2)}.dl a:hover{border-color:var(--acc)}
 /* the Export tab: the one file each machine needs, outlined thick and bold (not by colour alone), and the job's summary */
 .dl a.main{border:2px solid var(--acc);font-weight:600;font-size:12.5px}#machines{line-height:1.6}#machines b{color:var(--ink)}#x_errors{border:1px solid currentColor}#x_errors button{margin-left:4px}
+.step>h2:first-child{margin-top:16px}.dl .r>.hint{max-width:100%}   /* a step's heading keeps its space above (h2:first-child takes it away) */
 table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 6px;border-bottom:1px solid var(--line);text-align:left}tr.bad td{color:var(--err)}tr:hover td{background:var(--panel2);cursor:pointer}
 dialog{width:min(620px,92vw);border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);padding:22px;font:14px/1.55 Inter,system-ui,sans-serif}
 /* A phone: the header wraps and the panel sits over the 3D view. Left unwrapped, the header's buttons made the page
