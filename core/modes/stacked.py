@@ -297,6 +297,10 @@ class Stacked(Mode):
             sl.raw = as_multi(g)
 
     @staticmethod
+    def fit_test(p):
+        return p["connect"] != "none"          # glued layers: no hole, no tab slot
+
+    @staticmethod
     def fit(p):
         return {"distribution": "count", "count": min(p["count"], 3)}, 0.0
 
