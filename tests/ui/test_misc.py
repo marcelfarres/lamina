@@ -2,7 +2,7 @@
 the spacing graph, the name field and the build order."""
 import pytest
 
-from .helpers import example, settle, plan, set_fields, state, use, menu, ROOT
+from .helpers import example, settle, plan, set_fields, state, use, menu, own_changelog, ROOT
 
 
 @pytest.mark.timeout(600)
@@ -143,18 +143,11 @@ def test_the_notes_keep_their_lists_from_a_windows_checkout(page, server):
             "- **The second note.** Two bullets are enough to run into each other.\n\n"
             "## 9.9.8\n\n- An older note.\n")
     bullets = 2
-    page.route("**/changelog.md", lambda r: r.fulfill(body=text.replace("\n", "\r\n"), content_type="text/markdown"))
-    try:
-        page.evaluate("v => localStorage.setItem('slicer_seen_version', JSON.stringify(v))", "9.9.8")
-        page.goto(server + "/"); settle(page); page.wait_for_timeout(600)
+    with own_changelog(page, server, text.replace("\n", "\r\n"), "9.9.8"):
         assert page.locator("#newsdlg[open]").count(), "the newest version did not announce itself"
         items = page.eval_on_selector_all("#news_body li", "els => els.map(e => e.textContent)")
         assert len(items) == bullets, items                              # every bullet a list item of its own
         assert not any(" - **" in t or "\n" in t for t in items)          # no bullet run into another
-    finally:
-        page.unroute("**/changelog.md")
-        if page.locator("#newsdlg[open]").count():
-            page.click("#news_go")                       # left open, it takes every later test's clicks
 
 
 def test_the_notes_show_their_pictures(page, server):
@@ -169,20 +162,13 @@ def test_the_notes_show_their_pictures(page, server):
             f"  [![The fold ▶]({pic})](https://marcelfarres.github.io/lamina/media/fold.mp4)\n\n"
             "- **A link.** [r/Lamina3D](https://www.reddit.com/r/Lamina3D) and [no](javascript:alert(1)).\n\n"
             "## 9.9.8\n\n- An older note.\n")
-    page.route("**/changelog.md", lambda r: r.fulfill(body=text, content_type="text/markdown"))
-    try:
-        page.evaluate("v => localStorage.setItem('slicer_seen_version', JSON.stringify(v))", "9.9.8")
-        page.goto(server + "/"); settle(page); page.wait_for_timeout(600)
+    with own_changelog(page, server, text, "9.9.8"):
         page.wait_for_function("[...document.querySelectorAll('#news_body img')].every(i => i.complete)")
         imgs = page.eval_on_selector_all("#news_body img", "els => els.map(i => [i.getAttribute('src'), i.alt, i.naturalWidth])")
         assert imgs == [["static/news/0.4.0-lamp.jpg", "The lamp tick", 900], ["static/news/0.4.0-lamp.jpg", "The fold ▶", 900]], imgs
         links = page.eval_on_selector_all("#news_body a", "els => els.map(a => [a.getAttribute('href'), a.textContent])")
         assert links == [["https://marcelfarres.github.io/lamina/media/fold.mp4", ""],
                          ["https://www.reddit.com/r/Lamina3D", "r/Lamina3D"], ["#", "no"]], links
-    finally:
-        page.unroute("**/changelog.md")
-        if page.locator("#newsdlg[open]").count():
-            page.click("#news_go")
 
 
 def test_what_is_new_opens_on_this_version_and_every_picture_in_it_loads(page):

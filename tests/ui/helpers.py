@@ -1,11 +1,30 @@
 """What the UI tests share: waiting for the page, reading its state, filling its boxes, and the snippets of
 JavaScript more than one test runs."""
+import contextlib
 import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 # list-shaped parameters are placed from the 3D view (points, axes, per-slice maps), not typed into a box: the sweep
 # sets everything with a box of its own, and test_the_tables_take_a_row exercises the rest through their + buttons
 TYPED = ("number", "int", "bool", "choice", "text", "vec2", "vec3")
+
+
+@contextlib.contextmanager
+def own_changelog(page, server, text, seen):
+    """The page loaded on a changelog of the test's own, with `seen` the version this browser last saw. Afterwards the
+    real changelog and the version seen before come back, and the page is loaded again on them: the notes are read
+    once per page load, so the test's versions stayed for every later test on the shared page (bugs/077: the next one
+    saw 9.9.9, and the tour of what is new found no step of its version and left the dialog over every later click)."""
+    before = page.evaluate("() => localStorage.getItem('slicer_seen_version')")
+    page.route("**/changelog.md", lambda r: r.fulfill(body=text, content_type="text/markdown"))
+    try:
+        page.evaluate("v => localStorage.setItem('slicer_seen_version', JSON.stringify(v))", seen)
+        page.goto(server + "/"); settle(page); page.wait_for_timeout(600)   # the notes are fetched after the page is up
+        yield
+    finally:
+        page.unroute("**/changelog.md")
+        page.evaluate("v => v === null ? localStorage.removeItem('slicer_seen_version') : localStorage.setItem('slicer_seen_version', v)", before)
+        page.goto(server + "/"); settle(page)
 
 
 def settle(page, timeout=180_000):
