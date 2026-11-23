@@ -14,14 +14,14 @@
 
 **Turn a 3D model into flat parts you can cut, and check that they go back together.**
 
-Lamina is a free replacement for Autodesk's discontinued *Slicer for Fusion 360* (and *123D Make* before it). Load a model, pick a construction
-technique, and it computes every part, checks the assembly as a physical object (and fixes or explains what does
-not work), nests the parts on your sheets and exports cut files for a laser, CNC router, plasma table or vinyl
-cutter. It runs on your own machine; your models never leave it.
+Lamina is a free laser and CNC slicer, and a replacement for Autodesk's discontinued *Slicer for Fusion 360* (and *123D Make* before it). Choose your machine (laser, CNC router, 3D printer, or laser + 3D printer), load a model and pick a construction technique. Lamina computes every part and checks the assembly as a physical object: it fixes or explains what does not work. It nests the parts on your sheets or print plates, and exports cut files for a laser, CNC router, plasma table or vinyl cutter, or 3MF plates for a 3D printer. It runs on your own machine. Your models never leave it.
 
 **A quick word about the word "slicer"**, because it trips almost everyone up: this is not the 3D-printing kind.
 Lamina works out the flat pieces — layers, stacked slices, egg-crate slots, ribs, or a whole surface unfolded flat —
-that you cut from plywood, acrylic, cardboard, paper or steel and then put back together into the shape.
+that you cut from plywood, acrylic, cardboard, paper or steel, or print flat, and then put back together into the shape.
+For a print it does not make G-code: it gives your printer's own slicer one 3MF per plate.
+
+**Guides:** [3D model to laser-cut, CNC or 3D-printed parts](https://marcelfarres.github.io/lamina/3d-model-to-laser-cut/?ref=github-readme) · [compared with Slicer for Fusion 360](https://marcelfarres.github.io/lamina/slicer-for-fusion-360-alternative/?ref=github-readme) · [stacked slices](https://marcelfarres.github.io/lamina/stacked-slices/?ref=github-readme) · [interlocking slices](https://marcelfarres.github.io/lamina/interlocking-slices/?ref=github-readme) · [papercraft](https://marcelfarres.github.io/lamina/papercraft/?ref=github-readme) · [3D print flat parts](https://marcelfarres.github.io/lamina/3d-print-flat-parts/?ref=github-readme)
 
 ## ▶ [Try it in your browser now](https://marcelfarres.github.io/lamina/app/?ref=github-readme)
 
@@ -41,7 +41,7 @@ the stills below are the same scenes.
 |---|---|
 | [![Stacked: parallel slices with dowels](docs/media/stacked_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Stacked** — parallel sections, touching or spaced, held by dowels, pegs or spacers | [![Interlocked: two slotted families forming an egg-crate](docs/media/interlocked_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Interlocked** — two slotted families, egg-crate |
 | [![Radial: half-slices fanned around an axis with locking rings](docs/media/radial_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Radial** — half-slices around an axis, locked by rings | [![Curve: ribs following a curve through the model](docs/media/curve_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Curve** — ribs that follow a bend, not the grid |
-| [![Folded: a surface unfolded into flat panels with score lines](docs/media/folded_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#folded)<br>**Folded** — the surface unfolded flat, papercraft nets as Pepakura makes them, with 13 joint types | [![A cube net cut with the tongue joint](docs/media/joint_tongue.png)](https://marcelfarres.github.io/lamina/?ref=github-readme#folded)<br>**Thirteen joints** — seam, tab, gear, tongue, puzzle, laced… |
+| [![Folded: a surface unfolded into flat panels with score lines](docs/media/folded_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#folded)<br>**Folded** — the surface unfolded flat, papercraft nets as Pepakura makes them, with 15 joint types | [![A cube net cut with the tongue joint](docs/media/joint_tongue.png)](https://marcelfarres.github.io/lamina/?ref=github-readme#folded)<br>**Fifteen joints** — seam, tab, gear, tongue, puzzle, laced… |
 | [![Plaque: a bonsai in slices standing on a flat back plate](docs/media/plaque_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Plaque** — for the wall: the model cut off at a back plate, its slices standing on the plate, held by teeth through plate slots | [![Band lattice: a sphere as rings across x, y and z, half-lapped where they cross](docs/media/bands_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Band lattice** — rings across x, y and z, slotted together; Lamina gives the order the pieces slide in |
 | [![Stacked ring slices: a scanned head as a stack of rings on dowels](docs/media/rings_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Ring slices** — a stacked slice keeps only a wall: a shell on dowels, about a quarter of the material | [![The sphere's band lattice built up piece by piece](docs/media/bands_build_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Band lattice, piece by piece** — the first family whole, then every piece slid in along its slots |
 | [![Radial with an axis through each ball of a dumbbell, at right angles to each other, and the plane between them at the neck](docs/media/axes_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Radial, an axis per lobe** — a fan per ball, one spine through all of them | [![The plane between two lobes of the snowman selected and tilted](docs/media/lobes_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#editing)<br>**Where lobes meet** — a plane you select, move and tilt like any slice |
@@ -51,7 +51,7 @@ the stills below are the same scenes.
 | | |
 |---|---|
 | ![The checks panel listing errors and one-click fixes](docs/media/checks.jpg) | ![Two cut sheets with nested, labelled parts](docs/media/sheets.jpg) |
-| **Before you cut**, every part is checked as a physical object: too thin, severed by a slot, held by nothing, larger than your sheet — most with a one-click fix. | **Nesting and cut files**: parts packed against each other's outlines, engraved labels, and SVG, DXF, PDF or EPS with the usual cut / score / engrave layers. |
+| **Before you cut**, every part is checked as a physical object: too thin, severed by a slot, held by nothing, larger than your sheet — most with a one-click fix. | **Nesting and cut files**: parts packed against each other's outlines, engraved labels, and SVG, DXF, PDF or EPS with the usual cut / score / engrave layers, or 3MF print plates for a 3D printer. |
 
 *(GitHub renders stills only. The moving versions of all of these are on the
 [landing page](https://marcelfarres.github.io/lamina/?ref=github-readme).)*
@@ -544,7 +544,7 @@ does not slip through. It carries the most signal for stacked and folded work; d
 
 ### The web UI
 
-Dark, five tabs (Model · Technique · Sheet & fit · Checks · Export). Every change re-slices. The 3D view and the cut
+Dark, six tabs (Model · Technique · Sheet & fit · Light · Checks · Export). Every change re-slices. The 3D view and the cut
 sheets are always the same plan.
 
 - **Settings**: each tab is in sections (Slices, Joining, Spacing, Position and so on). Click a heading to fold a
@@ -556,11 +556,11 @@ sheets are always the same plan.
   others at the foot of each group. A setting you changed always shows. The result is the same either way.
 - **Changed settings**: a setting that is not at its default has a bold name and a ↺ sign. Click the sign to put the
   default back.
-- **Techniques** are six cards, each with a drawing of what it makes.
+- **Techniques** are seven cards, each with a drawing of what it makes.
 - **Messages** say what they are: a warning starts with ⚠ WARNING and an error with ✖ ERROR. Several notes fold into
   one line. A connector that was asked for and left out is a warning, with a ring in the 3D view at each place.
 - **Tools in the 3D view**: buttons at the left of the view add or remove a dowel, a curve point or an axis, add a
-  branch, and tilt or roll a slice. Pick one, then click or drag the model. The keys (alt-click, shift-drag,
+  branch, put a seam, select faces to keep or remove (a mask), and tilt or roll a slice. Pick one, then click or drag the model. The keys (alt-click, shift-drag,
   ctrl-drag) do the same.
 - **Light**: tick *light* over the 3D view to light the model and see the soft shadows it throws on the floor, walls
   and ceiling of a room. The *Light* tab holds the lights, four at most. A light is a bulb (all round) or a spot (a
@@ -573,7 +573,7 @@ sheets are always the same plan.
   is a step of undo. An example or a model that opens turns the light off (a big model drawn lit is slow on a
   computer without a graphics card); *reset tab* puts every Light setting back and turns the light off too.
 - **Export tab**: the buttons first. The text about a file opens with a click on the line under its button.
-- **Top bar**: project name, open and save, a *version* menu, undo and redo, and a *help* menu with the guide, the
+- **Top bar**: project name, open and save, a *version* menu, undo and redo, and a *help* menu with the guide, a *tour of the page*, the
   release notes, the links and *clear my data*.
 
 - **3D view**: drag to orbit, wheel to zoom, right-drag to pan. Click a part to select it: a yellow arrow slides it
@@ -677,7 +677,7 @@ flowchart LR
         HELP[["used by the techniques in step 2<br/>core/notch.py: slots where families cross<br/>core/unfold.py: mesh → flat panels<br/>core/ring.py, core/ringcut.py: rings, bands<br/>core/slidein.py: the order band pieces go in<br/>core/modes/connectors.py: dowels, pegs, spacers"]]
         APP -- "model + parameters" --> S1 --> S2 --> S3 --> S4
         S1 -. "preview mesh" .-> APP
-        S4 -- "a part floats, autofix = add:<br/>add a crossing slice, build again<br/>(3 passes at most)" --> S2
+        S4 -- "a part floats, autofix = add:<br/>add a crossing slice, build again<br/>(the first build and 2 fix rounds at most)" --> S2
         S4 ~~~ HELP
     end
 
@@ -730,7 +730,7 @@ slice · not connected to the main assembly (region-level connectivity through s
 plane misses material · does not fit the sheet (auto-split when `split` is on) · two slots overlap · hole too close
 to the outline · folded: joint shrunk or skipped for its triangle, listed by seam number · folded: the material does
 not fold at that thickness (plywood, MDF, acrylic, balsa, foam board, printed plastic, or card and metal past their
-limit), with a one-click switch to faces joined by ribs · slot opens away from the insertion direction · a boxy model
+limit), with a one-click switch to faces joined by ribs · slot opens away from the insertion direction · a finger between two slots thinner than the material can take (warning, with its width) · a boxy model
 a few degrees off square (the Model tab offers **square it up**). Every message says what to do about it.
 
 ## Tests
@@ -777,7 +777,7 @@ the version people download.
 ```text
 core/        planner, modes, unfold, notch, checks, nest, split, export, solid
 web/         FastAPI app + single-page UI: static/index.html (markup), static/js/ (one module per concern), static/app.css; vendored three.js
-examples/    35 test models: 29 synthetic + a scanned head, a porcelain horse statue, three animals and the bunny (terms in examples/README.md)
+examples/    38 test models: synthetic shapes, a scanned head, a porcelain horse statue, animals and the bunny (terms in examples/README.md)
 docs/        index.html + media/ (the GitHub Pages site), roadmap.md, folded-panels.md, original-slicer-reference.md
 tests/       pytest suite, ui/ (the app in a browser), test_unfold.py, run_matrix.py
 ```

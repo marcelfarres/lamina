@@ -1,13 +1,16 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8">
-<!-- The title is the one on-page field search engines weight heavily, so it carries the phrase people actually
-     type — "Slicer for Fusion 360 alternative" — not just the product name. -->
-<title>Lamina — free Slicer for Fusion 360 alternative: 3D models into flat cut parts</title>
+<!-- The title is the one on-page field search engines weight heavily, so it carries the phrases people type:
+     "laser slicer" and "CNC" (0 impressions for them in 3 months while the page never said them, Search Console
+     2026-11-23) and "Slicer for Fusion 360 alternative" (where the clicks came from). About 65 characters and the
+     same as og:title: Google rewrote the old 80-character title to og:title, so the Fusion words never showed.
+     3D printing is in the description and the H1: "3D printing slicer" in a title brings people who want G-code. -->
+<title>Lamina: free laser and CNC slicer, Slicer for Fusion 360 alternative</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<!-- "Slicer" sends people to 3D-printing tools, so the description names the other words they search with —
-     layered, stacked slices, 2D layers — and rules out the wrong kind of slicing in the same breath. -->
-<meta name="description" content="Lamina is a free, open-source replacement for Autodesk's discontinued Slicer for Fusion 360: turn a 3D model into layered, stacked or interlocking flat parts — 2D layers cut from plywood, acrylic, cardboard or sheet metal on a laser, CNC router, plasma table or vinyl cutter — not the 3D-printing kind of slicing. It checks the parts hold together, nests them on your sheets and exports the cut files.">
+<!-- What it is and where it runs first (the winners for these searches all say free and in the browser), then the
+     machines and formats people search for, then the Fusion replacement. -->
+<meta name="description" content="Free laser and CNC slicer in your browser: turn an STL, OBJ or 3MF model into stacked, interlocking, radial or folded flat parts. Export SVG and DXF for a laser cutter, CNC router or vinyl cutter, or 3MF plates for your 3D printer. A free alternative to Autodesk's discontinued Slicer for Fusion 360.">
 <link rel="icon" href="favicon.svg">
 <!-- Two jobs, one line. Search engines: every ?ref= tagged link posted to a forum is the same page, not a dozen
      duplicates competing with each other. GoatCounter: it reads the canonical URL to decide the path it records,
@@ -21,8 +24,8 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://marcelfarres.github.io/lamina/">
-<meta property="og:title" content="Lamina — 3D models into flat cut parts">
-<meta property="og:description" content="A free replacement for Autodesk's discontinued Slicer for Fusion 360 — not the 3D-printing kind of slicing. Stacked, interlocked, radial, ribbed, folded, plaque-mounted or band-lattice flat parts for laser, router, plasma or vinyl cutters, with physical checks, one-click fixes and nesting.">
+<meta property="og:title" content="Lamina: free laser and CNC slicer, Slicer for Fusion 360 alternative">
+<meta property="og:description" content="Turn a 3D model into flat parts you can cut or print: stacked, interlocked, radial, ribbed, folded, plaque-mounted or band-lattice, for a laser, CNC router, plasma or vinyl cutter, or a 3D printer. Physical checks, one-click fixes and nesting. Free, in your browser.">
 <!-- Open Graph needs an absolute URL: Slack, LinkedIn and Discord do not resolve a relative one, and the card
      renders with an empty image slot. Keep this in step with the Pages origin if the repo is ever renamed. -->
 <meta property="og:image" content="https://marcelfarres.github.io/lamina/media/hero.jpg">
@@ -30,11 +33,15 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://marcelfarres.github.io/lamina/media/hero.jpg">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Lamina","alternateName":"lamina3d",
-"sameAs":["https://github.com/marcelfarres/lamina","https://pypi.org/project/lamina3d/"],
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Lamina",
+"alternateName":["Lamina slicer","Lamina laser slicer","lamina3d"],
+"sameAs":["https://github.com/marcelfarres/lamina","https://pypi.org/project/lamina3d/","https://www.reddit.com/r/Lamina3D"],
 "applicationCategory":"DesignApplication","operatingSystem":"Windows, macOS, Linux, Web",
-"url":"https://marcelfarres.github.io/lamina/",
-"description":"Free and open-source replacement for Autodesk's discontinued Slicer for Fusion 360: turns a 3D model into flat parts for a laser, CNC router, plasma table or vinyl cutter.",
+"url":"https://marcelfarres.github.io/lamina/","screenshot":"https://marcelfarres.github.io/lamina/media/hero.jpg",
+"description":"Free laser and CNC slicer and open-source replacement for Autodesk's discontinued Slicer for Fusion 360: turns a 3D model into flat parts for a laser cutter, CNC router, plasma table, vinyl cutter or 3D printer, checks that they hold together, nests them and exports SVG, DXF, PDF, EPS and 3MF.",
+"keywords":"laser slicer, CNC slicer, Slicer for Fusion 360 alternative, 123D Make alternative, 3D model to laser cut, STL to SVG, STL to DXF, CNC router plywood sculpture, 3D print flat parts, print and fold, stacked slices, interlocking slices, egg-crate, waffle, radial slices, papercraft, unfolding",
+"featureList":["Machine choice: laser, CNC router, 3D printer, or laser and 3D printer","Stacked slices on dowels, pegs, spacers or printed standoffs, and ring slices","Interlocked egg-crate slices","Radial slices on one or more axes","Ribs along a curve, with branches","Folded panels with fifteen joints, including printed panels that fold, click or snap together","Plaque and band lattice","Physical checks with one-click fixes","Nesting by outline, on sheets or on 3D-printer plates","SVG, DXF, PDF and EPS to cut, 3MF plates with per-part print settings, STL and STEP","Runs in the browser, no account, no upload"],
+"isAccessibleForFree":true,
 "license":"https://www.gnu.org/licenses/agpl-3.0.html",
 "offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
 </script>
@@ -61,8 +68,9 @@ header{position:sticky;top:0;z-index:10;background:#0f1012ee;backdrop-filter:blu
 header .wrap{display:flex;align-items:center;gap:18px;height:56px}
 header b{font-size:18px;letter-spacing:.02em;display:flex;align-items:center;gap:9px}
 header b img{width:24px;height:24px;border:0;border-radius:0;background:none}
-header nav{margin-left:auto;display:flex;gap:18px;font-size:14px}
-header nav a{color:var(--muted);text-decoration:none}header nav a:hover{color:var(--ink)}
+/* twelve links: a 13px gap keeps them on one line at the 1120px wrap, and nowrap keeps "How it works" whole */
+header nav{margin-left:auto;display:flex;gap:13px;font-size:14px}
+header nav a{color:var(--muted);text-decoration:none;white-space:nowrap}header nav a:hover{color:var(--ink)}
 /* --acc on a filled button gives white text 3.2:1, below the 4.5:1 WCAG AA needs at 14px/600. --acc-btn is the
    same hue darkened to 5.2:1; --acc stays as-is for link text, where it already passes. */
 .btn{display:inline-block;padding:9px 16px;border-radius:6px;background:var(--acc-btn);color:#fff!important;text-decoration:none;font-weight:600;font-size:14px}
@@ -88,6 +96,8 @@ figcaption{color:var(--muted);font-size:13px;margin-top:8px}
 .g2{grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr))}
 .g3{grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+a.card{display:block;text-decoration:none;color:inherit}a.card:hover{border-color:var(--acc)}
+#guides img{width:100%;aspect-ratio:4/3;object-fit:cover}
 .card img,.card video{border:0;border-radius:0;border-bottom:1px solid var(--line)}
 /* a technique per row: the clip takes three fifths, the text the rest; stacked on a phone */
 .tech{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:26px;align-items:center;padding:28px 0;border-top:1px solid var(--line)}
@@ -137,6 +147,7 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
     <a href="#spacing">Spacing</a>
     <a href="#checks">Checks</a>
     <a href="#export">Export</a>
+    <a href="#guides">Guides</a>
     <a href="#made">Gallery</a>
     <a href="#status">Status</a>
     <a href="#start">Get started</a>
@@ -147,16 +158,19 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
 
 <main id="content" tabindex="-1">
 <section><div class="wrap">
-  <h1>Turn a 3D model into flat parts you can cut.</h1>
+  <h1>A free laser and CNC slicer: turn a 3D model into flat parts you can cut or print.</h1>
   <p class="lead">Lamina slices, unfolds and nests a model into parts for paper, cardboard, plywood, acrylic or sheet
   metal — then checks that the result actually holds together, and hands you the cut files for a laser, a CNC router,
-  a plasma table or a vinyl cutter.</p>
+  a plasma table or a vinyl cutter, or the print plates for a 3D printer. Choose your machine first: laser, router,
+  3D printer, or laser + 3D printer.</p>
   <p class="sub" style="margin:0 0 10px">A free replacement for Autodesk's discontinued <em>Slicer for Fusion 360</em>
   (and <em>123D Make</em> before it) — every construction technique of the original, plus sheet-metal ribs, connecting strips and per-slice edits it
-  never had. Runs on your own machine; your models never leave it.</p>
+  never had. Runs on your own machine; your models never leave it.
+  <a href="slicer-for-fusion-360-alternative/">See the two side by side.</a></p>
   <p class="sub" style="margin:0 0 22px"><b>A quick word about the word “slicer”</b>, because it trips almost everyone
   up: this is not the 3D-printing kind. Lamina works out the flat pieces — layers, stacked slices, egg-crate slots,
-  ribs, a whole surface unfolded flat — that you cut from a sheet and put back together into the shape.</p>
+  ribs, a whole surface unfolded flat — that you cut from a sheet, or print flat, and put back together into the
+  shape. For a print it does not make G-code: it gives your printer's own slicer one 3MF per plate.</p>
   <div style="display:flex;gap:12px;flex-wrap:wrap">
     <a class="btn" href="app/index.html">Try it in your browser</a>
     <a class="btn ghost" href="#start">Run it locally</a>
@@ -173,9 +187,9 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
     <figcaption>The 3D preview and the cut sheets are always the same plan.</figcaption>
   </figure>
   <div class="stats">
-    <div><b>5</b><span>construction techniques</span></div>
-    <div><b>13</b><span>folded-panel joints</span></div>
-    <div><b>6</b><span>cut and 3D formats</span></div>
+    <div><b>7</b><span>construction techniques</span></div>
+    <div><b>15</b><span>folded-panel joints</span></div>
+    <div><b>7</b><span>cut, print and 3D formats</span></div>
     <div><b>0.2–9 mm</b><span>paper to plywood</span></div>
   </div>
 </div></section>
@@ -196,15 +210,20 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
         <li><b>Load</b> — STL, OBJ, 3MF, PLY, OFF or GLB; STEP and BREP with the optional CAD extra.</li>
         <li><b>Prepare</b> — turn it upright, scale it or give a target size, round off details too small to cut,
             smooth noise, hollow it out or thicken thin walls.</li>
-        <li><b>Build</b> — pick a technique and its parameters; move, tilt or delete individual slices by hand.</li>
+        <li><b>Build</b> — pick a technique and its parameters; move, tilt or delete individual slices by hand. Tool
+            buttons beside the 3D view add a dowel, a curve point or an axis, put a seam or tilt a slice, and work on
+            a tablet too.</li>
+        <li><b>Machine</b> — pick it first: laser, CNC router, 3D printer, or laser + 3D printer, then the machine
+            itself (Glowforge, xTool, OMTech, a Bambu Lab or Prusa printer and more, with their beds). Settings that
+            machine does not need wait behind one click.</li>
         <li><b>Material</b> — 21 of them, from paper, greyboard and EVA foam through plywood, basswood and acrylic to
             steel, stainless, brass and copper, each with the thicknesses it is sold in (gauges, fractions of an
             inch, ounces of copper), the sheet sizes, a density for the weight, and only the machines that can cut
             it — and PLA and PETG to 3D-print the parts at full size, nested plate by plate on your printer's bed and
             downloaded as one 3MF per plate. Not on the list?
             Keep your own, with its own density.</li>
-        <li><b>Check and export</b> — physical checks with one-click fixes, then cut files, a solid, or a scaled
-            3D-printable prototype.</li>
+        <li><b>Check and export</b> — physical checks with one-click fixes, then one main file per machine: cut files,
+            3MF print plates, a solid, or a scaled 3D-printable prototype.</li>
       </ul>
     </div>
   </div>
@@ -214,6 +233,21 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
     <figcaption>Drag a coloured ring to turn the model, or use quarter-turn buttons. Round, smooth, hollow or thicken
     it first — the same remesh that repairs meshes that are not watertight, and a curve stays a curve.</figcaption>
   </figure>
+  <div class="grid g3" style="margin-top:22px">
+    <figure>
+      <img src="app/static/news/0.4.0-machine.jpg" width="482" height="416" loading="lazy" decoding="async" alt="What you make with, at the top of Sheet and fit: laser, router, 3D printer or laser + 3D printer, and the machine under them">
+      <figcaption>Pick what you make with first: laser, router, 3D printer, or laser + 3D printer.</figcaption>
+    </figure>
+    <figure>
+      <img src="app/static/news/0.4.0-tools.jpg" width="900" height="664" loading="lazy" decoding="async" alt="The tool column at the left of the 3D view">
+      <figcaption>The tool column beside the 3D view: add a dowel, a curve point or an axis, put a seam, tilt a slice.</figcaption>
+    </figure>
+    <figure>
+      <img src="app/static/news/0.4.0-library.jpg" width="900" height="523" loading="lazy" decoding="async" alt="The library page: a project's revisions, each with open, export and delete">
+      <figcaption>The <b>library</b> keeps your projects and every revision. New here? <b>help</b> → <b>Tour of the
+      page</b> walks you through it.</figcaption>
+    </figure>
+  </div>
 </div></section>
 
 <section id="techniques"><div class="wrap">
@@ -245,6 +279,14 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
       collar, and a ring that sits inside the hole of the ring beside it gets a lug to their dowel, so every ring is
       held. A ring longer than the <b>max piece length</b> is cut across its wall into pieces joined by puzzle tabs,
       to fit a small sheet or printer bed.</p>
+      <p><b>Out of sight.</b> With <b>hide dowels</b>, a dowel goes only where the layers above and below cover its
+      hole, so no hole shows on the steps. A layer's name, arrows and dowel numbers go only where the layer above
+      covers them, so the top layer stays clean. With a gap between the layers, <b>connect with</b> = <b>standoff</b>
+      holds them on 3D-printed posts: the laser cuts the layers and the printer makes the posts. Try <i>shade</i>.</p>
+      <figure style="margin:0 0 14px">
+        <img src="media/hide_dowels.jpg" width="1760" height="616" loading="lazy" decoding="async" alt="One layer of a stacked sphere from above, with hide dowels off and on: two holes on the open step, then all four under the layer glued on top">
+        <figcaption>Hide dowels, off and on: every hole moves under the next layer.</figcaption>
+      </figure>
       <p class="clip"><b>In the first clip:</b> a 260 mm porcelain horse rearing on its base (the bundled
       <b>horse_statue</b>), in 3 mm cardboard: side profiles across its width with a 4 mm gap, on 2 mm dowels at random
       points; then the holes round, hexagonal, cross-shaped and back to square. Across the width, each layer is a whole
@@ -258,7 +300,7 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
       and the lit band goes with it.</p>
       <p class="clip"><b>Parameters:</b> axis · spacing or count · gap · outline mid / outer / inner · connector
       type, size and hole shape · placement · points per island · per-slice offset, tilt, roll and thickness · ring
-      slices, wall, solid ends · max piece length.</p>
+      slices, wall, solid ends · max piece length · hide dowels · hide engravings · standoffs.</p>
     </div>
   </article>
   <article class="tech">
@@ -354,7 +396,7 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
     <div>
       <h3>Folded panels</h3>
       <p>Papercraft nets, as Pepakura makes them, and more: the surface simplified to the facet size you choose, unfolded into flat panels with score lines, and joined at
-      the seams with any of thirteen joints — glue tabs for paper and card, laces and rivets for leather and cloth,
+      the seams with any of fifteen joints — glue tabs for paper and card, laces and rivets for leather and cloth,
       strips for cardboard, slotted angle ribs for sheet metal. Panels grow until they would overlap themselves or
       run off the sheet. Works on closed shapes and on open surfaces such as a mask or a clothing pattern; separate
       mode cuts every triangle alone for shapes with deep cavities. A sheet too thick to fold, like plywood or
@@ -363,7 +405,22 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
       <p><b>Print it flat, fold it up.</b> With PLA or PETG as the material, a panel prints at its full thickness
       with a V groove along every fold, cut to that fold's own angle: the thin skin at the bottom is the hinge, and
       the fold stops when it reaches the model's shape. Add windows for a lamp shade, and drag the fold slider to
-      watch the flat panel fold into the model. Try the examples <i>fold_test</i> and <i>fold_lamp</i>.</p>
+      watch the flat panel fold into the model. Two printed joints close the seams without glue: <b>click</b>, a
+      tooth that snaps under a bar, and <b>snap</b>, a closed clip that slides along a wall on each panel. Try the
+      examples <i>fold_test</i>, <i>fold_lamp</i> and <i>fold_box</i>.</p>
+      <p><b>Paper lamps.</b> Set <b>windows are</b> to <b>closed with paper</b>: a paper part for each window, or a
+      thin printed layer. <b>Merge</b> makes faces one flat face. Try <i>paper_lamp</i>, a lantern of twelve
+      dodecahedra, and <i>fold_lantern</i>, a plywood lantern of 72 pieces.</p>
+      <div class="grid g2" style="margin:0 0 14px">
+        <figure>
+          <img src="app/static/news/0.4.0-joints.jpg" width="900" height="376" loading="lazy" decoding="async" alt="The fold_box example laid flat twice: a click joint, then the short walls a snap joint's clip slides along">
+          <figcaption>Printed panels: a click joint, and the walls a snap clip slides along.</figcaption>
+        </figure>
+        <figure>
+          <img src="app/static/news/0.4.0-paper-lamps.jpg" width="900" height="413" loading="lazy" decoding="async" alt="The paper_lamp example, a lantern of twelve dodecahedra, twice: its pentagon windows open, then closed with paper">
+          <figcaption>paper_lamp, its windows open, then closed with paper.</figcaption>
+        </figure>
+      </div>
       <p><b>Keep only a part: a mask.</b> Put a seam round the back of a head, select the back with one click, remove
       it, and only the mask is cut: the face with its whole mane. The removed part stays removed when you change the face size. Try the example
       <i>lion_head</i>.</p>
@@ -384,14 +441,20 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
       back, so the plate holds everything. You choose which side of the model goes against the plate and how deep the
       model sinks into it; what is behind the plate is left out. The slices can stand side by side, fan out round a
       centre, or cross each other. A piece of a slice that does not reach the plate hangs from the slice beside it
-      on flat spacers.</p>
+      on flat spacers. On a crossed plaque, <b>into the plate first</b> picks the X or Y slices, and the others slide
+      onto them one by one. <b>First family height</b> makes the first ones a low rail.</p>
+      <figure style="margin:0 0 14px">
+        <img src="app/static/news/0.4.0-first.jpg" width="900" height="664" loading="lazy" decoding="async" alt="The cow as a plaque: the rail goes in first, then the ribs slide onto it">
+        <figcaption>The cow as a plaque: the rail goes in first, then the ribs slide onto it.</figcaption>
+      </figure>
       <p>The plate is a circle, an ellipse, a rectangle, a rounded rectangle, a hexagon or a shield fitted round the
       model, the model's own silhouette, or an outline you draw and load as an SVG or DXF file. The bundled
       <b>bonsai</b>, <b>droplet</b> and <b>figure</b> open this way.</p>
       <p class="clip"><b>In the clip:</b> the bonsai in 3 mm slices side by side, 3 mm apart, on a rounded plate, sunk 27 mm into
       it; then the plate as a circle, as the tree's own silhouette, and rounded again.</p>
       <p class="clip"><b>Parameters:</b> back of the model · sink · layout (side by side, radial, crossed) · plate
-      shape, margin, size, offset and rotation · plate thickness · teeth per slice, tooth width and spacing.</p>
+      shape, margin, size, offset and rotation · plate thickness · teeth per slice, tooth width and spacing · into
+      the plate first · first family height.</p>
     </div>
   </article>
   <article class="tech">
@@ -419,10 +482,11 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
 </div></section>
 
 <section id="folded"><div class="wrap">
-  <h2>Folded panels, thirteen ways to join them</h2>
+  <h2>Folded panels, fifteen ways to join them</h2>
   <p class="sub">Glue tabs for paper, laces and rivets for leather and cloth, connecting strips for cardboard,
   slotted angle ribs for sheet metal. Joint sizes adapt to the triangle they sit in, and a hole or slot never
-  crosses a fold line.</p>
+  crosses a fold line. The thirteen below are for cut sheets. Two more, <b>click</b> and <b>snap</b>, close printed
+  panels without glue: see <a href="3d-print-flat-parts/">3D print it as flat parts</a>.</p>
   <!-- the chips swap one picture: the same cube net, cut with each joint -->
   <div class="chips" id="joints">
     <button class="chip on" data-j="seam" data-t="plain edge — glue or sew it">seam</button>
@@ -472,7 +536,9 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
 <section id="light"><div class="wrap">
   <h2>See it lit before you cut it</h2>
   <p class="sub">Tick <i>light</i> over the 3D view. The model stands in a room, a lamp shines inside it, and the walls
-  show the light and the shadows it will throw. You see the pattern of a lamp shade before you cut one panel.</p>
+  show the light and the shadows it will throw. You see the pattern of a lamp shade before you cut one panel. The
+  <b>Light</b> tab holds up to four bulbs and spots: drag them in the view, and the project keeps them. A new model
+  opens unlit.</p>
   <div class="grid g2">
     <figure>
       <video src="media/light.mp4" poster="media/light_poster.jpg" width="1100" height="826"
@@ -586,7 +652,8 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
 <section id="checks"><div class="wrap">
   <h2>It tells you what will not work — and offers the fix</h2>
   <p class="sub">Lamina checks the plan as a physical object, not just as geometry. Every message says what is wrong
-  and what to do about it, and most carry buttons that apply the change.</p>
+  and what to do about it, and most carry buttons that apply the change. A warning starts with ⚠ WARNING and an
+  error with ✖ ERROR, so neither depends on colour.</p>
   <figure>
     <img src="media/checks.jpg" width="2000" height="963" loading="lazy" decoding="async" alt="The checks tab listing errors with one-click fix buttons">
     <figcaption>Errors mean it will not work, warnings mean look at it. Auto-fix adds crossing slices, rings or
@@ -598,9 +665,20 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
       glued contact. A head joined to nothing is reported as a separate group.</p></div>
     <div><h3>Cuttable</h3><p class="sub">Parts too small or too thin to handle, bridges that snap, tips and slivers
       too thin for too long (the point of a radial slice, the wall left beside a slot — trimmed off blunt at a click), slots that sever
-      a part, holes too close to an outline, two cuts overlapping.</p></div>
+      a part, holes too close to an outline, two cuts overlapping, a finger between two slots thinner than your
+      material can take (with its width).</p></div>
     <div><h3>Buildable</h3><p class="sub">Slices of one family that collide, radial slices meeting at the axis,
       slots opening away from the insertion direction, parts larger than the sheet.</p></div>
+  </div>
+  <div class="grid g2" style="margin-top:22px">
+    <figure>
+      <img src="app/static/news/0.4.0-warnings.jpg" width="900" height="490" loading="lazy" decoding="async" alt="A dowel warning, and the rings in the 3D view where the dowels found no room">
+      <figcaption>⚠ A dowel with no room is a counted warning, ringed in the 3D view.</figcaption>
+    </figure>
+    <figure>
+      <img src="app/static/news/0.4.0-material.jpg" width="900" height="522" loading="lazy" decoding="async" alt="The egg's spine is a comb of thin fingers: in acrylic, which cracks, the warning asks for 1.5 times the sheet">
+      <figcaption>Weak fingers: in acrylic, which cracks, a finger must be 1.5 times the sheet.</figcaption>
+    </figure>
   </div>
   <p class="sub" style="margin-top:18px">A coverage figure tells you how much of the model the parts actually
   represent, so a leg or an ear that no slice reaches does not slip through unnoticed. A boxy model sitting a few
@@ -665,7 +743,10 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
         <li><b>One thickness per sheet</b> — change a part's thickness and it is cut from other stock, so it gets
             sheets of its own. Every sheet says the stock it needs, and the file names carry it as soon as a job
             mixes them.</li>
-        <li><b>STL</b> of the assembled result, or of a single part.</li>
+        <li><b>Print plates</b> for a 3D printer — one 3MF per plate at full size, every part numbered (a small part on
+            a thin tag you snap off), clips and pins on the same plates, and each part's layer height, bridges and
+            supports set for OrcaSlicer.</li>
+        <li><b>STL</b> of the assembled result, or of a single part, and <b>STEP</b> as one body for CAD.</li>
         <li><b>3MF prototype</b> — every part flat and scaled, thickness raised to something printable, its label
             engraved into the surface, as separate named objects your slicer can arrange.</li>
         <li><b>Kerf and fit</b> — kerf compensation when your machine does not do its own (off by default), a fit
@@ -677,6 +758,24 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
     <figcaption>The export tab: what the job weighs, the downloads, and the prototyping set for test-printing a design
     before cutting it.</figcaption>
   </figure>
+  <figure style="margin-top:24px;max-width:620px">
+    <img src="app/static/news/0.4.0-print-tags.jpg" width="900" height="818" loading="lazy" decoding="async" alt="Small horse ribs on the print plate, each joined to a tag with its number. One tag up close. A printed panel with every seam number cut in">
+    <figcaption>A print plate: every small part on a numbered tag you snap off, and seam numbers cut into a printed
+    panel.</figcaption>
+  </figure>
+</div></section>
+
+<section id="guides"><div class="wrap">
+  <h2>Guides</h2>
+  <p class="sub">Step by step, for the questions people ask most.</p>
+  <div class="grid g3">
+    <a class="card" href="3d-model-to-laser-cut/"><img src="media/hero.jpg" width="2400" height="1383" loading="lazy" decoding="async" alt="The Lamina interface with a head in radial slices and its cut sheets"><div class="t"><h3>From a 3D model to flat parts</h3><p>Laser, CNC router or 3D printer: the steps, the seven techniques and the files.</p></div></a>
+    <a class="card" href="slicer-for-fusion-360-alternative/"><img src="media/checks.jpg" width="2000" height="963" loading="lazy" decoding="async" alt="The Checks tab with errors and fix buttons"><div class="t"><h3>Slicer for Fusion 360 alternative</h3><p>The two side by side, and how to move a project over.</p></div></a>
+    <a class="card" href="stacked-slices/"><img src="media/stacked_poster.jpg" width="1100" height="824" loading="lazy" decoding="async" alt="A horse statue in stacked slices on dowels"><div class="t"><h3>Stacked slice sculpture</h3><p>Plywood or cardboard layers on dowels, from an STL.</p></div></a>
+    <a class="card" href="interlocking-slices/"><img src="media/interlocked_poster.jpg" width="1100" height="824" loading="lazy" decoding="async" alt="A torus in two families of slotted slices"><div class="t"><h3>Interlocking slices</h3><p>Egg-crate or waffle sculptures that slot together.</p></div></a>
+    <a class="card" href="papercraft/"><img src="media/folded_poster.jpg" width="1100" height="824" loading="lazy" decoding="async" alt="A cow unfolded into folded panels"><div class="t"><h3>Papercraft from a 3D model</h3><p>Unfold it into flat panels with tabs, laces or ribs.</p></div></a>
+    <a class="card" href="3d-print-flat-parts/"><img src="media/fold_poster.jpg" width="1100" height="824" loading="lazy" decoding="async" alt="A lamp shade printed as one flat panel, folding up"><div class="t"><h3>3D print it as flat parts</h3><p>Plates for your printer: panels that fold, click or snap, and printed standoffs.</p></div></a>
+  </div>
 </div></section>
 
 <section id="made"><div class="wrap">
@@ -713,9 +812,8 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
     <a class="btn ghost" href="app/index.html">Report it from the app, with the model</a>
   </div>
   <div class="grid g3">
-    <div><h3>Not there yet</h3><p class="sub">Seams are chosen automatically — you cannot click an edge to add or
-      remove one. Insertion is simulated as a straight slide along each crossing line — a part that would have to
-      turn or flex on its way in is not caught.</p></div>
+    <div><h3>Not there yet</h3><p class="sub">Insertion is simulated as a straight slide along each crossing line — a
+      part that would have to turn or flex on its way in is not caught.</p></div>
     <div><h3>Where it gets rough</h3><p class="sub">Nesting is greedy: each part takes the lowest, leftmost spot its
       no-fit polygons leave, so two concave shapes that would need to slide into each other pack looser than they
       could. A detailed folded model takes a few seconds per change.</p></div>
@@ -791,8 +889,8 @@ uv tool upgrade lamina3d                   # when a new version is out</code></p
   <p class="sub">If <code>lamina3d</code> is not found, run <code>uv tool update-shell</code> and open a new terminal,
   or start it with <code>uv tool run lamina3d</code>.</p>
   <p class="sub">The Model tab opens on a bundled example, and the
-  <a href="https://github.com/marcelfarres/lamina/tree/main/examples">examples folder</a> holds 24 in all — geometric
-  shapes, a scanned head and animals; the dumbbell and the snowman open with a radial axis per ball and a spine
+  <a href="https://github.com/marcelfarres/lamina/tree/main/examples">examples folder</a> holds 38 in all — geometric
+  shapes, a scanned head, animals, lamps and lanterns; the dumbbell and the snowman open with a radial axis per ball and a spine
   through them all, the horse with its ribs along a curve and a branch down each leg, and the horse statue in
   stacked side profiles.
   From a clone of the repository (<code>git clone https://github.com/marcelfarres/lamina.git</code>, then
