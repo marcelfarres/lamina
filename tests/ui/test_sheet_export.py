@@ -312,7 +312,8 @@ def test_every_control_does_what_it_says_and_every_download_holds_the_plan(page,
     z = zip_of(get(links[next(t for t in links if t.endswith("sheets SVG + DXF (.zip)"))]).body())
     svgs = [n for n in z.namelist() if n.endswith(".svg")]
     assert svgs and any(n.endswith(".dxf") for n in z.namelist()) and f"{design} assembly-key.txt" in z.namelist()
-    assert all(n.startswith(f"{design} ") or n == f"{design}.lamina.json" for n in z.namelist()), z.namelist()
+    assert "README.txt" in z.namelist()                       # what is in the zip and how to cut it: the one name every zip shares
+    assert all(n.startswith(f"{design} ") or n in (f"{design}.lamina.json", "README.txt") for n in z.namelist()), z.namelist()
     drawn = {el.get("data-label") for n in svgs for el in ET.fromstring(z.read(n)).iter() if el.get("data-label")}   # noqa: S314 — our own server's SVG
     assert labels <= drawn, f"parts in the plan but on no sheet: {sorted(labels - drawn)[:5]}"
     key = z.read(f"{design} assembly-key.txt").decode()
