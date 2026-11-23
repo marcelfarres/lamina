@@ -90,7 +90,7 @@ Printed panels now join without glue.
 - **A tidy top bar, a tour.** The links, *what's new* and *clear my data* are in the *help* menu, with *Tour of
   the page*. Technique buttons are cards with a drawing. What's new can point at each new control.
 
-  ![The help menu open, and the technique cards](web/static/news/0.4.0-cards.jpg)
+  ![The help menu open, with Tour of the page, and the technique cards](web/static/news/0.4.0-cards.jpg)
 
 - **Clear warnings, not only colour.** A warning starts with ⚠ WARNING, an error with ✖ ERROR. A dowel with no room
   is a counted warning. Parts with errors carry a net, and crossing slices are striped.
