@@ -13,6 +13,8 @@ GET  /api/progress?client=<id>                                                 �
 GET  /api/job/{client}/{job}/export?fmt=svg,dxf,pdf,eps&labels=1&per_piece=0&grouped=1   → zip of cut files
 GET  /api/job/{client}/{job}/stl?part=<label>                                  → assembled solid (or one part) as STL
 GET  /api/job/{client}/{job}/step?part=<label>                                 → the same as STEP: true solids for CAD
+GET  /api/job/{client}/{job}/key?units=mm                                      → the assembly key, as text
+GET  /api/job/{client}/{job}/standoffs?fit=0                                   → the standoffs' 3MF (fit=1: the fit test's)
 
 Only with LAMINA_LIBRARY=<folder> set (the library kept by this server, for every browser; 404 without it), and only
 on this server's own names (403 else: library_host):
@@ -33,8 +35,8 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from core import progress as build_progress
 from core.plan import build, MODES, swap_in
 from core.mesh import CAD_SUFFIXES
-from core.export import design_name, export, svg_doc, items_for_sheet, sheet_title
-from core.solid import fit_set, fit_sheets, proto_plan, proto_set, solid_bytes
+from core.export import design_name, export, key_text, svg_doc, items_for_sheet, sheet_title
+from core.solid import fit_plan, fit_set, fit_sheets, proto_plan, proto_set, solid_bytes, standoff_files
 
 HERE = pathlib.Path(__file__).resolve().parent
 # Jobs go under the folder Lamina is started from: the repo, /app in Docker and the browser, the starter's own folder.
@@ -693,6 +695,34 @@ def job_fitcut(client: str, job: str, fmt: str = "svg,dxf", labels: int = 1, ste
     return _zip(client, jd, plan, lambda tmp: fit_sheets(plan, tmp, fmts, bool(labels), step), f"{design_name(plan)}_{plan['mode']}_fit_{'-'.join(fmts)}.zip")
 
 
+@app.get("/api/job/{client}/{job}/key")
+def job_key(client: str, job: str, units: str = ""):
+    """The assembly key on its own (the same text as in the sheets zip): the Export tab's Build it step."""
+    _, plan = _plan(client, job)
+    plan = with_units(plan, units)
+    return Response(key_text(plan), media_type="text/plain; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{design_name(plan)} assembly-key.txt"'})
+
+
+@app.get("/api/job/{client}/{job}/standoffs")
+def job_standoffs(client: str, job: str, fit: int = 0):
+    """The standoffs' print file on its own (the 3MF of the sheets zip), for the printer's button on the Export tab.
+    fit=1: the standoffs of the fit test, at the job's own slot offset (their pins do not change with it)."""
+    jd, plan = _plan(client, job)
+    if not plan.get("standoffs"):
+        raise HTTPException(404, "this job has no standoffs")
+    design = design_name(plan)
+    if fit:
+        plan, design = fit_plan(plan, plan["params"]["slot_offset"], plan["params"]["sheet"]), f"{design} fit test"
+    tmp = pathlib.Path(tempfile.mkdtemp(dir=jd))
+    try:
+        f = standoff_files(plan, tmp, design)[0]
+        data = f.read_bytes()
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    return Response(data, media_type="model/3mf", headers={"Content-Disposition": f'attachment; filename="{f.name}"'})
+
+
 @app.get("/api/job/{client}/{job}/stl")
 def job_stl(client: str, job: str, part: str = ""):
     return _solid_file(client, job, part, "stl")
@@ -716,7 +746,8 @@ def _solid_file(client, job, part, fmt):
 
 # The downloads by the name the page asks for (/api/job/{client}/{job}/<name>): the browser build binds a query to these
 # signatures (web/browser.py), so a download's parameters are written once, here, and nowhere else.
-JOB_ROUTES = {"export": job_export, "stl": job_stl, "step": job_step, "source": job_source, "proto": job_proto, "fit": job_fit, "fitcut": job_fitcut}
+JOB_ROUTES = {"export": job_export, "stl": job_stl, "step": job_step, "source": job_source, "proto": job_proto, "fit": job_fit, "fitcut": job_fitcut,
+              "key": job_key, "standoffs": job_standoffs}
 
 
 def main():

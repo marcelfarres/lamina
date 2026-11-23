@@ -226,6 +226,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     plan = {
         "model": str(pathlib.Path(model_path).resolve()), "mode": mode_name, "params": p, "notes": notes,
         "legend": mode.legend,                                               # what the labels mean (Export tab, assembly key)
+        "fit_test": mode.fit_test(p),                                        # a joint the slot offset sizes: the Export tab's step 1
         "bbox": [float(e) for e in mesh.extents],
         "axes": [a.tolist() for a in ctx.ax], "mid": ctx.mid.tolist(),      # slicing frame (for click-placed points in the UI)
         **ctx.view,                                                          # what the technique hands the 3D view: rods, curve, axes, bounds, spacing, clip, …
