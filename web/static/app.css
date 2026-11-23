@@ -42,8 +42,10 @@ label.f,div.f{display:grid;grid-template-columns:128px 1fr;gap:8px;align-items:s
 #level{margin:6px 14px 0;flex:none;display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}#level span{display:inline-flex;border:1px solid var(--line);border-radius:5px;overflow:hidden}
 #level button{border:0;border-radius:0;background:none;color:var(--muted);padding:2px 11px;font-size:12px;cursor:pointer}#level button[aria-pressed=true]{background:var(--acc);color:#fff;font-weight:700}#level button[aria-pressed=true]::before{content:"✓ "}
 #tabs.basic:not(.finding) .sec:not(.all)>.f.adv:not(.changed){display:none}
+/* a setting the machine in use has no use for (form.js NOT_FOR) waits under the same line, on basic and all alike */
+#tabs:not(.finding) .sec:not(.all)>.f.nok:not(.changed){display:none}
 .sec>.more{display:none;width:100%;text-align:left;margin:4px 0 2px;padding:4px 8px;font-size:11.5px;line-height:1.4;color:var(--acc);background:none;border:1px dashed var(--line);border-radius:5px;cursor:pointer}
-#tabs.basic:not(.finding) .sec:not(.all):not(.folded)>.more:not([hidden]){display:block}.sec>.more:hover{border-color:var(--acc)}
+#tabs:not(.finding) .sec:not(.all):not(.folded)>.more:not([hidden]){display:block}.sec>.more:hover{border-color:var(--acc)}
 /* text behind a click (Export tab), and the groups of that tab that open on demand */
 details.info{font-size:11.5px;margin:2px 0 8px}details.info>summary{cursor:pointer;color:var(--acc);list-style:none}details.info>summary::before{content:"ⓘ "}details.info>summary::after{content:" ▸"}details.info[open]>summary::after{content:" ▾"}details.info>.hint{margin:4px 0 0;display:block}
 .dl .r details.info{margin:0}
@@ -64,9 +66,12 @@ button.small{padding:3px 8px;border:1px solid var(--line);background:var(--panel
 .hint{color:var(--muted);font-size:11px}h3.sub{font-size:12px;font-weight:600;margin:12px 0 1px;color:var(--ink)}p.hint.sub{margin:0 0 4px}
 .bar select{padding:1px 4px;width:auto}
 /* the techniques: six cards of one size, a small drawing of what each makes, a tick on the chosen one */
-.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}.modes button{padding:6px 2px 5px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:6px;cursor:pointer;font-size:11px}
+.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}.modes button,.kinds button{padding:6px 2px 5px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:6px;cursor:pointer;font-size:11px}
 .modes button svg{display:block;margin:0 auto 3px;width:44px;height:30px;pointer-events:none}.modes button span{pointer-events:none}
-.modes button.on{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset;background:#22304d}.modes button.on span::before{content:'✓ '}
+.modes button.on,.kinds button[aria-pressed=true]{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset;background:#22304d}.modes button.on span::before,.kinds button[aria-pressed=true] span::before{content:'✓ '}
+/* what you make with: four cards like the techniques', the chosen one ticked and outlined (never by colour alone) */
+#kind{display:block;margin:0 0 4px}#kind>h2{margin-bottom:8px}#kind>.f{margin:8px 0 4px}#kind>.hint{margin:0}
+.kinds{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.kinds b{display:block;font-size:16px;font-weight:400;line-height:1.3}.kinds button[aria-pressed=true]{font-weight:700}.kinds button:disabled{opacity:.4;cursor:default}
 .desc{color:var(--muted);font-size:12px;margin:0 0 10px}
 .view{display:flex;flex-direction:column;min-height:0;min-width:0}
 #v3d{position:relative;flex:0 0 56%;border-bottom:1px solid var(--line);min-height:240px}#v3d canvas{display:block;width:100%;height:100%}

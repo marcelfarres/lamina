@@ -7,7 +7,7 @@ import {deselect, pivot3, rnd, hit, highlight, pick} from './edit3d.js';
 import {fmtLen, DU, applyUnit} from './units.js';
 import {step, undos, redos} from './history.js';
 import {showNews, whatsNew, phoneNotice, news} from './news.js';
-import {matOf, matThicks, machineOf, kind, applyMachine, gapForBit, shs, sameSheet, userMachines, syncPresetSelects, userMaterials, dens, fam, renderPresets, PKEYS} from './presets.js';
+import {matOf, matThicks, machineOf, kind, applyMachine, gapForBit, shs, sameSheet, userMachines, syncPresetSelects, userMaterials, dens, fam, renderPresets, PKEYS, kindOfMachine, hasStandoff} from './presets.js';
 import {setMode, renderFields, schedule, resetTab, showTab, memo, MODEL_BOUND, allParams, sizeAxes, findRows} from './form.js';
 import {spcXY} from './spacing.js';
 import {slice, oops, popup, LOCAL_DOC} from './slice.js';
@@ -36,6 +36,33 @@ const fields=ps=>{let html='',open='';for(const p of ps){const s=p.section||open
     html+=field(p)}
   return html+(open?'</div>':'')};
 
+// a material picked: a stock thickness of it, a machine that cuts it, a sheet it comes in, its 3D look
+function pickMaterial(n){const m=matOf(n);state.material=n;
+  if(m){const ts=matThicks(n);if(!ts.some(t=>Math.abs(t[0]-state.thickness)<1e-6))state.thickness=ts[Math.floor(ts.length/2)][0];   // a stock thickness of the new material
+    if(!machineOf(state.machine)?.cuts.includes(kind(n)))applyMachine(m.machine);                                                       // a machine that cuts it
+    if(!shs().some(([,s])=>sameSheet(s,state.sheet)))state.sheet=[...shs()[0][1]];                                                       // a sheet it comes in
+    $('#look').value=m.look;ST.lookOf=n;applyLook()
+    // a printed material is the job itself, not a model of it: its sheets are plates of the bed, printed full size
+    state.printed=m.family==='print';if(state.printed){$('#pr_scale').value=1;$('#pr_size').value='';$('#pr_size').dataset.mm=''}}}
+// a machine picked, in its list or by its kind: its kerf, fit, bit and bed, and a material it can make when the one in
+// use is not one: the kind's usual one, else the first it cuts (steel for a fiber laser)
+const FITS={laser:'card',router:'plywood',printer:'PETG'};
+function useMachine(k){const x=machineOf(k);if(!x)return;applyMachine(k);
+  const n=[state.material,FITS[kindOfMachine(k)],x.cuts[0]].find(n=>x.cuts.includes(kind(n)));if(n!==state.material)pickMaterial(n);
+  state.printed=fam()==='print'}
+// What you make with (#kind, and the tour's start card). The machine changes only when its kind must, back to the one
+// this kind had on this visit (with its material, thickness and sheet), else the kind's own; laser + 3D printer is a
+// laser or router job on printed standoffs. One slice after it, so one step of undo
+const last={};
+function setKind(k){const from=kindOfMachine(state.machine),g=k==='mix'?(from==='router'?'router':'laser'):k;
+  if(from!==g){last[from]={machine:state.machine,material:state.material,thickness:state.thickness,sheet:[...state.sheet]};
+    const back=machineOf(last[g]?.machine)?last[g]:null; if(back)Object.assign(state,structuredClone(back));
+    useMachine(back?.machine||{laser:'co2',router:'router',printer:'fdm'}[g])}
+  if(hasStandoff()){const P=allParams().find(p=>p.name==='connect');   // off standoffs: back to what the layers had before
+    if(k==='mix'){if(state.connect!=='standoff')last.connect=state.connect;state.connect='standoff'}
+    else if(state.connect==='standoff')state.connect=last.connect||P.default}
+  state.printed=g==='printer';renderFields();schedule()}
+
 // ---------------------------------------------------------------- init
 async function init(){
   lib.restoreStore();   // first: the library's calls wait for it (the kept folder, if any); nothing else does
@@ -46,15 +73,9 @@ async function init(){
   for(const s of $$('section[data-tab]'))s.dataset.name=$(`nav button[data-t="${s.dataset.tab}"]`)?.textContent||s.dataset.tab;   // the tab's name over its rows when a search shows several tabs
   $('#find').oninput=findRows; $('#find').onkeydown=e=>{if(e.key==='Escape'){e.target.value='';findRows()}};
   $('#modes').onclick=e=>{if(e.target.dataset.m){deselect();setMode(e.target.dataset.m);ST.countUse('technique',e.target.dataset.m);slice()}};
-  $('#material').onchange=e=>{const n=e.target.value,m=matOf(n);state.material=n;
-    if(m){const ts=matThicks(n);if(!ts.some(t=>Math.abs(t[0]-state.thickness)<1e-6))state.thickness=ts[Math.floor(ts.length/2)][0];   // a stock thickness of the new material
-      if(!machineOf(state.machine)?.cuts.includes(kind(n)))applyMachine(m.machine);                                                       // a machine that cuts it
-      if(!shs().some(([,s])=>sameSheet(s,state.sheet)))state.sheet=[...shs()[0][1]];                                                       // a sheet it comes in
-      $('#look').value=m.look;ST.lookOf=n;applyLook()
-      // a printed material is the job itself, not a model of it: its sheets are plates of the bed, printed full size
-      state.printed=m.family==='print';if(state.printed){$('#pr_scale').value=1;$('#pr_size').value='';$('#pr_size').dataset.mm=''}}
-    renderFields();schedule()};
-  $('#machine').onchange=e=>{applyMachine(e.target.value);renderFields();schedule()};
+  $('#material').onchange=e=>{pickMaterial(e.target.value);renderFields();schedule()};
+  $('#machine').onchange=e=>{useMachine(e.target.value);renderFields();schedule()};
+  $('#kind .kinds').onclick=e=>{const b=e.target.closest('[data-kind]');if(b)setKind(b.dataset.kind)};
   // a machine of your own: the compensation and sheet as they stand, cutting what the machine it was made from cuts
   $('#kadd').onclick=()=>{const b=machineOf(state.machine),n=prompt('machine name (make and model)',userMachines()[state.machine]?state.machine:'');if(!n)return;
     if(MACHINES[n])return status('that name is a built-in machine — pick another','err');
@@ -134,7 +155,7 @@ async function init(){
   // while it runs, and an edit made meanwhile then counts as a change)
   const openExample=name=>{ST.example=name;ST.pendingFile=null;$('#file').value='';newModel();applyPreset();lib.baseline();ST.countUse('model','example');ST.fresh='loaded example '+name;slice()};
   window.__t.openExample=openExample;   // window.__t is built below while init() awaits its first fetch
-  initLibraryPage({openExample,examples:ex}); initTour({openExample});
+  initLibraryPage({openExample,examples:ex}); initTour({openExample,setKind});
   // A big mesh in the browser build is slow but not refused — the ceiling is this tab's memory, and it is the
   // reporter's machine that knows better than a fixed number. So: say what it will cost, then do as they say.
   const BIG=50e6;   // ~1 M triangles: the point where a slice in Pyodide goes from a wait to a very long wait

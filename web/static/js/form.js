@@ -4,7 +4,7 @@ import {PLANE_IDX} from './catalog.js';
 import {$, $$, esc, nice} from './util.js';
 import {splitAxis, axisList, branchTo, curveList, newLine, dropLine, syncTools} from './edit3d.js';
 import {bounds, inU, show, isLen, fromU, applyUnit} from './units.js';
-import {syncPresetSelects, applyMachine} from './presets.js';
+import {syncPresetSelects, applyMachine, syncKind, kindOf, fam} from './presets.js';
 import {renderSpacing} from './spacing.js';
 import {slice} from './slice.js';
 import {V3, applyLook, rings} from './scene.js';
@@ -54,12 +54,15 @@ function field(p){
 }
 // a setting that is not at its default (a file and the units are not settings to put back)
 const isChanged=p=>p.type!=='file'&&p.name!=='units'&&state[p.name]!=null&&JSON.stringify(state[p.name])!==JSON.stringify(p.default);
-function markChanged(){
-  for(const el of $$('.f[data-p]')){const p=allParams().find(q=>q.name===el.dataset.p);el.classList.toggle('changed',!!p&&isChanged(p))}
+// What each kind has no use for (working-files inventory, 2026-11-23): held back like a fine setting on basic — the
+// section's "+ N more" names it and a click shows it — on basic and all alike. A changed one always shows; nothing is reset
+const NOT_FOR={printer:['scale_check','grain','one_sheet','compensate','kerf','relief','tool_d','perforate'],laser:['relief','tool_d'],mix:['relief','tool_d']};
+function markChanged(){const off=NOT_FOR[kindOf()]||[],basic=$('#tabs').classList.contains('basic');
+  for(const el of $$('.f[data-p]')){const p=allParams().find(q=>q.name===el.dataset.p);el.classList.toggle('changed',!!p&&isChanged(p));el.classList.toggle('nok',off.includes(el.dataset.p))}
   for(const s of $$('.sec')){const rows=[...s.querySelectorAll(':scope>.f')].filter(f=>!f.hidden),n=rows.filter(f=>f.classList.contains('changed')).length;
     s.querySelector('h3 small').textContent=`· ${rows.length} setting${rows.length===1?'':'s'}${n?`, ${n} changed`:''}`;
     // on basic, the foot of the group names what it holds back: a click shows them (a changed one is never held back)
-    const back=rows.filter(f=>f.classList.contains('adv')&&!f.classList.contains('changed')),m=s.querySelector(':scope>.more');
+    const back=rows.filter(f=>(f.classList.contains('nok')||basic&&f.classList.contains('adv'))&&!f.classList.contains('changed')),m=s.querySelector(':scope>.more');
     m.hidden=!back.length; m.textContent=`+ ${back.length} more: ${back.map(f=>f.querySelector('.k').firstChild.textContent.trim()).join(', ')}`}}
 // find a setting: only the rows whose name, key or help holds every word stay, from all the tabs at once
 export function findRows(){
@@ -79,12 +82,12 @@ const fields=ps=>{let html='',open='';for(const p of ps){const s=p.section||open
     html+=field(p)}
   return html+(open?MORE:'')};
 export function renderFields(){
-  const com=ST.mode.common, byG=g=>fields(com.filter(p=>p.group===g)); syncProject();
+  const com=ST.mode.common, byG=g=>fields(com.filter(p=>p.group===g&&p.name!=='printed')); syncProject();   // `printed` is set by What you make with (#kind)
   $('#g-model').innerHTML=byG('model'); $('#g-technique').innerHTML=fields(ST.mode.params)+byG('technique'); $('#g-slices').innerHTML=byG('slices');
   $('#g-sheet').innerHTML=byG('sheet'); $('#g-fit').innerHTML=byG('fit'); $('#g-checks').innerHTML=byG('checks');
-  applyShowIf(); syncPresetSelects(); renderSpacing(); syncSeams(); syncFaces(); ST.light(); findRows();
+  syncPresetSelects(); applyShowIf(); renderSpacing(); syncSeams(); syncFaces(); ST.light(); findRows();   // the machine settled first: the rows it holds back follow it
 }
-function applyShowIf(){for(const el of $$('.f[data-show]')){const [k,vals]=el.dataset.show.split(':');el.hidden=!vals.split('|').includes(String(state[k]))} markChanged()}
+function applyShowIf(){for(const el of $$('.f[data-show]')){const [k,vals]=el.dataset.show.split(':');el.hidden=!vals.split('|').includes(String(state[k]))} syncKind(); markChanged()}
 export const allParams=()=>[...ST.mode.common,...ST.mode.params];
 export function setVal(name,v){state[name]=v;applyShowIf();if(name==='rotate'||name==='up_axis')syncSizeBoxes();schedule()}
 // `size` is the model's own: its three numbers are along the model file's axes, and the slicer scales it before any
@@ -121,7 +124,7 @@ export function resetTab(tab){if(tab==='light')return ST.light('reset');   // th
   for(const p of ST.mode.common)if(TABGROUPS[tab].includes(p.group))state[p.name]=structuredClone(p.default);
   if(tab==='technique')for(const p of ST.mode.params)state[p.name]=structuredClone(p.default);
   // the material sets the 3D look when it is picked, so the reset material takes the look back to the page's own
-  if(tab==='model')ST.fitted=false; if(tab==='sheet'){applyMachine(state.machine);$('#look').value='group';applyLook()}
+  if(tab==='model')ST.fitted=false; if(tab==='sheet'){applyMachine(state.machine);state.printed=fam()==='print';$('#look').value='group';applyLook()}   // a printed material stays printed
   ST.unit=state.units||ST.unit; applyUnit(); slice()}   // the Sheet tab holds `units`: the page follows it back to mm
 $('#tabs').addEventListener('click',e=>{
   const t=e.target, P=name=>allParams().find(p=>p.name===name);
@@ -150,7 +153,8 @@ $('#tabs').addEventListener('keydown',e=>{const t=e.target;if(!t.dataset.chip||e
 // choice is kept in the browser. It only hides rows: the values, and so the result, are the same either way
 function setLevel(v){try{localStorage.setItem('lamina.level',v)}catch{}   // no storage (a private window): the choice lasts for the visit
   opened.clear();for(const s of $$('.sec.all'))s.classList.remove('all');
-  $('#tabs').classList.toggle('basic',v!=='all');for(const b of $$('#level button'))b.setAttribute('aria-pressed',b.dataset.level===(v==='all'?'all':'basic'))}
+  $('#tabs').classList.toggle('basic',v!=='all');for(const b of $$('#level button'))b.setAttribute('aria-pressed',b.dataset.level===(v==='all'?'all':'basic'));
+  if(ST.mode)markChanged()}   // the "+ N more" lines: on all, only what the machine holds back
 $('#level').addEventListener('click',e=>{if(e.target.dataset.level)setLevel(e.target.dataset.level)});
 {let v='basic';try{v=localStorage.getItem('lamina.level')||v}catch{} setLevel(v)}
 export const memo={};   // per-technique parameter memory: switching away and back restores what you had

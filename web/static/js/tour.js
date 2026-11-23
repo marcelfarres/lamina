@@ -22,6 +22,7 @@ export const NEW={'0.4.0':[
   {note:'Band lattice.', target:'#modes button[data-m="bands"]', open:tab('technique')},
   {note:'Settings that are easy to read.', target:'#level', open:()=>{tab('technique')();   // the other of basic / all, pressed
     const b=$('#level button[aria-pressed="false"]');b.click();return()=>$(`#level button:not([data-level="${b.dataset.level}"])`).click()}},
+  {note:'Choose your machine first.', target:'#kind', open:tab('sheet')},
   // lit with its shadows, a model of many parts is slow on a computer without a graphics card (bugs/071): there the
   // step only points at the tick. ponytail: a part count, not a measured frame time
   {note:'Light your model.', target:'label:has(#lamp)', open:()=>{tab('light')();if(state.light||!(ST.plan?.counts.parts<=100))return;

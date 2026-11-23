@@ -1,6 +1,6 @@
 import {$, $$, esc, ls, lsSet} from './util.js';
-import {state, ST} from './state.js';
-import {MACHINES, MATERIALS} from './catalog.js';
+import {ST} from './state.js';
+import {kindOf} from './presets.js';
 import {start, card, tab} from './tour.js';
 import * as lib from './library.js';
 import {hold} from './history.js';
@@ -45,7 +45,7 @@ const rows=(id,sels,{say:want}={})=>{const all=()=>sels.map(s=>$(s)).filter(Bool
   return {id,src:sels,
     open:()=>{const rs=all(); if(!rs.length)throw new Error('no row'); tabOf(rs[0]);
       for(const r of rs){const sec=r.closest('.sec'); if(sec?.classList.contains('folded'))sec.querySelector('h3.sub')?.click();
-        if(!r.getClientRects().length&&r.classList.contains('adv'))sec?.querySelector(':scope>.more')?.click()}},
+        if(!r.getClientRects().length)sec?.querySelector(':scope>.more')?.click()}},   // held back on basic, or by the machine
     target:()=>{const vis=all().filter(r=>r.getClientRects().length),ring=vis.slice(0,1);
       for(const r of vis.slice(1))if(r.getBoundingClientRect().top-ring.at(-1).getBoundingClientRect().bottom<70)ring.push(r);
       return sels.filter(s=>ring.includes($(s))).join(',')},
@@ -63,7 +63,8 @@ const techniques={id:'techniques',src:['Technique'],target:'#modes',open:tab('te
 const technique={id:'technique',src:['#mdesc'],target:'#modes button.on',open:tab('technique'),title:()=>textOf('#modes button.on').replace(/^✓\s*/,''),
   text:()=>para(textOf('#mdesc'))};
 const level=help('level','#find,#level',['find a setting','basic / all'],{title:'basic / all'});
-const material=rows('material',['.f:has(#material)','.f:has(#thicklist)']), machine=rows('machine',['.f:has(#machine)']);
+// what you make with: the four choices and the machine under them (#kind); then the material and its thickness
+const kind=rows('kind',['#kind']), material=rows('material',['.f:has(#material)','.f:has(#thicklist)']);
 const checks=help('checks','#lower',['Checks','sheets'],{open:async()=>{tab('checks')();await idle()}});
 const view={id:'view',src:['tools','#hint summary'],target:'#tools',title:'Tools',
   text:()=>para(helpOf('tools'))+`<p>${esc(($('#hint summary')?.firstChild?.textContent||'').replace(/[\s·]+$/,''))}</p>`};
@@ -83,23 +84,22 @@ const xMain=m=>({id:'x-main',src:EXPORT.main[m].map(r=>`${r} .hint`),target:EXPO
   title:()=>textOf('#dl_title'),text:()=>EXPORT.main[m].map(r=>para(textOf(`${r} .hint`),EXPORT.main[m].length>1?150:230)).join('')});
 
 const pick=(q,v)=>{const e=$(q); e.value=v; for(const k of ['input','change'])e.dispatchEvent(new Event(k,{bubbles:true}))};
+// one path per choice of What you make with (#kind [data-kind]): its name and line are that button's
 export const PATHS={
-  laser:{label:'Laser cutter',sub:'or a knife cutter, plasma, by hand',example:'vase',
-    steps:[model,techniques,param('join',['connect','dowel_d']),level,material,machine,laserFit,checks,view,light,library,xSummary,xFit,xMain('laser')]},
-  router:{label:'CNC router',sub:'a spinning bit',example:'torus',
-    setup:()=>{pick('#material','plywood');pick('#thicklist','6');pick('#machine','shapeoko')},   // as the export review cut it
-    steps:[model,techniques,technique,level,material,machine,param('bit',['relief','tool_d']),param('gap',['gap']),checks,view,library,xSummary,xFit,xMain('router')]},
-  printer:{label:'3D printer',sub:'the parts printed',example:'fold_box',
-    steps:[model,techniques,param('join',['joint','hinge'],{say:['click','snap']}),level,material,param('plate',['printed','sheet']),machine,param('labels',['font']),checks,view,light,library,xSummary,xMain('printer')]},
-  mix:{label:'Laser + 3D printer',sub:'cut layers on printed standoffs',example:'shade',
-    steps:[model,techniques,param('join',['connect','pin_fit']),level,material,machine,laserFit,checks,view,light,library,xSummary,xFit,xMain('mix')]}};
-// which path a machine takes: a printer cuts nothing but print materials, a router has a bit
-export const pathOf=k=>{const m=MACHINES[k]; if(!m)return 'laser';
-  return m.cuts.length&&m.cuts.every(c=>MATERIALS[c]?.family==='print')?'printer':m.relief!=='square'||m.tool>0?'router':'laser'};
+  laser:{example:'vase',
+    steps:[model,techniques,param('join',['connect','dowel_d']),level,kind,material,laserFit,checks,view,light,library,xSummary,xFit,xMain('laser')]},
+  router:{example:'torus',
+    setup:()=>{pick('#thicklist','6');pick('#machine','shapeoko')},   // plywood 6 mm on the Shapeoko, as the export review cut it
+    steps:[model,techniques,technique,level,kind,material,param('bit',['relief','tool_d']),param('gap',['gap']),checks,view,library,xSummary,xFit,xMain('router')]},
+  printer:{example:'fold_box',
+    steps:[model,techniques,param('join',['joint','hinge'],{say:['click','snap']}),level,kind,material,param('plate',['sheet']),param('labels',['font']),checks,view,light,library,xSummary,xMain('printer')]},
+  mix:{example:'shade',
+    steps:[model,techniques,param('join',['connect','pin_fit']),level,kind,material,laserFit,checks,view,light,library,xSummary,xFit,xMain('mix')]}};
+const choice=k=>$(`#kind [data-kind="${k}"]`), labelOf=k=>choice(k)?.querySelector('span').textContent.trim()||k, subOf=k=>choice(k)?.title||'';
 
 // ---------------------------------------------------------------- start and end
-let openExample;   // main.js's: every way into an example goes through it
-export function initTour(o){openExample=o.openExample; $('#tourbtn').onclick=()=>begin(false)}
+let openExample, setKind;   // main.js's: every way into an example goes through the one, every choice of kind the other
+export function initTour(o){({openExample,setKind}=o); $('#tourbtn').onclick=()=>begin(false)}
 // The first visit: once, after the first slice, when nothing else is on show (the phone notice first). Never in a
 // browser driven by a program: the tests, the media recorder and the release pictures see the page as it is.
 export function offer(){if(navigator.webdriver||ls('lamina.tour',null))return;
@@ -109,18 +109,18 @@ export function offer(){if(navigator.webdriver||ls('lamina.tour',null))return;
 // An example opens only when nothing can be lost (an example as it opened, or a saved revision with no changes); on
 // work of his own the tour only points. The end card keeps the example or puts back what was there, undo stack too.
 export async function begin(first){
-  const own=!(ST.job?.startsWith('ex_')&&!lib.unsaved()), here=pathOf(state.machine);
-  const ch=Object.entries(PATHS).map(([k,p])=>`<button class="pick" data-card="${k}"${k===here?' autofocus':''}><b>${esc(p.label)}</b><small>${esc(p.sub)}</small></button>`).join('');
+  const own=!(ST.job?.startsWith('ex_')&&!lib.unsaved()), here=kindOf();
+  const ch=Object.keys(PATHS).map(k=>`<button class="pick" data-card="${k}"${k===here?' autofocus':''}><b>${esc(labelOf(k))}</b><small>${esc(subOf(k))}</small></button>`).join('');
   const k=await card(first?'New to Lamina?':'Tour of the page',`<p>What do you make with?</p><div class="ch">${ch}</div>
     <p class="hint">${own?'You have work of your own open: the tour points at the parts of it and changes nothing.':'About 14 steps, on an example made for your machine. Your own work is never changed.'}</p>
     <div class="row"><button class="skip" data-card="">Not now</button>${first?'<span class="hint">later: ? help ▾ → Tour of the page</span>':''}</div>`);
   const p=PATHS[k]; if(!p)return;
   try{lsSet('lamina.tour',k)}catch(e){}
   const was={example:ST.example,file:ST.saved?.file}, back=own?null:hold();
-  if(!own){openExample(p.example); p.setup?.(); lib.baseline()}
-  await start(p.steps.map(s=>({...s,over:`Tour · ${p.label}`})),{skip:'end the tour'});
+  if(!own){openExample(p.example); if(kindOf()!==k)setKind(k); p.setup?.(); lib.baseline()}   // the same choice as the block
+  await start(p.steps.map(s=>({...s,over:`Tour · ${labelOf(k)}`})),{skip:'end the tour'});
   if(own)return;
-  const how=await card('That is the whole tour',`<p>You are on the ${esc(p.example)} example, set up for: ${esc(p.label)}. Keep it to try things, or go back to the page as it was.</p>
+  const how=await card('That is the whole tour',`<p>You are on the ${esc(p.example)} example, set up for: ${esc(labelOf(k))}. Keep it to try things, or go back to the page as it was.</p>
     <div class="row"><button data-card="back">Back to where I was</button><button class="go" data-card="keep">Keep this example</button></div>`);
   if(how!=='back')return;
   if(was.file)await lib.openRevision(was.file); else openExample(was.example);

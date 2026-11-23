@@ -123,6 +123,7 @@ def test_a_router_lays_the_parts_two_bits_apart(page):
     use(page, "torus")
     page.click('nav button[data-t="sheet"]')
     page.select_option("#material", "plywood"); settle(page)
+    page.click('#kind [data-kind="router"]'); settle(page)
     page.select_option("#machine", "shapeoko"); settle(page)
     assert gap() == [6.35, 6.35]
     page.click('button.reset[data-reset="sheet"]'); settle(page)

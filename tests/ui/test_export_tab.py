@@ -18,10 +18,14 @@ def export_tab(page, name):
 
 
 def stock(page, **boxes):
-    """Material, thickness and machine set on Sheet & fit, the boxes a person uses, each waited for."""
+    """What you make with, material, thickness and machine set on Sheet & fit, the controls a person uses, each waited for."""
     page.click('nav button[data-t="sheet"]')
     for box, value in boxes.items():
-        page.select_option(f"#{box}", value); settle(page)
+        if box == "kind":
+            page.click(f'#kind [data-kind="{value}"]')
+        else:
+            page.select_option(f"#{box}", value)
+        settle(page)
     page.click(EXPORT)
 
 
@@ -43,7 +47,7 @@ def test_a_laser_job_names_its_machine_and_stock_and_has_one_main_file(page):
 
 def test_a_router_job_names_the_router_and_its_bit(page):
     use(page, "torus")
-    stock(page, material="plywood", thicklist="6", machine="shapeoko")
+    stock(page, material="plywood", kind="router", thicklist="6", machine="shapeoko")
     said = page.inner_text("#machines")
     assert "⚙ CNC ROUTER · Shapeoko 4 XXL (CNC), plywood 6 mm" in said and "bit 3.175 mm" in said
     assert page.get_attribute("#x_files a.main", "data-machine") == "router"
