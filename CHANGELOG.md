@@ -2,6 +2,18 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.4.1
+
+This release helps at the machine: bridges that keep parts in the sheet, a kerf and dowel test to cut first, how
+long the cut takes and what it costs, a printed guide to build from, and a section view of the model.
+
+### Added
+
+- **Parts stay in the sheet.** Set *holding bridges* on Sheet & fit: each part keeps a few short uncut stretches,
+  never on a slot, tab or fold, and snaps out by hand after the cut.
+
+  ![Holding bridges set to 2, and a plaque part on the sheet with its two uncut stretches ringed](web/static/news/0.4.1-bridges.jpg)
+
 ## 0.4.0
 
 This release makes Lamina easier for a new user: help on every setting, clearer names, a tour of the page, and one
