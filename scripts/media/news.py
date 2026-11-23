@@ -318,7 +318,9 @@ def n040_cards(app):
     menu = "details.menu:has(#helpbtn) > summary"
     app.p.click(menu)
     app.p.wait_for_timeout(300)
-    app.shot("0.4.0-cards", (0, 0, 1000, 420), [("#modes", "technique cards"), (menu, "help menu")])
+    s, p = app.box(menu), app.box("details.menu:has(#helpbtn) .pop")   # one ring round the button and the open menu:
+    whole = (min(s[0], p[0]), s[1], max(s[2], p[2]), p[3])             # its label goes under it, off the menu's items
+    app.shot("0.4.0-cards", (0, 0, 1000, 420), [("#modes", "technique cards"), (whole, "help menu")])
     app.p.click(menu)
 
 
