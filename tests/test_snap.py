@@ -14,7 +14,7 @@ from shapely.ops import unary_union
 
 import core.modes.folded as F
 from core.plan import build
-from core.solid import has_boolean, proto_set
+from core.solid import has_boolean, proto_part, proto_set
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PRESET = json.loads((ROOT / "examples" / "presets.json").read_text(encoding="utf-8"))["fold_box"]["params"]
@@ -99,6 +99,30 @@ def test_a_clip_slides_on_with_room_for_a_ledge_a_layer_low_and_a_wall_top_half_
     assert affinity.translate(clip, 0, -0.1).intersection(walls).area < 1e-9    # the tops half a layer high: the crown still over them
 
 
+CUP = ROOT / "tests" / "data" / "click_angles.stl"                  # his clip test cup: 9 seams, 15° to 95° outward and 25° inward
+CUP_SEAMS = json.loads((ROOT / "tests" / "data" / "click_angles_seams.json").read_text(encoding="utf-8"))
+
+
+@pytest.mark.skipif(not has_boolean(), reason="needs manifold3d to cut the channel out of each clip's plate")
+@pytest.mark.parametrize("fit", [0.1, 0.2])
+@pytest.mark.parametrize("model,extra,seams", [(BOX, {}, 12), (CUP, {"seams": CUP_SEAMS}, 9)], ids=["fold_box", "clip_test_cup"])
+def test_a_clip_slid_on_to_its_plate_covers_both_walls_end_to_end(model, extra, seams, fit):
+    """Bug 078: in his print of the cup each clip covered 5.8 mm of its 9 mm walls along the seam, and 3.2 mm of every
+    wall stood out of it. Every clip of the real build, as its print file has it: from its plate to its open end the
+    channel is as long as every wall the build stands on the panels, so slid on until the plate meets the walls'
+    end it covers both walls end to end. And every seam still takes its clip: a longer clip needs more seam."""
+    plan = build(model, "folded", {**PRESET, "material_kind": "PETG", "autofix": "off", "joint": "snap", "snap_fit": fit, **extra})
+    walls = [math.dist(r["a"], r["b"]) for s in plan["slices"] if s["group"] == "F" for pc in s["pieces"] for r in pc.get("rails", [])]
+    clips = [s for s in plan["slices"] if s["group"] == "J"]
+    assert plan["counts"]["errors"] == 0 and len(clips) == seams and len(walls) == 2 * seams
+    for sl in clips:
+        (pc,) = sl["pieces"]
+        mesh = proto_part(pc, sl["thickness"], 1.0, "none", 4.0, 0)[0]          # the clip as its print file has it, on its plate
+        top, z = mesh.bounds[1][2], mesh.triangles_center[mesh.face_normals[:, 2] > 0.99, 2]
+        channel = top - z[z < top - 0.01].min()                                  # from the channel's floor, the plate's top, to its open end
+        assert all(abs(channel - w) <= 0.05 for w in walls), (sl["label"], channel, sorted(set(walls)))
+
+
 def test_a_seam_bent_too_far_for_a_wall_to_print_is_left_plain_and_said():
     plan = build(ROOT / "examples" / "fold_test.stl", "folded", {**PRESET, "material_kind": "PETG", "autofix": "off", "joint": "snap"})
     said = [w for s in plan["slices"] for w in s["warnings"] if "bend past what the clip (snap) joint can do" in w]
@@ -107,7 +131,7 @@ def test_a_seam_bent_too_far_for_a_wall_to_print_is_left_plain_and_said():
 
 def test_a_seam_with_no_room_beside_its_wall_to_slide_a_clip_on_from_is_left_plain_and_said(tmp_path):
     """A clip goes on only along the seam, from beside a wall's end. The box at 0.8: its 25 mm seams become 20 mm, a
-    clip's length (7 mm) is not free beside a 9 mm wall there; its 33 mm seams (26.4) keep their clips."""
+    clip's length (8.2 mm) is not free beside a 7 mm wall there; its 33 mm seams (26.4) keep their clips."""
     small = tmp_path / "box_08.stl"; m = trimesh.load(BOX); m.apply_scale(0.8); m.export(small)
     plan = build(small, "folded", {**PRESET, "material_kind": "PETG", "autofix": "off", "joint": "snap"})
     said = [w for s in plan["slices"] for w in s["warnings"] if "too short to slide a clip on" in w]

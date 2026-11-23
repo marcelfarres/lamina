@@ -119,7 +119,7 @@ outside of the next panel. Tongue, puzzle and strip are not printed this way and
 
 ### The snap joint: walls inside, a clip over them
 A printed model can be closed without glue and with nothing on its outside. The `snap` joint puts a wall
-(`Folded.snap_wall`) on the inside face of each panel along a seam, 2 mm thick and 9 mm long, one pair for every
+(`Folded.snap_wall`) on the inside face of each panel along a seam, 2 mm thick and 7 mm long, one pair for every
 `spacing` of seam. His first print had walls 1.2 mm thick and clips with 1.0 mm legs: they broke every time. A
 longer wall grows into a neighbour seam's at a corner of the box. The front of a wall is the plane the two panels meet on: an outward seam turns about the top of its skin, so
 that plane goes through the top of the skin at half the bend, which is also the plane of the mitre. The two walls
@@ -127,12 +127,15 @@ of a shut seam therefore lie face to face, at any bend, and one clip shape (`Fol
 
 Why a separate clip: the two walls move apart sideways when a seam opens, so what holds them must reach round the
 back of the other wall. A part printed flat, without support, cannot grow a hook that goes over a wall and comes
-down behind it. The clip is a U, 9 mm across and 7 mm long, closed at one end by a plate 1.2 mm thick (`SNAP_PLATE`)
+down behind it. The clip is a U, 9 mm across and 8.2 mm long, closed at one end by a plate 1.2 mm thick (`SNAP_PLATE`)
 that fills the space between its legs. Its legs are 2.4 mm thick and its top 3 mm, and each leg ends in a hook
 0.5 mm into a groove 0.7 mm deep in the back of its wall. The groove is 3.6 mm up the wall, so that a leg clears the
 other panel beside a 2 mm wall on a seam bent 100°. The plate ties the legs, so the clip cannot open: it slides on
-along the seam, its hooks running in the grooves, until the plate meets the end of the walls. It covers 5.8 mm of its
-9 mm wall from the end it went on at. A clip that slides needs room on every face it slides on: `snap fit` across,
+along the seam, its hooks running in the grooves, until the plate meets the end of the walls. The walls are as long
+as the clip's channel (7 mm, `SNAP_LONG` is `SNAP_CLIP` less the plate), so there the clip covers them end to end.
+The first clips with a plate covered 5.8 mm of a 9 mm wall, and 3.2 mm of every wall stood out of the clip (bug
+078). A clip as long as those walls (10.2 mm) needs that much seam free beside a wall to go on, and 5 of the box's
+12 seams are too short for it. A clip that slides needs room on every face it slides on: `snap fit` across,
 and 0.3 mm (`SNAP_SLIDE`) under the groove's ledge and over the walls' tops. The first clips with a plate had
 0.05 mm under the ledge, and the clip's rounded inside corners (0.25 mm) filled it: they touched the walls and
 stuck part way on (bug 065). It prints standing on
@@ -142,7 +145,7 @@ pop out of the bed and too fragile", and the clip opened. The plate is 90 mm² a
 
 A wall leans over its own panel by half the bend, so it prints without support up to a bend of 100° (`SNAP_LEAN`);
 a sharper seam is left plain with a warning, like a window frame narrower than the wall's foot, or a seam with
-no clip's length (7 mm) of seam free beside a wall: a clip goes on only from there, along the seam. At an inward seam the panels meet outside the edge: the wall starts on the panel's
+no clip's length (8.2 mm) of seam free beside a wall: a clip goes on only from there, along the seam. At an inward seam the panels meet outside the edge: the wall starts on the panel's
 edge, leans out to that plane at 45° and follows it. A shallow seam's mitre is wider than its bend needs (it is as
 wide as the groove's flat bottom): the wall starts at the mitre and leans out to the plane in the same way.
 
@@ -155,7 +158,7 @@ the plan names it with its bend and the cure: glue it. The limits are in the hel
 
 The walls travel in the plan with each piece (`rails`, a `Rail` each: its line in the net, the direction into the
 panel, its cross-section) and `core.solid.rail` fuses them onto the panel. The 3D view draws each as a facet of its
-face. A clip is a part of its own (`K-n`, group J, 7 mm thick, `springy`: the thin-part checks pass it). The joint
+face. A clip is a part of its own (`K-n`, group J, 8.2 mm thick, `springy`: the thin-part checks pass it). The joint
 needs a printed material, a hinge and `score side` inside, because the walls stand on the face that is up on the bed.
 
 ### The click joint: a tooth under a bridged bar, no part of its own

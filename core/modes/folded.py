@@ -72,8 +72,11 @@ SNAP_SLIDE = 0.3                      # mm a clip has under the groove's ledge a
 # Under this a clip is warned about (his first clip print: a U standing on 34 mm², "too small, too thin, they pop out
 # of the bed & too fragile"). ponytail: one print sets it; 60 is not proven to print well, only 34 to print badly
 CLIP_AREA = 60.0                      # mm² a clip stands on, on the bed: its plate
-SNAP_CLIP, SNAP_LONG = 7.0, 9.0       # a clip's width along the seam, and the length of wall it sits on (longer walls grow into a
-                                      # neighbour seam's at a corner)
+SNAP_CLIP = 8.2                       # a clip's length along the seam, its plate included: 41 layers of 0.2 mm, as it prints
+SNAP_LONG = SNAP_CLIP - SNAP_PLATE    # the length of wall a clip sits on: its channel, so a clip slid on to its plate covers the walls
+                                      # end to end. At 9 mm walls under a 5.8 mm channel, 3.2 mm of every wall stuck out (bug 078);
+                                      # Marcel chose 7 and 8.2 over a 10.2 clip, which leaves 5 of the box's 12 seams too short to
+                                      # slide it on. Longer walls also grow into a neighbour seam's at a corner
 SNAP_LEAN = math.radians(50)          # a wall leans by half the seam's bend: past this it does not print without support
 SNAP_REACH = 5.0                      # an inward seam's walls start where the panels meet, out over the edge: at most this
                                       # far (mm). It grows as t / (1 - tan(bend / 2)) - t: 71° on a 2 mm sheet; at 90° they never meet
