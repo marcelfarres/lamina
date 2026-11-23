@@ -121,8 +121,8 @@ layers. New too: the band lattice, a library for your projects, masks, paper lan
 
   ![The egg's top layer on the sheet: before, its name, arrow and dowel numbers on it. Now clean, its name beside it](web/static/news/0.4.0-clean-tops.jpg)
 
-- **Print files that print right.** Each printed part carries its number, on a thin tag if it is small: snap it
-  off. The 3MF gives each part its layer height, bridges and supports. OrcaSlicer applies them. README.txt lists them.
+- **Print files that print right.** Each printed part carries its number, on a thin tag if small: snap it off.
+  Clips and pins share the plates. Each part's 3MF settings (layer height, bridges, supports) apply in OrcaSlicer.
 
   ![Small horse ribs on the print plate, each joined to a tag with its number. One tag up close. A printed panel with every seam number cut in](web/static/news/0.4.0-print-tags.jpg)
 

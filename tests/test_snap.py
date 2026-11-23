@@ -131,22 +131,24 @@ def test_a_clip_too_small_to_print_well_is_said_with_the_wall_height_that_cures_
 
 @pytest.mark.skipif(not has_boolean(), reason="needs manifold3d to join each tag to its clip")
 def test_every_clip_lies_on_the_bed_with_its_number_on_a_tag(tmp_path):
-    """The box's clips print on a plate of their own. Each is too small for its number cut in, so it carries it on a
+    """The box's clips print on the panel's plate: a printer's bed takes every thickness (export review Q9; they had a
+    plate of their own, 279 x 22 mm of it used). Each is too small for its number cut in, so it carries it on a
     tag joined to it, one solid (bug 061), and the README names it. The panel and every clip lie on the bed, inside
     its margin."""
     from core.solid import CHIP_H, LETTER_H
     plan = box(joint="snap"); files = proto_set(plan, tmp_path)
     bed, margin = np.array(plan["params"]["sheet"], float), plan["params"]["sheet_margin"]
     clips = {pc["label"] for s in plan["slices"] if s["group"] == "J" for pc in s["pieces"]}
-    seen = {}
+    seen, on = {}, {}
     for f in (f for f in files if f.name.startswith("plate-")):
         scene = trimesh.load(f)
         for name in scene.graph.nodes_geometry:
             M, g = scene.graph[name]; m = scene.geometry[g].copy(); m.apply_transform(M); lo, hi = m.bounds
             assert m.is_watertight and m.body_count == 1, name
             assert lo[:2].min() >= margin - 1e-6 and (hi[:2] <= bed - margin + 1e-6).all(), (name, lo, hi)
-            seen[name] = m
+            seen[name], on[name] = m, f.name
     assert len(clips) == 12 and clips | {"P-1"} == set(seen)
+    assert {on[k] for k in clips} == {on["P-1"]}                              # one plate: the panel and its clips
     for k in clips:
         m = seen[k]; up, z = m.face_normals[:, 2] > 0.99, m.triangles_center[:, 2]
         assert m.area_faces[up & (np.abs(z - (CHIP_H + LETTER_H)) < 0.01)].sum() > 2, k      # its number, standing on the tag
