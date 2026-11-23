@@ -23,6 +23,11 @@ export const matThicks=m=>{const seen=new Map();for(const e of [...(matOf(m).t||
 // machines of your own (this browser) sit beside the built-ins in the same shape, keyed by the name you gave them
 export const userMachines=()=>ls('slicer_machines',{});
 export const machineOf=k=>MACHINES[k]||userMachines()[k];
+// the kind of machine, as the Export tab names it: [sign, word], from the built-in it is or a machine of yours was made from
+// ponytail: read from the catalog (what it makes, a bit, no kerf); give MACHINES a `kind` when one needs a word these rules miss
+export function machineKind(k){const b=MACHINES[k]?k:userMachines()[k]?.base,m=MACHINES[b]||{};
+  return m.cuts?.some(c=>MATERIALS[c]?.family==='print')?['⬢','3D PRINTER']:m.tool>0?['⚙','CNC ROUTER']:b==='hand'?['✎','BY HAND']
+    :b==='plasma'?['✂','PLASMA CUTTER']:m.kerf===0?['✂','KNIFE CUTTER']:['✂','LASER']}
 const machinesFor=m=>[...Object.keys(MACHINES),...Object.keys(userMachines())].filter(k=>machineOf(k).cuts.includes(m));
 export const sameSheet=(a,b)=>a&&b&&Math.abs(a[0]-b[0])<0.01&&Math.abs(a[1]-b[1])<0.01;
 export function applyMachine(k){const x=machineOf(k);if(!x)return;state.machine=k;state.kerf=x.kerf;state.slot_offset=x.slot;state.relief=x.relief;state.tool_d=x.tool;

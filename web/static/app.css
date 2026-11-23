@@ -1,4 +1,7 @@
 :root{--bg:#141517;--panel:#1c1d21;--panel2:#232429;--line:#2f3138;--ink:#e6e6e3;--muted:#9a9ba3;--acc:#4f8cff;--err:#ff6b6b;--warn:#f5b642;--ok:#5fcf80;--sel:#ffd84a}
+/* hidden means hidden: a rule that sets display beat the attribute again and again (the fold slider, the laser
+   fit-test buttons on a printed job), each time patched for one element */
+[hidden]{display:none!important}
 *{box-sizing:border-box}html,body{height:100%}body{margin:0;display:flex;flex-direction:column;font:13px/1.45 Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink);color-scheme:dark;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
 header{flex:none;min-height:44px;padding:0 14px;background:#0f1012;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center}
 /* One row: the links and the rarely used buttons are in the help menu, and the status line gives way first. Under
@@ -136,6 +139,8 @@ details.msg>summary{cursor:pointer}details.msg>summary span{opacity:.75}details.
 h2 button.reset{float:right;text-transform:none;letter-spacing:0;font-size:11px;padding:1px 7px;margin-top:-3px}
 #view{display:flex;flex-direction:column}#view.only3d #lower{display:none}#view.only3d #v3d{flex:1 1 auto}#view.only2d #v3d{display:none}#view.only2d #lower{flex:1}
 .dl{display:flex;flex-wrap:wrap;gap:6px}.dl.rows{flex-direction:column}.dl .r{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin-bottom:4px}.dl a{padding:6px 10px;border:1px solid var(--line);border-radius:4px;text-decoration:none;color:var(--ink);font-size:12px;background:var(--panel2)}.dl a:hover{border-color:var(--acc)}
+/* the Export tab: the one file each machine needs, outlined thick and bold (not by colour alone), and the job's summary */
+.dl a.main{border:2px solid var(--acc);font-weight:600;font-size:12.5px}#machines{line-height:1.6}#machines b{color:var(--ink)}#x_errors{border:1px solid currentColor}#x_errors button{margin-left:4px}
 table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 6px;border-bottom:1px solid var(--line);text-align:left}tr.bad td{color:var(--err)}tr:hover td{background:var(--panel2);cursor:pointer}
 dialog{width:min(620px,92vw);border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);padding:22px;font:14px/1.55 Inter,system-ui,sans-serif}
 /* A phone: the header wraps and the panel sits over the 3D view. Left unwrapped, the header's buttons made the page
