@@ -14,11 +14,11 @@ _dist = lambda a, b: math.hypot(a[0] - b[0], a[1] - b[1])   # noqa: E731
 
 PIN_SHORT = 0.1            # a standoff's pin in a shared hole stops this short of the layer's middle: the two never touch
 FLUSH = "pentagon"         # the shape of a hole only one standoff uses, and of the pin that goes through it
-# Under these a standoff is warned about as a size no print has confirmed. ponytail: no print is behind either number
-# yet (bug 058): they are a guess at where a 0.4 mm nozzle stops making a sound pin. Two sizes are being printed, a
-# 4 mm dowel with 1.4 mm shared pins and a 6 mm dowel with 3 mm pins. Move the limits, or drop a warning, when those
-# prints say so.
-SMALL_PIN = 5.0            # mm of dowel diameter: the pin is that less the pin fit
+# Under these a standoff is warned about as a size no print has confirmed (bug 058). SMALL_PIN is a print: a 4 mm
+# dowel's 3.9 mm pins, at the default pin fit, went into the layers "tight but exactly right" (Marcel, 2026-11-23,
+# to-print 5; the fit test's looser steps were too loose). ponytail: SHORT_PIN is still a guess, no print of a shared
+# pin's length has come back; move it, or drop its warning, when one does.
+SMALL_PIN = 4.0            # mm of dowel diameter: the pin is that less the pin fit
 SHORT_PIN = 2.0            # mm a pin goes into its hole
 MIN_DOWEL = 2.0            # below this a dowel is not worth cutting for: too small to buy, too weak to locate anything
 ABC_LOWER = ABC.lower()    # the letters of connector names, no i or o (they read as 1 and 0 when engraved small)
