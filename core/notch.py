@@ -13,6 +13,21 @@ from shapely.geometry import Polygon, LineString
 from shapely.ops import unary_union
 from .geometry import crossings, to_local, rect_along, circle
 
+RELIEF_ROOM = 0.05   # mm on the radius: a relief exactly the bit's size leaves the bit no room, and CAM skips it
+
+
+def relief(corner, back, side, p):
+    """The relief circle of a slot's inside corner as (centre, radius), or None (no bit, or square corners). `back` and
+    `side` are unit vectors from the corner into the slot: toward its mouth, and across it. The circle passes through
+    the corner and is RELIEF_ROOM wider than the bit, so a bit of `tool_d` rolls into it. Its centre steps from the
+    corner on the diagonal (dogbone), along the slot (tbone_h: it notches the side wall) or across it (tbone_v: it
+    notches past the slot's end)."""
+    if p["tool_d"] <= 0 or p["relief"] == "square":
+        return None
+    R = p["tool_d"] / 2 + RELIEF_ROOM
+    step = {"dogbone": (back + side) / math.sqrt(2), "tbone_h": back}.get(p["relief"], side)
+    return corner + step * R, R
+
 
 def slot_polygon(a_open, a_end, width, p) -> Polygon:
     """Slot in local 2D from the (overshot) open end `a_open` to the closed end `a_end`, with mouth flare and relief."""
@@ -28,18 +43,10 @@ def slot_polygon(a_open, a_end, width, p) -> Polygon:
         mouth = np.asarray(a_open); inner = mouth + d * depth
         parts.append(Polygon([mouth + n * (width / 2 + flare), mouth - n * (width / 2 + flare),
                               inner - n * width / 2, inner + n * width / 2]))
-    td = p["tool_d"]
-    if td > 0 and p["relief"] != "square":
-        end = np.asarray(a_end); r = td / 2
-        for s in (1, -1):
-            corner = end + n * s * width / 2
-            if p["relief"] == "dogbone":
-                c = corner + (-d + n * s) * r / math.sqrt(2)
-            elif p["relief"] == "tbone_h":   # relief along the slot direction
-                c = corner - d * r
-            else:                             # tbone_v: relief across the slot
-                c = corner + n * s * r
-            parts.append(circle(c, td))
+    for s in (1, -1):
+        rc = relief(np.asarray(a_end) + n * s * width / 2, -d, -n * s, p)
+        if rc:
+            parts.append(circle(rc[0], 2 * rc[1]))
     return unary_union(parts)
 
 

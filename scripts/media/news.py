@@ -307,9 +307,9 @@ def n040_tools(app):
 
 
 def n040_export(app):
-    app.example("vase", "stacked")
+    app.example("shade")                    # two machines: the summary names both, and each has its main button
     app.tab("export")
-    app.shot("0.4.0-export", (0, 40, 470, 700), [("#dl", "downloads first")])
+    app.shot("0.4.0-export", (0, 40, 470, 760), [("#machines", "which machine makes what"), ("#dl a.main", "one main file each")])
 
 
 def n040_cards(app):
@@ -523,8 +523,9 @@ def n033_windows(app):
 def n033_step(app):
     app.example("vase", "stacked")
     app.tab("export")
-    app.p.locator("#dl").scroll_into_view_if_needed()
-    app.shot("0.3.3-step", "#dl", [("#dl >> text=STEP", "assembled STEP")])
+    app.p.click("#more_fold > summary")             # STEP is under More files since the 0.4.0 Export tab
+    app.p.locator("#more").scroll_into_view_if_needed()
+    app.shot("0.3.3-step", "#more", [("#more >> text=STEP", "assembled STEP")])
 
 
 # ---- 0.4.0, last: it leaves four saved projects in the page's library ----------------------------------------------

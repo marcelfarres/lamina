@@ -422,3 +422,18 @@ def test_a_part_laid_past_the_sheet_edge_is_an_error():
     ok, op = _strip_part()
     nest.nest([op], (600, 400), 3, 5)
     assert _past_the_edge([ok], p) == 0 and not ok.errors
+
+
+def test_the_crown_ring_lays_every_part_on_its_sheet():
+    """The model that showed bug 073: twelve dodecahedra in a ring (tests/data/crown_ring.stl, one of the paper-lamp
+    options), folded card with paper windows on 600 x 400 sheets. P-2 (632 x 176 mm at its tightest angle) ran to x 637
+    and P-4 to x 615, with 0 errors. Now every part lies on its sheet, and the plan has no error."""
+    data = pathlib.Path(__file__).resolve().parent / "data"
+    plan = build(data / "crown_ring.stl", "folded", {"material": "card", "thickness": 1, "facet": 0, "joint": "tab", "window": 0.7,
+                                                      "window_fill": "paper", "autofix": "off"})
+    W, H = plan["sheet"]
+    for s in plan["slices"]:
+        for pc in s["pieces"]:
+            xy = np.array([q for rings in pc["placed"] for q in rings[0]])
+            assert xy.min() >= -0.01 and xy[:, 0].max() <= W + 0.01 and xy[:, 1].max() <= H + 0.01, (pc["label"], xy.max(0))
+    assert plan["counts"]["errors"] == 0 and plan["counts"]["warnings"] == 0

@@ -4,8 +4,8 @@ import {$$, $, status, esc, CLIENT} from './util.js';
 import {highlight, showPane} from './edit3d.js';
 import {fmtLen, fmtMass, fmtVol, fmtArea, DU, DUNIT, inU, inUnit, toMM} from './units.js';
 import {act} from './history.js';
-import {dens} from './presets.js';
-import {renderFields, lenMM} from './form.js';
+import {dens, machineOf, machineKind} from './presets.js';
+import {renderFields, lenMM, showTab} from './form.js';
 import {slice} from './slice.js';
 import {parts} from './scene.js';
 import {sheetSeams, toggleSeam} from './seams.js';
@@ -47,7 +47,10 @@ function rodStats(){const lines=new Map(),q=x=>Math.round(x*100);
   for(const iv of lines.values()){iv.sort((p,r)=>p[0]-r[0]);let [lo,hi,area]=iv[0],l=0;
     for(const [a,b] of iv.slice(1)){if(a>hi){l+=hi-lo;lo=a}hi=Math.max(hi,b)}l+=hi-lo;
     len+=l;vol+=l*area}
-  return {n:lines.size,len,vol}}
+  // counted by name, as the assembly key lists them and a printed job prints them (export.rods_of): two named rods end to
+  // end on one line are two to cut, though they weigh as one line
+  const named=new Set((ST.plan.rods||[]).filter(r=>r.length>=8).map(r=>r[5])).size;
+  return {n:named||lines.size,len,vol}}
 export function renderWeight(){if(!ST.plan)return;const d=dens(),g=d/1000,by=new Map();   // g/cm³ → g per mm³
   for(const s of ST.plan.slices)for(const pc of s.pieces){const b=by.get(s.thickness)||{n:0,v:0};b.n++;b.v+=pc.area*s.thickness;by.set(s.thickness,b)}
   const parts=[...by.values()].reduce((a,b)=>a+b.v,0), rods=rodStats();
@@ -68,35 +71,81 @@ export function renderWeight(){if(!ST.plan)return;const d=dens(),g=d/1000,by=new
       return `<div class="hint">${fmtLen(t)} stock: ${b.n} part(s) · ${fmtMass(b.v*g)} · ${n} sheet(s), ${fmtArea(n*area0)}</div>`}).join(''):'')
     +`<div class="hint">at ${+(d*DU()).toPrecision(4)} ${DUNIT()}, set with the material on Sheet &amp; fit</div>`;
 }
+// What the job is, by machine, before any button: which machine makes what, from which stock, and in which order. A
+// cut job has a line per stock it is nested on (a paper lamp's panes on paper, its panels on card). Names are escaped:
+// a machine or a material can be one of yours
+function machinesNote(ico,KIND,rods,nso){const p=ST.plan,pa=p.params,pl=(n,w)=>`${n} ${w}${n===1?'':'s'}`,
+    bed=`${p.sheet.map(v=>+(+inU(v)).toPrecision(4)).join(' × ')} ${ST.unit}`, name=esc((machineOf(state.machine)?.name||state.machine||'').replace(/ \*$/,''));
+  if(state.printed)return `<b>This job is printed.</b><br>${ico} <b>${KIND}</b> · ${name}, ${esc(state.material)} ${fmtLen(pa.thickness)} · ${pl(p.sheets,'plate')} ${bed}`
+    +(rods?`, and ${rods} dowel pins`:'')+(nso?`, and ${nso} standoffs`:'');
+  const by=new Map();
+  for(let i=0;i<p.sheets;i++){const t=p.sheet_thick?.[i]??pa.thickness,s=p.sheet_stock?.[i]||state.material,k=`${s} ${t}`;by.set(k,[s,t,(by.get(k)?.[2]||0)+1])}
+  const cut=[...by.values()].map(([s,t,k])=>`${ico} <b>${KIND}</b> · ${name}, ${esc(s)} ${fmtLen(t)} · ${pl(k,'sheet')} ${bed}`
+    +(by.size===1?`, ${pl(p.counts.parts,'part')}`:'')+(KIND==='CNC ROUTER'&&pa.tool_d>0?` · bit ${fmtLen(pa.tool_d)}`:''));
+  return `<b>${nso?'Two machines make this model.':KIND==='BY HAND'?'This job is cut by hand.':'This job is cut.'}</b><br>`+cut.join('<br>')
+    +(nso?`<br>⬢ <b>3D PRINTER</b> · ${nso} standoffs<br>Order: fit test, then cut, then print.`:'')
+    +(rods?`<br>Also ${rods} dowel rods${pa.dowel_d?`, ${fmtLen(pa.dowel_d)} across`:''}: cut them to length by hand. The assembly key gives each length.`:'')}
 export function renderDownloads(){ // the labels checkbox applies to every cut file; the server names files <project or model>_v<rev>_…
   protoHint(); renderWeight();
   const b=`api/job/${CLIENT}/${ST.job}`,L=$('#x_labels').checked?1:0,K=$('#x_key').checked?1:0,G=$('#x_grouped').checked?1:0,step=lenMM('#pr_step',0.1),U=`&units=${ST.unit}`;   // the cut files come out in the unit on show, without a re-slice
   // what the labels on the parts mean, before the cut rather than after it
   $('#legend').innerHTML=`${(ST.mode.legend||'every part carries its own label').replace(/ · /g,'<br>')}`
     +(state.label_style==='code'?'<br><b>puzzle mode:</b> the parts are engraved with codes instead — assembly-key.txt maps them back':'');
-  // a printed job has nothing to cut: the plates are under Print, and the cut files and their fit test step aside
-  for(const el of $$('.cutonly,.protoonly'))el.hidden=state.printed;
-  $('#pr_title').textContent=state.printed?'Print plates':'Prototyping (3D print)'; if(state.printed)$('#pr_fold').open=true;   // a printed job: the plates are the files
-  $('#pr_go').textContent=state.printed?`download print plates (plate-1.3mf … plate-${ST.plan.sheets}.3mf, one per bed, + one STL per part${ST.plan.rods?.length?' + pins-1.3mf, the dowel pins':''})`
-    :'download prototype set (plate.3mf for OrcaSlicer + one STL per part)';
-  // every file says what it is for: eight buttons in a row left the reader to know which program wants which format
-  const rows=r=>r.map(([t,u,use])=>`<div class="r"><a href="${u}">${t}</a>${use?`<details class="info"><summary>what is it for?</summary><span class="hint">${use}</span></details>`:''}</div>`).join('');
+  const p=ST.plan, printed=state.printed, nso=p.standoffs?.items.length||0, mix=nso&&!printed, [ico,KIND,MK]=machineKind(state.machine);
+  const fit=p.fit_test!==false;          // a joint the slot offset sizes (Mode.fit_test); a plan saved before the field has one
+  const rods=p.rods?.length?rodStats().n:0;
+  // the print set and the print fit test: a printed job is printed as it is, full size, at its own slot offset and label size
+  const pq=new URLSearchParams({scale:printed?1:$('#pr_scale').value||1,size:printed?0:lenMM('#pr_size'),labels:$('#pr_labels').value,font:printed?state.font:lenMM('#pr_font',5),min_thick:lenMM('#pr_min',1.2),offset:printed?state.slot_offset:lenMM('#pr_offset',0.2)}), fq=new URLSearchParams(pq);
+  fq.set('step',step);
+  // a printed job has nothing to cut, and a job with no joint the offset sizes has no fit test: their steps step aside
+  for(const el of $$('.cutonly,.protoonly'))el.hidden=printed;
+  for(const el of $$('.fitonly'))el.hidden=!fit;
+  $('#fit_what_print').hidden=!printed;
+  const slot=$(printed?'#print_opts':'#pr_slot'); if($('#pr_shared').parentNode!==slot)slot.append($('#pr_shared'));   // one set of print controls: under the print set on a printed job (moved only when it changes place: a moved box loses the focus)
+  $('#slicer_fold').hidden=!printed; $('#slicer_sum').textContent=`what the slicer must have: ${state.material}, 0.4 mm nozzle, first layer ${fmtLen(0.2)}`;   // core.solid.FIRST
+  $('#machines').innerHTML=machinesNote(ico,KIND,rods,nso);
+  const ne=p.counts.errors; $('#x_errors').hidden=!ne;           // the files still download: the warning says what they hold
+  if(ne){$('#x_errors').innerHTML=`<b>⚠ WARNING</b> · This plan has ${ne} error${ne>1?'s':''}: some parts do not go together, or the machine cannot make them. Correct ${ne>1?'them':'it'} before you cut or print. <button class="small">show the errors</button>`;
+    $('#x_errors button').onclick=()=>showTab('checks')}
+  // every file says what it is for: eight buttons in a row left the reader to know which program wants which format.
+  // A row: [text, link, what it is for, its id, a warning shown under it, the machine]. A main row is the one file a
+  // machine needs: outlined, marked with its machine (data-machine: the tour finds it), what it is for written under it.
+  // The steps are numbered as they show
+  const rows=(r,main)=>r.map(([t,u,use,id,warn,mk])=>`<div class="r"${id?` id="${id}"`:''}><a href="${u}"${main?` class="main" data-machine="${mk}"`:''}>${t}</a>`
+    +(use?main?`<div class="hint">${use}</div>`:`<details class="info"><summary>what is it for?</summary><span class="hint">${use}</span></details>`:'')
+    +`${warn?`<div class="msg warn"><b>⚠ WARNING</b> · ${warn}</div>`:''}</div>`).join('');
+  let n=0; const num=t=>`${++n} · ${t}`;
   const more=[['assembled STL',`${b}/stl`,'the whole model built from its parts, as one 3D file: to look at it or render it in another program'],
-    ['assembled STEP',`${b}/step`,'the same model as true solids, for CAD (Fusion, FreeCAD, Onshape): every part a body with flat faces, not a triangle mesh'],
+    ['STEP: parts',`${b}/step`,'the same model as true solids, for CAD (Fusion, FreeCAD, Onshape): every part a body with flat faces, not a triangle mesh','dl_step'],
+    // one body needs the solids library the browser build has none of (core.solid.one_body). Folded panels fuse where
+    // grown panels and tabs cross, and CAD rejected 6 of 8 examples (Marcel: offer it with a warning)
+    ...(document.documentElement.dataset.static?[]:[['STEP: one body',`${b}/step?body=1`,'the whole model as one solid with flat faces, for CAD: every part, standoff and dowel joined where they touch (grown by 0.02 mm so they do). A part that touches nothing stays a body of its own','dl_step_body',
+      ST.mode.name==='folded'?'on Folded Panels this file may not open as a valid solid in CAD. If it does not, take STEP: parts':'']]),
     ['plan.json',`jobs/${CLIENT}/${ST.job}/plan.json`,'everything Lamina worked out, for scripts and other tools']];
-  $('#dl_title').textContent=state.printed?'The parts':'2 · The parts';
-  // standoffs: which file is for which machine. Printed layers: one more file in the print set
-  const nso=ST.plan.standoffs?.items.length, two=!nso?'':`<div class="msg note" id="two_machines">`+(state.printed
-    ?`<b>Two print files.</b><br>⬢ The plates: the layers.<br>⬢ <b>3D-PRINT standoffs</b>: the ${nso} standoffs. Both are in the print set zip.`
-    :`<b>Two machines make this model.</b><br>✂ <b>LASER</b>: the sheet files below.<br>⬢ <b>3D PRINTER</b>: the file named <b>3D-PRINT standoffs</b> (${nso} standoffs). It is inside every sheets zip, with a note that says which size goes where.`)+`</div>`;
-  if(state.printed){$('#dl').innerHTML=two+rows(more);return}
-  $('#dlfit').innerHTML=rows([['fit test SVG + DXF',`${b}/fitcut?fmt=svg,dxf&labels=${L}&step=${step}${U}`],['fit test PDF',`${b}/fitcut?fmt=pdf&labels=${L}&step=${step}${U}`]]);
-  $('#dl').innerHTML=two+rows([
-    ['sheets SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&grouped=${G}${U}`,'the usual one, a zip with one file per sheet: laser software opens the SVGs (LightBurn, xTool Creative Space, Glowforge), CAM the DXFs (Fusion, VCarve, SheetCAM)'],
+  // 1 · the fit test, one per machine: the cut one at 1:1 on the real stock, and a mix's standoffs to try in its holes
+  if(fit){$('#fit_title').textContent=num(`Fit test — ${mix?'cut and print':printed?'print':'cut'} this first`);
+    $('#fit_opts>summary').textContent=printed?'options: joint step':'options: joint step, PDF';
+    const holes=ST.mode.name==='stacked'&&p.params.connect!=='tab'?'hole sizes':'slot offsets';
+    $('#dlfit').innerHTML=printed?rows([['print fit test · 5 small joints (.zip)',`${b}/fit?${fq}`,'','fit_go']])
+      :rows([[`${ico} fit test to cut · 5 ${holes} (SVG + DXF)`,`${b}/fitcut?fmt=svg,dxf&labels=${L}&step=${step}${U}`],
+             ...(mix?[['⬢ fit test to print · the standoffs (3MF)',`${b}/standoffs?fit=1`]]:[])]);
+    $('#dlfit_other').innerHTML=printed?'':rows([['fit test PDF',`${b}/fitcut?fmt=pdf&labels=${L}&step=${step}${U}`]])}
+  // 2 · the files: one main button per machine, the other formats and the options folded under it
+  $('#dl_title').textContent=num(printed?'The print files':'The files, by machine');
+  const plates=p.sheets>2?`plate-1 … plate-${p.sheets}`:[...Array(p.sheets).keys()].map(i=>`plate-${i+1}`).join(', ');
+  $('#dl').innerHTML=printed?rows([[`print set (.zip) · ${plates}${rods?`, ${rods} dowel pins`:''}${nso?`, ${nso} standoffs`:''}, README`,`${b}/proto?${pq}`,'A 3MF per plate for the slicer, every part with the settings it needs, one STL per part, and README.txt: read it first.','pr_go','',MK]],true)
+    :rows([[`${ico} ${KIND} · sheets SVG + DXF (.zip)`,`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&grouped=${G}${U}`,`An SVG and a DXF for each sheet${K?', the assembly key':''} and README.txt: read it first. Laser software opens the SVGs (LightBurn, xTool Creative Space, Glowforge), CAM the DXFs (Fusion, VCarve, SheetCAM).`,'','',MK]],true);
+  $('#dl_other').innerHTML=printed?'':rows([
     ['sheets PDF (one page per sheet)',`${b}/export?fmt=pdf&labels=${L}&key=${K}${U}`,'print it at 100 % to cut by hand or check the sizes; Glowforge and LightBurn open it too'],
     ['sheets EPS',`${b}/export?fmt=eps&labels=${L}&key=${K}${U}`,'for CorelDRAW, Illustrator and laser drivers that ask for EPS'],
-    ['one file per piece SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&per_piece=1&grouped=${G}${U}`,'every part on its own, not nested: to nest them yourself (Deepnest, your laser software) or cut them one at a time'],
-    ...more]);
+    ['one file per piece SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&per_piece=1&grouped=${G}${U}`,'every part on its own, not nested: to nest them yourself (Deepnest, your laser software) or cut them one at a time']]);
+  $('#dl_print').innerHTML=mix?rows([[`⬢ 3D PRINTER · ${nso} standoffs (3MF)`,`${b}/standoffs`,'One 3MF for the slicer, every standoff an object of its own, named by its size (S1, S2 …). The note in the sheets zip says which size goes where.','dl_standoffs','','printer']],true):'';
+  // 3 · build it: the key on its own, what goes where
+  $('#build_title').textContent=num('Build it');
+  $('#key_go').innerHTML=`<a href="${b}/key?units=${ST.unit}">assembly key (.txt) · which ${nso?'standoff':rods?(printed?'pin':'dowel'):'part'} goes where</a>`;
+  $('#dl_proto').innerHTML=printed?'':rows([['prototype set (.zip) · plate.3mf for the slicer + one STL per part',`${b}/proto?${pq}`,'','pr_go'],
+    ...(fit?[['print fit test (.zip) · 5 print slot offsets around yours',`${b}/fit?${fq}`,'','fit_go']]:[])]);
+  $('#more').innerHTML=rows(more);
 }
 export function renderReport(){
   const c=ST.plan.counts,p=ST.plan;
@@ -127,19 +176,18 @@ export function renderReport(){
   for(const box of [$('#msgs'),$('#report')])box.onclick=e=>{   // clicking a message selects the part it is about, in 3D and on the sheet
     if(e.target.closest('.fix'))return; const d=e.target.closest('.msg[data-s]'); if(!d)return;
     const m=parts.children.find(c=>c.userData.slice===d.dataset.s); if(m){highlight(m);ST.fitted=true}else showPane(d.dataset.s)};
+  // the link itself does the download (a navigation on the server, a blob from the worker in the browser build); every
+  // box of the tab is in some link, so a change makes the links again
   renderDownloads();
-  // the link itself does the download (a navigation on the server, a blob from the worker in the browser build)
-  const prq=()=>new URLSearchParams({scale:state.printed?1:$('#pr_scale').value||1,size:state.printed?0:lenMM('#pr_size'),labels:$('#pr_labels').value,font:state.printed?state.font:lenMM('#pr_font',5),min_thick:lenMM('#pr_min',1.2),offset:state.printed?state.slot_offset:lenMM('#pr_offset',0.2)});
-  $('#pr_go').onclick=e=>{e.currentTarget.href=`api/job/${CLIENT}/${ST.job}/proto?${prq()}`;ST.countUse('export','proto-3mf')};
-  $('#fit_go').onclick=e=>{const q=prq();q.set('step',lenMM('#pr_step',0.1));e.currentTarget.href=`api/job/${CLIENT}/${ST.job}/fit?${q}`;ST.countUse('export','fit-3mf')};
   // typing in a length box writes its mm back, so what the server is given never depends on the unit on show
-  for(const el of $$('input[data-len]'))el.oninput=()=>{el.dataset.mm=el.value===''?'':toMM(+el.value);(el.id==='pr_step'?renderDownloads:protoHint)()};
-  $('#pr_scale').oninput=protoHint; $('#x_labels').onchange=$('#x_key').onchange=$('#x_grouped').onchange=renderDownloads;
+  for(const el of $$('input[data-len]'))el.oninput=()=>{el.dataset.mm=el.value===''?'':toMM(+el.value);renderDownloads()};
+  $('#pr_scale').oninput=$('#pr_labels').onchange=renderDownloads; $('#x_labels').onchange=$('#x_key').onchange=$('#x_grouped').onchange=renderDownloads;
   // Which formats people actually take away — the strongest signal of what machines they run. The link's own
   // query string already names them, so nothing extra has to be tracked to know it.
-  $('#dl').onclick=e=>{const a=e.target.closest('a');if(!a)return;
-    const href=a.getAttribute('href')||'', q=new URLSearchParams(href.split('?')[1]||'');
-    const fmts=(q.get('fmt')?q.get('fmt').split(','):[href.split('?')[0].split('/').pop().replace('.','-')]).map(f=>/fitcut/.test(href)?'fit-'+f:f);
+  $('section[data-tab="export"]').onclick=e=>{const a=e.target.closest('.dl a');if(!a||a.id==='vid_go')return;
+    const href=a.getAttribute('href')||'', path=href.split('?')[0].split('/').pop(), q=new URLSearchParams(href.split('?')[1]||'');
+    const named={proto:'proto-3mf',fit:'fit-3mf'}[path]; if(named)return ST.countUse('export',named);   // the names these two were always counted under
+    const fmts=(q.get('fmt')?q.get('fmt').split(','):[path.replace('.','-')]).map(f=>/fitcut/.test(href)?'fit-'+f:f);
     fmts.forEach(f=>ST.countUse('export',f+(q.get('per_piece')?'-per-piece':'')))};
   // one row per different part: its own size, how many to cut, and which pieces come off it
   const size=pc=>[pc.bbox[2]-pc.bbox[0],pc.bbox[3]-pc.bbox[1]].map(inU).join('×');

@@ -106,6 +106,8 @@ def test_the_solid_downloads_of_a_job(api):
     step = api.get(f"/api/job/{MINE}/{job}/step")                                 # the same as solids, for CAD
     assert step.status_code == 200 and step.content.startswith(b"ISO-10303-21;") and ".step" in step.headers["content-disposition"]
     assert api.get(f"/api/job/{MINE}/{job}/step", params={"part": "no such"}).status_code == 404
+    one = api.get(f"/api/job/{MINE}/{job}/step", params={"body": 1})                # the whole model fused: one solid
+    assert one.status_code == 200 and "onebody.step" in one.headers["content-disposition"] and one.content.count(b"MANIFOLD_SOLID_BREP(") == 1
     names = lambda r: zipfile.ZipFile(io.BytesIO(r.content)).namelist()
     readme = lambda r: zipfile.ZipFile(io.BytesIO(r.content)).read("README.txt").decode().splitlines()
     same = api.get(f"/api/job/{MINE}/{job}/proto", params={"scale": 1, "offset": 0})
@@ -120,6 +122,26 @@ def test_the_solid_downloads_of_a_job(api):
     assert "plate.3mf" in fit and "README.txt" in fit and "fit_0.25.stl" in fit and "fit_0.10.stl" in fit
     cut = names(api.get(f"/api/job/{MINE}/{job}/fitcut", params={"fmt": "svg", "step": 0.1}))
     assert "README.txt" in cut and {n.split("/")[0] for n in cut if "/" in n} == {"fit_-0.20", "fit_-0.10", "fit_0.00", "fit_0.10", "fit_0.20"}
+
+
+def test_the_key_and_the_standoffs_download_on_their_own(api):
+    """The Export tab gives each machine a button of its own: the assembly key as text, and the standoffs as the 3MF
+    the sheets zip carries (fit=1: the fit test's). A job with no standoffs has no such file. The plan says whether
+    the job has a fit test at all."""
+    import json
+    cube = api.post("/api/slice", data={"client": MINE, **CUBE}).json()
+    key = api.get(f"/api/job/{MINE}/{cube['job']}/key")
+    assert key.status_code == 200 and "assembly-key.txt" in key.headers["content-disposition"]
+    assert all(pc["label"] in key.text for s in cube["plan"]["slices"] for pc in s["pieces"]), key.text[:300]
+    assert cube["plan"]["fit_test"] is True and cube["plan"]["standoffs"] is None
+    assert api.get(f"/api/job/{MINE}/{cube['job']}/standoffs").status_code == 404
+    egg = api.post("/api/slice", data={"client": MINE, "mode": "stacked", "example": "egg", "params": json.dumps(
+        {"space": 8, "connect": "standoff", "dowel_d": 5, "dowel_shape": "square", "thickness": 3, "autofix": "off"})}).json()
+    n = len(egg["plan"]["standoffs"]["items"])
+    own = api.get(f"/api/job/{MINE}/{egg['job']}/standoffs")
+    assert own.content[:2] == b"PK" and f"3D-PRINT standoffs x{n}.3mf" in own.headers["content-disposition"]
+    fit = api.get(f"/api/job/{MINE}/{egg['job']}/standoffs", params={"fit": 1})
+    assert fit.content[:2] == b"PK" and "fit test 3D-PRINT standoffs x" in fit.headers["content-disposition"]
 
 
 def test_every_zip_carries_the_project_file_that_reopens_the_job(api):

@@ -307,9 +307,9 @@ def test_every_control_does_what_it_says_and_every_download_holds_the_plan(page,
     p = plan(page); labels = {pc["label"] for s in p["slices"] for pc in s["pieces"]}
     from core.export import design_name
     design = design_name(p)                              # every file in a zip is named after the design, as the zip is
-    links = {a["t"]: a["h"] for a in page.eval_on_selector_all("#dl a, #dlfit a", "as => as.map(a => ({t: a.textContent, h: a.getAttribute('href')}))")}
+    links = {a["t"]: a["h"] for a in page.eval_on_selector_all('section[data-tab="export"] .dl a', "as => as.map(a => ({t: a.textContent, h: a.getAttribute('href')}))")}
     get = lambda href: page.request.get(f"{server}/{href}")
-    z = zip_of(get(links["sheets SVG + DXF"]).body())
+    z = zip_of(get(links[next(t for t in links if t.endswith("sheets SVG + DXF (.zip)"))]).body())
     svgs = [n for n in z.namelist() if n.endswith(".svg")]
     assert svgs and any(n.endswith(".dxf") for n in z.namelist()) and f"{design} assembly-key.txt" in z.namelist()
     assert all(n.startswith(f"{design} ") or n == f"{design}.lamina.json" for n in z.namelist()), z.namelist()
@@ -327,10 +327,12 @@ def test_every_control_does_what_it_says_and_every_download_holds_the_plan(page,
     assert len(stl) == 84 + 50 * int.from_bytes(stl[80:84], "little") and int.from_bytes(stl[80:84], "little") > 100, "the STL is not whole"
     one = get(links["assembled STL"] + "?part=" + sorted(labels)[0]).body()     # one part alone, as the parts table offers it
     assert len(one) == 84 + 50 * int.from_bytes(one[80:84], "little") and 0 < len(one) < len(stl)
-    assert get(links["assembled STEP"]).body().count(b"MANIFOLD_SOLID_BREP('") >= len(labels), "the STEP misses parts"
+    assert get(links["STEP: parts"]).body().count(b"MANIFOLD_SOLID_BREP('") >= len(labels), "the STEP misses parts"
+    assert 1 <= get(links["STEP: one body"]).body().count(b"MANIFOLD_SOLID_BREP('") < len(labels), "the one body is not fused"
     assert json.loads(get(links["plan.json"]).body())["counts"]["parts"] == p["counts"]["parts"]
-    fit = zip_of(get(links[next(t for t in links if t.startswith("fit test SVG"))]).body())
+    fit = zip_of(get(links[next(t for t in links if "fit test to cut" in t)]).body())
     assert "README.txt" in fit.namelist() and len({n.split("/")[0] for n in fit.namelist() if "/" in n}) == 5
+    page.click("#opts_fold > summary")                                   # the options are folded under the main button
     page.uncheck("#x_key"); page.uncheck("#x_labels")
     href = page.eval_on_selector("#dl a", "a => a.getAttribute('href')")
     assert "key=0" in href and "labels=0" in href
@@ -338,12 +340,12 @@ def test_every_control_does_what_it_says_and_every_download_holds_the_plan(page,
     page.check("#x_key"); page.check("#x_labels")
 
     # -- prototyping: the fields reach the request, and the zips hold a plate
-    page.eval_on_selector("#pr_fold", "d => { d.open = true }")            # the group opens on its heading (a printed job opened it already)
+    page.click("#pr_fold > summary"); page.click("#fit_opts > summary")   # both groups open on their heading: the joint step is with the fit test
     page.fill("#pr_size", "120"); page.select_option("#pr_labels", "hole"); page.fill("#pr_font", "4")
     page.fill("#pr_min", "1"); page.fill("#pr_offset", "0.3"); page.fill("#pr_step", "0.05")
     for btn, want in (("#pr_go", "plate.3mf"), ("#fit_go", "plate.3mf")):
         with page.expect_download(timeout=300_000) as dl:
-            page.click(btn)
+            page.click(btn + " a")
         url = dl.value.url
         assert all(q in url for q in ("size=120", "labels=hole", "font=4", "min_thick=1", "offset=0.3")), url
         assert want in zip_of(pathlib.Path(dl.value.path()).read_bytes()).namelist()
@@ -362,3 +364,14 @@ def test_every_control_does_what_it_says_and_every_download_holds_the_plan(page,
     assert plan(page)["counts"]["errors"] == 0, plan(page)["errors"]
     page.remove_listener("dialog", answer)
     assert not page.errors, page.errors
+
+
+def test_the_one_body_step_warns_on_folded_panels(page):
+    """Marcel, 2026-11-22: STEP: one body on every technique, and on a Folded Panels job a plain warning that the file
+    may not open as a valid solid in CAD (CAD rejected the fused panels of 6 of 8 folded examples). A stacked job has
+    the row and no warning."""
+    warning = "() => document.querySelector('#dl_step_body .warn')?.textContent || ''"
+    use(page, "fold_box"); page.click('nav button[data-t="export"]'); page.click("#more_fold > summary")
+    assert page.is_visible("#dl_step_body") and "may not open as a valid solid in CAD" in page.evaluate(warning)
+    use(page, "vase"); page.click('nav button[data-t="export"]'); page.click("#more_fold > summary")   # a new job opens with it folded
+    assert page.is_visible("#dl_step_body") and page.evaluate(warning) == ""
