@@ -121,6 +121,15 @@ COMMON: list[Param] = [
     P("mirror_ok", "bool", False, "Count a part and its mirror image as the same part: it is cut once and the copies are turned over, which merges left/right pairs into one file. Only for stock that is the same both sides and either way up — no print, laminate, brushed grain or one-sided film — and the engraved label reads backwards on a turned-over part. The cut list and the Parts table name the ones to turn over", group="sheet", label="merge mirrored parts"),
     P("split", "bool", True, "Split parts that do not fit the sheet, joining them with puzzle tabs", group="sheet", label="split big parts"),
     P("tab", "number", 8, "Puzzle-tab width for splits (mm)", 2, 50, 0.5, group="sheet", unit="mm", label="split tab width"),
+    P("bridges", "number", 0, "Holding bridges per part: short stretches of each outline left uncut, so the part stays in the "
+      "sheet while the rest is cut (it cannot drop through the bed or tilt up into the head) and is snapped out by hand "
+      "afterwards. They sit on straight edges, spread evenly, never on a slot, a tab or the end of a fold. 0 = off; 2 holds "
+      "a small part, 3 or 4 a big or heavy one; an outline too short for them gets fewer", 0, 8, 1, group="sheet",
+      show_if=("printed", False), label="holding bridges",
+      section="Holding bridges — keep each part in the sheet until you break it out"),
+    P("bridge_width", "number", 0.5, "Material left standing in each bridge, after the kerf (mm): the gap in the cut is this "
+      "plus the kerf. 0.3–0.5 for 3 mm plywood or card holds the part and snaps by hand; wider holds better and needs more "
+      "sanding", 0.1, 5, 0.1, group="sheet", unit="mm", show_if=("bridges", [1, 2, 3, 4, 5, 6, 7, 8]), label="bridge width"),
     P("labels", "bool", True, "Engrave part labels (LABEL layer): beside each part with a leader line, or on the part itself — see `labels on the parts`", group="sheet", label="engrave labels", section="Labels — what is engraved on each part"),
     P("label_model", "bool", True, "Engrave the model's short name before each label (BUNN Z-3): two models have the same part names, "
       "and parts cut together would otherwise get mixed up. The project name when it has one. Off for a longer label's room "
