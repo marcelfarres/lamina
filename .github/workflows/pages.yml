@@ -17,11 +17,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  publish:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
     env:
       HAS_HF: ${{ secrets.HF_TOKEN != '' }}   # the token itself is given to the upload step only
       COUNT_URL: ${{ vars.COUNT_URL }}    # repository variable: GoatCounter endpoint, https://<code>.goatcounter.com/count
@@ -38,8 +35,6 @@ jobs:
       - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
-      - id: deploy
-        uses: actions/deploy-pages@v5
       - name: mirror to the Hugging Face Space
         if: env.HAS_HF == 'true'
         continue-on-error: true            # the Space is a mirror: a revoked token must not fail the Pages deploy
@@ -53,3 +48,16 @@ jobs:
             echo "::warning title=Hugging Face Space not updated::the upload failed — the Space stays on its last good build until HF_TOKEN is renewed. The site on GitHub Pages is unaffected."
             exit 1
           }
+
+  # The deploy is a job of its own, as in GitHub's own Pages workflow. In the build job it asked for the artifact a
+  # second or two after the upload, and on 0.4.0's release day GitHub did not list it yet: "No artifacts named
+  # github-pages" on two runs, and a rerun of the job found two (each attempt uploads one).
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v5
