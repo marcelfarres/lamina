@@ -364,8 +364,11 @@ def print_needs(m) -> dict:
     fits = lambda need: next((h for h in LAYERS if (abs((need - FIRST) / h - np.round((need - FIRST) / h)) * h < 0.006).all()), None)   # noqa: E731
     out = {}
     if len(levels):
-        thin = levels[levels <= THIN]
-        h = fits(np.append(thin, levels[area.argmax()])) or (fits(thin) if len(thin) else None)
+        thin, body = levels <= THIN, levels > THIN
+        # the main face is the part's own: the largest flat top above THIN, not the tags' chips, which on a file of
+        # small parts (pins) can cover more than the parts do
+        main = levels[body][area[body].argmax()] if body.any() else levels[area.argmax()]
+        h = fits(np.append(levels[thin], main)) or (fits(levels[thin]) if thin.any() else None)
         if h:
             out["layer_height"] = f"{h:g}"
     under = (nz < -np.sin(np.radians(BRIDGE_LEAN)) - 1e-3) & (z > 0.05)
