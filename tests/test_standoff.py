@@ -117,15 +117,18 @@ def test_a_standoff_prints_as_two_halves_that_touch_and_fold_into_it(example, jo
 
 
 def test_a_standoff_smaller_than_any_print_has_confirmed_is_warned_about_with_the_setting_that_grows_it():
-    """Bug 058. A dowel diameter under 5 mm and shared pins under 2 mm long are each a warning of the plan: it says
-    that no print has confirmed the size yet, never that it fails (no print is behind the two limits), and it names
-    the setting that makes the pin bigger. With 6 mm pins and random placement no hole is shared, every pin is as
-    long as the layer is thick, and nothing is warned."""
+    """Bug 058. A dowel diameter under 4 mm and shared pins under 2 mm long are each a warning of the plan: it says
+    that no print has confirmed the size yet, never that it fails, and it names the setting that makes the pin bigger.
+    4 mm is a print: its 3.9 mm pins fitted at the default pin fit (Marcel, 11-23), so a 4 mm dowel is not warned about
+    for its width. With 6 mm pins and random placement no hole is shared, every pin is as long as the layer is thick,
+    and nothing is warned."""
     said = lambda **job: build(EXAMPLES / "egg.stl", "stacked", {**JOB, **job})["warnings"]   # noqa: E731
-    small = said(dowel_d=4)
-    assert any("3.9 mm across" in w and "dowel diameter to 5 mm or more" in w for w in small), small
-    assert any("are 1.4 mm long" in w and "placement to random" in w for w in small), small
+    small = said(dowel_d=3)
+    assert any("2.9 mm across" in w and "dowel diameter to 4 mm or more" in w for w in small), small
+    assert any("mm long" in w and "placement to random" in w for w in small), small
     assert all("No print has confirmed" in w and "print one to check" in w for w in small) and len(small) == 2, small
+    four = said(dowel_d=4)                                             # the printed size: only its shared pins are short
+    assert len(four) == 1 and "are 1.4 mm long" in four[0], four
     five = said()                                                      # 5 mm: wide enough, the shared pins still short
     assert len(five) == 1 and "are 1.4 mm long" in five[0], five
     plan = build(EXAMPLES / "egg.stl", "stacked", {**JOB, "dowel_d": 6, "placement": "random"})
