@@ -14,6 +14,7 @@ One server and one page serve the whole run (session scope, however many files t
 """
 import os
 import pathlib
+import sys
 
 import pytest
 
@@ -24,13 +25,21 @@ HERE = pathlib.Path(__file__).resolve().parent
 
 
 def pytest_collection_modifyitems(config, items):
-    """Keeps these tests out of a plain `pytest tests` run: they need playwright's chromium and take a long time."""
-    if os.environ.get("LAMINA_UI"):
-        return
-    skip = pytest.mark.skip(reason="set LAMINA_UI=1 (needs playwright's chromium)")
-    for item in items:
-        if HERE in item.path.parents:
+    """Keeps these tests out of a plain `pytest tests` run: they need playwright's chromium and take a long time.
+    LAMINA_UI_PART=2/4 runs part 2 of 4 of them (test.yml's parts, by the times in scripts/shards.json)."""
+    mine = [item for item in items if HERE in item.path.parents]
+    if not os.environ.get("LAMINA_UI"):
+        skip = pytest.mark.skip(reason="set LAMINA_UI=1 (needs playwright's chromium)")
+        for item in mine:
             item.add_marker(skip)
+    elif part := os.environ.get("LAMINA_UI_PART"):
+        sys.path.insert(0, str(HERE.parents[1] / "scripts"))
+        from shards import ui_parts
+        i, n = map(int, part.split("/"))
+        keep = set(ui_parts([item.nodeid for item in mine], n)[i - 1])
+        drop = [item for item in mine if item.nodeid not in keep]
+        config.hook.pytest_deselected(items=drop)
+        items[:] = [item for item in items if item.nodeid in keep or HERE not in item.path.parents]
 
 
 @pytest.fixture(scope="session")

@@ -35,9 +35,10 @@ jobs:
       - run: uv run pytest tests -q -n auto     # every core (pytest-xdist): 32 min in one process, 4 on 12 cores
 
   # The app in a real browser: every parameter driving the slicer, the tables, undo, and nothing on screen cut off
-  # (tests/ui, skipped by the job above because it needs Chromium). 41 min in one process, so 4 parts by whole test
-  # file, balanced by the times in scripts/shards.json; each part has its own server and browser, as one run has.
-  # Each part's JUnit report is kept: `scripts/shards.py record` makes shards.json from them when the parts drift.
+  # (tests/ui, skipped by the job above because it needs Chromium). 41 min in one process, so 4 parts of about the
+  # same time by the times in scripts/shards.json (whole test files; only a file longer than a part is cut), each with
+  # its own server and browser, as one run has. Each part's JUnit report is kept: `scripts/shards.py record` makes
+  # shards.json from them when the parts drift.
   ui:
     strategy:
       fail-fast: false
@@ -49,9 +50,10 @@ jobs:
       - uses: astral-sh/setup-uv@v7
       - run: uv sync --frozen
       - run: uv run playwright install --with-deps chromium
-      - run: uv run pytest $(uv run python scripts/shards.py ui 4 ${{ matrix.part }}) -q --junitxml=ui-times-${{ matrix.part }}.xml
+      - run: uv run pytest tests/ui -q --junitxml=ui-times-${{ matrix.part }}.xml
         env:
           LAMINA_UI: "1"
+          LAMINA_UI_PART: ${{ matrix.part }}/4
       - uses: actions/upload-artifact@v7
         if: always()
         with:
