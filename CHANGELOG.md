@@ -4,9 +4,10 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ## 0.4.0
 
-A new way to build, the band lattice, and a new look: settings with full names in short sections, and tool buttons
-in the 3D view. Keep your projects in a library, make a mask or a paper lantern, and light it to see its shadows.
-Printed panels now join without glue.
+This release makes Lamina easier for a new user: help on every setting, clearer names, a tour of the page, and one
+machine choice. The 3D printer is now a machine of its own, not only for prototypes. Print sets carry their print
+settings and numbered parts. Printed joints close panels without glue, and printed standoffs and pins hold stacked
+layers. New too: the band lattice, a library for your projects, masks, paper lanterns, and light with soft shadows.
 
 ### Added
 
@@ -71,6 +72,9 @@ Printed panels now join without glue.
   tabs, and help that opens under a setting's name. The *basic* switch shows only what a first piece needs.
 
   ![The Technique tab: full names, folding sections, the search box and the basic / all switch](web/static/news/0.4.0-settings.jpg)
+
+- **Choose your machine first.** At the top of *Sheet & fit*, pick the machine that makes the piece: laser, router
+  or 3D printer. Lamina then hides the settings that machine does not need.
 
 - **The spacing graph, under its tick.** Start the curve from a shape, add or move points with buttons, and see
   every slice under the curve.
