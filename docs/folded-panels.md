@@ -41,10 +41,13 @@ Greedy spanning tree with a priority per edge:
    every free edge of the panel keeps the room of its flap (the trapezoid the tab is drawn as, `tab_h` high, at most
    0.6 of the edge): the face is refused when it would lie in that room, or when its own free edges would have
    none. Without it the cow example had 40 of its 217 seams with no room for a tab on either side.
-   A face of a flat piece (faces in one plane, joined edge to edge across edges that bend less than 1°, and not
+   With windows (`window` > 0), a face of a flat piece (faces in one plane, joined edge to edge across edges that bend less than 1°, and not
    across a seam the user chose: a box side, a pentagon of a dodecahedron) is laid with the rest of its piece, and
    every test above holds for all of them or none is laid (`flat_pieces`, `lay_flat`). So no seam cuts across a flat
-   side, and the side keeps one window. A flat piece too big for the sheet is laid face by face, as before. On the
+   side, and the side keeps one window. A flat piece too big for the sheet is laid face by face, as before, and so is
+   one whose faces meet along a line where they share no edge (the bracket's base, cut by a boolean: laid whole, two
+   of its faces lay edge to edge in the net, bug 072). Without windows the faces are laid one by one as before: on
+   the lion head, with 20 flat pairs, laying them whole gave other panels and 4 warnings. On the
    `paper_lamp` example (three dodecahedra, 32 pentagons) the panels used to cut 6 to 20 pentagons in two, depending
    on the strategy and the tab room; now none, and it takes 5 panels instead of 10.
 4. Repeat until nothing can be attached; start the next panel.

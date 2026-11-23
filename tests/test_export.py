@@ -414,6 +414,11 @@ def test_a_printed_stacked_job_prints_one_pin_per_dowel(tmp_path):
     straight = rods_of(aligned)
     assert len(straight) < len(aligned["rods"])                                # dowels through several layers
     assert sum(len(trimesh.load(f).geometry) for f in pin_files(aligned, tmp_path)) == len(straight)
+    # a pin 2.9 mm high (fit 0.1) is no whole number of 0.2 mm layers over the first: its layer height comes from the
+    # pin's top, not from its tag's chip, though the chips cover more of the plate
+    loose = build(EXAMPLES / "egg.stl", "stacked", {**job, "sheet": bed, "placement": "random", "pin_fit": 0.1})
+    (tmp_path / "fit").mkdir()
+    assert {s.get("layer_height") for f in pin_files(loose, tmp_path / "fit") for s in _print_settings(f).values()} == {"0.1"}
 
 
 def test_every_seam_number_of_a_printed_panel_is_on_the_print_and_readable(tmp_path):
