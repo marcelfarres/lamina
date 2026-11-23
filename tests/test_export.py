@@ -395,8 +395,9 @@ def test_every_part_of_a_printed_plate_has_a_number_on_it_or_on_a_tag(tmp_path):
 
 def test_a_printed_stacked_job_prints_one_pin_per_dowel(tmp_path):
     """Marcel, 2026-11-22: "Yes, add pins to the export". A printed stacked job's print set had its layers and no
-    dowels (print-lab drew the pins of prints 9 and 10 with a script of its own). Its pins now come on beds of their
-    own, pins-1.3mf …: one per dowel, named as the assembly key and the marks by its holes name it, on a tag; its
+    dowels (print-lab drew the pins of prints 9 and 10 with a script of its own). Its pins now come on the last plate
+    when they fit above its layers, else on beds of their own, pins-1.3mf …: one per dowel, named as the assembly key
+    and the marks by its holes name it, on a tag; its
     section the dowel's less the pin fit, its length the key's less PIN_END. With random placement every dowel is one
     pair of holes; aligned, a straight dowel through several layers is one long pin."""
     from shapely.geometry import MultiPoint
@@ -408,10 +409,11 @@ def test_a_printed_stacked_job_prints_one_pin_per_dowel(tmp_path):
     pairs, rods, margin = [r[5] for r in plan["rods"]], rods_of(plan), plan["params"]["sheet_margin"]
     assert len(pairs) >= 10 and len(set(pairs)) == len(pairs) == len(rods)  # random: every dowel one pair of holes
     files = proto_set(plan, tmp_path)
-    pins = {}
-    for f in (f for f in files if f.name.startswith("pins-")):
+    pins, holders = {}, set()
+    for f in (f for f in files if f.suffix == ".3mf"):                        # on the last plate, or in pins files
         scene = trimesh.load(f)
-        for name in scene.graph.nodes_geometry:
+        for name in (n for n in scene.graph.nodes_geometry if n in rods):
+            holders.add(f.name)
             M, g = scene.graph[name]; m = scene.geometry[g].copy(); m.apply_transform(M)
             lo, hi = m.bounds
             assert m.body_count == 1 and lo[:2].min() >= margin - 1e-6 and (hi[:2] <= np.array(bed) - margin + 1e-6).all(), (name, lo, hi)
@@ -425,9 +427,11 @@ def test_a_printed_stacked_job_prints_one_pin_per_dowel(tmp_path):
         assert abs(wide - 2.8) < 1e-3 and abs(z - 2.8) < 1e-6, (name, wide, z)   # 3 mm dowel less 0.2 fit, both ways
         assert abs(long - (rods[name]["length"] - PIN_END)) < 1e-3, (name, long, rods[name]["length"])
     readme = (tmp_path / "README.txt").read_text(encoding="utf-8")
-    assert "pins-N.3mf" in readme
-    for f in (f for f in files if f.name.startswith("pins-")):                # their print settings, as every 3MF has them:
-        assert {s.get("layer_height") for s in _print_settings(f).values()} == {"0.2"}   # 2.8 mm on the bed is 0.2 + 13 layers
+    plates = sorted(f.name for f in files if f.name.startswith("plate-"))
+    assert holders == {plates[-1]} and f"pin(s) in {plates[-1]}" in readme if holders <= set(plates) else \
+        all(h.startswith("pins-") for h in holders) and "pin(s) in pins-N.3mf" in readme
+    for f in (f for f in files if f.name in holders):                         # their print settings, as every 3MF has them:
+        assert {s.get("layer_height") for n, s in _print_settings(f).items() if n in rods} == {"0.2"}   # 2.8 mm on the bed is 0.2 + 13 layers
         assert f"{f.name} carries the print settings" in readme
     aligned = build(EXAMPLES / "egg.stl", "stacked", {**job, "sheet": bed, "placement": "aligned"})
     straight = rods_of(aligned)
@@ -438,6 +442,23 @@ def test_a_printed_stacked_job_prints_one_pin_per_dowel(tmp_path):
     loose = build(EXAMPLES / "egg.stl", "stacked", {**job, "sheet": bed, "placement": "random", "pin_fit": 0.1})
     (tmp_path / "fit").mkdir()
     assert {s.get("layer_height") for f in pin_files(loose, tmp_path / "fit") for s in _print_settings(f).values()} == {"0.1"}
+
+
+def test_a_printed_vase_lays_its_pins_on_its_last_plate(tmp_path):
+    """Export review Q9: the printed vase's 14 pins had a third file, 300 x 40 mm of a bed, while its second plate used
+    311 x 173. They now lie in the band above that plate's layers, each on its tag: two files to print, not three."""
+    from core.export import rods_of
+    params = json.loads((ROOT / "examples" / "presets.json").read_text(encoding="utf-8"))["vase"]["params"]
+    plan = build(EXAMPLES / "vase.stl", "stacked", {**params, "printed": True, "material": "PETG", "material_kind": "PETG",
+                                                    "sheet": [300, 320], "sheet_margin": 2, "slot_offset": 0.2, "autofix": "off"})
+    files = proto_set(plan, tmp_path, font=3)
+    assert sorted(f.name for f in files if f.suffix == ".3mf") == ["plate-1.3mf", "plate-2.3mf"]
+    last = trimesh.load(tmp_path / "plate-2.3mf", force="scene")
+    assert set(rods_of(plan)) <= set(last.geometry) and len(rods_of(plan)) == 14
+    for name in last.graph.nodes_geometry:                                    # all on the bed, inside its margin
+        M, g = last.graph[name]; m = last.geometry[g].copy(); m.apply_transform(M); lo, hi = m.bounds
+        assert lo[:2].min() >= 2 - 1e-6 and (hi[:2] <= np.array([300, 320]) - 2 + 1e-6).all(), (name, lo, hi)
+    assert "14 dowel pin(s) in plate-2.3mf" in (tmp_path / "README.txt").read_text(encoding="utf-8")
 
 
 def test_every_seam_number_of_a_printed_panel_is_on_the_print_and_readable(tmp_path):

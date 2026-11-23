@@ -209,12 +209,15 @@ def pin_print(plan, length) -> trimesh.Trimesh:
     return m.apply_translation(-m.bounds[0])
 
 
-def pin_files(plan, out_dir, written=None) -> list:
+def pin_files(plan, out_dir, written=None, last=None) -> list:
     """A printed stacked job's dowel pins, on the printer's bed as its layers are: pins-1.3mf, pins-2.3mf … nested as
     the plates are, every pin an object named after its dowel (Z-3a: dowel a between Z-3 and Z-4, as the assembly key
     and the marks by its holes say), its name on a tag beside it. One pin per dowel: a straight one through several
     layers is one long pin, as long as the key says, less PIN_END. Each file carries its pins' print settings
-    (write_3mf: a pin's thickness on the bed is its fit in the hole); `written` ({file name: settings}) takes them."""
+    (write_3mf: a pin's thickness on the bed is its fit in the hole); `written` ({file name: settings}) takes them.
+
+    `last`, (scene, outlines) of the job's last plate: the pins go there instead, in the band above its parts, when
+    they all fit in it and every tag finds free room (export review Q9); then no pins file is written."""
     from .model import Piece, Slice                      # here: core.model is the planner's, not needed for a laser job's files
     from .nest import nest
     p, pins = plan["params"], []
@@ -223,6 +226,8 @@ def pin_files(plan, out_dir, written=None) -> list:
         pc = Piece(name, MultiPolygon([shapely.box(0, 0, *m.extents[:2])]), Slice(name, "P", np.eye(4), m.extents[2]))
         pins.append((pc, m))
     if not pins:
+        return []
+    if last is not None and _on_last_plate(plan, pins, *last):
         return []
     nest([pc for pc, _ in pins], plan["sheet"], p["gap"], p["sheet_margin"], font=TAG_FONT, printed=True)
     plates, on = {}, {}
@@ -244,10 +249,35 @@ def pin_files(plan, out_dir, written=None) -> list:
     return files
 
 
-def pin_note(plan) -> list:
-    """What the README says about the pins file."""
+def _on_last_plate(plan, pins, scene, outlines) -> bool:
+    """Lay the pins [(piece, mesh)] on the last plate, in the band between its parts and its far edge, when one nest of
+    that band holds them all and each tag finds free room; True when it did (the scene then holds them)."""
+    from .nest import nest
+    p = plan["params"]; (W, H), m = plan["sheet"], p["sheet_margin"]
+    top = max((o.bounds[3] for o in outlines), default=m - p["gap"])      # the parts' far edge, their tags included
+    band = H - top - p["gap"] + m                                         # a bed whose margin sits a gap above the parts
+    if band < 2 * m + 1 or nest([pc for pc, _ in pins], [W, band], p["gap"], m, font=TAG_FONT, printed=True) != 1:
+        return False
+    dy, laid, add = top + p["gap"] - m, list(outlines), []
+    for pc, _ in pins:
+        laid.append(affinity.translate(pc.placed, 0, dy))
+    for k, (pc, msh) in enumerate(pins):
+        _, x, y, rot = pc.place
+        q = msh.copy().apply_transform(trimesh.transformations.rotation_matrix(np.radians(rot), [0, 0, 1]))
+        q.apply_translation([x - q.bounds[0][0], y + dy - q.bounds[0][1], 0])
+        tag, foot, free = print_tag(laid, len(outlines) + k, pc.label, TAG_FONT, W, H, m)
+        if not free:
+            return False
+        laid.append(foot); add.append((pc.label, _joined([q, tag])))
+    for name, q in add:
+        scene.add_geometry(q, node_name=name, geom_name=name)
+    return True
+
+
+def pin_note(plan, where="pins-N.3mf") -> list:
+    """What the README says about the pins, printed in `where`."""
     p, n = plan["params"], len(rods_of(plan))
-    return [f"{n} dowel pin(s) in pins-N.3mf: {p['dowel_d'] - p['pin_fit']:g} mm across ({p['dowel_shape']} dowel {p['dowel_d']:g} mm "
+    return [f"{n} dowel pin(s) in {where}: {p['dowel_d'] - p['pin_fit']:g} mm across ({p['dowel_shape']} dowel {p['dowel_d']:g} mm "
             f"less pin fit {p['pin_fit']:g}), each {PIN_END:g} mm shorter than its holes, lying on a flat side: no supports. "
             "Each is named on a tag as the assembly key names it (Z-3a: dowel a between Z-3 and Z-4): read it, then snap the tag off. "
             "Too tight or too loose: change pin fit"]
@@ -643,14 +673,19 @@ def proto_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2
     files, tagged = [], {"tag": [], "over": []}
     scene = trimesh.Scene()
     plates = {} if plan["params"].get("printed") and abs(scale - 1) < 1e-9 else None
+    around = {} if plates is not None else None            # each plate's outlines, tags included: room for the pins
     plain = set()                                          # what could not be cut into the parts here
     lost = []
-    for pc, m, _, where, seams in _plate(plan, scene, scale, labels, font, min_thick, plates=plates):
+    for pc, m, _, where, seams in _plate(plan, scene, scale, labels, font, min_thick, plates=plates, around=around):
         lost += [(pc["label"], j) for j in seams]
         plain.update(m.metadata.get("plain", ()))
         tagged.get(where, []).append(pc["label"])
         f = out_dir / f"{pc['label']}.stl"; m.export(f); files.append(f)
-    written = {}
+    written, pins, where = {}, [], "pins-N.3mf"
+    if plates:                                             # a printed job's dowels: printed too, on the last plate when they fit
+        si = max(plates)
+        pins = pin_files(plan, out_dir, written, last=(plates[si], around.get(si, [])))
+        where = "pins-N.3mf" if pins else f"plate-{si + 1}.3mf"
     for name, sc in ([("plate", scene)] if plates is None else [(f"plate-{si + 1}", plates[si]) for si in sorted(plates)]):
         if plate and len(sc.geometry):
             f = out_dir / f"{name}.3mf"
@@ -658,9 +693,8 @@ def proto_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2
             files.append(f)
     if plan.get("standoffs"):                              # the connectors of the printed layers: a file of their own
         files += standoff_files(plan, out_dir, design_name(plan), scale)
-    pins = pin_files(plan, out_dir, written) if plates is not None else []   # a printed job's dowels: printed too, on beds of their own
     files += pins
-    lines = ([note] if note else []) + (pin_note(plan) if pins else [])
+    lines = ([note] if note else []) + (pin_note(plan, where) if plates and rods_of(plan) else [])
     if plain:                                             # said, not hidden: a folded panel without its grooves does not fold
         lines.append(f"this build cannot cut solids (no manifold3d, as in the browser): the parts were exported WITHOUT their {' and '.join(sorted(plain))}. "
                      "Printed folded panels need the grooves to fold: export them from the installed app")

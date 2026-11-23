@@ -482,7 +482,7 @@ def key_text(plan):
     if rods:
         out += ["", "Dowels — named after the lower of the two slices each joins and a letter: Z-3a is dowel a between Z-3 and Z-4,",
                 "and the mark 3a is engraved beside its hole on both slices. "
-                + ("Print the pins: the pins file of the print set, each named on a tag." if p.get("printed") else "Cut each rod to its length."), "",
+                + ("Print the pins with the print set (README.txt says which file holds them), each named on a tag." if p.get("printed") else "Cut each rod to its length."), "",
                 f"{'dowel':<10}{'from':<10}{'to':<10}{'length':<12}diameter"]
         for name, e in rods.items():
             out.append(f"{name:<10}{e['lo']:<10}{e['hi']:<10}{e['length'] * f:<12.3g}{e['d'] * f:.3g} {u}")

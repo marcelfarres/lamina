@@ -173,12 +173,14 @@ def nest(pieces, sheet, gap, margin, kerf=0.0, labels=False, font=4.0, tag="", p
     """Sets piece.place, .kerfed, .placed(+lines, marks), .label_pos, .leader. Returns sheet count.
 
     One sheet is one stock thickness. A part whose thickness was changed is cut from another piece of material, so
-    it gets sheets of its own rather than sharing one and being cut from the wrong stock. With `grain` every part
+    it gets sheets of its own rather than sharing one and being cut from the wrong stock. A printer's bed is not stock:
+    `printed` lays every thickness together, so clips share a plate with their panels (export review Q9). With `grain` every part
     keeps its own frame's x along the sheet's width, turned 0° or 180° only, so the grain runs one way on all of them."""
     job = NestJob(tuple(sheet), gap, margin, kerf, grain, labels, font, tag, place, printed)
     by_thick = {}
     for pc in pieces:
-        by_thick.setdefault((round(pc.parent.thickness, 6), pc.parent.stock), []).append(pc)   # and one stock: paper panes never share a sheet with card of their thickness
+        key = () if printed else (round(pc.parent.thickness, 6), pc.parent.stock)   # and one stock: paper panes never share a sheet with card of their thickness
+        by_thick.setdefault(key, []).append(pc)
     placed, n = [], 0
     for t in sorted(by_thick):
         got = _nest(by_thick[t], job)
