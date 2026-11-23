@@ -124,8 +124,8 @@ Printed panels now join without glue.
 
 ### Fixed
 
-- **Puzzle tabs on tall split parts.** A part split across its height now gets puzzle tabs, as one split across its
-  width does, and every piece still fits the sheet.
+- **Every part on its sheet.** A part split across its height now gets puzzle tabs too, and every piece fits the
+  sheet. A long, slanted part that lay past the sheet's edge, with no warning, is now turned to fit.
 - **Cleaner seams and router slots.** A small panel is no longer cut too small at a seam, and no specks are left
   beside it. On a router, the bit reaches every slot corner, and parts lie twice the bit apart.
 - **Zip projects open at their size.** A project file from a download zip was read as one from an older
