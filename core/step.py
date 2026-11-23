@@ -20,6 +20,7 @@ ENDSEC;
 DATA;
 """
 MIN_EDGE = 1e-6     # mm: the shortest edge written; ten times what the 7 decimals of a coordinate tell apart
+ACCURACY = 1e-5     # mm: the file's distance accuracy (UNCERTAINTY_MEASURE_WITH_UNIT): points nearer are one to a CAD kernel
 
 
 def _text(s) -> str:
@@ -194,11 +195,14 @@ class _Step:
         edges, as a closed shell needs."""
         import trimesh
         mesh = trimesh.Trimesh(V, F, process=False)
-        groups, normals = [list(g) for g in mesh.facets], list(mesh.facets_normal)
+        # A sliver (a union leaves some where solids cross) has no plane of its own worth the name: its third corner is
+        # less than ACCURACY from its longest edge, so within the file's accuracy it lies on that edge, and it joins
+        # the face across it. A face made of slivers only is no face. Until it joins one, a triangle has none (-1).
+        side = np.linalg.norm(V[F[:, [1, 2, 0]]] - V[F], axis=2).max(1)
+        flat = 2 * mesh.area_faces < ACCURACY * np.maximum(side, 1e-300)
+        kept = [k for k, g in enumerate(mesh.facets) if not flat[g].all()]
+        groups, normals = [list(mesh.facets[k]) for k in kept], [mesh.facets_normal[k] for k in kept]
         lone = np.setdiff1d(np.arange(len(F)), np.concatenate(groups) if groups else [])
-        # A triangle with no area (a union leaves a few where solids cross) has no plane of its own: its corners lie on
-        # its longest edge, so it joins the face across that edge. Until then it has no face (-1).
-        flat = mesh.area_faces < 1e-12 * max(mesh.scale, 1.0) ** 2
         groups += [[i] for i in lone if not flat[i]]; normals += list(mesh.face_normals[[i for i in lone if not flat[i]]])
         group = np.full(len(F), -1); [group.__setitem__(g, k) for k, g in enumerate(groups)]
         across = {}
@@ -206,16 +210,17 @@ class _Step:
             for e in ((a, b), (b, c), (c, a)):
                 across[e] = t
         waiting = [t for t in np.flatnonzero(flat) if group[t] < 0]
-        while waiting:                                   # ponytail: a run of flat triangles joins from its far end inward
+        while waiting:                                   # a run of slivers joins from its far end inward
             left = []
-            for t in waiting:
-                a, b, c = F[t]; (p, q) = max(((a, b), (b, c), (c, a)), key=lambda e: np.linalg.norm(V[e[1]] - V[e[0]]))
-                k = group[across[(q, p)]]
+            for t in waiting:                            # all three corners lie on one line: across its longest edge first
+                a, b, c = F[t]
+                k = next((k for p, q in sorted(((a, b), (b, c), (c, a)), key=lambda e: -np.linalg.norm(V[e[1]] - V[e[0]]))
+                          if (k := group[across[(q, p)]]) >= 0), -1)
                 if k < 0:
                     left.append(t); continue
                 group[t] = k; groups[k].append(t)
             if len(left) == len(waiting):
-                raise ValueError(f"{len(left)} triangles of no area with no face beside them")
+                raise ValueError(f"{len(left)} slivers with no face beside them")
             waiting = left
         verts, edges, faces = {}, {}, []
 
