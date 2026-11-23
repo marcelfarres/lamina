@@ -475,7 +475,8 @@ class Folded(Mode):
         if lost and gone.any():                               # a seam on the rim or among the removed faces went with them: only one that is nowhere on the model is said
             lost = edges_at(whole, p["seams"])[1]
         flap = p["tab_h"] if p["joint"] in TABBED else 0.0     # a joint that puts a flap out from the edge needs room for it
-        frames, local, panels, seams = unfold(mesh, p["separate"], p["max_faces"], self.usable_sheet(p), p["strategy"], chosen, flap)
+        frames, local, panels, seams = unfold(mesh, p["separate"], p["max_faces"], self.usable_sheet(p), p["strategy"], chosen, flap,
+                                              whole_flat=p["window"] > 0)     # a flat side keeps its one window
         self.frames, self.local = frames, local
         convex = mesh.face_adjacency_convex
         slices, owner = [], {}

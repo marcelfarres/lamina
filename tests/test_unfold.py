@@ -7,6 +7,7 @@ and every part fits the sheet.
 """
 import sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+import pytest
 import trimesh
 from shapely.geometry import Polygon
 from core.mesh import load_mesh, simplify
@@ -107,3 +108,24 @@ if __name__ == "__main__":
         run(model, prm)
 
 
+
+
+@pytest.mark.parametrize("model", ["fold_test", "bracket", "cube"])
+def test_whole_flat_sides_never_lay_a_face_against_one_it_does_not_join(model):
+    """With whole flat sides (a job with windows), a flat side is laid out at once: two of its faces that meet along a
+    line without sharing an edge (the bracket's base, cut by a boolean) must not lie edge to edge in the net either
+    (bug 072). Such a side is left as single faces."""
+    from shapely.geometry import Polygon
+    from core.modes.folded import simplify
+    from core.unfold import unfold, contact
+    mesh = simplify(trimesh.load(ROOT / "examples" / f"{model}.stl", force="mesh"), 0)
+    _, _, panels, _ = unfold(mesh, False, 0, (315, 310), "auto", whole_flat=True)
+    joined = {(int(a), int(b)) for a, b in mesh.face_adjacency} | {(int(b), int(a)) for a, b in mesh.face_adjacency}
+    for pn in panels:
+        tris = {f: Polygon(pn.tri[f]) for f in pn.faces}
+        for i, f in enumerate(pn.faces):
+            fat = tris[f].buffer(0.01)
+            for g in pn.faces[i + 1:]:
+                if (f, g) not in joined:
+                    shared = [pn.tri[g][list(mesh.faces[g]).index(v)] for v in mesh.faces[g] if v in mesh.faces[f]]
+                    assert contact(tris[g], fat, shared) <= 1.0, (model, f, g)
