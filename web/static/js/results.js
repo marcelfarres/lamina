@@ -74,16 +74,32 @@ export function renderWeight(){if(!ST.plan)return;const d=dens(),g=d/1000,by=new
 // What the job is, by machine, before any button: which machine makes what, from which stock, and in which order. A
 // cut job has a line per stock it is nested on (a paper lamp's panes on paper, its panels on card). Names are escaped:
 // a machine or a material can be one of yours
-function machinesNote(ico,KIND,rods,nso){const p=ST.plan,pa=p.params,pl=(n,w)=>`${n} ${w}${n===1?'':'s'}`,
+const pl=(n,w)=>`${n} ${w}${n===1?'':'s'}`;
+// What the print files hold, read from the files: the server makes them once per plan (/contents), and only while the
+// Export tab is shown (a print set takes seconds); the tab is drawn again with their names and counts when they come
+function contents(){const p=ST.plan;
+  if(!(state.printed||p.standoffs))return null;
+  if(ST.contents?.plan===p)return ST.contents.got;
+  if(ST.contents?.asked!==p&&$('section[data-tab="export"]').classList.contains('on')){ST.contents={asked:p};
+    fetch(`api/job/${CLIENT}/${ST.job}/contents`).then(r=>r.ok?r.json():null).then(got=>{if(got&&ST.plan===p){ST.contents={plan:p,got};renderDownloads()}}).catch(()=>{})}
+  return null}
+// the print set button names what its zip holds, from the zip's names: the plates (a run of them shortened), the pins
+// and standoffs files, README and the assembly key when they are in it
+function setNames(names){const m=names.filter(n=>/\.3mf$/.test(n)).map(n=>n.replace(/\.3mf$/,'').replace(/^.* 3D-PRINT standoffs x(\d+)$/,'$1 standoffs'));
+  const plates=m.filter(n=>/^plate-\d+$/.test(n)), rest=m.filter(n=>!/^plate-\d+$/.test(n));
+  return [...(plates.length>3?[`${plates[0]} … ${plates.at(-1)}`]:plates),...rest,...(names.includes('README.txt')?['README']:[]),
+    ...(names.some(n=>/assembly-key\.txt$/.test(n))?['assembly key']:[])].join(', ')}
+function machinesNote(ico,KIND,rods,nso,c){const p=ST.plan,pa=p.params,
     bed=`${p.sheet.map(v=>+(+inU(v)).toPrecision(4)).join(' × ')} ${ST.unit}`, name=esc((machineOf(state.machine)?.name||state.machine||'').replace(/ \*$/,''));
+  const pins=(c?.print_set||[]).filter(n=>/^pins-\d+\.3mf$/.test(n)).length;   // the pin plates, nested at export (pin_files)
   if(state.printed)return `<b>This job is printed.</b><br>${ico} <b>${KIND}</b> · ${name}, ${esc(state.material)} ${fmtLen(pa.thickness)} · ${pl(p.sheets,'plate')} ${bed}`
-    +(rods?`, and ${rods} dowel pins`:'')+(nso?`, and ${nso} standoffs`:'');
-  const by=new Map();
+    +(rods?pins?`, and ${pl(pins,'plate')} of dowel pins (${rods})`:`, and ${rods} dowel pins`:'')+(nso?`, and ${nso} standoffs`:'');
+  const by=new Map(), stack=ST.mode.name==='stacked', n=p.counts;
   for(let i=0;i<p.sheets;i++){const t=p.sheet_thick?.[i]??pa.thickness,s=p.sheet_stock?.[i]||state.material,k=`${s} ${t}`;by.set(k,[s,t,(by.get(k)?.[2]||0)+1])}
-  const cut=[...by.values()].map(([s,t,k])=>`${ico} <b>${KIND}</b> · ${name}, ${esc(s)} ${fmtLen(t)} · ${pl(k,'sheet')} ${bed}`
-    +(by.size===1?`, ${pl(p.counts.parts,'part')}`:'')+(KIND==='CNC ROUTER'&&pa.tool_d>0?` · bit ${fmtLen(pa.tool_d)}`:''));
+  const cut=[...by.values()].map(([s,t,k])=>`${ico} <b>${KIND}</b> · ${name}, ${esc(s)} ${fmtLen(t)} · ${pl(k,'sheet')} ${bed}`   // a stack's parts are its layers
+    +(by.size===1?`, ${stack?pl(n.slices,'layer')+(n.parts===n.slices?'':` in ${pl(n.parts,'part')}`):pl(n.parts,'part')}`:'')+(KIND==='CNC ROUTER'&&pa.tool_d>0?` · bit ${fmtLen(pa.tool_d)}`:''));
   return `<b>${nso?'Two machines make this model.':KIND==='BY HAND'?'This job is cut by hand.':'This job is cut.'}</b><br>`+cut.join('<br>')
-    +(nso?`<br>⬢ <b>3D PRINTER</b> · ${nso} standoffs<br>Order: fit test, then cut, then print.`:'')
+    +(nso?`<br>⬢ <b>3D PRINTER</b> · ${nso} standoffs, 1 plate<br>Order: fit test, then cut, then print.`:'')   // standoff_files lays them all in one 3MF
     +(rods?`<br>Also ${rods} dowel rods${pa.dowel_d?`, ${fmtLen(pa.dowel_d)} across`:''}: cut them to length by hand. The assembly key gives each length.`:'')}
 export function renderDownloads(){ // the labels checkbox applies to every cut file; the server names files <project or model>_v<rev>_…
   protoHint(); renderWeight();
@@ -103,7 +119,7 @@ export function renderDownloads(){ // the labels checkbox applies to every cut f
   $('#fit_what_print').hidden=!printed;
   const slot=$(printed?'#print_opts':'#pr_slot'); if($('#pr_shared').parentNode!==slot)slot.append($('#pr_shared'));   // one set of print controls: under the print set on a printed job (moved only when it changes place: a moved box loses the focus)
   $('#slicer_fold').hidden=!printed; $('#slicer_sum').textContent=`what the slicer must have: ${state.material}, 0.4 mm nozzle, first layer ${fmtLen(0.2)}`;   // core.solid.FIRST
-  $('#machines').innerHTML=machinesNote(ico,KIND,rods,nso);
+  const c=contents(); $('#machines').innerHTML=machinesNote(ico,KIND,rods,nso,c);
   const ne=p.counts.errors; $('#x_errors').hidden=!ne;           // the files still download: the warning says what they hold
   if(ne){$('#x_errors').innerHTML=`<b>⚠ WARNING</b> · This plan has ${ne} error${ne>1?'s':''}: some parts do not go together, or the machine cannot make them. Correct ${ne>1?'them':'it'} before you cut or print. <button class="small">show the errors</button>`;
     $('#x_errors button').onclick=()=>showTab('checks')}
@@ -128,12 +144,11 @@ export function renderDownloads(){ // the labels checkbox applies to every cut f
     const holes=ST.mode.name==='stacked'&&p.params.connect!=='tab'?'hole sizes':'slot offsets';
     $('#dlfit').innerHTML=printed?rows([['print fit test · 5 small joints (.zip)',`${b}/fit?${fq}`,'','fit_go']])
       :rows([[`${ico} fit test to cut · 5 ${holes} (SVG + DXF)`,`${b}/fitcut?fmt=svg,dxf&labels=${L}&step=${step}${U}`],
-             ...(mix?[['⬢ fit test to print · the standoffs (3MF)',`${b}/standoffs?fit=1`]]:[])]);
+             ...(mix?[[`⬢ fit test to print · ${c?.fit_standoffs?pl(c.fit_standoffs,'standoff'):'the standoffs'} (3MF)`,`${b}/standoffs?fit=1`]]:[])]);
     $('#dlfit_other').innerHTML=printed?'':rows([['fit test PDF',`${b}/fitcut?fmt=pdf&labels=${L}&step=${step}${U}`]])}
   // 2 · the files: one main button per machine, the other formats and the options folded under it
   $('#dl_title').textContent=num(printed?'The print files':'The files, by machine');
-  const plates=p.sheets>2?`plate-1 … plate-${p.sheets}`:[...Array(p.sheets).keys()].map(i=>`plate-${i+1}`).join(', ');
-  $('#dl').innerHTML=printed?rows([[`print set (.zip) · ${plates}${rods?`, ${rods} dowel pins`:''}${nso?`, ${nso} standoffs`:''}, README`,`${b}/proto?${pq}`,'A 3MF per plate for the slicer, every part with the settings it needs, one STL per part, and README.txt: read it first.','pr_go','',MK]],true)
+  $('#dl').innerHTML=printed?rows([[`print set (.zip)${c?.print_set?` · ${setNames(c.print_set)}`:''}`,`${b}/proto?${pq}`,'A 3MF per plate for the slicer, every part with the settings it needs, one STL per part, and README.txt: read it first.','pr_go','',MK]],true)
     :rows([[`${ico} ${KIND} · sheets SVG + DXF (.zip)`,`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&grouped=${G}${U}`,`An SVG and a DXF for each sheet${K?', the assembly key':''} and README.txt: read it first. Laser software opens the SVGs (LightBurn, xTool Creative Space, Glowforge), CAM the DXFs (Fusion, VCarve, SheetCAM).`,'','',MK]],true);
   $('#dl_other').innerHTML=printed?'':rows([
     ['sheets PDF (one page per sheet)',`${b}/export?fmt=pdf&labels=${L}&key=${K}${U}`,'print it at 100 % to cut by hand or check the sizes; Glowforge and LightBurn open it too'],

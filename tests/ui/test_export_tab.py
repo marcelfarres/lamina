@@ -1,7 +1,9 @@
 """The Export tab by machine (feature/export-tab; Marcel, 2026-11-22, questions 6 to 8 of the export review): what the
 job is and which machine makes what, the fit test only where a joint needs it, one main button per machine with the
 rest folded, a warning when the plan has errors, and no section of the last job left open."""
-from .helpers import plan, settle, use
+import re
+
+from .helpers import plan, settle, use, zip_of
 
 EXPORT = 'nav button[data-t="export"]'
 SHOWN_LINKS = """() => [...document.querySelectorAll('section[data-tab="export"] a[href]')]
@@ -48,9 +50,11 @@ def test_a_router_job_names_the_router_and_its_bit(page):
     assert page.inner_text("#x_files a.main").startswith("⚙ CNC ROUTER · sheets") and page.inner_text("#dlfit a").startswith("⚙ fit test to cut")
 
 
-def test_a_printed_job_shows_its_print_set_and_no_cut_file(page):
+def test_a_printed_job_shows_its_print_set_and_no_cut_file(page, server):
     """fold_box (seam joints: nothing for a fit test) and the vase printed in PETG (dowel pins: the print fit test).
-    Neither shows a laser button: the fit-test buttons once showed through their hidden mark on a printed job."""
+    Neither shows a laser button: the fit-test buttons once showed through their hidden mark on a printed job. The
+    print set button names what its zip holds, read from the zip: its plates, its pin plates, README, and the
+    assembly key only when the zip has it; the summary counts the pin plates."""
     said = export_tab(page, "fold_box")
     assert said.startswith("This job is printed.") and "⬢ 3D PRINTER · Bambu Lab H2C, PETG 2 mm" in said
     assert not page.is_visible("#x_fit") and not page.is_visible("#pr_fold") and page.text_content("#dl_title") == "1 · The print files"
@@ -68,7 +72,15 @@ def test_a_printed_job_shows_its_print_set_and_no_cut_file(page):
     assert page.is_visible("#fit_what_print") and not page.is_visible("#fit_what")
     links = page.evaluate(SHOWN_LINKS)
     assert any("/fit?" in h for h in links) and not any("/fitcut" in h or "/export?" in h for h in links), links
-    assert "dowel pins" in page.inner_text("#pr_go a")
+    page.wait_for_function("() => document.querySelector('#pr_go a').textContent.includes('plate-1')", timeout=180_000)
+    label = page.inner_text("#pr_go a")
+    names = zip_of(page.request.get(f"{server}/{page.get_attribute('#pr_go a', 'href')}").body()).namelist()
+    pins = [n[:-4] for n in names if re.fullmatch(r"pins-\d+\.3mf", n)]
+    assert pins and all(s in label for s in pins) and "plate-1" in label, (label, names)
+    assert ("assembly key" in label) == any(n.endswith("assembly-key.txt") for n in names), (label, names)
+    assert ("README" in label) == ("README.txt" in names), (label, names)
+    rods = len({r[5] for r in plan(page)["rods"] if len(r) >= 8})
+    assert f"{len(pins)} plate{'s' * (len(pins) > 1)} of dowel pins ({rods})" in page.inner_text("#machines")
 
 
 def test_a_job_on_two_machines_gives_each_its_fit_test_and_its_file(page, server):
@@ -83,6 +95,12 @@ def test_a_job_on_two_machines_gives_each_its_fit_test_and_its_file(page, server
     assert mains == [["laser", "✂ LASER · sheets SVG + DXF (.zip)"], ["printer", f"⬢ 3D PRINTER · {n} standoffs (3MF)"]]
     got = page.request.get(f"{server}/{page.get_attribute('#dl_standoffs a', 'href')}")
     assert got.body()[:2] == b"PK" and f"3D-PRINT standoffs x{n}.3mf" in got.headers["content-disposition"]
+    layers = plan(page)["counts"]["slices"]                                # a stack's parts are its layers
+    assert f"{layers} layers" in said and f"{n} standoffs, 1 plate" in said
+    page.wait_for_function("() => /fit test to print · \\d+ standoff/.test(document.querySelector('#dlfit').textContent)", timeout=180_000)
+    fit = zip_of(page.request.get(f"{server}/{next(h for h in fits if h.endswith('/standoffs?fit=1'))}").body())
+    made = len(re.findall(rb'<object id="\d+" name="', fit.read("3D/3dmodel.model")))   # one named object per standoff
+    assert made and f"fit test to print · {made} standoff" in page.inner_text("#dlfit"), page.inner_text("#dlfit")
 
 
 def test_a_glued_job_has_no_fit_test(page):

@@ -15,6 +15,7 @@ GET  /api/job/{client}/{job}/stl?part=<label>                                  �
 GET  /api/job/{client}/{job}/step?part=<label>                                 → the same as STEP: true solids for CAD
 GET  /api/job/{client}/{job}/key?units=mm                                      → the assembly key, as text
 GET  /api/job/{client}/{job}/standoffs?fit=0                                   → the standoffs' 3MF (fit=1: the fit test's)
+GET  /api/job/{client}/{job}/contents                                          → {print_set: [names in the zip], fit_standoffs: n}
 
 Only with LAMINA_LIBRARY=<folder> set (the library kept by this server, for every browser; 404 without it), and only
 on this server's own names (403 else: library_host):
@@ -723,6 +724,30 @@ def job_standoffs(client: str, job: str, fit: int = 0):
     return Response(data, media_type="model/3mf", headers={"Content-Disposition": f'attachment; filename="{f.name}"'})
 
 
+@app.get("/api/job/{client}/{job}/contents")
+def job_contents(client: str, job: str):
+    """What the print files hold, for the Export tab's buttons, read from the files themselves: the names in a printed
+    job's print set zip (the download, made once here) and how many standoffs the fit test prints. Kept beside the
+    plan until the plan changes: a print set takes seconds to make."""
+    jd, plan = _plan(client, job)
+    cache, stamp = jd / "contents.json", (jd / "plan.json").stat().st_mtime_ns
+    try:
+        kept = json.loads(cache.read_text())
+        if kept["stamp"] == stamp:
+            return kept["contents"]
+    except (OSError, ValueError, KeyError):
+        pass
+    out = {}
+    if plan["params"].get("printed"):                        # the page asks for it as the print set button does
+        made = job_proto(client, job, scale=1.0, offset=plan["params"]["slot_offset"])
+        out["print_set"] = zipfile.ZipFile(io.BytesIO(made.body)).namelist()
+    if plan.get("standoffs") and not plan["params"].get("printed"):
+        fit = fit_plan(plan, plan["params"]["slot_offset"], plan["params"]["sheet"])    # as /standoffs?fit=1 makes it
+        out["fit_standoffs"] = len((fit.get("standoffs") or {}).get("items", []))
+    cache.write_text(json.dumps({"stamp": stamp, "contents": out}))
+    return out
+
+
 @app.get("/api/job/{client}/{job}/stl")
 def job_stl(client: str, job: str, part: str = ""):
     return _solid_file(client, job, part, "stl")
@@ -748,7 +773,7 @@ def _solid_file(client, job, part, fmt, body=False):
 # The downloads by the name the page asks for (/api/job/{client}/{job}/<name>): the browser build binds a query to these
 # signatures (web/browser.py), so a download's parameters are written once, here, and nowhere else.
 JOB_ROUTES = {"export": job_export, "stl": job_stl, "step": job_step, "source": job_source, "proto": job_proto, "fit": job_fit, "fitcut": job_fitcut,
-              "key": job_key, "standoffs": job_standoffs}
+              "key": job_key, "standoffs": job_standoffs, "contents": job_contents}
 
 
 def main():

@@ -142,6 +142,17 @@ def test_the_key_and_the_standoffs_download_on_their_own(api):
     assert own.content[:2] == b"PK" and f"3D-PRINT standoffs x{n}.3mf" in own.headers["content-disposition"]
     fit = api.get(f"/api/job/{MINE}/{egg['job']}/standoffs", params={"fit": 1})
     assert fit.content[:2] == b"PK" and "fit test 3D-PRINT standoffs x" in fit.headers["content-disposition"]
+    # what the buttons say is read from the files: the fit test's standoffs as its 3MF holds them, a printed job's
+    # print set as its zip holds it; a plain cut job has nothing to read
+    import re
+    made = len(re.findall(rb'<object id="\d+" name="', zipfile.ZipFile(io.BytesIO(fit.content)).read("3D/3dmodel.model")))
+    assert api.get(f"/api/job/{MINE}/{egg['job']}/contents").json() == {"fit_standoffs": made} and made > 0
+    assert api.get(f"/api/job/{MINE}/{cube['job']}/contents").json() == {}
+    printed = api.post("/api/slice", data={"client": MINE, "mode": "stacked", "example": "cube", "params": json.dumps(
+        {"distribution": "count", "count": 3, "autofix": "off", "printed": True, "sheet": [256, 256]})}).json()["job"]
+    names = api.get(f"/api/job/{MINE}/{printed}/contents").json()["print_set"]
+    proto = api.get(f"/api/job/{MINE}/{printed}/proto", params={"scale": 1, "offset": 0})
+    assert "plate-1.3mf" in names and set(names) == set(zipfile.ZipFile(io.BytesIO(proto.content)).namelist())
 
 
 def test_every_zip_carries_the_project_file_that_reopens_the_job(api):
