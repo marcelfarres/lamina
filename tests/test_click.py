@@ -241,6 +241,31 @@ def test_no_seam_number_is_cut_under_a_wall(joint):
     assert len(marks) + len(pc["seam_tags"]) == 22                         # 11 seams, a number each side: none lost
 
 
+# the print lab's printed base (internal releases/0.4.0/print-jobs.json) and its test cup's seams
+PRINTED = {"kerf": 0, "machine": "bambu_h2c", "material": "PETG", "material_kind": "PETG", "printed": True, "scale_check": False,
+           "sheet": [300, 320], "sheet_margin": 2, "slot_offset": 0.2}
+CUP = {"seams": json.loads((ROOT / "tests" / "data" / "click_angles_seams.json").read_text(encoding="utf-8"))}
+
+
+@pytest.mark.skipif(not has_boolean(), reason="needs manifold3d to fuse the walls onto the panel")
+@pytest.mark.parametrize("model,preset,extra", [
+    ("examples/fold_box.stl", "fold_box", {"joint": "click"}),
+    ("tests/data/fold_lamp_simple.stl", "fold_lamp", {"joint": "click"}),      # its P-1 had edges three faces share (bug 075)
+    ("tests/data/click_angles.stl", "fold_box", {**CUP, "joint": "click"}),       # the click test cup
+    ("tests/data/click_angles.stl", "fold_box", {**CUP, "joint": "snap", "snap_fit": 0.1}),   # the clip test cup
+])
+def test_every_object_of_a_print_set_is_one_closed_manifold_solid(tmp_path, model, preset, extra):
+    """Every object the print set's plates hold, read back as a slicer reads it (corners a float apart are one corner):
+    each edge is shared by exactly two faces, and each object is one body."""
+    params = json.loads((ROOT / "examples" / "presets.json").read_text(encoding="utf-8"))[preset]["params"]
+    proto_set(build(ROOT / model, "folded", {**params, **PRINTED, **extra}), tmp_path, font=3)
+    objects = [(f.name, name, g) for f in sorted(tmp_path.glob("plate*.3mf")) for name, g in trimesh.load(f, force="scene", process=False).geometry.items()]
+    assert objects
+    for f, name, g in objects:
+        m = trimesh.Trimesh(g.vertices.copy(), g.faces.copy(), process=False); m.merge_vertices()
+        assert set(np.bincount(m.edges_unique_inverse)) == {2} and m.body_count == 1, (f, name)
+
+
 @pytest.mark.skipif(not has_boolean(), reason="needs manifold3d to fuse the walls onto the panel")
 def test_the_print_file_is_one_closed_solid_with_the_bars_bridged_on(tmp_path):
     files = proto_set(box(joint="click"), tmp_path)
