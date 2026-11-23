@@ -5,25 +5,25 @@ What changed in each release. The GitHub release for a version is this section, 
 ## 0.4.0
 
 A new way to build, the band lattice, and a new look: settings with full names in short sections, and tool buttons
-in the 3D view. Keep your projects and every revision in a library, make a mask from any model, and light it from
-inside to see it as a lamp.
+in the 3D view. Keep your projects in a library, make a mask or a paper lantern, and light it to see its shadows.
+Printed panels now join without glue.
 
 ### Added
 
 - **Your projects in a library.** *library* in the top bar holds your projects and the examples, with every
-  revision; *export all* backs them up. In Chrome or Edge link a folder, or use Docker, to keep them as files.
+  revision. *export all* backs them up. In Chrome or Edge link a folder, or use Docker, to keep them as files.
 
   ![The library page: a project's revisions, each with open, export and delete](web/static/news/0.4.0-library.jpg)
 
 - **New joins for stacked layers.** *Hide dowels* puts each dowel only where the layers above and below cover its
   hole, so no holes show on the steps. *Connect with standoff*: 3D-printed posts hold the layers apart. Try *shade*.
 
-  ![Above, the stacked vase with three open dowel holes ringed, then none with hide dowels on; below, the new shade on printed standoffs](web/static/news/0.4.0-stacked-joins.jpg)
+  ![Above, the stacked vase with three open dowel holes ringed, then none with hide dowels on. Below, the new shade on printed standoffs](web/static/news/0.4.0-stacked-joins.jpg)
 
 - **Band lattice.** A new technique: rings across x, y and z that slot together, best on round or boxy shapes.
   Lamina names any piece that cannot slide in. Thanks to @DaveLauber: adapted from his fork.
 
-  [![The band sphere: three families of rings, each with its own colour and pattern; the clip builds it ▶](web/static/news/0.4.0-bands.jpg)](https://marcelfarres.github.io/lamina/media/bands_build.mp4)
+  [![The band sphere: three families of rings, each with its own colour and pattern. The clip builds it ▶](web/static/news/0.4.0-bands.jpg)](https://marcelfarres.github.io/lamina/media/bands_build.mp4)
 
 - **Ring slices.** Tick *ring slices* on Stacked: each slice keeps only a wall, about a quarter of the material.
   *Max piece length* cuts long rings to fit small sheets. Thanks to @DaveLauber: adapted from his fork.
@@ -31,12 +31,12 @@ inside to see it as a lamp.
   [![The scanned head as a stack of rings on dowels ▶](web/static/news/0.4.0-rings.jpg)](https://marcelfarres.github.io/lamina/media/rings.mp4)
 
 - **Paper lamps.** On Folded Panels, set *windows are* to *closed with paper*: a paper part for each window, or
-  a thin printed layer. *Merge* makes faces one flat face; a flat side keeps one window. Try *paper_lamp*.
+  a thin printed layer. *Merge* makes faces one flat face. Try *paper_lamp*, a lantern of twelve dodecahedra.
 
   ![The paper_lamp example, a lantern of twelve dodecahedra, twice: its pentagon windows open, then closed with paper](web/static/news/0.4.0-paper-lamps.jpg)
 
 - **Light your model.** Tick *light* over the 3D view: soft shadows in a room. The *Light* tab holds up to four
-  bulbs and spots; drag them in the view. Saved with the project; a new model opens unlit.
+  bulbs and spots. Drag them in the view. The project keeps them. A new model opens unlit.
 
   ![The Light tab beside the lit lamp: the bulb's light and soft shadows on the room's walls](web/static/news/0.4.0-lamp.jpg)
 
@@ -82,10 +82,10 @@ inside to see it as a lamp.
 
   ![The tool column at the left of the 3D view](web/static/news/0.4.0-tools.jpg)
 
-- **A short Export tab.** Download buttons first; the rest opens with a click. A printed stack's print set holds
-  its dowel pins, each named on a tag. *STEP: one body*: the model as one solid. STEP holds standoffs too.
+- **A short Export tab.** It names each machine and gives it one main file. A fit test only where a joint needs
+  one. Print sets hold the dowel pins. *STEP: one body*: one solid. STEP holds standoffs.
 
-  ![The Export tab, with the download buttons first](web/static/news/0.4.0-export.jpg)
+  ![The Export tab: each machine named, with one main file each](web/static/news/0.4.0-export.jpg)
 
 - **A tidy top bar, a tour.** The links, *what's new* and *clear my data* are in the *help* menu, with *Tour of
   the page*. Technique buttons are cards with a drawing. What's new can point at each new control.
@@ -115,12 +115,12 @@ inside to see it as a lamp.
 - **Clean tops on stacked models.** A layer's name, arrows and dowel numbers now go only where the layer above
   covers them. The top layer stays clean: its name is beside it on the sheet. *Hide engravings* turns this off.
 
-  ![The egg's top layer on the sheet: before, its name, arrow and dowel numbers on it; now clean, its name beside it](web/static/news/0.4.0-clean-tops.jpg)
+  ![The egg's top layer on the sheet: before, its name, arrow and dowel numbers on it. Now clean, its name beside it](web/static/news/0.4.0-clean-tops.jpg)
 
 - **Print files that print right.** Each printed part carries its number, on a thin tag if it is small: snap it
-  off. The 3MF gives each part its layer height, bridges and supports; OrcaSlicer applies them, README.txt lists them.
+  off. The 3MF gives each part its layer height, bridges and supports. OrcaSlicer applies them. README.txt lists them.
 
-  ![Small horse ribs on the print plate, each joined to a tag with its number; one tag up close; a printed panel with every seam number cut in](web/static/news/0.4.0-print-tags.jpg)
+  ![Small horse ribs on the print plate, each joined to a tag with its number. One tag up close. A printed panel with every seam number cut in](web/static/news/0.4.0-print-tags.jpg)
 
 ### Fixed
 
@@ -135,8 +135,8 @@ inside to see it as a lamp.
 - **Examples open without warnings.** The blob, berry, cow, cow_spot, figure, head_igea, hook, horse, horse_statue,
   lion_head, pyramid, ripple, snowman, tall_bar, torus and twisted examples open clean, ready to cut. The cow is now a
   low-poly cow made for folding.
-- **Folded nets keep tabs and numbers.** Every tab seam keeps its tab; a seam number on a short edge is engraved
-  smaller, not left off; coverage reads the same in any card thickness. 6, 9 and the like get a dot.
+- **Folded nets keep tabs and numbers.** Every tab seam keeps its tab, and every seam its number: smaller on a short
+  edge, cut into a printed panel. Coverage reads the same in any thickness. 6 and 9 get a dot.
 - **Smallest face takes sharp faces too.** With *smallest face* set, a sharp face is merged as well, so a folded panel
   no longer ends in a thin tip.
 - **Fewer false warnings on stacked models.** An island with no dowel no longer warns when the next layer outline is

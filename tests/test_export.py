@@ -505,6 +505,18 @@ def test_a_printed_job_comes_out_as_one_plate_per_bed(tmp_path):
     assert "plate 1/" in next((tmp_path / "cut").glob("* sheet1.svg")).read_text(encoding="utf-8")   # by name: Linux lists a folder unsorted
 
 
+def test_a_fit_test_is_offered_only_for_a_joint_the_slot_offset_sizes():
+    """The Export tab's fit-test step (plan["fit_test"], Mode.fit_test): glued layers, and folded joints that cut no
+    slot or hole (glue tabs; the printed seam, snap and click, whose fit is snap_fit), give it nothing to show. The
+    glued paper lamp got 1,100 parts of fit test."""
+    from core.modes.folded import JOINTS
+    from core.plan import MODES
+    stacked, folded = MODES["stacked"].fit_test, MODES["folded"].fit_test
+    assert [stacked({"connect": c}) for c in ("dowel", "tab", "standoff", "none")] == [True, True, True, False]
+    assert {j for j in JOINTS if folded({"joint": j})} == {"rib", "tongue", "puzzle"}    # the three that read slot_offset
+    assert all(MODES[m].fit_test({}) for m in ("interlocked", "radial", "bands", "plaque", "curve"))   # every crossing slot
+
+
 def test_fit_test_is_the_jobs_joints_at_five_offsets_on_a_small_stand_in(tmp_path):
     """Before printing the model, five small assemblies with its joints: the job's own slot offset in the middle and
     two steps either way, every radial half-slice kept (that is what makes the real one tight), rings cut to two,
