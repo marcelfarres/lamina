@@ -15,10 +15,10 @@ STEP = """() => { const d = document.querySelector('#tourdlg'); if (!d?.open) re
     return {n, N, id: d.dataset.step, title: d.querySelector('h4').textContent.trim(), text: d.querySelector('.tx').textContent.trim(),
             ring: box(document.querySelector('#tourring')), bubble: box(d), W: innerWidth, H: innerHeight,
             tab: document.querySelector('nav button.on').dataset.t} }"""
-# each paragraph of the bubble against the step's sources, read again from the page: what is not found there is the
+# each paragraph of the bubble against the step's sources (both without bracketed asides: the tour drops them), read again from the page: what is not found there is the
 # tour's own text (a choice's "Other choices" line is a list of the source's own names, so it is left out)
 SOURCED = f"""async ([path, i]) => {{ const M = {PATHS}, s = M.PATHS[path].steps[i];
-    const norm = x => (x || '').toLowerCase().replace(/`/g, '').replace(/[=:·—,.;()]/g, ' ').replace(/\\s+/g, ' ').trim();
+    const norm = x => (x || '').toLowerCase().replace(/`/g, '').replace(/\\([^)]*\\)/g, ' ').replace(/[=:·—,.;()]/g, ' ').replace(/\\s+/g, ' ').trim();
     const pool = (s.src || []).map(q => {{ if (/^[.#]|^section|^label/.test(q)) {{ const e = document.querySelector(q);
         return e?.querySelector?.('.k[data-tip]')?.dataset.tip || e?.textContent || '' }} return M.helpOf(q) }});
     if (s.id === 'techniques') pool.push(...(await (await fetch('api/modes')).json()).map(m => m.title + ' ' + m.description));
@@ -87,8 +87,10 @@ def test_back_puts_the_page_as_it_was(page):
     example(page, "egg")
     before = page.evaluate(LOOK)
     choose(page, "laser")
+    page.wait_for_function("() => document.querySelector('#tourdlg')?.dataset.step === 'model'", timeout=240_000)
+    page.click("#tourdlg .go")
     page.wait_for_function("() => document.querySelector('#tourdlg')?.dataset.step === 'techniques'", timeout=240_000)
-    assert page.evaluate("() => window.__t.job()") == "ex_vase"
+    page.wait_for_function("() => window.__t.job() === 'ex_vase'", timeout=240_000)   # the path's example, once sliced
     page.keyboard.press("Escape")                         # ended early: the end card all the same
     page.wait_for_selector("#tourdlg.card[open]")
     page.click('#tourdlg [data-card="back"]')

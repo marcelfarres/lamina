@@ -68,15 +68,16 @@ const light=help('light','label:has(#lamp)',['light']);
 const library=help('library','#popen,#psave2',['library','save']);
 const laserFit=param('fit-settings',['compensate','kerf','slot_offset']);
 
-// The Export tab's parts. ponytail: today's ids; feature/export-tab gives #machines, #x_fit (#fit_what),
-// #x_files a.main[data-machine] with its .hint, and #x_folded: they replace these when it merges
-const EXPORT={summary:'#weight',fit:'#dlfit',fitText:'section[data-tab="export"] details.info.cutonly p.hint',
-  main:{laser:['#dl .r:first-child','#dl .r:first-child .hint'],router:['#dl .r:first-child','#dl .r:first-child .hint'],
-    printer:['#pr_go','#pr_go'],mix:['#two_machines','#two_machines']}};
-const xSummary=help('x-summary',EXPORT.summary,['Export'],{open:async()=>{tab('export')();await idle()},title:tabName('export')||'Export'});
-const xFit={id:'x-fit',src:[EXPORT.fitText],target:EXPORT.fit,open:tab('export'),title:()=>textOf('section[data-tab="export"] h2.cutonly'),text:()=>para(textOf(EXPORT.fitText))};
-const xMain=m=>({id:'x-main',src:[EXPORT.main[m][1]],target:EXPORT.main[m][0],open:async()=>{tab('export')();await idle()},
-  title:()=>textOf(m==='printer'?'#pr_title':'#dl_title'),text:()=>para(textOf(EXPORT.main[m][1]))});
+// The Export tab's parts (feature/export-tab keeps these ids for the tour): the job's machines, the fit test, and the
+// row of each machine's main button with what it is for written under it. A mixed job has two: laser and printer.
+const row=m=>`#x_files .r:has(> a.main[data-machine="${m}"])`;
+const EXPORT={summary:'#machines',fit:'#x_fit',fitTitle:'#fit_title',fitText:'#fit_what',
+  main:{laser:[row('laser')],router:[row('router')],printer:[row('printer')],mix:[row('laser'),row('printer')]}};
+const xSummary={id:'x-summary',src:[EXPORT.summary,'Export'],target:EXPORT.summary,open:async()=>{tab('export')();await idle()},title:()=>tabName('export'),
+  text:()=>`<p>${esc(textOf(EXPORT.summary))}</p>`+para(helpOf('Export'),150)};
+const xFit={id:'x-fit',src:[EXPORT.fitText],target:EXPORT.fit,open:tab('export'),title:()=>textOf(EXPORT.fitTitle),text:()=>para(textOf(EXPORT.fitText))};
+const xMain=m=>({id:'x-main',src:EXPORT.main[m].map(r=>`${r} .hint`),target:EXPORT.main[m].join(','),open:async()=>{tab('export')();await idle()},
+  title:()=>textOf('#dl_title'),text:()=>EXPORT.main[m].map(r=>para(textOf(`${r} .hint`),EXPORT.main[m].length>1?150:230)).join('')});
 
 const pick=(q,v)=>{const e=$(q); e.value=v; for(const k of ['input','change'])e.dispatchEvent(new Event(k,{bubbles:true}))};
 export const PATHS={
@@ -120,4 +121,4 @@ export async function begin(first){
     <div class="row"><button data-card="back">Back to where I was</button><button class="go" data-card="keep">Keep this example</button></div>`);
   if(how!=='back')return;
   if(was.file)await lib.openRevision(was.file); else openExample(was.example);
-  back()}
+  back(); if(!was.file)lib.baseline()}

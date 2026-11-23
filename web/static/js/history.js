@@ -20,13 +20,19 @@ export function record(){
 // schedule(), not slice(): holding Ctrl+Z walks back several steps, and one slice of the step you land on is the
 // point — a slice per step queues minutes of work in the browser build and looks like a hang
 export function step(from,to){if(!from.length)return;const ch=changes(cur,from.at(-1)),lit=ch.length&&ch.every(c=>/^(lights?|room|light_video) /.test(c));act((from===undos?'undo: ':'redo: ')+ch.join(', '));to.push(cur);const j=from.pop();cur=j;restoring=!lit;
-  const d=JSON.parse(j); if(d.m!==ST.mode.name)setMode(d.m,false);
-  for(const k of Object.keys(state))delete state[k]; Object.assign(state,d.s);
+  const d=put(j);
   if(lit){syncUndo();return ST.light()}   // only the lights changed: they are drawn again, nothing is sliced
   ST.unit=d.u; deselect(); applyUnit(); syncUndo(); schedule()}
 function syncUndo(){$('#undo').disabled=!undos.length;$('#redo').disabled=!redos.length}
-// the stack as it is now, and how to put it back: a tour that opened an example for a while leaves no steps behind (tourpaths.js)
-export function hold(){const u=[...undos],r=[...redos],c=cur;return()=>{undos.splice(0,undos.length,...u);redos.splice(0,redos.length,...r);cur=c;syncUndo()}}
+// a snapshot back in the form: its technique and every setting (the caller sets the units and slices)
+function put(j){const d=JSON.parse(j); if(d.m!==ST.mode.name)setMode(d.m,false);
+  for(const k of Object.keys(state))delete state[k]; Object.assign(state,d.s); return d}
+// The settings and the undo stack as they are now, and how to put both back: a tour that opened an example for a while
+// leaves the page and its undo as they were (tourpaths.js). An example with no preset keeps the technique in use, so
+// opening the old example again is not enough: the snapshot goes back too.
+export function hold(){const u=[...undos],r=[...redos],c=cur;
+  return()=>{undos.splice(0,undos.length,...u);redos.splice(0,redos.length,...r);cur=c;restoring=true;
+    if(c){const d=put(c);ST.unit=d.u;deselect();applyUnit()} syncUndo();schedule()}}
 
 // ---------------------------------------------------------------- what happened since the model loaded
 // The state at the end rarely says how somebody got there — an example's settings kept by an upload, a ring nudged

@@ -28,8 +28,9 @@ export const NEW={'0.4.0':[
     state.light=true;ST.light();return()=>{delete state.light;ST.light()}}},
   {note:'Tool buttons in the 3D view.', target:'#tools'},
   {note:'Clear warnings, not only colour.', target:'#report', open:tab('checks')},
-  // ponytail: the Export tab is rebuilt in 0.4.0 (feature/export-tab); its own buttons become these targets
-  {note:'A short Export tab.', target:'nav button[data-t="export"]', open:tab('export')},
+  // the files step of the Export tab (#x_files: export-tab keeps it for the tour); print files only on a printed job,
+  // so that step shows the tab
+  {note:'A short Export tab.', target:'#x_files', open:tab('export')},
   {note:'Print files that print right.', target:'nav button[data-t="export"]', open:tab('export')}]};
 
 let T=null, C=null;   // the tour on show: {steps, i, undo, tab, back (focused before it), skip, busy, sel, r, res}; the card on show
