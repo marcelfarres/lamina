@@ -15,7 +15,7 @@ const pieceToSlice=()=>{const m={};for(const s of ST.plan?.slices||[])for(const 
 export function hlSheet(label){const map=pieceToSlice();let first=null;for(const p of $$('#sheets path[data-label]')){const on=label&&map[p.dataset.label]===label;p.classList.toggle('hl',on);if(on&&!first)first=p}
   if(first)first.scrollIntoView({block:'nearest',behavior:'smooth'})}
 export function renderSheets(svgs){
-  $('#sheets').innerHTML=svgs.map((s,i)=>`<div class="sheet"><div class="t"><span>sheet ${i+1} of ${svgs.length} — ${fmtLen(ST.plan.sheet[0])} × ${fmtLen(ST.plan.sheet[1])}${ST.plan.sheet_thick?.[i]?` · ${fmtLen(ST.plan.sheet_thick[i])} ${esc(ST.plan.sheet_stock?.[i]||'stock')}`:''}</span><a data-open="${i}">open full size ↗</a></div>${s}</div>`).join('');
+  $('#sheets').innerHTML=svgs.map((s,i)=>`<div class="sheet"><div class="t"><span>sheet ${i+1} of ${svgs.length} — ${fmtLen(ST.plan.sheet[0])} × ${fmtLen(ST.plan.sheet[1])}${ST.plan.sheet_thick?.[i]&&!state.printed?` · ${fmtLen(ST.plan.sheet_thick[i])} ${esc(ST.plan.sheet_stock?.[i]||'stock')}`:''}</span><a data-open="${i}">open full size ↗</a></div>${s}</div>`).join('');
   const bad=new Set(ST.plan.slices.filter(s=>s.errors.length).flatMap(s=>s.pieces.map(p=>p.label)));   // Slicer: red = part with a problem
   // status line: what is selected (so a click is never silent)
   if(ST.selected)status(`${$('#status').textContent.replace(/ · selected.*$/,'')} · selected ${ST.selected}`);
@@ -68,7 +68,7 @@ export function renderWeight(){if(!ST.plan)return;const d=dens(),g=d/1000,by=new
     +(rods.n?`<div class="hint">${rods.n} dowel(s), ${fmtLen(rods.len)} of rod in all</div>`:'')
     +(ST.plan.standoffs?`<div class="hint">${ST.plan.standoffs.items.length} printed standoff(s), not weighed here</div>`:'')
     +(by.size>1?[...by].sort((a,b)=>a[0]-b[0]).map(([t,b])=>{const n=sheetsOf.get(+t.toFixed(6))||0;
-      return `<div class="hint">${fmtLen(t)} stock: ${b.n} part(s) · ${fmtMass(b.v*g)} · ${n} sheet(s), ${fmtArea(n*area0)}</div>`}).join(''):'')
+      return `<div class="hint">${fmtLen(t)} stock: ${b.n} part(s) · ${fmtMass(b.v*g)}${state.printed?'':` · ${n} sheet(s), ${fmtArea(n*area0)}`}</div>`}).join(''):'')   // a plate holds every thickness
     +`<div class="hint">at ${+(d*DU()).toPrecision(4)} ${DUNIT()}, set with the material on Sheet &amp; fit</div>`;
 }
 // What the job is, by machine, before any button: which machine makes what, from which stock, and in which order. A

@@ -222,8 +222,11 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     codes = label_codes([pc.label for pc in pieces], f"{pathlib.Path(model_path).name}|{mode_name}") if p["label_style"] == "code" else {}
     sheet_thick = [p["thickness"]] * n_sheets           # the stock each sheet is cut from: nest keeps one per sheet
     sheet_stock = [""] * n_sheets                       # … and what that stock is, when it is not the job's material ("paper")
+    tallest = {}                                        # a print plate holds every thickness: its tallest part
     for pc in pieces:
-        sheet_thick[pc.place[0]] = pc.parent.thickness; sheet_stock[pc.place[0]] = pc.parent.stock
+        tallest[pc.place[0]] = max(tallest.get(pc.place[0], 0.0), pc.parent.thickness); sheet_stock[pc.place[0]] = pc.parent.stock
+    for s, t in tallest.items():
+        sheet_thick[s] = t
     sheet_out = sheet0
     if p["one_sheet"]:                              # report the strip at the length the parts and their labels actually took
         top = max([pc.placed.bounds[3] for pc in pieces] + [pc.label_pos[1] + p["font"] * 0.7 for pc in pieces if pc.label_pos], default=0.0) + p["sheet_margin"]
