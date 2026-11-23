@@ -16,6 +16,7 @@ import {renderWeight, renderDownloads, applyFix} from './results.js';
 import {bump, projectObj, projName} from './project.js';
 import * as lib from './library.js';
 import {initLibraryPage} from './librarypage.js';
+import {initTour, offer} from './tourpaths.js';
 import './light.js';
 import {initSeams, seamsNow} from './seams.js';
 import {initFaces, facesNow} from './faces.js';
@@ -88,7 +89,7 @@ async function init(){
   $('#undo').onclick=()=>step(undos,redos); $('#redo').onclick=()=>step(redos,undos);
   $('#helpbtn').onclick=()=>$('#helpdlg').showModal(); $('#help_go').onclick=()=>$('#helpdlg').close();
   $('#newsbtn').onclick=()=>showNews(Infinity); $('#news_go').onclick=()=>$('#newsdlg').close();
-  whatsNew();
+  const first=whatsNew();   // a browser that never saw Lamina: offered the tour once the page is up (tourpaths.js)
   $('#oops_go').onclick=()=>oops.close('go'); $('#oops_no').onclick=()=>oops.close('');
   phoneNotice();
   $('#clear').onclick=async()=>{if(!confirm('Delete everything this tab has sliced — uploaded models, cut files and the session? Presets are kept. The library is kept.'))return;await fetch(`api/session?client=${CLIENT}`,{method:'DELETE'});location.reload()};
@@ -133,7 +134,7 @@ async function init(){
   // while it runs, and an edit made meanwhile then counts as a change)
   const openExample=name=>{ST.example=name;ST.pendingFile=null;$('#file').value='';newModel();applyPreset();lib.baseline();ST.countUse('model','example');ST.fresh='loaded example '+name;slice()};
   window.__t.openExample=openExample;   // window.__t is built below while init() awaits its first fetch
-  initLibraryPage({openExample,examples:ex});
+  initLibraryPage({openExample,examples:ex}); initTour({openExample});
   // A big mesh in the browser build is slow but not refused — the ceiling is this tab's memory, and it is the
   // reporter's machine that knows better than a fixed number. So: say what it will cost, then do as they say.
   const BIG=50e6;   // ~1 M triangles: the point where a slice in Pyodide goes from a wait to a very long wait
@@ -156,7 +157,7 @@ async function init(){
   else{setMode(location.hash.slice(1)||'interlocked',false);applyMachine(matOf(state.material).machine);applyPreset()}   // a fresh start gets the machine's compensation and the example's preset (the #technique in the URL is the app's own mirror of its state, not a request)
   ST.fresh=sess.mode?'page reloaded, last session resumed':'page opened on example '+ST.example; applyUnit();
   if(!sess.mode)lib.baseline();   // a fresh start is an example as it opened; it also replaces a mirror left by a cleared session
-  slice(); lib.listed();
+  slice().then(async()=>{if(await first)offer()}); lib.listed();
 }
 initSeams(); initFaces();
 init();

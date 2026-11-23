@@ -72,6 +72,10 @@ def fresh(page):
     shift-drag miss), and not the page's default, which can change and be slower to re-slice. The Light tab's reset
     first: a test that left the light on lit the next test's re-slices (bugs/069: the paper pane's, then a stack half a
     metre tall drawn with shadows hung the page). An example that opens turns it off by itself (bugs/071)."""
+    for _ in range(4):                                # a tour or its card left open by a test that failed in it
+        if not page.locator("#tourdlg[open]").count():
+            break
+        page.keyboard.press("Escape"); page.wait_for_timeout(400)
     if page.evaluate("() => window.__t.job()") != "ex_egg":
         page.click('nav button[data-t="model"]')
         page.evaluate("__t.openExample('egg')")

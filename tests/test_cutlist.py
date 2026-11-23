@@ -49,7 +49,7 @@ def test_per_piece_export_merges_identical_pieces_with_a_quantity(tmp_path):
     named in the cut list; the top one carries no dowel numbers (hide engravings), so it is a part of its own, x1.
     Every per-piece file is "<part> <material> x<qty>", quantity last and written even when there is one of it."""
     plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 4, "autofix": "off", "material": "plywood"})
-    files = {f.name.split(" ", 1)[1] for f in export(plan, tmp_path, fmts=("svg", "eps"), labels=True, per_piece=True)}
+    files = {f.name.split(" ", 1)[1] for f in export(plan, tmp_path, fmts=("svg", "eps"), labels=True, per_piece=True) if f.name != "README.txt"}
     assert "Z-1 plywood x3.svg" in files and "Z-4 plywood x1.svg" in files and not any(f.startswith(("Z-2", "Z-3")) for f in files)
     assert "scale-check plywood x1.svg" in files and "scale-check plywood x1.eps" in files
     cut_list = (tmp_path / f"{design_name(plan)} cut-list.txt").read_text(encoding="utf-8")
@@ -59,7 +59,7 @@ def test_per_piece_export_merges_identical_pieces_with_a_quantity(tmp_path):
     # a stranger's material name cannot reach outside the folder
     for material, tag in (("stainless steel", "stainless-steel"), ("birch / yard\\..", "birch-yard")):
         plan["params"]["material"] = material
-        names = {f.name.split(" ", 1)[1] for f in export(plan, tmp_path / tag, fmts=("svg",), labels=True, per_piece=True)}
+        names = {f.name.split(" ", 1)[1] for f in export(plan, tmp_path / tag, fmts=("svg",), labels=True, per_piece=True) if f.name != "README.txt"}
         assert f"Z-1 {tag} x3.svg" in names, names
         assert all(len(n.split(" ")) in (3, 4) for n in names if n.endswith(".svg")), names
 
@@ -106,7 +106,7 @@ def test_mirror_ok_merges_a_part_with_its_mirror_image(tmp_path):
     flips = [(pc["label"], pc["flipped"]) for sl in on["slices"] for pc in sl["pieces"] if pc["flipped"]]
     assert flips, "no mirror pair found on the curve egg"
     assert len(identical_groups(on)) == len(identical_groups(off)) - len(flips)        # each pair is one file fewer
-    files = {f.name.split(" ", 1)[1] for f in export(on, tmp_path, fmts=("svg",), labels=True, per_piece=True)}
+    files = {f.name.split(" ", 1)[1] for f in export(on, tmp_path, fmts=("svg",), labels=True, per_piece=True) if f.name != "README.txt"}
     label, twins = flips[0]
     assert f"{label} x2.svg" in files and not any(f.startswith(twins[0] + ".") for f in files)
     cut_list = (tmp_path / f"{design_name(on)} cut-list.txt").read_text(encoding="utf-8")
