@@ -22,7 +22,10 @@ export const helpOf=bold=>{const li=$$('#helpdlg li').find(l=>l.querySelector('b
   const t=li.textContent.replace(/\s+/g,' ').trim(), r=t.slice(bold.length).trim(); return cap(r.startsWith('—')?r.slice(1).trim():t)};
 const tipOf=row=>row?.querySelector('.k[data-tip]')?.dataset.tip||'';
 const nameOf=row=>(row?.querySelector('.k')?.firstChild?.textContent||'').trim();
-const textOf=q=>($(q)?.textContent||'').replace(/\s+/g,' ').trim();
+// an element's text with a space after each line of it (textContent alone ran "cut." and "✂ LASER" together; innerText
+// drops the text of a closed <details> and takes the capitals CSS gives a heading)
+const textOf=q=>{const e=$(q)?.cloneNode(true); if(!e)return ''; for(const b of e.querySelectorAll('div,p,li,br,h2,h3,h4,summary'))b.after(' ');
+  return e.textContent.replace(/\s+/g,' ').trim()};
 // A row's help. A choice's help lists every choice ("a = … · b = …"): the one on show is said (or the ones a path
 // names), the others only named.
 function say(row,max,want){const t=tipOf(row).replace(/\s+/g,' ').trim(), sel=row.querySelector('select'), segs=t.split(' · ');
