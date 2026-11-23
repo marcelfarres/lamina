@@ -7,7 +7,7 @@ import pytest
 import trimesh
 from shapely.geometry import MultiPolygon, Polygon
 
-from core.plan import build
+from core.plan import _closer_than, build
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BIT = 3.175                                                    # the router presets' bit (web/static/js/catalog.js)
@@ -68,3 +68,9 @@ def test_parts_closer_than_the_bit_are_warned_and_the_router_gap_keeps_them_two_
     assert closest(laser) >= BIT and not said(laser)
     roomy = torus(2 * BIT)               # the router machines' gap
     assert closest(roomy) >= 2 * BIT - 0.01 and not said(roomy)
+
+
+def test_the_bit_check_takes_a_plan_with_one_part_or_none():
+    """bugs/076: a router job whose plan laid no part (the parameter sweep, on curve) stopped with "Geometry array should
+    be of object dtype": the check that parts lie a bit's width apart has no pair to measure then."""
+    assert _closer_than([], 3.175) == []

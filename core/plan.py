@@ -125,8 +125,10 @@ def swap_in(write, dest, waits=(0, 0.05, 0.1, 0.2, 0.4, 0.8)):
 
 def _closer_than(pieces, d):
     """Pairs of parts on one sheet less than `d` apart as laid, (distance, label, label), closest first."""
+    if len(pieces) < 2:                                # no pair; an empty query is not a geometry array (bugs/076)
+        return []
     geoms = [pc.placed for pc in pieces]
-    a, b = shapely.STRtree(geoms).query(geoms, predicate="dwithin", distance=d - 1e-6)
+    a, b =shapely.STRtree(geoms).query(geoms, predicate="dwithin", distance=d - 1e-6)
     return sorted((geoms[i].distance(geoms[j]), pieces[i].label, pieces[j].label)
                   for i, j in zip(a, b) if i < j and pieces[i].place[0] == pieces[j].place[0])
 
