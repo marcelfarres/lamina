@@ -124,7 +124,7 @@ def test_the_solid_downloads_of_a_job(api):
     assert "README.txt" in cut and {n.split("/")[0] for n in cut if "/" in n} == {"fit_-0.20", "fit_-0.10", "fit_0.00", "fit_0.10", "fit_0.20"}
 
 
-def test_the_key_and_the_standoffs_download_on_their_own(api):
+def test_the_key_and_the_standoffs_download_on_their_own(api, jobs):
     """The Export tab gives each machine a button of its own: the assembly key as text, and the standoffs as the 3MF
     the sheets zip carries (fit=1: the fit test's). A job with no standoffs has no such file. The plan says whether
     the job has a fit test at all."""
@@ -150,9 +150,14 @@ def test_the_key_and_the_standoffs_download_on_their_own(api):
     assert api.get(f"/api/job/{MINE}/{cube['job']}/contents").json() == {}
     printed = api.post("/api/slice", data={"client": MINE, "mode": "stacked", "example": "cube", "params": json.dumps(
         {"distribution": "count", "count": 3, "autofix": "off", "printed": True, "sheet": [256, 256]})}).json()["job"]
-    names = api.get(f"/api/job/{MINE}/{printed}/contents").json()["print_set"]
-    proto = api.get(f"/api/job/{MINE}/{printed}/proto", params={"scale": 1, "offset": 0})
+    button = {"scale": 1, "offset": 0, "labels": "groove"}                 # the print set button's own settings
+    names = api.get(f"/api/job/{MINE}/{printed}/contents", params=button).json()["print_set"]
+    kept = list(jobs.rglob(f"{printed}/proto-*.zip"))
+    proto = api.get(f"/api/job/{MINE}/{printed}/proto", params=button)
     assert "plate-1.3mf" in names and set(names) == set(zipfile.ZipFile(io.BytesIO(proto.content)).namelist())
+    assert len(kept) == 1 and proto.content == kept[0].read_bytes()       # one build: the download is the zip /contents made
+    api.get(f"/api/job/{MINE}/{printed}/proto", params={**button, "labels": "hole"})   # other settings: a new set, the old one gone
+    assert [z.name for z in jobs.rglob(f"{printed}/proto-*.zip")] != [kept[0].name] and len(list(jobs.rglob(f"{printed}/proto-*.zip"))) == 1
 
 
 def test_every_zip_carries_the_project_file_that_reopens_the_job(api):

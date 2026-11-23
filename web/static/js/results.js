@@ -75,13 +75,14 @@ export function renderWeight(){if(!ST.plan)return;const d=dens(),g=d/1000,by=new
 // cut job has a line per stock it is nested on (a paper lamp's panes on paper, its panels on card). Names are escaped:
 // a machine or a material can be one of yours
 const pl=(n,w)=>`${n} ${w}${n===1?'':'s'}`;
-// What the print files hold, read from the files: the server makes them once per plan (/contents), and only while the
-// Export tab is shown (a print set takes seconds); the tab is drawn again with their names and counts when they come
-function contents(){const p=ST.plan;
+// What the print files hold, read from the files: the server makes them once per plan (/contents, with the print set
+// button's own settings, so the download after it is the same kept zip), and only while the Export tab is shown (a
+// print set takes seconds); the tab is drawn again with their names and counts when they come
+function contents(pq){const p=ST.plan;
   if(!(state.printed||p.standoffs))return null;
   if(ST.contents?.plan===p)return ST.contents.got;
   if(ST.contents?.asked!==p&&$('section[data-tab="export"]').classList.contains('on')){ST.contents={asked:p};
-    fetch(`api/job/${CLIENT}/${ST.job}/contents`).then(r=>r.ok?r.json():null).then(got=>{if(got&&ST.plan===p){ST.contents={plan:p,got};renderDownloads()}}).catch(()=>{})}
+    fetch(`api/job/${CLIENT}/${ST.job}/contents?${pq}`).then(r=>r.ok?r.json():null).then(got=>{if(got&&ST.plan===p){ST.contents={plan:p,got};renderDownloads()}}).catch(()=>{})}
   return null}
 // the print set button names what its zip holds, from the zip's names: the plates (a run of them shortened), the pins
 // and standoffs files, README and the assembly key when they are in it
@@ -119,7 +120,7 @@ export function renderDownloads(){ // the labels checkbox applies to every cut f
   $('#fit_what_print').hidden=!printed;
   const slot=$(printed?'#print_opts':'#pr_slot'); if($('#pr_shared').parentNode!==slot)slot.append($('#pr_shared'));   // one set of print controls: under the print set on a printed job (moved only when it changes place: a moved box loses the focus)
   $('#slicer_fold').hidden=!printed; $('#slicer_sum').textContent=`what the slicer must have: ${state.material}, 0.4 mm nozzle, first layer ${fmtLen(0.2)}`;   // core.solid.FIRST
-  const c=contents(); $('#machines').innerHTML=machinesNote(ico,KIND,rods,nso,c);
+  const c=contents(pq); $('#machines').innerHTML=machinesNote(ico,KIND,rods,nso,c);
   const ne=p.counts.errors; $('#x_errors').hidden=!ne;           // the files still download: the warning says what they hold
   if(ne){$('#x_errors').innerHTML=`<b>⚠ WARNING</b> · This plan has ${ne} error${ne>1?'s':''}: some parts do not go together, or the machine cannot make them. Correct ${ne>1?'them':'it'} before you cut or print. <button class="small">show the errors</button>`;
     $('#x_errors button').onclick=()=>showTab('checks')}
