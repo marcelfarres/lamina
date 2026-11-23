@@ -2,6 +2,17 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.4.1
+
+This release fixes what new users meet first in 0.4.0.
+
+### Fixed
+
+- **Examples open clean on cardboard.** In 0.4.0 the blob and six more examples opened with a warning about thin
+  fingers between slots. Cardboard now takes fingers as thin as the sheet, as plywood does.
+- **The fold-groove message is a note.** In the published version, the folded print examples opened with a warning:
+  that version cannot cut fold grooves into print files. It now shows as a note, so they open clean.
+
 ## 0.4.0
 
 This release makes Lamina easier for a new user: help on every setting, clearer names, a tour of the page, and one
