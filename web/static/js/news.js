@@ -51,6 +51,7 @@ export async function showNews(n){                              // the n newest 
   if(!$('#newsdlg').open)$('#newsdlg').showModal();
   $('#newsdlg').scrollTop=0;                             // focus lands on OK, which would otherwise open it at the end
 }
+// true for a browser that has never seen Lamina (the tour of the page is offered to it, tourpaths.js)
 export async function whatsNew(){
   try{
     const vs=await news(); if(!vs.length)return;
@@ -59,6 +60,7 @@ export async function whatsNew(){
     // not hide the release it fixed. A version no longer in the list shows them all
     const i=vs.findIndex(s=>s.v===seen);
     if(seen&&i!==0)showNews(i<0?vs.length:i);
+    return !seen;
   }catch(e){}                                            // no changelog beside the page: the button still works
 }
 // A phone gets the whole app and, once, a word that it is made for a computer: the 3D view's editing wants a mouse and

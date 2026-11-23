@@ -14,7 +14,7 @@ import trimesh
 from lxml import etree
 from shapely.geometry import Polygon
 
-from core.export import design_name, export
+from core.export import ORDER, RGB, design_name, export
 from core.plan import build
 from core.solid import assembled, proto_set
 
@@ -67,7 +67,7 @@ def test_next_layer_outline_goes_on_the_guide_layer_and_identical_slices_stay_on
     assert not tree.xpath('//svg:g[@class="SCORE"]', namespaces=SVG_NS)
     assert len(tree.xpath('//svg:g[@class="GUIDE"]/svg:path', namespaces=SVG_NS)) == sum(len(pc["lines"]) for pc in pieces if pc["place"][0] == 0)
 
-    files = {f.name.split(" ", 1)[1]: f for f in export(plan, tmp_path / "pieces", fmts=("svg",), labels=True, per_piece=True)}
+    files = {f.name.split(" ", 1)[1]: f for f in export(plan, tmp_path / "pieces", fmts=("svg",), labels=True, per_piece=True) if f.name != "README.txt"}
     assert "Z-1 x3.svg" in files and "Z-4 x1.svg" in files, files
     # the one-file-per-part export carries the guide too, in the part's own frame
     piece = etree.parse(str(files["Z-1 x3.svg"]))
@@ -164,7 +164,7 @@ def test_a_lone_part_file_carries_its_seam_numbers(tmp_path):
     plan = build(EXAMPLES / "cube.stl", "folded", {"facet": 0, "joint": "laced", "autofix": "off"})
     pieces = {pc["label"]: pc for sl in plan["slices"] for pc in sl["pieces"]}
     assert any(pc["marks"] for pc in pieces.values())
-    for f in export(plan, tmp_path, fmts=("svg",), labels=True, per_piece=True):
+    for f in export(plan, tmp_path, fmts=("svg",), labels=True, per_piece=True, readme=False):
         lab = f.name.split(" ")[1]
         if lab in pieces:
             texts = etree.parse(str(f)).xpath('//svg:g[@class="LABEL"]/svg:path/@data-text', namespaces=SVG_NS)
@@ -199,8 +199,9 @@ def test_svg_score_and_label_counts_folded(tmp_path):
 
     tree = etree.parse(str(tmp_path / f"{design_name(plan)} sheet1.svg"))
     assert len(tree.xpath('//svg:g[@class="SCORE"]/svg:path', namespaces=SVG_NS)) == exp["score"]
-    # LABEL texts (one stroke path each) = per-piece marks + per-piece label + the sheet title
-    assert len(tree.xpath('//svg:g[@class="LABEL"]/svg:path[@data-text]', namespaces=SVG_NS)) == exp["marks"] + exp["label_pos"] + 1
+    # LABEL texts (one stroke path each) = per-piece marks + per-piece label; the sheet's title is on FRAME, which no machine runs
+    assert len(tree.xpath('//svg:g[@class="LABEL"]/svg:path[@data-text]', namespaces=SVG_NS)) == exp["marks"] + exp["label_pos"]
+    assert len(tree.xpath('//svg:g[@class="FRAME"]/svg:path[@data-text]', namespaces=SVG_NS)) == 1
 
 
 def test_dxf_reloads_with_same_layers_and_matching_entity_counts(tmp_path):
@@ -209,17 +210,35 @@ def test_dxf_reloads_with_same_layers_and_matching_entity_counts(tmp_path):
     exp = sheet0_expected_counts(plan)
 
     doc = ezdxf.readfile(str(tmp_path / f"{design_name(plan)} sheet1.dxf"))
-    assert sorted(l.dxf.name for l in doc.layers if l.dxf.name in ("OUTER", "INNER", "SCORE", "LABEL")) == [
-        "INNER", "LABEL", "OUTER", "SCORE",
-    ]
+    assert [l.dxf.name for l in doc.layers if l.dxf.name in ORDER] == list(ORDER)        # the layer table in the order they run
     msp = doc.modelspace()
-    cut = [e for e in msp.query("LWPOLYLINE") if e.dxf.layer != "LABEL"]
+    cut = [e for e in msp.query("LWPOLYLINE") if e.dxf.layer not in ("LABEL", "FRAME")]
     assert len(cut) == exp["outer"] + exp["inner"] + exp["score"]
-    # the labels are strokes on the LABEL layer — at least one per mark and per label, open, beside the closed border
-    # rectangle export() draws when border=True (the default) — and never TEXT, which would take the reader's font
+    # the labels are open strokes on the LABEL layer, at least one per mark and per label, and never TEXT, which would
+    # take the reader's font; the border export() draws when border=True (the default) is on FRAME, closed
     label = [e for e in msp.query("LWPOLYLINE") if e.dxf.layer == "LABEL"]
-    assert sum(1 for e in label if e.closed) == 1 and sum(1 for e in label if not e.closed) >= exp["marks"] + exp["label_pos"]
+    assert not any(e.closed for e in label) and len(label) >= exp["marks"] + exp["label_pos"]
+    assert [e.closed for e in msp.query("LWPOLYLINE") if e.dxf.layer == "FRAME"] == [True]
     assert not list(msp.query("TEXT"))
+
+
+def test_every_format_writes_its_layers_in_the_order_a_machine_runs_them(tmp_path):
+    """Engrave, score, holes, outlines (Marcel, export review Q5): a part drops out of the sheet once its outline is
+    cut, so its holes come first. The sheet's border and title are on FRAME, first, which no machine runs. Each part of
+    the SVG keeps its group and lists its layers in that order; DXF and EPS write the whole sheet in it."""
+    plan = build(EXAMPLES / "cube.stl", "folded", {"facet": 0, "joint": "laced", "autofix": "off"})   # outlines, holes, scores, labels
+    export(plan, tmp_path, fmts=("svg", "dxf", "eps"), labels=True, readme=False)
+    stem = str(tmp_path / f"{design_name(plan)} sheet1")              # not with_suffix: "v1.0 sheet1" has a dot
+    tree = etree.parse(stem + ".svg")
+    assert [g.get("class") for g in tree.xpath('/svg:svg/svg:g[@class="sheet"]/svg:g', namespaces=SVG_NS)] == ["FRAME"]
+    for piece in tree.xpath('//svg:g[@class="piece"]', namespaces=SVG_NS):
+        mine = [g.get("class") for g in piece.xpath('svg:g', namespaces=SVG_NS)]
+        assert mine == sorted(mine, key=ORDER.index), mine
+    layers = [e.dxf.layer for e in ezdxf.readfile(stem + ".dxf").modelspace()]
+    assert layers == sorted(layers, key=ORDER.index) and {"FRAME", "LABEL", "SCORE", "INNER", "OUTER"} <= set(layers)
+    eps = pathlib.Path(stem + ".eps").read_text(encoding="latin-1")
+    at = [eps.index(" ".join(f"{v:.3f}" for v in RGB[k]) + " setrgbcolor") for k in ("FRAME", "LABEL", "SCORE", "INNER", "OUTER")]
+    assert at == sorted(at)
 
 
 def test_a_project_name_is_text_in_the_svg_not_markup(tmp_path):
@@ -229,7 +248,7 @@ def test_a_project_name_is_text_in_the_svg_not_markup(tmp_path):
     export(plan, tmp_path, fmts=("svg",), labels=True)
     tree = etree.parse(str(tmp_path / f"{design_name(plan)} sheet1.svg"))                          # still well-formed…
     assert not tree.xpath("//*[local-name()='img']")                          # …and the tag is not an element
-    assert '<img' in "".join(tree.xpath('//svg:g[@class="LABEL"]/svg:path/@data-text', namespaces=SVG_NS))   # but text
+    assert '<img' in "".join(tree.xpath('//svg:g[@class="FRAME"]/svg:path/@data-text', namespaces=SVG_NS))   # but text
 
 
 def test_assembly_key_explains_the_labels_and_lists_every_part(tmp_path):
@@ -787,9 +806,10 @@ def test_every_file_carries_the_design_name_so_two_designs_never_mix(tmp_path):
         out = tmp_path / str(per_piece)
         a = export(cube, out, fmts=("svg", "dxf", "pdf"), labels=True, per_piece=per_piece, key=True)
         b = export(egg, out, fmts=("svg", "dxf", "pdf"), labels=True, per_piece=per_piece, key=True)
+        a, b = ([f for f in x if f.name != "README.txt"] for x in (a, b))   # the one name every zip shares: what to read first
         assert all(f.name.startswith("cube_v1.0 ") for f in a), [f.name for f in a]
         assert all(f.name.startswith("my_egg_v2.1 ") for f in b), [f.name for f in b]
-        assert len({f.name for f in a} | {f.name for f in b}) == len(a) + len(b) == len(list(out.iterdir()))
+        assert len({f.name for f in a} | {f.name for f in b}) == len(a) + len(b) == len(list(out.iterdir())) - 1
 
 
 def test_a_hostile_revision_in_a_project_file_writes_nothing_outside_the_job_folder(tmp_path):
@@ -837,7 +857,9 @@ def test_svg_can_fall_back_to_one_group_per_colour(tmp_path):
     assert len(tree.xpath('//svg:g[@class="OUTER"]', namespaces=SVG_NS)) == 1
     assert len(tree.xpath('//svg:g[@class="OUTER"]/svg:path', namespaces=SVG_NS)) == exp["outer"]
     assert len(tree.xpath('//svg:g[@class="LABEL"]', namespaces=SVG_NS)) == 1
-    assert len(tree.xpath('//svg:g[@class="LABEL"]/svg:path[@data-text]', namespaces=SVG_NS)) == exp["marks"] + exp["label_pos"] + 1
+    assert len(tree.xpath('//svg:g[@class="LABEL"]/svg:path[@data-text]', namespaces=SVG_NS)) == exp["marks"] + exp["label_pos"]
+    groups = [g.get("class") for g in tree.xpath('//svg:g[@class]', namespaces=SVG_NS) if g.get("class") in ORDER]
+    assert groups == sorted(groups, key=ORDER.index) and groups[0] == "FRAME"     # one group per colour, in the order they run
 
 
 def test_job_export_can_switch_part_grouping_off():

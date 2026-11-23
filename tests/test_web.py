@@ -109,19 +109,34 @@ def test_the_solid_downloads_of_a_job(api):
     one = api.get(f"/api/job/{MINE}/{job}/step", params={"body": 1})                # the whole model fused: one solid
     assert one.status_code == 200 and "onebody.step" in one.headers["content-disposition"] and one.content.count(b"MANIFOLD_SOLID_BREP(") == 1
     names = lambda r: zipfile.ZipFile(io.BytesIO(r.content)).namelist()
-    readme = lambda r: zipfile.ZipFile(io.BytesIO(r.content)).read("README.txt").decode().splitlines()
+    called = lambda r: r.headers["content-disposition"].split('filename="')[1].rstrip('"')
+
+    def section(r, head):
+        """One section of the zip's README.txt (core/readme.py), its lines without their indent."""
+        lines = zipfile.ZipFile(io.BytesIO(r.content)).read("README.txt").decode().splitlines()
+        i = lines.index(head) + 1
+        return [x.strip() for x in lines[i:lines.index("", i) if "" in lines[i:] else None]]
     same = api.get(f"/api/job/{MINE}/{job}/proto", params={"scale": 1, "offset": 0})
-    # the job as it is, not planned again. Its README says one thing (bugs/068): the top layer prints clean (hidden
+    # the job as it is, not planned again. Its notes say one thing (bugs/068): the top layer prints clean (hidden
     # marks), so it carries its number on a tag beside it (bugs/061); then the print settings written into the plate
-    note, *settings = readme(same)
+    note, *settings = section(same, "NOTES")
     assert "plate.3mf carries the print settings" in settings[0]
     assert "plate.3mf" in names(same) and note.startswith("1 part(s) have no room") and "Z-3" in note
+    assert called(same).endswith("_stacked_prototype_x1.zip") and "assembly-key.txt" not in " ".join(names(same))   # a laser job's print
+    assert section(same, "MACHINE AND MATERIAL") == ["For a 3D printer (FDM)."]
     thin = api.get(f"/api/job/{MINE}/{job}/proto", params={"scale": 0.1, "min_thick": 1.2})
-    assert "plate.3mf" in names(thin) and readme(thin)[0].startswith("re-planned at")
-    fit = names(api.get(f"/api/job/{MINE}/{job}/fit", params={"scale": 1, "offset": 0.2, "step": 0.05}))
-    assert "plate.3mf" in fit and "README.txt" in fit and "fit_0.25.stl" in fit and "fit_0.10.stl" in fit
-    cut = names(api.get(f"/api/job/{MINE}/{job}/fitcut", params={"fmt": "svg", "step": 0.1}))
-    assert "README.txt" in cut and {n.split("/")[0] for n in cut if "/" in n} == {"fit_-0.20", "fit_-0.10", "fit_0.00", "fit_0.10", "fit_0.20"}
+    assert "plate.3mf" in names(thin) and section(thin, "NOTES")[0].startswith("re-planned at") and called(thin).endswith("_prototype_x0.1.zip")
+    fit = api.get(f"/api/job/{MINE}/{job}/fit", params={"scale": 1, "offset": 0.2, "step": 0.05})
+    assert {"plate.3mf", "README.txt", "fit_0.25.stl", "fit_0.10.stl"} <= set(names(fit)) and called(fit).endswith("_print-fit-test_x1.zip")
+    cut = api.get(f"/api/job/{MINE}/{job}/fitcut", params={"fmt": "svg", "step": 0.1})
+    assert "README.txt" in names(cut) and {n.split("/")[0] for n in names(cut) if "/" in n} == {"fit_-0.20", "fit_-0.10", "fit_0.00", "fit_0.10", "fit_0.20"}
+    assert called(cut).endswith("_cut-fit-test_svg.zip") and "LAYERS" in zipfile.ZipFile(io.BytesIO(cut.content)).read("README.txt").decode()
+    # the job printed at its own size: its print set is the plates, with the assembly key, as the sheets zip has it
+    printed = api.post("/api/slice", data={"client": MINE, **CUBE, "params": '{"distribution":"count","count":3,"autofix":"off","printed":true}'}).json()["job"]
+    plates = api.get(f"/api/job/{MINE}/{printed}/proto", params={"scale": 1})
+    key = [n for n in names(plates) if n.endswith("assembly-key.txt")]
+    assert called(plates).endswith("_stacked_print-plates.zip") and len(key) == 1 and "README.txt" in names(plates)
+    assert section(plates, "PUT IT TOGETHER")[0] == f"Read {key[0]}: what each label means, and the order to build in."
 
 
 def test_the_key_and_the_standoffs_download_on_their_own(api):
