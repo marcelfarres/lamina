@@ -59,6 +59,6 @@ if count := os.environ.get("COUNT_URL"):
 shutil.copy(ROOT / "web" / "static" / "feedback.js", site / "feedback.js")
 
 (site / "README.md").write_text("---\ntitle: Lamina\nemoji: 🪚\nsdk: static\napp_file: index.html\nlicense: agpl-3.0\n"
-                                "short_description: Free Slicer for Fusion 360 alternative for laser and CNC\n"   # 60 characters at most
-                                "tags: [laser-cutting, cnc, papercraft, slicer-for-fusion-360, lamina3d]\n---\n", encoding="utf-8")   # Hugging Face static Space
+                                "short_description: Free laser and CNC slicer, Slicer for Fusion 360 alternative\n"   # 60 characters at most
+                                "tags: [laser-cutting, cnc, papercraft, slicer-for-fusion-360, lamina3d, laser-slicer, 3d-printing, stl]\n---\n", encoding="utf-8")   # Hugging Face static Space
 print(f"_site: {sum(f.stat().st_size for f in site.rglob('*') if f.is_file()) / 1e6:.1f} MB, app/static/py: {reqs}")

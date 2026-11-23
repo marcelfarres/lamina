@@ -1,0 +1,40 @@
+/* The guide pages (docs/<slug>/index.html). Same tokens and look as the landing page, which keeps its own inline
+   styles: these pages are plain articles, so they share this one sheet instead. */
+:root{--bg:#141517;--panel:#1c1d21;--line:#2f3138;--ink:#e8e8e5;--muted:#9a9ba3;--acc:#4f8cff;--acc-btn:#2563eb;--sel:#ffd84a}
+*{box-sizing:border-box}
+html{overflow-x:hidden}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 Inter,system-ui,-apple-system,Segoe UI,sans-serif}
+a{color:var(--acc)}
+a:focus-visible,.btn:focus-visible{outline:2px solid var(--sel);outline-offset:2px;border-radius:4px}
+.wrap{max-width:880px;margin:0 auto;padding:0 16px}
+header{position:sticky;top:0;z-index:10;background:#0f1012ee;backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+header .wrap{max-width:1120px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;min-height:56px;padding-top:8px;padding-bottom:8px}
+header .home{display:flex;align-items:center;gap:9px;font-weight:700;font-size:18px;color:var(--ink);text-decoration:none}
+header nav{display:flex;gap:14px;flex-wrap:wrap;font-size:14px;margin-left:auto}
+header nav a{color:var(--muted);text-decoration:none}header nav a:hover,header nav a[aria-current]{color:var(--ink)}
+.btn{display:inline-block;padding:9px 16px;border-radius:6px;background:var(--acc-btn);color:#fff!important;text-decoration:none;font-weight:600;font-size:14px}
+.btn.ghost{background:transparent;color:var(--ink)!important;border:1px solid var(--line)}
+main{padding:40px 16px 56px}
+h1{font-size:clamp(28px,4.5vw,44px);line-height:1.15;margin:0 0 14px;letter-spacing:-.02em}
+h2{font-size:clamp(21px,2.6vw,27px);margin:40px 0 10px;letter-spacing:-.01em}
+h3{font-size:17px;margin:22px 0 6px}
+h1,h2,h3,p,li,td,th{overflow-wrap:break-word}
+.lead{font-size:clamp(17px,2vw,19px);color:#c9cad1;margin:0 0 20px}
+.sub{color:var(--muted)}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0}
+figure{margin:22px 0}
+img,video{max-width:100%;height:auto;display:block;border:1px solid var(--line);border-radius:8px;background:#0c0d0f}
+figcaption{color:var(--muted);font-size:14px;margin-top:8px}
+ol.steps{padding-left:22px}ol.steps li{margin:0 0 10px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;margin:16px 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:0}
+a.card{display:block;text-decoration:none;color:inherit}a.card:hover{border-color:var(--acc)}
+.card img{border:0;border-radius:0;width:100%;aspect-ratio:4/3;object-fit:cover}
+.card div{padding:10px 14px 14px}.card h3{margin:0 0 4px}.card p{margin:0;color:var(--muted);font-size:14px}
+.table{overflow-x:auto;margin:16px 0}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 12px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:600}
+td:first-child{color:var(--muted);white-space:nowrap}
+footer{border-top:1px solid var(--line);padding:26px 0;color:var(--muted);font-size:14px}
+footer nav{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px}
