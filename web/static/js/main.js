@@ -98,7 +98,7 @@ async function init(){
   $('#pminor').onclick=async()=>{await lib.listed();bump(false,lib.revsOf(state.project))}; $('#pmajor').onclick=async()=>{await lib.listed();bump(true,lib.revsOf(state.project))};
   $('#unit').onchange=e=>{ST.unit={mm:'mm',cm:'cm',in:'in'}[e.target.value]||'mm';applyUnit()};   // one of the three, never the box's own text
   $('#x_labels').onchange=()=>{if(ST.job)renderDownloads()}; $('#x_grouped').onchange=()=>{if(ST.job)renderDownloads()};
-  $$('nav button').forEach(b=>b.onclick=()=>showTab(b.dataset.t));
+  $$('nav button').forEach(b=>b.onclick=()=>{showTab(b.dataset.t);if(b.dataset.t==='export'&&ST.plan)renderDownloads()});   // shown: it asks what the print files hold
   // A new model keeps none of the last one's geometry. These parameters are in its millimetres or under its part
   // labels — axis lines, curve points, dowels, per-slice edits — so they are cleared from the form *and* from the
   // per-technique memory. Without the second half, opening a model that slices stacked and then switching to radial

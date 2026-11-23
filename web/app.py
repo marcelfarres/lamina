@@ -15,6 +15,7 @@ GET  /api/job/{client}/{job}/stl?part=<label>                                  �
 GET  /api/job/{client}/{job}/step?part=<label>                                 → the same as STEP: true solids for CAD
 GET  /api/job/{client}/{job}/key?units=mm                                      → the assembly key, as text
 GET  /api/job/{client}/{job}/standoffs?fit=0                                   → the standoffs' 3MF (fit=1: the fit test's)
+GET  /api/job/{client}/{job}/contents?<proto's settings>                       → {print_set: [names in the zip], fit_standoffs: n}
 
 Only with LAMINA_LIBRARY=<folder> set (the library kept by this server, for every browser; 404 without it), and only
 on this server's own names (403 else: library_host):
@@ -623,7 +624,14 @@ def _zip(client: str, jd: pathlib.Path, plan: dict, make_files, name: str) -> Re
                 z.write(f, f.relative_to(tmp).as_posix())
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
-    return Response(buf.getvalue(), media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{name}"'})
+    return _zip_response(buf.getvalue(), name)
+
+
+RUN = time.time_ns()     # a print set kept by an earlier run of the server never matches: the code may have changed
+
+
+def _zip_response(data: bytes, name: str) -> Response:
+    return Response(data, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
 def _fmts(fmt: str) -> list[str]:
@@ -668,13 +676,27 @@ def job_proto(client: str, job: str, scale: float = 1.0, size: float = 0.0, labe
     them individually) — zipped, with the project file and a README saying how the print differs from the job."""
     jd, plan = _plan(client, job)
     scale = _scale(plan, scale, size)
+    name = f"{design_name(plan)}_{plan['mode']}_" + ("print-plates.zip" if plan["params"].get("printed") and abs(scale - 1) < 1e-9
+                                                   else f"prototype_x{scale:.3g}.zip")
+    # A print set takes seconds: the one made last is kept beside the plan and served again while the plan, the session
+    # (the project file in the zip) and these settings are the same. /contents reads its names from it, so the Export
+    # tab's label and the download after it cost one build
+    stamps = [f.stat().st_mtime_ns for f in (jd / "plan.json", client_dir(client) / "session.json") if f.exists()]
+    key = hashlib.sha256(json.dumps([RUN, name, stamps, scale, labels, font, min_thick, offset]).encode()).hexdigest()[:16]
+    kept = jd / f"proto-{key}.zip"
+    if kept.exists():
+        return _zip_response(kept.read_bytes(), name)
     plan, note = proto_plan(plan, scale, min_thick, offset)  # thicker material and the print's own clearance, so the slots fit
     try:
-        return _zip(client, jd, plan, lambda tmp: proto_set(plan, tmp, scale, _engrave(labels), font, min_thick, note=note),
-                    f"{design_name(plan)}_{plan['mode']}_" + ("print-plates.zip" if plan["params"].get("printed") and abs(scale - 1) < 1e-9
-                                                               else f"prototype_x{scale:.3g}.zip"))
+        made = _zip(client, jd, plan, lambda tmp: proto_set(plan, tmp, scale, _engrave(labels), font, min_thick, note=note), name)
     except RuntimeError as e:          # what the set cannot do on this computer, said in its own words (027: no scikit-image on 3.15)
         raise HTTPException(400, str(e)) from None
+    for old in jd.glob("proto-*.zip"):                       # one kept set per job: the last one asked for
+        old.unlink(missing_ok=True)
+    part = kept.with_suffix(".part")
+    part.write_bytes(made.body)
+    os.replace(part, kept)                                   # whole or not at all: a download never reads half a set
+    return made
 
 
 @app.get("/api/job/{client}/{job}/fit")
@@ -724,6 +746,23 @@ def job_standoffs(client: str, job: str, fit: int = 0):
     return Response(data, media_type="model/3mf", headers={"Content-Disposition": f'attachment; filename="{f.name}"'})
 
 
+@app.get("/api/job/{client}/{job}/contents")
+def job_contents(client: str, job: str, scale: float = 1.0, size: float = 0.0, labels: str = "groove", font: float = 5.0,
+                 min_thick: float = 1.2, offset: float = 0.2):
+    """What the print files hold, for the Export tab's buttons, read from the files themselves: the names in a printed
+    job's print set zip, asked for with the print set button's own settings (job_proto keeps it, so the download that
+    follows is the same zip, not a second build), and how many standoffs the fit test prints."""
+    _, plan = _plan(client, job)
+    out = {}
+    if plan["params"].get("printed"):
+        made = job_proto(client, job, scale, size, labels, font, min_thick, offset)
+        out["print_set"] = zipfile.ZipFile(io.BytesIO(made.body)).namelist()
+    if plan.get("standoffs") and not plan["params"].get("printed"):
+        fit = fit_plan(plan, plan["params"]["slot_offset"], plan["params"]["sheet"])    # as /standoffs?fit=1 makes it
+        out["fit_standoffs"] = len((fit.get("standoffs") or {}).get("items", []))
+    return out
+
+
 @app.get("/api/job/{client}/{job}/stl")
 def job_stl(client: str, job: str, part: str = ""):
     return _solid_file(client, job, part, "stl")
@@ -749,7 +788,7 @@ def _solid_file(client, job, part, fmt, body=False):
 # The downloads by the name the page asks for (/api/job/{client}/{job}/<name>): the browser build binds a query to these
 # signatures (web/browser.py), so a download's parameters are written once, here, and nowhere else.
 JOB_ROUTES = {"export": job_export, "stl": job_stl, "step": job_step, "source": job_source, "proto": job_proto, "fit": job_fit, "fitcut": job_fitcut,
-              "key": job_key, "standoffs": job_standoffs}
+              "key": job_key, "standoffs": job_standoffs, "contents": job_contents}
 
 
 def main():

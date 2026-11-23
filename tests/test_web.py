@@ -139,7 +139,7 @@ def test_the_solid_downloads_of_a_job(api):
     assert section(plates, "PUT IT TOGETHER")[0] == f"Read {key[0]}: what each label means, and the order to build in."
 
 
-def test_the_key_and_the_standoffs_download_on_their_own(api):
+def test_the_key_and_the_standoffs_download_on_their_own(api, jobs):
     """The Export tab gives each machine a button of its own: the assembly key as text, and the standoffs as the 3MF
     the sheets zip carries (fit=1: the fit test's). A job with no standoffs has no such file. The plan says whether
     the job has a fit test at all."""
@@ -157,6 +157,22 @@ def test_the_key_and_the_standoffs_download_on_their_own(api):
     assert own.content[:2] == b"PK" and f"3D-PRINT standoffs x{n}.3mf" in own.headers["content-disposition"]
     fit = api.get(f"/api/job/{MINE}/{egg['job']}/standoffs", params={"fit": 1})
     assert fit.content[:2] == b"PK" and "fit test 3D-PRINT standoffs x" in fit.headers["content-disposition"]
+    # what the buttons say is read from the files: the fit test's standoffs as its 3MF holds them, a printed job's
+    # print set as its zip holds it; a plain cut job has nothing to read
+    import re
+    made = len(re.findall(rb'<object id="\d+" name="', zipfile.ZipFile(io.BytesIO(fit.content)).read("3D/3dmodel.model")))
+    assert api.get(f"/api/job/{MINE}/{egg['job']}/contents").json() == {"fit_standoffs": made} and made > 0
+    assert api.get(f"/api/job/{MINE}/{cube['job']}/contents").json() == {}
+    printed = api.post("/api/slice", data={"client": MINE, "mode": "stacked", "example": "cube", "params": json.dumps(
+        {"distribution": "count", "count": 3, "autofix": "off", "printed": True, "sheet": [256, 256]})}).json()["job"]
+    button = {"scale": 1, "offset": 0, "labels": "groove"}                 # the print set button's own settings
+    names = api.get(f"/api/job/{MINE}/{printed}/contents", params=button).json()["print_set"]
+    kept = list(jobs.rglob(f"{printed}/proto-*.zip"))
+    proto = api.get(f"/api/job/{MINE}/{printed}/proto", params=button)
+    assert "plate-1.3mf" in names and set(names) == set(zipfile.ZipFile(io.BytesIO(proto.content)).namelist())
+    assert len(kept) == 1 and proto.content == kept[0].read_bytes()       # one build: the download is the zip /contents made
+    api.get(f"/api/job/{MINE}/{printed}/proto", params={**button, "labels": "hole"})   # other settings: a new set, the old one gone
+    assert [z.name for z in jobs.rglob(f"{printed}/proto-*.zip")] != [kept[0].name] and len(list(jobs.rglob(f"{printed}/proto-*.zip"))) == 1
 
 
 def test_every_zip_carries_the_project_file_that_reopens_the_job(api):
