@@ -735,7 +735,8 @@ a few degrees off square (the Model tab offers **square it up**). Every message 
 
 ## Tests
 
-The `test` workflow runs the suite on every push and pull request; `docker` and `pages` publish from `main` only,
+The `test` workflow runs the suite on every push and pull request: on Linux with Python 3.11, 3.12 and 3.14, on
+Windows, and the browser tests in 4 parts, all at the same time. `docker` and `pages` publish from `main` only,
 and `pages` deploys nothing until the built site has sliced with every technique in a real browser.
 
 Two of them drive a real browser, because that is where the bugs people report actually live:
@@ -758,6 +759,7 @@ uv run --with pytest-cov pytest --cov=core --cov=web --cov-report=term-missing  
 uv run python tests/browser_env.py working-files/jobs   # the whole matrix without the compiled extras Pyodide lacks
 uv run playwright install chromium
 LAMINA_UI=1 uv run pytest tests/ui   # the app itself, driven like a person: every parameter, undo, no number cut off (20 min)
+LAMINA_UI=1 LAMINA_UI_PART=1/4 uv run pytest tests/ui   # part 1 of the 4 the test workflow runs (then 2/4, 3/4, 4/4)
 python deploy/build_site.py
 LAMINA_E2E=1 uv run pytest tests/test_e2e_site.py   # the built site, end to end, in Chromium
 uv run python tests/test_unfold.py      # folded-panel correctness: refold, area, seams, joints (a few minutes)
@@ -767,7 +769,8 @@ uv run python scripts/media/record.py [scene …]   # re-record the landing-page
 ```
 
 The landing-page media are re-recorded on every release tag by `.github/workflows/media.yml` (or by hand from the
-Actions tab), and committed back to main, so they always show the version people download.
+Actions tab), in 6 groups of scenes at the same time, and committed back to main in one commit, so they always show
+the version people download.
 
 ## Folder layout
 
