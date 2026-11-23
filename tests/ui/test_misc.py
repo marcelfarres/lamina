@@ -50,6 +50,7 @@ def test_what_is_new_shows_itself_once_when_the_version_changes(page, server):
     # fix must not hide the release it fixed
     reload_with(versions[2])
     assert page.locator("#newsdlg[open]").count(), "a new version did not announce itself"
+    assert page.locator("#news_tour:not([hidden])").count(), "no button to the tour of what is new under the title"
     assert heads() == versions[:2] and len(page.text_content("#news_body")) > 200, heads()
     page.click("#news_go")
 
@@ -393,18 +394,20 @@ def test_a_connector_left_out_is_counted_and_the_export_text_opens_on_a_click(pa
     """Two dowel points typed 3 mm apart cannot both be cut: the dowels left out are a warning the count shows, with a
     ring in the 3D view for each place. (The vase example itself cuts every dowel since bug 046.) On the Export tab the
     download buttons come first (step 12 of Marcel's interface test): every file's button is on its own line with the
-    text about it after it, closed; the text and the parts table open on a click. (A printed job opens its print plates'
-    section, results.js: it stays open for the job after it, so it is not checked here.)"""
+    text about it after it, closed; the text and the parts table open on a click. The main button's text shows under it;
+    the other formats are folded under it (feature/export-tab)."""
     use(page, "vase", "stacked")
     page.evaluate("() => window.__t.applyFix({dowels: [[0, 0], [3, 0]]})"); settle(page); pl = plan(page)
     assert pl["warnings"] and "left out" in pl["warnings"][0], (pl["warnings"], pl["notes"])
     assert pl["counts"]["warnings"] >= 1 and len(pl["left_out"]) == int(pl["warnings"][0].split("connector")[0])
     assert page.locator("#msgs .msg.warn").first.inner_text().startswith("⚠ WARNING")
     page.click('nav button[data-t="export"]')
-    rows = page.evaluate("""() => [...document.querySelectorAll('#dl .r')].map(r => [r.firstElementChild.tagName,
+    assert page.is_visible("#dl a.main + .hint")
+    page.click("#other_fold > summary")
+    rows = page.evaluate("""() => [...document.querySelectorAll('#dl_other .r')].map(r => [r.firstElementChild.tagName,
         !!r.querySelector('details.info'), !r.querySelector('details[open]'), !!r.firstElementChild.offsetParent])""")
     assert rows and all(r == ["A", True, True, True] for r in rows if r[1]) and all(r[0] == "A" and r[3] for r in rows), rows
-    info = page.locator("#dl details.info").first
+    info = page.locator("#dl_other details.info").first
     assert not info.locator(".hint").is_visible(); info.locator("summary").click(); assert info.locator(".hint").is_visible()
     assert not page.locator("#parts table").is_visible(); page.click("#parts_fold > summary"); assert page.locator("#parts table").is_visible()
 

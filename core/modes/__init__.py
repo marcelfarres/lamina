@@ -266,6 +266,12 @@ class Mode:
         them; 0 = the usual small one."""
         return {}, 0.0
 
+    @staticmethod
+    def fit_test(p) -> bool:
+        """Has the job a joint whose fit the slot offset sets (a slot, a hole, a socket)? False = a fit test would
+        show nothing, and the Export tab leaves its step out (a glued paper lamp got 1,100 parts of it)."""
+        return True
+
     @classmethod
     def all_params(cls) -> list[Param]:
         return COMMON + cls.params

@@ -20,7 +20,8 @@
   <section id="libyours"></section>
   <section id="libexamples"></section>
 </div>
-<dialog id="newsdlg"><h3 id="news_title">What's new</h3><div id="news_body"></div>
+<dialog id="newsdlg"><h3 id="news_title">What's new</h3>
+  <div id="news_tour" hidden><button class="go">▶ Show me on the page</button><span class="hint"></span></div><div id="news_body"></div>
   <div class="row"><button id="news_go" class="go">OK</button></div></dialog>
 <dialog id="helpdlg"><h3>How Lamina works</h3>
   <p style="margin:0;color:var(--muted)">Five tabs, left to right, in the order you use them. Everything re-slices as you change it.</p>
@@ -173,20 +174,32 @@
     </section>
     <section data-tab="checks"><h2>Physical checks <button class="small reset" data-reset="checks">reset tab</button></h2><div id="g-checks"></div><h2>Report</h2><div id="report"></div></section>
     <section data-tab="export"><h2>Weight</h2><div id="weight"></div>
-      <!-- Three steps, in the order they happen: the fit test decides the slot offset the parts are then cut with. -->
-      <h2 class="cutonly">1 · Fit test — cut this first</h2>
-      <details class="info cutonly"><summary>what is the fit test?</summary><p class="hint">Five small joints from this job, each cut with a different slot offset and marked with it: yours, and one and two steps either side. Cut them from the same sheet on the same machine as the parts and push each one together. The loosest that slides in without forcing and still holds is your slot offset: set it on Sheet &amp; fit, under Slot fit, and the parts below come out with it. A few minutes and a scrap, against a sheet of parts that will not go together.</p></details>
-      <div class="f cutonly"><span class="k" data-tip="How far apart the five offsets are: 0.1 mm gives yours −0.2, −0.1, 0, +0.1 and +0.2. Use 0.05 to fine-tune once you are close. This test is at 1:1 on your real material and machine, so it is the one that predicts the model's fit; the print fit test under Prototyping tunes a 3D print only (a clearance is a length, not a ratio)">joint step (mm)</span><input type="number" id="pr_step" data-len data-mm="0.1" data-min="0.01" data-step="0.05"></div>
-      <div class="dl rows cutonly" id="dlfit"></div>
-      <h2 id="dl_title">2 · The parts</h2>
-      <div class="f cutonly"><span class="k" data-tip="Include the red LABEL layer (part names, leader lines, seam numbers, sheet border) in the cut files. Off = cuts and score lines only">labels in files</span><input type="checkbox" id="x_labels" checked></div>
-      <div class="f cutonly"><span class="k" data-tip="One group per part in the SVG, with its cuts, lines and labels inside it, so a part can be moved or re-nested as a whole in LightBurn or Inkscape; the colours still choose the layer. Off = one group per colour for the whole sheet (the older layout), for software that wants the colours kept apart">group parts</span><input type="checkbox" id="x_grouped" checked></div>
-      <div class="f"><span class="k" data-tip="assembly-key.txt in the zip: what the labels mean, every part with where its centre sits and what it slots onto, in the order the 3D view builds them. In puzzle mode it is also the only way from an engraved code back to a part — untick it and the puzzle stays a puzzle (the file can always be downloaded later)">assembly key</span><input type="checkbox" id="x_key" checked></div>
-      <details class="info"><summary>how the parts are labelled</summary><div class="hint" id="legend"></div></details>
+      <!-- What the job is, by machine, before any button: which machine makes what, from what stock, in which order.
+           Then the steps in the order they happen, numbered by renderDownloads: a job with no joint the slot offset sizes
+           has no fit test, and each machine gets one main button; the rest is folded. The tour points at #machines,
+           #x_fit, #x_files (its .main buttons carry data-machine), #x_build and #x_folded: keep those ids. -->
+      <div class="msg note" id="machines"></div>
+      <div class="msg warn" id="x_errors" hidden></div>
+      <div class="step fitonly" id="x_fit"><h2 id="fit_title"></h2>
+      <details class="info" id="fit_info"><summary>what is the fit test?</summary><p class="hint cutonly" id="fit_what">Five small joints from this job, each cut with a different slot offset and marked with it: yours, and one and two steps either side. Cut them from the same sheet on the same machine as the parts and push each one together. The loosest that slides in without forcing and still holds is your slot offset: set it on Sheet &amp; fit, under Slot fit, and the parts below come out with it. A few minutes and a scrap, against a sheet of parts that will not go together.</p><p class="hint" id="fit_what_print" hidden>Five small joints from this job, each printed with a different slot offset and marked with it: yours, and one and two steps either side. Print them on the same printer, with the same filament as the parts, and push each one together. The loosest that slides in without forcing and still holds is your slot offset: set it on Sheet &amp; fit, under Slot fit, and the print set comes out with it.</p></details>
+      <div class="dl rows" id="dlfit"></div>
+      <details class="info" id="fit_opts"><summary>options: joint step, PDF</summary>
+        <div class="f"><span class="k" data-tip="How far apart the five offsets are: 0.1 mm gives yours −0.2, −0.1, 0, +0.1 and +0.2. Use 0.05 to fine-tune once you are close. This test is at 1:1 on your real material and machine, so it is the one that predicts the model's fit; the print fit test under Prototyping tunes a 3D print only (a clearance is a length, not a ratio)">joint step (mm)</span><input type="number" id="pr_step" data-len data-mm="0.1" data-min="0.01" data-step="0.05"></div>
+        <div class="dl rows" id="dlfit_other"></div></details></div>
+      <div class="step" id="x_files"><h2 id="dl_title"></h2>
       <div class="dl rows" id="dl"></div>
-      <h2>3 · Build it</h2>
-      <details class="info"><summary>how to build it</summary><p class="hint">assembly-key.txt in the zip says where every part goes, and the steps slider over the 3D view shows the order. Record it to keep beside you as you build.</p></details>
-      <div class="dl"><a href="#" id="vid_go">record the assembly video (webm) — the steps slider played and saved</a></div>
+      <div id="print_opts"></div>
+      <details class="info" id="slicer_fold" hidden><summary id="slicer_sum">what the slicer must have</summary><p class="hint">Each 3MF carries the settings its parts need (layer height; thick bridges and no supports under a click joint's bar). OrcaSlicer applies them when it opens the file; Bambu Studio can drop them when it imports a file it did not save, so check them there. Set the first layer to 0.2 mm for the whole plate yourself: a 3MF cannot carry it. The README in the zip says the same.</p></details>
+      <details class="info cutonly" id="other_fold"><summary>other formats: PDF, EPS, one file per piece</summary><div class="dl rows" id="dl_other"></div></details>
+      <details class="info cutonly" id="opts_fold"><summary>options: labels, group parts, assembly key</summary>
+        <div class="f"><span class="k" data-tip="Include the red LABEL layer (part names, leader lines, seam numbers, sheet border) in the cut files. Off = cuts and score lines only">labels in files</span><input type="checkbox" id="x_labels" checked></div>
+        <div class="f"><span class="k" data-tip="One group per part in the SVG, with its cuts, lines and labels inside it, so a part can be moved or re-nested as a whole in LightBurn or Inkscape; the colours still choose the layer. Off = one group per colour for the whole sheet (the older layout), for software that wants the colours kept apart">group parts</span><input type="checkbox" id="x_grouped" checked></div>
+        <div class="f"><span class="k" data-tip="assembly-key.txt in the zip: what the labels mean, every part with where its centre sits and what it slots onto, in the order the 3D view builds them. In puzzle mode it is also the only way from an engraved code back to a part — untick it and the puzzle stays a puzzle (the file can always be downloaded later)">assembly key</span><input type="checkbox" id="x_key" checked></div>
+        <details class="info"><summary>how the parts are labelled</summary><div class="hint" id="legend"></div></details></details>
+      <div class="dl rows" id="dl_print"></div></div>
+      <div class="step" id="x_build"><h2 id="build_title"></h2>
+      <details class="info"><summary>how to build it</summary><p class="hint">The assembly key says where every part goes, and the steps slider over the 3D view shows the order. Record it to keep beside you as you build.</p></details>
+      <div class="dl rows"><div class="r" id="key_go"></div><div class="r"><a href="#" id="vid_go">record the assembly video (webm)</a></div></div></div>
       <!-- Here, not on the Model tab: the people who just downloaded the cut files are the ones about to make it. -->
       <p class="hint" style="margin:10px 0 4px">Once it is cut and built, please
         <a data-feedback="made" href="https://github.com/marcelfarres/lamina/issues/new?template=made.yml" target="_blank" rel="noopener">send me a photo</a>
@@ -194,18 +207,21 @@
         credited as you like — or post it with <b>#lamina3dapp</b> on Instagram or X, in
         <a href="https://www.reddit.com/r/Lamina3D" target="_blank" rel="noopener">r/Lamina3D</a> on Reddit, or on the
         <a href="https://discord.gg/N66bCQxmt3" target="_blank" rel="noopener">Lamina Discord</a>.</p>
-      <details class="fold" id="pr_fold"><summary><h2 id="pr_title">Prototyping (3D print)</h2></summary>
-      <div class="f protoonly"><span class="k" data-tip="Scale factor for the printed prototype (parts and thickness scale together; thickness never goes below min thickness). With PLA or PETG as the material the print is the job itself, so picking one sets this to 1">scale</span><input type="number" id="pr_scale" value="0.5" min="0.05" max="5" step="0.05"></div>
-      <div class="f protoonly"><span class="k" data-tip="Or give the prototype's longest side (mm); overrides the scale when set">final size (mm)</span><input type="number" id="pr_size" data-len data-mm="" data-ph="100" data-min="5" data-step="1"></div>
-      <div class="f"><span class="k" data-tip="Part labels embedded in the printed part: groove = engraved 0.6 mm deep, hole = cut through">labels</span><select id="pr_labels"><option>groove</option><option>hole</option><option>none</option></select></div>
-      <div class="f protoonly"><span class="k" data-tip="Letter height of the labels as printed, whatever the scale: 5 mm reads well and its bold strokes print with a 0.4 mm nozzle. A label goes on its part where it fits whole, away from slots and edges, 1.5× this size where that fits. A part with no room for it carries its number on a tag beside it: a chip one layer high on a thin line, to read and snap off. A printed job uses its own label letter height (Labels)">label size (mm)</span><input type="number" id="pr_font" data-len data-mm="5" data-min="1" data-step="0.5"></div>
-      <div class="f"><span class="k" data-tip="Thinnest part the printer can make (mm). Parts that would print thinner cannot simply be made thicker — their slots were cut for the thin material — so the set is planned again at the material thickness that prints to this">min thickness (mm)</span><input type="number" id="pr_min" data-len data-mm="1.2" data-min="0.2" data-step="0.1"></div>
-      <div class="f protoonly"><span class="k" data-tip="How much wider than the material the print's slots and holes are, as printed, whatever the scale. A fit is a clearance, a length, not a ratio: the job's slot offset (Fit) is for the real material at 1:1 and would print 5× too tight at ×0.2, so the print gets its own. 0.2 mm suits most FDM printers; dial it in with the print fit test below">print slot offset (mm)</span><input type="number" id="pr_offset" data-len data-mm="0.2" data-min="-1" data-max="2" data-step="0.05"></div>
-      <div class="hint" id="pr_hint" style="margin:2px 0 8px"></div>
-      <div class="dl"><a href="#" id="pr_go">download prototype set (plate.3mf for OrcaSlicer + one STL per part)</a></div>
-      <div class="dl"><a href="#" id="fit_go">download print fit test (5 print slot offsets around yours, at the scale above)</a></div>
+      <div id="x_folded"><details class="fold protoonly" id="pr_fold"><summary><h2 id="pr_title">Prototyping (3D print)</h2></summary>
+      <div class="f"><span class="k" data-tip="Scale factor for the printed prototype (parts and thickness scale together; thickness never goes below min thickness). With PLA or PETG as the material the print is the job itself, so picking one sets this to 1">scale</span><input type="number" id="pr_scale" value="0.5" min="0.05" max="5" step="0.05"></div>
+      <div class="f"><span class="k" data-tip="Or give the prototype's longest side (mm); overrides the scale when set">final size (mm)</span><input type="number" id="pr_size" data-len data-mm="" data-ph="100" data-min="5" data-step="1"></div>
+      <div class="f"><span class="k" data-tip="Letter height of the labels as printed, whatever the scale: 5 mm reads well and its bold strokes print with a 0.4 mm nozzle. A label goes on its part where it fits whole, away from slots and edges, 1.5× this size where that fits. A part with no room for it carries its number on a tag beside it: a chip one layer high on a thin line, to read and snap off. A printed job uses its own label letter height (Labels)">label size (mm)</span><input type="number" id="pr_font" data-len data-mm="5" data-min="1" data-step="0.5"></div>
+      <div class="f"><span class="k" data-tip="How much wider than the material the print's slots and holes are, as printed, whatever the scale. A fit is a clearance, a length, not a ratio: the job's slot offset (Fit) is for the real material at 1:1 and would print 5× too tight at ×0.2, so the print gets its own. 0.2 mm suits most FDM printers; dial it in with the print fit test below">print slot offset (mm)</span><input type="number" id="pr_offset" data-len data-mm="0.2" data-min="-1" data-max="2" data-step="0.05"></div>
+      <!-- labels and min thickness serve the print set too: on a printed job renderDownloads moves them under it -->
+      <div id="pr_slot"><div id="pr_shared">
+        <div class="f"><span class="k" data-tip="Part labels embedded in the printed part: groove = engraved 0.6 mm deep, hole = cut through">labels</span><select id="pr_labels"><option>groove</option><option>hole</option><option>none</option></select></div>
+        <div class="f"><span class="k" data-tip="Thinnest part the printer can make (mm). Parts that would print thinner cannot simply be made thicker — their slots were cut for the thin material — so the set is planned again at the material thickness that prints to this">min thickness (mm)</span><input type="number" id="pr_min" data-len data-mm="1.2" data-min="0.2" data-step="0.1"></div>
+        <div class="hint" id="pr_hint" style="margin:2px 0 8px"></div>
+      </div></div>
+      <div class="dl rows" id="dl_proto"></div>
       </details>
-      <details class="fold" id="parts_fold"><summary><h2>Parts</h2></summary><div id="parts"></div></details></section>
+      <details class="fold" id="more_fold"><summary><h2>More files · STL, STEP, plan.json</h2></summary><div class="dl rows" id="more"></div></details>
+      <details class="fold" id="parts_fold"><summary><h2>Parts</h2></summary><div id="parts"></div></details></div></section>
   </div>
 </aside>
 <section class="view" id="view">

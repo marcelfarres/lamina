@@ -1083,6 +1083,12 @@ class Folded(Mode):
         return [k for k in pn.folds if self.mesh.face_adjacency_angles[k] >= FLAT]
 
     @staticmethod
+    def fit_test(p):
+        """Only these joints cut a slot or a hole the slot offset sizes; glue tabs and the printed seam, snap and click
+        joints (their fit is snap_fit) have none."""
+        return p["joint"] in ("rib", "tongue", "puzzle")
+
+    @staticmethod
     def usable_sheet(p):
         """Panel size limit for the unfolder: the sheet minus margins, minus room for glue tabs that grow the outline."""
         room = p["tab_h"] if p["joint"] in FOLDED_JOINTS and p["joint"] != "strip" else 0     # a strip is a part of its own: the outline gains nothing

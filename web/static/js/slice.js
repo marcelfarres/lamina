@@ -1,5 +1,5 @@
 import {state, ST} from './state.js';
-import {CLIENT, $, status, esc} from './util.js';
+import {CLIENT, $, $$, status, esc} from './util.js';
 import {inUnit} from './units.js';
 import {record, act} from './history.js';
 import {kind} from './presets.js';
@@ -12,7 +12,8 @@ import {changed} from './library.js';
 // ---------------------------------------------------------------- slicing
 export async function slice(){
   record(); changed();                             // one undo step per change that gets this far; the unsaved-changes text follows it
-  if(ST.fresh){ST.trail=[];ST.trailT0=Date.now();act(ST.fresh);ST.fresh=''}   // after record(): a new model's own settings are not steps
+  if(ST.fresh){ST.trail=[];ST.trailT0=Date.now();act(ST.fresh);ST.fresh='';   // after record(): a new model's own settings are not steps
+    for(const d of $$('section[data-tab="export"] details'))d.open=false}  // a new job's Export tab opens as drawn: no section of the last job left open
   const my=++ST.seq, fd=new FormData(), loading=ST.pendingFile;
   fd.append('client',CLIENT); fd.append('mode',ST.mode.name); fd.append('params',JSON.stringify({...state,light:undefined,lights:undefined,room:undefined,light_video:undefined,material_kind:kind(state.material)})); fd.append('memo',JSON.stringify(memo));   // the server keeps this as the tab's session; a material of your own is checked as the one it was made from
   if(ST.pendingFile)fd.append('model',ST.pendingFile); else if(ST.job)fd.append('job',ST.job); else fd.append('example',ST.example);
