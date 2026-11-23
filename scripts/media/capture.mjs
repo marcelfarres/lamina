@@ -553,7 +553,9 @@ await js("document.querySelector('#pname').value='Lamina demo';document.querySel
 const want = process.argv.slice(2);
 for (const name of want.length ? want : Object.keys(S)) {
     if (!S[name]) { console.log("no scene", name); continue; }
+    const t = Date.now();
     try { await S[name](); } catch (e) { console.log("scene", name, "failed:", e.message); }
+    console.log("scene", name, "took", Math.round((Date.now() - t) / 1000), "s");   // scripts/shards.py record: media.yml's groups
 }
 console.log("done");
 ws.close(); process.exit(0);

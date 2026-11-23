@@ -2,6 +2,8 @@ name: test
 
 # The suite behind every change: pipeline, nesting, checks, exports, the web API, the browser build's code path and
 # the parameter sweep. Runs on every push and pull request; the docker and pages workflows publish only from main.
+# Every job runs at the same time (the repo is public: GitHub's standard runners cost nothing), and fail-fast is off,
+# so one red job never cancels the others and hides what they would have found.
 on:
   push:
   pull_request:
@@ -11,27 +13,51 @@ permissions:
   contents: read
 
 jobs:
+  # The oldest and newest Python the project supports (requires-python), 3.12 as the Docker image runs it, and
+  # Windows, where most people run the app: the release checklist's runs, so the laptop no longer does them
   pytest:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-latest, python: "3.11"}
+          - {os: ubuntu-latest, python: "3.12"}
+          - {os: ubuntu-latest, python: "3.14"}
+          - {os: windows-latest, python: "3.12"}
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: ${{ matrix.python }}    # over .python-version
       - run: uv sync --frozen
       - run: uv run ruff check
       - run: uv run pytest tests -q -n auto     # every core (pytest-xdist): 32 min in one process, 4 on 12 cores
 
   # The app in a real browser: every parameter driving the slicer, the tables, undo, and nothing on screen cut off
-  # (tests/ui, skipped by the job above because it needs Chromium)
+  # (tests/ui, skipped by the job above because it needs Chromium). 41 min in one process, so 4 parts by whole test
+  # file, balanced by the times in scripts/shards.json; each part has its own server and browser, as one run has.
+  # Each part's JUnit report is kept: `scripts/shards.py record` makes shards.json from them when the parts drift.
   ui:
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [1, 2, 3, 4]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
       - run: uv sync --frozen
       - run: uv run playwright install --with-deps chromium
-      - run: uv run pytest tests/ui -q
+      - run: uv run pytest $(uv run python scripts/shards.py ui 4 ${{ matrix.part }}) -q --junitxml=ui-times-${{ matrix.part }}.xml
         env:
           LAMINA_UI: "1"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: ui-times-${{ matrix.part }}
+          path: ui-times-${{ matrix.part }}.xml
+          retention-days: 30
 
   # The published site, end to end: the static build loads its Python in a real browser and slices every technique
   # (tests/test_e2e_site.py). The pages workflow runs the same test before it deploys; here it runs on every pull
