@@ -33,7 +33,7 @@ inside to see it as a lamp.
 - **Paper lamps.** On Folded Panels, set *windows are* to *closed with paper*: a paper part for each window, or
   a thin printed layer. *Merge* makes faces one flat face; a flat side keeps one window. Try *paper_lamp*.
 
-  ![The paper_lamp example, three dodecahedra, twice: its pentagon windows open, then closed with paper](web/static/news/0.4.0-paper-lamps.jpg)
+  ![The paper_lamp example, a lantern of twelve dodecahedra, twice: its pentagon windows open, then closed with paper](web/static/news/0.4.0-paper-lamps.jpg)
 
 - **Light your model.** Tick *light* over the 3D view: soft shadows in a room. The *Light* tab holds up to four
   bulbs and spots; drag them in the view. Saved with the project; a new model opens unlit.

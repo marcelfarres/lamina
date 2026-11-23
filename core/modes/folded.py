@@ -802,7 +802,7 @@ class Folded(Mode):
     def outline(self, pn, fs):
         """The outline of the flat piece `fs` in the panel's layout, drawn through its corners from its rim edges (the
         edges only one of its faces has). Not a union of its triangles: laid out one by one they meet only to rounding,
-        and a union left two of the tower lamp's 32 pentagons in pieces, a mitred buffer out and back left one empty."""
+        and a union left two of the three-dodecahedra lamp's 32 pentagons in pieces, a mitred buffer out and back left one empty."""
         nxt, at = {}, {}
         for f in fs:
             fv = [int(v) for v in self.mesh.faces[f]]
