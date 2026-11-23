@@ -69,9 +69,20 @@ def standoff_kinds(plan):
     return [(f"S{n + 1}", gap, ends, items) for n, ((gap, *ends), items) in enumerate(ranked)]
 
 
+SLIVER = 1e-4      # mm: what a join drops. Faces that are one plane by design (a click bar's top and its posts') come out a
+                   # float apart, each from its own transform; the union keeps slivers between them, and a slicer that
+                   # merges corners that close finds edges three faces share (bugs/075)
+
+
 def _joined(parts) -> trimesh.Trimesh:
-    """Solids that touch or overlap as one: joined where solids can be cut here, else shells a slicer joins."""
-    return trimesh.boolean.union(parts, engine="manifold") if has_boolean() else trimesh.util.concatenate(parts)
+    """Solids that touch or overlap as one, slivers under SLIVER dropped: joined where solids can be cut here, else
+    shells a slicer joins."""
+    if not has_boolean():
+        return trimesh.util.concatenate(parts)
+    import manifold3d as mf
+    m = trimesh.boolean.union(parts, engine="manifold")
+    k = mf.Manifold(mf.Mesh64(vert_properties=np.asarray(m.vertices, float), tri_verts=np.ascontiguousarray(m.faces, dtype=np.uint64))).simplify(SLIVER).to_mesh64()
+    return trimesh.Trimesh(np.asarray(k.vert_properties)[:, :3], np.asarray(k.tri_verts, dtype=np.int64), process=False)
 
 
 def standoff_mesh(plan, gap, ends, half=0) -> trimesh.Trimesh:
@@ -515,7 +526,7 @@ def proto_part(pc, thickness, scale, labels, font, min_thick):
     if pc.get("rails"):                                    # the walls of a snap joint, standing on the panel
         at = lambda q: (q[0] * scale - x0, q[1] * scale - y0)   # noqa: E731
         walls = [rail(at(r["a"]), at(r["b"]), r["into"], [(u * scale, z * scale) for u, z in r["profile"]]) for r in pc["rails"]]
-        mesh = trimesh.boolean.union([mesh, *walls], engine="manifold") if has_boolean() else trimesh.util.concatenate([mesh, *walls])
+        mesh = _joined([mesh, *walls])
     cut = ([label] if label is not None and labels == "groove" else []) + [text_at(s, h, x, y, r) for x, y, s, r, h in marks]
     if cut:
         depth = min(t * 0.5, 0.6)
