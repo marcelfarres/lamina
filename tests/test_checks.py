@@ -3,6 +3,7 @@ geometry (no synthetic Slice fixtures) and verify autofix actually clears the on
 """
 import json
 import pathlib
+import re
 
 from shapely.geometry import Polygon
 
@@ -150,3 +151,74 @@ def test_a_geometry_operation_the_engine_refuses_is_retried_snapped_then_given_u
     assert robust(never, box(0, 0, 1, 1)) is None
     assert robust(never, box(0, 0, 1, 1), default=[]) == []
     assert abs(robust(lambda a: a.buffer(1), box(0, 0, 1, 1)).area - box(0, 0, 1, 1).buffer(1).area) < 1e-9   # the ordinary path untouched
+
+
+def test_a_finding_carries_its_kind_and_what_it_is_about_and_its_fix_does_not_read_the_words(monkeypatch):
+    """The fixes of a finding are chosen by its kind, never by searching its sentence: a floating region says which
+    region, a thin spot is only a kind, and the same findings reworded still get every option they got."""
+    from core import plan as plan_mod
+    from core.model import Issue, KINDS
+    seen = []
+    real = plan_mod.suggest_fixes
+
+    def spy(slices, p, ctx, mode):
+        found = [(sl, e) for sl in slices for e in [*sl.errors, *sl.warnings]]
+        seen.append(found)
+        real(slices, p, ctx, mode)
+        seen.append({str(f["error"]): [o["title"] for o in f["options"]] for sl in slices for f in sl.fixes})
+        if reword:                                     # the same kinds in other words: the fixes must not change
+            for sl, e in found:
+                lst = sl.errors if e in sl.errors else sl.warnings
+                lst[lst.index(e)] = Issue("something else entirely", e.kind, **e.about) if getattr(e, "kind", "") else e
+            real(slices, p, ctx, mode)
+            seen.append({f["error"]: [o["title"] for o in f["options"]] for sl in slices for f in sl.fixes})
+
+    monkeypatch.setattr(plan_mod, "suggest_fixes", spy)
+    reword = False
+    build(EXAMPLES / "cube.stl", "curve", {"count": 6, "spines": 0, "autofix": "off"})
+    found = seen[0]
+    none = [e for _, e in found if getattr(e, "kind", "") == "no-crossing"]
+    assert none and all(isinstance(e, Issue) and e.kind in KINDS for _, e in found if getattr(e, "kind", ""))
+    seen.clear()
+    build(EXAMPLES / "horse.stl", "stacked", {
+        "thickness": 3, "axis": "z", "size": [0, 300, 0], "connect": "dowel", "dowel_shape": "square", "placement": "random",
+        "space": 6, "dowel_d": 3, "n_points": 2, "round": 3, "thicken": 1, "margin": 3, "autofix": "off"})
+    gap = [e for _, e in seen[0] if getattr(e, "kind", "") == "gap"]
+    assert gap and all(isinstance(e.about["region"], int) for e in gap)
+    seen.clear()
+    build(EXAMPLES / "cone.stl", "radial", {"count": 8, "ring_count": 4, "thickness": 3, "autofix": "off"})
+    assert any(getattr(e, "kind", "") == "thin-spot" for _, e in seen[0])
+    seen.clear()
+    reword = True
+    build(EXAMPLES / "cone.stl", "radial", {"count": 8, "ring_count": 4, "thickness": 3, "autofix": "off"})
+    first, again = seen[1], seen[2]
+    assert any("trim thin spots off every part" in t for ts in first.values() for t in ts)
+    assert list(again.values()) == list(first.values()) and "something else entirely" in again
+
+
+def test_an_island_whose_place_is_engraved_is_not_a_loose_island():
+    """Bug 045: a stacked island with no dowel through it was warned about on every example (cow_spot, horse_statue,
+    bunny) whether or not anything showed where it goes. With the next layer outline engraved, its place is marked (its
+    own outline on the layer below, or the layer above's on it) and glue holds it like every other layer: no warning.
+    Without the engraving it is still warned about, and the warning offers the engraving."""
+    prm = {"axis": "x", "distribution": "count", "count": 6, "connect": "none", "autofix": "off"}   # the torus lying flat: two rings
+    islands = lambda plan: [w for sl in plan["slices"] for w in sl["warnings"] if "separate island" in w]   # noqa: E731
+    off = build(EXAMPLES / "torus.stl", "stacked", prm)
+    assert len(islands(off)) == 8, islands(off)
+    assert all(any(o["set"] == {"next_outline": True} for f in sl["fixes"] for o in f["options"])
+               for sl in off["slices"] if any("separate island" in w for w in sl["warnings"]))
+    on = build(EXAMPLES / "torus.stl", "stacked", {**prm, "next_outline": True})
+    assert islands(on) == [] and on["counts"]["warnings"] == 0
+    assert all(any(style == "guide" for pc in sl["pieces"] for style, _ in pc["lines"]) for sl in on["slices"][:-1])   # the marks that place them
+
+
+def test_a_radial_core_ring_says_when_its_fingers_are_thinner_than_the_sheet():
+    """Bug 055: the finger check ran on the X, Y and Z families only, so a radial core ring, notched round its edge by
+    every half-slice, never said that 30 half-slices on the egg leave fingers well under the 3 mm sheet. Every family
+    slotted into another is checked now; the egg as it opens (8 half-slices) leaves none."""
+    job = {"thickness": 3, "slot_offset": 0.1, "autofix": "off"}
+    crowded = build(EXAMPLES / "egg.stl", "radial", {**job, "count": 30, "ring_count": 12})
+    warned = [w for sl in crowded["slices"] if sl["group"] == "C" for w in sl["warnings"] if "finger" in w]
+    assert warned and all(float(re.search(r"\((\d+\.\d) mm <", w)[1]) < 3 for w in warned), warned[:2]
+    plain = build(EXAMPLES / "egg.stl", "radial", {**job, "count": 8, "ring_count": 5})
+    assert not [w for sl in plain["slices"] for w in sl["warnings"] if "finger" in w]

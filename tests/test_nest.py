@@ -14,6 +14,7 @@ from shapely.geometry import Polygon
 from shapely.ops import unary_union
 
 import core.nest as nest
+import core.nofit as nofit
 from core.plan import build
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -125,7 +126,7 @@ def test_a_part_over_the_sheet_both_ways_is_cut_both_ways():
     from core.geometry import as_multi
     from core.split import split_slice, fits_rotated
     sl = SimpleNamespace(label="Z-1", profile=as_multi(box(0, 0, 600, 400)), lines=[], marks=[], warnings=[], errors=[],
-                         pieces=None, facets=None, thickness=3)
+                         pieces=None, facets=None, thickness=3, cover=None, stock="")
     split_slice(sl, (300, 300), 5, 8)
     assert len(sl.pieces) >= 4
     assert all(fits_rotated(pc.geom, (300, 300), 5) for pc in sl.pieces), [pc.geom.bounds for pc in sl.pieces]
@@ -164,7 +165,7 @@ def test_keep_the_grain_splits_a_part_that_only_fits_turned():
     from core.geometry import as_multi
     from core.split import split_slice
     part = lambda: SimpleNamespace(label="Z-1", profile=as_multi(box(0, 0, 580, 380)), lines=[], marks=[], warnings=[],
-                                   errors=[], pieces=None, facets=None, thickness=3)
+                                   errors=[], pieces=None, facets=None, thickness=3, cover=None, stock="")
     free, kept = part(), part()
     split_slice(free, (400, 600), 5, 8)
     split_slice(kept, (400, 600), 5, 8, grain=True)
@@ -190,12 +191,12 @@ def test_a_part_of_another_thickness_gets_its_own_sheet_and_says_so(tmp_path):
     assert plan["sheet_thick"][sheet_of["Z-2"]] == 6
     assert all(plan["sheet_thick"][s] == 3 for s in others)
     assert "6 mm stock" in sheet_title(plan, sheet_of["Z-2"]) and "3 mm stock" in sheet_title(plan, min(others))
-    files = {f.name.split(" ", 1)[1] for f in export(plan, tmp_path, fmts=("svg",), labels=True)}
+    files = {f.name.split(" ", 1)[1] for f in export(plan, tmp_path, fmts=("svg",), labels=True) if f.name != "README.txt"}
     assert f"sheet{sheet_of['Z-2'] + 1} 6mm.svg" in files
     assert any(f.endswith(" 3mm.svg") for f in files)
-    pieces = {f.name.split(" ", 1)[1] for f in export(plan, tmp_path / "pp", fmts=("svg",), labels=True, per_piece=True)}
+    pieces = {f.name.split(" ", 1)[1] for f in export(plan, tmp_path / "pp", fmts=("svg",), labels=True, per_piece=True) if f.name != "README.txt"}
     assert "Z-2 6mm x1.svg" in pieces                          # the identical squares are not merged across stock
-    assert any(f.startswith("Z-1") and f.endswith(" 3mm x3.svg") for f in pieces)
+    assert any(f.startswith("Z-1") and f.endswith(" 3mm x2.svg") for f in pieces)   # Z-1, Z-3; the top Z-4 is clean, a part of its own
 
 
 def test_a_disc_nests_inside_a_ring():
@@ -205,7 +206,7 @@ def test_a_disc_nests_inside_a_ring():
     from shapely.geometry import Point
     from core.geometry import as_multi
     from core.model import Piece
-    stock = SimpleNamespace(thickness=3)
+    stock = SimpleNamespace(thickness=3, cover=None, stock="")
     ring = Piece("ring", as_multi(Point(0, 0).buffer(40).difference(Point(0, 0).buffer(30))), stock)
     disc = Piece("disc", as_multi(Point(0, 0).buffer(25)), stock)
     assert nest.nest([ring, disc], (100, 100), gap=2, margin=0) == 1
@@ -243,7 +244,7 @@ def test_a_layer_in_separate_islands_is_cut_as_separate_parts(tmp_path):
 def test_one_sheet_is_as_long_as_the_parts_and_their_labels():
     """`one_sheet` reports the strip at the length it took: the topmost part's label, placed above it, is on the sheet
     too, not past its end where the cut file would clip it."""
-    from core.geometry import label_box
+    from core.labels import label_box
     plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 3, "autofix": "off", "one_sheet": True, "font": 10})
     font = plan["params"]["font"]
     for pc in (pc for sl in plan["slices"] for pc in sl["pieces"]):
@@ -254,18 +255,20 @@ def test_one_sheet_is_as_long_as_the_parts_and_their_labels():
 
 def test_labels_inside_sit_on_their_part_and_a_lone_part_file_grows_to_hold_one(tmp_path):
     """`label_place` = on: every label is engraved on its own part — its centre inside the part's placed outline, with no
-    leader line — while `beside` puts every one beside the part with a leader. In the one-file-per-part export a
-    label wider than the part (a 60 mm font on the cube's 180 mm slab) is drawn whole: the drawing grows past the part."""
+    leader line — but the stack's top layer's, which nothing covers (`hide_marks`), while `beside` puts every one beside
+    the part with a leader. In the one-file-per-part export a label wider than the part (a 60 mm font on the cube's
+    180 mm slab) is drawn whole: the drawing grows past the part."""
     import re
     from shapely.geometry import Point
     from core.export import export
     base = {"distribution": "count", "count": 3, "autofix": "off"}
     plan = build(EXAMPLES / "cube.stl", "stacked", {**base, "label_place": "on"})
     pieces = [pc for sl in plan["slices"] for pc in sl["pieces"]]
-    for pc in pieces:
+    for pc in pieces[:-1]:
         x, y, _ = pc["label_pos"]
         assert Polygon(pc["placed"][0][0], pc["placed"][0][1:]).covers(Point(x, y)), pc["label"]
         assert pc["leader"] is None
+    assert pieces[-1]["leader"], "the top layer's label goes beside it"
     beside = build(EXAMPLES / "cube.stl", "stacked", {**base, "label_place": "beside"})
     assert all(pc["leader"] for sl in beside["slices"] for pc in sl["pieces"])
 
@@ -289,7 +292,7 @@ def test_labels_sit_on_their_part_or_in_free_space_and_overlap_nothing(model, mo
     other label, with a leader line that crosses no other part. Nothing here was short of room (no crowded note)."""
     import shapely
     from shapely.geometry import LineString
-    from core.geometry import label_box, label_rect, mark_box
+    from core.labels import label_box, label_rect, mark_box
     plan = build(EXAMPLES / f"{model}.stl", mode, {**params, "autofix": "off"})
     assert not [n for n in plan["notes"] if "no free spot" in n], plan["notes"]
     font, tag, m = plan["params"]["font"], plan["label_tag"], plan["params"]["sheet_margin"]
@@ -327,7 +330,7 @@ def test_seven_rings_fill_the_first_sheet_before_the_second():
     from shapely.geometry import Point
     from core.geometry import as_multi
     from core.model import Piece
-    stock = SimpleNamespace(thickness=3)
+    stock = SimpleNamespace(thickness=3, cover=None, stock="")
     rings = [Piece(f"Z-{i + 1}", as_multi(Point(0, 0).buffer(90).difference(Point(0, 0).buffer(80))), stock) for i in range(7)]
     assert nest.nest(rings, (600, 400), gap=3, margin=5) == 2
     assert sorted(pc.place[0] for pc in rings) == [0] * 6 + [1]
@@ -341,7 +344,7 @@ def test_a_disc_nests_inside_a_ring_full_of_dowel_holes():
     from shapely.geometry import Point
     from core.geometry import as_multi
     from core.model import Piece
-    stock = SimpleNamespace(thickness=3)
+    stock = SimpleNamespace(thickness=3, cover=None, stock="")
     band = Point(0, 0).buffer(40).difference(Point(0, 0).buffer(30))
     holes = [Point(35 * math.cos(a), 35 * math.sin(a)).buffer(1.5) for a in np.linspace(0, 2 * math.pi, 30, endpoint=False)]
     ring = Piece("ring", as_multi(band.difference(unary_union(holes))), stock)
@@ -366,11 +369,73 @@ def test_two_turns_of_a_part_never_drop_the_same_kept_union():
 
     rect = lambda w, h: np.array([(0, 0), (w, 0), (w, h), (0, h)], float)   # noqa: E731
     ask = lambda sh, c: sh.spot([c], (0.0, 0.0, c[2, 0], c[2, 1]))          # noqa: E731
-    sh = nest.Sheet(600, 400, 5)
-    sh.convex.append(nest._edges(rect(100, 100)))
+    sh = nofit.Sheet(600, 400, 5)
+    sh.convex.append(nofit._edges(rect(100, 100)))
     sh.nfp = Slow()
     for i in range(16):                                    # the 16 it keeps
         ask(sh, rect(10 + i, 10))
     with ThreadPoolExecutor(8) as pool:                    # eight new shapes at once
         spots = list(pool.map(lambda i: ask(sh, rect(40 + i, 12)), range(8)))
     assert all(xy is not None for xy in spots) and len(sh.nfp) <= 16
+
+
+def _strip_part(label="P-1", length=620.0, width=30.0, turn=30.0):
+    """A long strip of card turned `turn` degrees in its own frame: at its tightest angle (the minimum rectangle) it is
+    longer than a 600 mm sheet, upright it fits."""
+    from types import SimpleNamespace
+    from shapely import affinity
+    from shapely.geometry import box
+    from core.geometry import as_multi
+    from core.model import Piece
+    g = as_multi(affinity.rotate(box(0, 0, length, width), turn, origin=(0, 0)))
+    sl = SimpleNamespace(label=label, lines=[], marks=[], warnings=[], errors=[], facets=None, thickness=1, cover=None, stock="")
+    pc = Piece(label, g, sl); sl.pieces = [pc]
+    return sl, pc
+
+
+@pytest.mark.parametrize("many", [0, 10_000], ids=["rect_path", "polygon_path"])
+def test_a_part_that_fits_only_upright_is_nested_upright_on_the_sheet(monkeypatch, many):
+    """Bug 073: a slanted card panel 632 x 176 mm at its tightest angle fits a 600 x 400 sheet upright (547 x 356); the
+    nester tried only the tightest angle and its quarter turns, and laid it past the sheet's edge with no error."""
+    from core.split import fits_rotated
+    monkeypatch.setattr(nest, "MANY", many)
+    sl, pc = _strip_part()
+    assert fits_rotated(pc.geom, (600, 400), 5)
+    nest.nest([pc], (600, 400), 3, 5)
+    x0, y0, x1, y1 = pc.placed.bounds
+    assert x0 >= -0.01 and y0 >= -0.01 and x1 <= 600.01 and y1 <= 400.01, pc.placed.bounds
+
+
+def test_a_part_laid_past_the_sheet_edge_is_an_error():
+    """The plan never ships a cut file with a part off its sheet in silence: a part that fits the sheet but lies past its
+    edge is an error (bug 073); a part too big for any sheet keeps its own error only (_oversize)."""
+    from shapely import affinity
+    from core.plan import _past_the_edge
+    p = {"sheet": [600, 400], "sheet_margin": 5, "grain": False, "one_sheet": False}
+    sl, pc = _strip_part()
+    t = affinity.rotate(pc.geom, -30, origin=(0, 0)); b = t.bounds                # laid at its tightest angle, where it does not fit
+    pc.placed, pc.place = affinity.translate(t, 5 - b[0], 5 - b[1]), (0, 5, 5, -30)
+    assert pc.placed.bounds[2] > 600 and _past_the_edge([sl], p) == 1 and "past the edge of sheet 1" in sl.errors[0]
+    big, bp = _strip_part(length=900, turn=0)
+    bp.placed, bp.place = affinity.translate(bp.geom, 5, 5), (0, 5, 5, 0)
+    assert _past_the_edge([big], p) == 0 and not big.errors                 # too big for any sheet: _oversize says so
+    ok, op = _strip_part()
+    nest.nest([op], (600, 400), 3, 5)
+    assert _past_the_edge([ok], p) == 0 and not ok.errors
+
+
+def test_the_crown_ring_lays_every_part_on_its_sheet():
+    """The model that showed bug 073: twelve dodecahedra in a ring (tests/data/crown_ring.stl, one of the paper-lamp
+    options), folded card with paper windows on 600 x 400 sheets. On release/0.4.0 e65831b P-2 (632 x 176 mm at its
+    tightest angle) ran to x 637 and P-4 to x 615, with 0 errors. Every part lies on its sheet now, with no error. (On
+    ed749bd the panels come out otherwise and no part runs off even with the old angle: the strip tests above are the
+    ones that fail without the fix.)"""
+    data = pathlib.Path(__file__).resolve().parent / "data"
+    plan = build(data / "crown_ring.stl", "folded", {"material": "card", "thickness": 1, "facet": 0, "joint": "tab", "window": 0.7,
+                                                      "window_fill": "paper", "autofix": "off"})
+    W, H = plan["sheet"]
+    for s in plan["slices"]:
+        for pc in s["pieces"]:
+            xy = np.array([q for rings in pc["placed"] for q in rings[0]])
+            assert xy.min() >= -0.01 and xy[:, 0].max() <= W + 0.01 and xy[:, 1].max() <= H + 0.01, (pc["label"], xy.max(0))
+    assert plan["counts"]["errors"] == 0 and plan["counts"]["warnings"] == 0

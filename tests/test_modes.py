@@ -10,11 +10,12 @@ import numpy as np
 import pytest
 import trimesh
 
-from core.modes.folded import JOINTS
+from core.modes.folded import JOINTS, closes_at
 from core.plan import build
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 EXAMPLES = ROOT / "examples"
+COW = ROOT / "tests" / "data" / "cow.stl"    # the detailed cow the folded bugs were found on; examples/cow.stl is a low-poly one since bug 045
 
 # (model, mode, params, expected slice count)
 MODE_CASES = [
@@ -258,7 +259,7 @@ def test_folded_holes_keep_the_wall_the_check_asks_for(joint):
     assert sum(1 for s in plan["slices"] if s["group"] == "F" for _ in s["pieces"]) >= 1
 
 
-@pytest.mark.parametrize("joint", JOINTS)
+@pytest.mark.parametrize("joint", [j for j in JOINTS if j not in ("snap", "click")])     # snap and click are for printed panels: a cut sheet gets an error (tests/test_snap.py)
 def test_folded_tabs_stay_on_their_panel(joint):
     """Found by the release's media run on Linux: the ticked joint's ticks touch the panel only along its edge, and
     rounding put their base a hair outside it, so each tick came off as a 5 × 6 mm piece of its own (9 errors on the
@@ -338,23 +339,25 @@ def test_folded_panels_printed_get_a_groove_at_every_fold_down_to_the_hinge_skin
     plan = build(EXAMPLES / "fold_test.stl", "folded", job)
     assert not plan["errors"] and plan["counts"]["errors"] == 0
     sl = plan["slices"][0]; pc = sl["pieces"][0]
-    bends = {round(2 * np.degrees(np.arctan(v[6] / (sl["thickness"] - v[5])))) for v in pc["vees"]}     # the fold at which the walls meet
+    stops = lambda grooves: {round(np.degrees(closes_at(g["wide"], sl["thickness"] - g["skin"]))) for g in grooves}   # noqa: E731  the fold at which the walls meet
+    bends = stops(pc["grooves"])
     assert {45, 90, 104} <= bends                                       # each groove opened to its own fold
-    assert True in {v[7] for v in pc["vees"]}                            # mountain folds are grooved from the face up on the bed
-    assert sum(len(fc.get("bevel", [])) for fc in pc["facets"]) == len(pc["vees"]) + sum(1 for fc in pc["facets"] if fc.get("hinge") and fc["hinge"][7])   # the 3D view draws every groove: a fold on both its faces
+    assert True in {g["top"] for g in pc["grooves"]}                            # mountain folds are grooved from the face up on the bed
+    assert sum(len(fc.get("bevel", [])) for fc in pc["facets"]) == len(pc["grooves"]) + sum(1 for fc in pc["facets"] if fc.get("hinge") and fc["hinge"][7])   # the 3D view draws every groove: a fold on both its faces
     proto_set(plan, tmp_path, labels="none")
     part = trimesh.load(tmp_path / "P-1.stl")
     # closed: no edge with a face on one side only (two grooves that touch share an edge between four faces)
     assert (np.unique(part.edges_sorted, axis=0, return_counts=True)[1] % 2 == 0).all() and part.volume > 0
     x0 = min(x for r in pc["kerfed"] for x, _ in r[0]); y0 = min(y for r in pc["kerfed"] for _, y in r[0])
-    v = max((v for v in pc["vees"] if v[7]), key=lambda v: np.hypot(v[2] - v[0], v[3] - v[1]))
-    mid = np.array([(v[0] + v[2]) / 2 - x0, (v[1] + v[3]) / 2 - y0]); along = np.array([v[2] - v[0], v[3] - v[1]])
+    g = max((g for g in pc["grooves"] if g["top"]), key=lambda g: np.hypot(g["b"][0] - g["a"][0], g["b"][1] - g["a"][1]))
+    a, b = np.array(g["a"]), np.array(g["b"])
+    mid = (a + b) / 2 - [x0, y0]; along = b - a
     sec = part.section(plane_origin=[*mid, 0], plane_normal=[*along, 0]).vertices
-    under = sec[np.linalg.norm(sec[:, :2] - mid, axis=1) < v[4] / 2 + 0.01]
+    under = sec[np.linalg.norm(sec[:, :2] - mid, axis=1) < g["land"] / 2 + 0.01]
     assert np.isclose(under[:, 2].max(), job["hinge"], atol=0.02) and np.isclose(under[:, 2].min(), 0, atol=1e-3)
     assert "does not fold" in build(EXAMPLES / "fold_test.stl", "folded", {**job, "hinge": 0})["errors"][0]
-    tight = build(EXAMPLES / "fold_test.stl", "folded", {**job, "hinge_stop": -5})["slices"][0]["pieces"][0]["vees"]
-    assert {round(2 * np.degrees(np.arctan(v[6] / (sl["thickness"] - v[5])))) for v in tight} >= {40, 85, 99}   # every fold stops 5° sooner
+    tight = build(EXAMPLES / "fold_test.stl", "folded", {**job, "hinge_stop": -5})["slices"][0]["pieces"][0]["grooves"]
+    assert stops(tight) >= {40, 85, 99}   # every fold stops 5° sooner
 
 
 @pytest.mark.parametrize("model", ["fold_test", "bracket", "cube"])
@@ -436,15 +439,81 @@ def test_folded_stiff_panels_do_not_share_space(model):
     assert pairs("inner") == 0 and pairs("through") == 0
 
 
+def test_folded_says_when_the_model_is_thinner_than_two_sheets(tmp_path):
+    """The sheet lies inside the surface. A plate 4 mm thick has no room for a 3 mm sheet under each of its two big
+    faces: those panels are told so. In 1 mm sheet there is room."""
+    path = tmp_path / "plate.stl"; trimesh.creation.box([100, 80, 4]).export(path)
+    job = {"facet": 0, "separate": True, "joint": "seam", "autofix": "off", "material": "plywood", "sheet": [600, 400]}
+    thin = lambda t: [w for sl in build(path, "folded", {**job, "thickness": t})["slices"] for w in sl["warnings"] if "thinner than two sheets" in w]   # noqa: E731
+    assert len(thin(3)) == 4 and "down to 4.0 mm" in thin(3)[0]            # the two big faces, two triangles each
+    assert not thin(1)
+
+
 @pytest.mark.parametrize("joint", ["laced", "rib", "tab"])
 @pytest.mark.parametrize("material", [{}, {"material": "cardboard", "material_kind": "cardboard"}], ids=["unnamed", "cardboard"])
 def test_folded_soft_sheet_is_not_cut_back_at_its_seams(joint, material):
     """Found by the release's media run: the landing page's cow in 1 mm card, laced, came back with 9 errors where
     0.3.2 had none. Cut back at every seam like stiff sheet, its small panels fell under the minimum part size. Card
     crushes at a seam, so it is cut as before; and a rib too small to handle is left out, not cut as a bad part."""
-    plan = build(EXAMPLES / "cow.stl", "folded", {"rotate": [90, 0, 0], "joint": joint, "facet": 15, "strategy": "area", "thickness": 1, **material})
+    plan = build(COW, "folded", {"rotate": [90, 0, 0], "joint": joint, "facet": 15, "strategy": "area", "thickness": 1, **material})
     errs = [f"{sl['label']}: {e}" for sl in plan["slices"] for e in sl["errors"]] + plan["errors"]
     assert not errs, errs[:3]
+
+
+@pytest.mark.parametrize("joint", ["laced", "rib"])
+def test_folded_cut_back_never_makes_a_panel_too_small(joint):
+    """The same cow in 1 mm steel: cut back at its seams, some small panels fell under the minimum part and feature
+    sizes (7 errors). The cut-back is never what makes a panel too small: such a panel keeps its edges and warns how
+    far it presses into its neighbours."""
+    plan = build(COW, "folded", {"rotate": [90, 0, 0], "joint": joint, "facet": 15, "strategy": "area", "thickness": 1,
+                                                 "material": "steel", "material_kind": "steel"})
+    errs = [f"{sl['label']}: {e}" for sl in plan["slices"] for e in sl["errors"]] + plan["errors"]
+    assert not errs, errs[:3]
+    assert any("press up to" in w for sl in plan["slices"] for w in sl["warnings"])
+
+
+def test_folded_net_keeps_room_for_its_tabs():
+    """Bug 045: the cow example opened with 40 of its 217 seams reduced to a plain seam. The net was grown with no
+    room for the glue flaps, so a tab landed on its own panel from either side. It also had a "joints made smaller"
+    line on every panel, for a hole and an inset a tab does not have. Each free edge now keeps its flap's room while
+    the net grows, and only the sizes a joint uses count as made smaller."""
+    plan = build(COW, "folded", {"rotate": [90, 0, 0], "joint": "tab", "facet": 15, "strategy": "area", "thickness": 1})
+    warns = [w for sl in plan["slices"] for w in sl["warnings"]]
+    assert sum("reduced to a plain seam" in w for w in warns) <= 5
+    assert not any("made smaller than asked" in w for w in warns)
+    assert plan["counts"]["errors"] == 0
+
+
+def test_folded_coverage_is_the_same_in_any_sheet():
+    """Bug 045: a surface point counted as covered within one sheet thickness of a panel, so the same 19 panels of the
+    cow read 83 % in 1 mm card and 99 % in 3 mm. A panel is the middle of its sheet, half a sheet in from the
+    surface, and a flat triangle lies off a curve by a share of its edge: that is the reach, whatever the card."""
+    job = {"rotate": [90, 0, 0], "joint": "laced", "facet": 15, "strategy": "area", "material": "cardboard", "material_kind": "cardboard"}
+    thin, thick = (build(COW, "folded", {**job, "thickness": t})["coverage"] for t in (1, 3))
+    assert abs(thin - thick) < 0.02 and thin > 0.95
+
+def test_folded_merges_only_the_faces_too_small_for_the_sheet():
+    """Asked for: a fix for faces too small to cut back that does not coarsen the whole model. `min_face` closes up the
+    faces under that height and leaves the rest: on the cow, no face is left under it, most of the model's faces
+    stay, and the press warning offers it. Bug 045: a sharp face over that height passed and ended a panel in a thin
+    tip (the lion head's last four warnings); a face with a corner under 28° is closed up too, up to twice the height.
+    The decimated cow is full of such slivers, so about half its faces go (only the small ones went, 60 % stayed)."""
+    from core.mesh import SHARP, SHARP_HEIGHT, merge_small, simplify
+    from core.modes.folded import target_faces
+    mesh = trimesh.load(COW, force="mesh")
+    coarse = simplify(mesh, target_faces(mesh, 15))
+    height = lambda m: 2 * m.area_faces / np.linalg.norm(m.triangles - np.roll(m.triangles, -1, axis=1), axis=2).max(1)   # noqa: E731
+    sharp = lambda m: (m.face_angles.min(1) < SHARP) & (height(m) < SHARP_HEIGHT * 4)   # noqa: E731
+    assert (height(coarse) < 4).any() and (sharp(coarse) & (height(coarse) >= 4)).any()   # sharp faces the height lets through
+    merged = merge_small(coarse, 4)
+    assert not (height(merged) < 4).any() and not sharp(merged).any() and len(merged.faces) > 0.45 * len(coarse.faces)
+    job = {"rotate": [90, 0, 0], "joint": "laced", "facet": 15, "strategy": "area", "thickness": 1, "material": "steel", "material_kind": "steel"}
+    plan = build(COW, "folded", job)
+    offers = [o for sl in plan["slices"] for f in sl["fixes"] if "press up to" in f["error"] for o in f["options"]]
+    assert any(o["set"].get("min_face") == 4 for o in offers)
+    fixed = build(COW, "folded", {**job, "min_face": 4})
+    pressed = lambda q: sum(1 for sl in q["slices"] for w in sl["warnings"] if "press up to" in w)   # noqa: E731
+    assert fixed["counts"]["errors"] == 0 and pressed(fixed) < pressed(plan)
 
 
 def test_folded_says_when_stiff_panels_still_press_into_each_other():
@@ -465,8 +534,8 @@ def test_folded_lamp_has_a_window_in_its_faces_and_unfolds_flat():
     plan = build(EXAMPLES / "fold_lamp.stl", "folded", {**pr["params"], "material_kind": "PETG", "autofix": "off"})
     assert plan["counts"]["errors"] == 0 and plan["counts"]["warnings"] == 0
     pc = max((sl["pieces"][0] for sl in plan["slices"]), key=lambda pc: len(pc["facets"]))
-    assert sum(len(poly) - 1 for poly in pc["kerfed"]) > 40                 # windows: holes in the net
-    assert {v[7] for v in pc["vees"]} == {True, False}                      # valley folds are grooved from the other face
+    assert sum(len(poly) - 1 for poly in pc["kerfed"]) == len(pc["facets"]) > 20    # windows: a hole in the net for every face
+    assert {g["top"] for g in pc["grooves"]} == {True, False}                      # valley folds are grooved from the other face
 
     def turn(h, s):                                                        # as the page's applyFold builds it
         p, d, u = np.array(h[1:4]), np.array(h[4:7]), (1 - s) * h[7]
@@ -483,11 +552,11 @@ def test_folded_lamp_has_a_window_in_its_faces_and_unfolds_flat():
     assert np.allclose(normals, normals[0], atol=1e-3)                       # flat: every face looks the same way
 
 
-# the horse on the landing page: its body curve and a branch down each leg, from where it leaves the body to the hoof
+# the horse example as it opens: its body curve, a branch down each leg from where it leaves the body to the hoof, and
+# the head's branch (the last)
 HORSE = {"size": [0, 300, 0], "thicken": 1, "round": 2, "thickness": 3, "slot_offset": 0.1, "plane": "yz", "count": 20, "spines": 1}
-HORSE_CURVE = [[-119, 11], [-89, 18], [-59, 23], [-14, 10], [16, 13], [50, 22], [76, 47], [91, 76], [106, 89], [136, 83]]
-BRANCHES = [[[-2, 46.6, -33], [-5.2, 64.5, -128]], [[40.5, 36.8, -33], [49, 25.8, -125]],
-            [[-2.8, -100.1, -11], [-5, -134.2, -125]], [[52, -83.1, -15], [54.9, -101, -125]]]
+HORSE_EXAMPLE = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["horse"]["params"]
+HORSE_CURVE, BRANCHES, HEAD = HORSE_EXAMPLE["curve"], HORSE_EXAMPLE["branches"][:-1], HORSE_EXAMPLE["branches"][-1]
 # each leg's centreline, measured on the model: a leg bends, its branch is one straight line from body to hoof
 LEGS = [[[-2.0, 46.6, -33], [-2.3, 47.8, -61], [-3.7, 49.2, -81], [-3.6, 54.9, -101], [-5.2, 64.5, -128]],
         [[40.5, 36.8, -33], [44.5, 30.7, -61], [47.1, 23.6, -81], [48.6, 19.9, -101], [49.0, 25.8, -125]],
@@ -502,7 +571,7 @@ def test_curve_branches_hold_every_leg_of_the_horse():
     error and the model is still covered."""
     from shapely.geometry import Point, Polygon
     from shapely.ops import unary_union
-    plan = build(EXAMPLES / "horse.stl", "curve", {**HORSE, "curve": HORSE_CURVE, "branches": BRANCHES, "autofix": "add"})
+    plan = build(EXAMPLES / "horse.stl", "curve", {**HORSE, "curve": HORSE_CURVE, "branches": BRANCHES + [HEAD], "autofix": "add"})
     assert plan["counts"]["errors"] == 0, [(s["label"], s["errors"]) for s in plan["slices"] if s["errors"]] + plan["errors"]
     assert plan["coverage"] >= 0.9
     spines = [(np.array(s["M"]), unary_union([Polygon(r[0], r[1:]) for pc in s["pieces"] for r in pc["kerfed"]]))
@@ -516,7 +585,31 @@ def test_curve_branches_hold_every_leg_of_the_horse():
             held |= (np.abs(L[:, 2]) < 6) & np.array([g.distance(Point(x)) < 2 for x in L[:, :2]])
         assert held.mean() >= 0.95, f"leg {i}: {held.mean():.0%} of it in a branch spine"
         assert len([s for s in plan["slices"] if s["label"].startswith(f"R{i}-")]) >= 5
-    assert len(plan["axes3d"]) == 4 and {b["label"] for b in plan["bounds3d"]} >= {"J-1", "J-2", "J-3", "J-4"}
+    assert len(plan["axes3d"]) == 5 and {b["label"] for b in plan["bounds3d"]} >= {"J-1", "J-2", "J-3", "J-4", "J-5"}
+
+
+def test_curve_head_turned_aside_is_a_branch_of_its_own(tmp_path):
+    """The horse example turns its head to one side, where the flat body spine does not reach. In 0.3.3 one body rib
+    took the whole head as a slab, edge-on from the side the head faces (a fifth of its outline). As a branch it has
+    ribs square to it and a spine down its middle, slotted into two neck ribs so it does not hang on one joint, and
+    from that side its parts fill the head's outline."""
+    from shapely.geometry import Polygon
+    from shapely.ops import unary_union
+    from core.solid import piece_mesh
+    pr = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["horse"]
+    plan = build(EXAMPLES / "horse.stl", "curve", {**pr["params"], "slot_offset": 0.1}, mesh_out=tmp_path / "model.stl")
+    assert plan["counts"]["errors"] == 0
+    by = {s["label"]: s for s in plan["slices"]}
+    head = len(pr["params"]["branches"])                                    # the head is the last branch
+    assert len([lab for lab in by if lab.startswith(f"R{head}-")]) >= 5
+    assert len([x for x in by[f"K{head}"]["engages"] if x.startswith("R-")]) >= 2
+
+    def outline(meshes):                     # the head, past y = 112, seen from -x: its outline on the y-z plane
+        cut = [m.slice_plane([0, 112, 0], [0, 1, 0]) for m in meshes if m.vertices[:, 1].max() > 112]
+        return unary_union([g for m in cut for t in m.vertices[m.faces][:, :, 1:] if (g := Polygon(t)).area > 1e-6])
+    model = outline([trimesh.load(tmp_path / "model.stl")])
+    parts = outline([piece_mesh(pc, s["thickness"]) for s in plan["slices"] for pc in s["pieces"]])
+    assert model.intersection(parts).area / model.union(parts).area > 0.8
 
 
 def test_curve_branch_past_the_ribs_is_an_error():
@@ -533,7 +626,7 @@ def test_curve_branch_follows_its_joint_and_either_end_can_come_first():
     tongue on its own with every rib floating — and a branch typed hoof first is the same branch, not a joint at the
     hoof that hands the whole body to the leg."""
     plan = build(EXAMPLES / "horse.stl", "curve", {**HORSE, "curve": HORSE_CURVE, "autofix": "off", "offset": {"J-1": 15},
-                                                    "branches": [BRANCHES[0][::-1]] + BRANCHES[1:]})
+                                                    "branches": [BRANCHES[0][::-1]] + BRANCHES[1:] + [HEAD]})
     assert plan["counts"]["errors"] == 0, [(s["label"], s["errors"]) for s in plan["slices"] if s["errors"]] + plan["errors"]
     assert plan["coverage"] >= 0.9
     assert len([s for s in plan["slices"] if s["label"].startswith("R1-")]) >= 5
@@ -564,6 +657,43 @@ def test_curve_branch_takes_its_limb_and_no_more(tmp_path):
     assert sum(x.startswith("R-") for x in by["K1"]["engages"]) >= 2 and sum(x.startswith("R-") for x in by["K2"]["engages"]) >= 2
     K = np.array(by["K-1"]["M"]); side = (world_pts(by["K2"]) - K[:3, 3]) @ K[:3, 2]      # K2's outline against K-1's plane
     assert (side > 3).all() or (side < -3).all(), (side.min(), side.max())
+
+
+def slim_neck(tmp_path):
+    """A deep block (120 mm), a slim bar (30 mm) out of it along y, and the bar turning 60° up at its far end: a neck
+    that bends a long way from the chest. Model-centred, and the curve through its middle."""
+    import trimesh
+    riser = trimesh.creation.box([40, 30, 110])
+    riser.apply_transform(trimesh.transformations.rotation_matrix(np.radians(-30), [1, 0, 0])).apply_translation([0, 97.5, 47.6])
+    T = trimesh.util.concatenate([trimesh.creation.box([40, 100, 120]).apply_translation([0, -100, 0]), trimesh.creation.box([40, 140, 30]), riser])
+    sh = -T.bounds.mean(0); T.apply_translation(sh); T.export(tmp_path / "neck.stl")
+    return tmp_path / "neck.stl", [[y + sh[1], z + sh[2]] for y, z in [[-140, 0], [-60, 0], [40, 0], [70, 5], [97, 48], [122, 92]]]
+
+
+def test_curve_ribs_turn_with_a_slim_neck_however_deep_the_chest(tmp_path):
+    """Two neighbouring ribs meet on the inside of a bend, so how far they may turn depends on how far the material
+    reaches there. One reach for the whole model let the 120 mm block hold back the ribs of the 30 mm bar bending
+    far from it: on the riser they stood at 4° to 47°, never square to its 60°. Measured where the ribs meet, the
+    riser's ribs stand square to it, and still nothing collides."""
+    model, curve = slim_neck(tmp_path)
+    plan = build(model, "curve", {"plane": "yz", "count": 22, "spines": 1, "thickness": 3, "curve": curve, "autofix": "off", "shrinkwrap": 2})
+    assert plan["counts"]["errors"] == 0, [(s["label"], s["errors"]) for s in plan["slices"] if s["errors"]] + plan["errors"]
+    normals = [np.array(s["M"])[:3, 2] for s in plan["slices"] if s["label"].startswith("R-")]
+    riser = [np.degrees(np.arctan2(n[2], n[1])) for n in normals[-5:]]     # the rib normal's angle in the y-z plane
+    assert np.allclose(riser, 60, atol=3), riser
+
+
+def test_curve_rib_keeps_its_spine_where_the_curve_runs_past_it():
+    """The horse as 0.3.3 shipped it (bug 049): its curve runs on into the head, turned aside where the flat body
+    spine does not reach, and the head has no branch. Square to the curve, the last rib met no spine and floated
+    (3 errors; with auto-fix, 2 blocked slots among the slices it added). The one reach for the whole model had held
+    it back by chance. It turns no further than keeps it on the spine. And the hind leg's tongue, ending a fixed pitch
+    and a half from its joint, kept a 1.5 mm bridge past R-3's slot once R-3 leaned more: it ends on a rib's face."""
+    curve_033 = [[-119, 11], [-89, 18], [-59, 23], [-14, 10], [16, 13], [50, 22], [76, 47], [91, 76], [106, 89], [136, 83]]
+    plan = build(EXAMPLES / "horse.stl", "curve", {**HORSE, "curve": curve_033, "branches": BRANCHES, "autofix": "off"})
+    assert plan["counts"]["errors"] == 0, [(s["label"], s["errors"]) for s in plan["slices"] if s["errors"]] + plan["errors"]
+    assert "K-1" in [s for s in plan["slices"] if s["label"].startswith("R-")][-1]["engages"]
+    assert not [(s["label"], w) for s in plan["slices"] for w in s["warnings"] if "bridge" in w]
 
 
 def test_a_turned_interlocked_grid_reaches_the_corners():
@@ -598,7 +728,7 @@ def test_autofix_adds_interlocked_slices_a_full_wall_from_the_others(model):
     their slots in every crossing slice. Each added slice now keeps the thickness, the slot offset and the minimum wall
     from every other slice of its family."""
     job = {"thickness": 3, "slot_offset": 0.2, "min_feature": 2.0, "kerf": 0.15}
-    plan = build(EXAMPLES / f"{model}.stl", "interlocked", job)
+    plan = build(COW if model == "cow" else EXAMPLES / f"{model}.stl", "interlocked", job)
     need = job["thickness"] + job["slot_offset"] + job["min_feature"]
     mid, added = np.array(plan["mid"]), 0
     for fam, key in (("X", "extra_x"), ("Y", "extra_y")):
@@ -618,7 +748,9 @@ def test_connectors_are_named_after_their_lower_slice_and_marked_beside_their_ho
     tab connectors the peg is the connector and carries the name as its part label. The assembly key lists every
     rod with its two ends."""
     from core.export import key_text
-    plan = build(EXAMPLES / "egg.stl", "stacked", {"distribution": "count", "count": 5, "placement": "random", "n_points": 2, "autofix": "off"})
+    plan = build(EXAMPLES / "egg.stl", "stacked", {"distribution": "count", "count": 5, "placement": "random", "n_points": 2, "autofix": "off",
+                                                   "hide_marks": False})   # every mark: where hiding leaves them is the next test's
+
     assert [r[5] for r in plan["rods"]] == ["Z-1a", "Z-1b", "Z-2a", "Z-2b", "Z-3a", "Z-3b", "Z-4a", "Z-4b"]
     by = {sl["label"]: sl for sl in plan["slices"]}
     marks = lambda sl: [m[2] for pc in sl["pieces"] for m in pc["marks"]]
@@ -633,7 +765,8 @@ def test_connectors_are_named_after_their_lower_slice_and_marked_beside_their_ho
 
     plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 4, "autofix": "off"})   # aligned: two rods, the whole stack
     assert {r[5] for r in plan["rods"]} == {"Z-1a", "Z-1b"}
-    assert all(marks(sl) == ["1a", "1b"] for sl in plan["slices"])
+    *lower, top = plan["slices"]
+    assert all(marks(sl) == ["1a", "1b"] for sl in lower) and marks(top) == []   # the top layer is clean (hide_marks)
     assert "Z-1a      Z-1       Z-4" in key_text(plan)
 
     plan = build(EXAMPLES / "egg.stl", "stacked", {"distribution": "count", "count": 4, "connect": "tab", "space": 4, "dowel_d": 6, "autofix": "off"})
@@ -659,7 +792,7 @@ def test_folded_seam_numbers_sit_on_material_clear_of_cuts_and_folds_and_tabs_fo
     the fold lines and the other numbers; a hinge is scored across each tab's base alone, never along the seam under
     a cut. A seam with no room for its number says so in the panel's warnings instead of engraving it over a fold."""
     from shapely.geometry import LineString, MultiPolygon, Polygon
-    from core.geometry import mark_box
+    from core.labels import mark_box
     plan = build(EXAMPLES / "cube.stl", "folded", {"size": [90, 0, 0], "joint": "ticked", "facet": 0, "inset": 6, "spacing": 30,
                                                    "thickness": 1, "autofix": "off"})
     font = plan["params"]["font"]
@@ -688,14 +821,14 @@ def test_a_dense_net_numbers_its_seams_in_seconds_not_minutes():
     (1340 while the 346 edges inside its flat faces still counted as seams, bugs/039)."""
     plan = build(EXAMPLES / "cube.stl", "folded", {"thickness": 6, "thicken": 50})
     marks = [m for sl in plan["slices"] for pc in sl["pieces"] for m in pc["marks"]]
-    assert len(marks) > 700 and all(m[2].isdigit() for m in marks)
+    assert len(marks) > 700 and all(m[2].rstrip(".").isdigit() for m in marks)
 
 
 def test_orientation_arrows_are_two_lines_inside_every_part_clear_of_its_marks():
     """`orient_mark` engraves two arrows at the middle of each part, the same two directions on every part, inside the
-    material and touching no dowel number; off, a part carries none."""
+    material and touching no dowel number — but on the stack's top layer, which nothing covers; off, a part carries none."""
     from shapely.geometry import LineString, MultiPolygon, Polygon
-    from core.geometry import mark_box
+    from core.labels import mark_box
     params = {"distribution": "count", "count": 3, "autofix": "off", "connect": "dowel"}
     on = build(EXAMPLES / "cube.stl", "stacked", {**params, "orient_mark": True})
     off = build(EXAMPLES / "cube.stl", "stacked", params)
@@ -705,10 +838,68 @@ def test_orientation_arrows_are_two_lines_inside_every_part_clear_of_its_marks()
         for pc in sl["pieces"]:
             geom = MultiPolygon([Polygon(r[0], r[1:]) for r in pc["placed"]])
             arrows = [LineString(pts) for s, pts in pc["lines"] if s == "orient"]
-            assert len(arrows) == 4, sl["label"]                      # two arrows: a shaft and a head each
+            assert len(arrows) == (0 if sl is on["slices"][-1] else 4), sl["label"]   # two arrows: a shaft and a head each
             for a in arrows:
                 assert geom.buffer(-0.3).covers(a)
                 assert all(not a.intersects(mark_box(x, y, t, font, rot)) for x, y, t, rot in pc["marks"])
+
+
+def test_a_dowel_number_on_a_ring_slice_lies_on_its_wall():
+    """Bug 051: ring slices place their dowels while each slice is still a wide ring, then cut it back to its wall. A
+    dowel number placed in the wide ring hung over the hollow, up to 81 % of it off the part at a 4 mm wall, with
+    `hide_marks` off and on every fit coupon of a ring stack. Every number lies whole on its part."""
+    from shapely.geometry import MultiPolygon, Polygon
+    from core.labels import mark_box
+    plan = build(EXAMPLES / "egg.stl", "stacked", {"ring_slices": True, "ring_wall": 4, "hide_marks": False, "autofix": "off"})
+    font = plan["params"]["font"]
+    numbers = [(pc["label"], MultiPolygon([Polygon(r[0], r[1:]) for r in pc["kerfed"]]).buffer(0.01), mark_box(x, y, t, font, r))
+               for sl in plan["slices"] for pc in sl["pieces"] for x, y, t, r in pc["kerfed_marks"]]
+    assert len(numbers) > 20
+    assert all(part.covers(box) for _, part, box in numbers), [lab for lab, part, box in numbers if not part.covers(box)][:6]
+
+
+def test_a_stack_hides_every_engraving_under_the_layer_above():
+    """`hide_marks`, on by default: everything engraved on a stacked layer — its label, its orientation arrows, its dowel
+    numbers — lies under the outline of the layer glued on top of it, so the glued pyramid shows none of it, and the
+    top layer is clean: its label beside it on the sheet, no groove in its print. Off, the top layer is engraved."""
+    from shapely import affinity
+    from shapely.geometry import LineString, Polygon
+    from shapely.ops import unary_union
+    from core.export import label_on_part
+    from core.labels import label_box, label_rect, mark_box
+    from core.solid import has_boolean, proto_part
+    params = {"distribution": "count", "count": 6, "autofix": "off", "orient_mark": True}
+    plan = build(EXAMPLES / "pyramid.stl", "stacked", params)
+    layers = [sl for sl in plan["slices"] if sl["group"] == "S"]
+    font, tag = plan["params"]["font"], plan["label_tag"]
+    world = lambda sl, g: affinity.affine_transform(g, [*np.array(sl["M"])[:2, :2].ravel(), *np.array(sl["M"])[:2, 3]])  # noqa: E731
+    on_parts = 0
+    for a, b in zip(layers, [*layers[1:], None]):
+        above = None if b is None else unary_union([world(b, Polygon(poly[0])) for pc in b["pieces"] for poly in pc["kerfed"]])  # rods fill its holes
+        for pc in a["pieces"]:
+            text = pc["label"] if pc["label_short"] or not tag else f"{tag} {pc['label']}"
+            label = label_on_part(pc)
+            engraved = [LineString(pts) for s, pts in pc["kerfed_lines"] if s == "orient"] \
+                + [mark_box(x, y, t, font, r) for x, y, t, r in pc["kerfed_marks"]] \
+                + ([label_rect(*label, *label_box(text, pc["label_size"]))] if label else [])
+            if above is None:
+                assert not engraved and pc["leader"], pc["label"]         # the top layer: nothing on it, its name beside it
+            else:
+                assert all(above.covers(world(a, g)) for g in engraved), pc["label"]
+                on_parts += label is not None
+    assert on_parts >= 3                                                  # the lower layers still carry their names
+
+    top, low = layers[-1]["pieces"][0], layers[0]["pieces"][0]
+    for pc, sl, grooved in ((top, layers[-1], False), (low, layers[0], True)):
+        mesh, labeled, _, _ = proto_part(pc, sl["thickness"], 1.0, "groove", 5.0, 1.2)
+        solid = sum(Polygon(r[0], r[1:]).area for r in pc["kerfed"]) * sl["thickness"]
+        assert labeled == grooved, pc["label"]                             # the clean top layer has no label on it: its number goes on a tag (bug 061)
+        if has_boolean():
+            assert (mesh.volume < solid - 1) == grooved, pc["label"]
+
+    off = build(EXAMPLES / "cube.stl", "stacked", {**params, "count": 3, "hide_marks": False})   # a top big enough to hold them
+    top = off["slices"][-1]["pieces"][0]
+    assert [s for s, _ in top["kerfed_lines"] if s == "orient"] and top["kerfed_marks"] and top["leader"] is None
 
 
 def test_stacked_shift_moves_every_slice_plane_and_keeps_the_model_covered():
@@ -832,6 +1023,16 @@ def test_a_preview_windows_will_not_let_go_of_never_fails_the_slice(tmp_path, mo
     assert not list(tmp_path.glob("model.*.stl"))                        # and no half-written file is left beside it
 
 
+def test_what_a_technique_hands_the_view_is_fresh_for_every_build():
+    """The view's defaults are made anew for each context: the rods one build appends to are that build's own, and a
+    build that hands the view nothing gets the defaults, not the last build's rods."""
+    params = {"distribution": "count", "count": 4, "autofix": "off", "connect": "dowel"}
+    first = build(EXAMPLES / "cube.stl", "stacked", params)
+    second = build(EXAMPLES / "cube.stl", "stacked", params)
+    assert first["rods"] and second["rods"] == first["rods"] and second["rods"] is not first["rods"]
+    assert build(EXAMPLES / "cube.stl", "stacked", {**params, "connect": "none"})["rods"] == []
+
+
 def test_a_plan_file_windows_will_not_let_go_of_is_written_on_the_next_try(tmp_path, monkeypatch):
     """Seen in the page suite on Windows (042): the page was still reading the last plan.json when the next slice wrote
     it in place, the write failed with OSError [Errno 22], and the slice with it. The plan is now written beside and
@@ -891,3 +1092,26 @@ def test_a_plan_file_another_program_has_mapped_is_written_when_it_lets_go(tmp_p
     finally:
         let_go.set(); t.join()
     assert json.loads(target.read_text())["counts"]["slices"] == 4
+
+
+def test_the_basic_list_names_settings_that_exist():
+    """ALL_ONLY (the settings the form holds back on basic) names real settings: a renamed one would stay on show
+    without a word, and the flag reaches the form's schema."""
+    from core.modes import ALL_ONLY, COMMON, load_all
+    modes = load_all()
+    assert set(ALL_ONLY) == {"common", *modes}
+    for name, held in ALL_ONLY.items():
+        have = [p.name for p in (COMMON if name == "common" else modes[name].params)]
+        assert not set(held) - set(have), (name, set(held) - set(have))
+    by = {p["name"]: p["advanced"] for p in modes["stacked"].schema()["params"]}
+    assert by["shift"] and not by["count"]
+
+
+def test_a_connector_that_was_asked_for_and_left_out_is_a_warning_of_the_plan():
+    """A pair of layers that gets no dowel used to be a note under a green "0 warnings". It is counted now, and it
+    names the setting as the form does."""
+    plan = build(EXAMPLES / "cone.stl", "stacked", {"connect": "dowel", "n_points": 2, "dowel_d": 20, "distribution": "count", "count": 8})   # the tip is too narrow for a 20 mm dowel
+    assert len(plan["warnings"]) == 1 and "got no connector" in plan["warnings"][0], plan["warnings"]
+    assert plan["counts"]["warnings"] == 1 + sum(len(sl["warnings"]) for sl in plan["slices"])
+    assert not any("connector" in n for n in plan["notes"]) and "dowel_d" not in plan["warnings"][0]
+

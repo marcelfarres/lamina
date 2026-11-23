@@ -25,6 +25,8 @@ STILLS = {                            # name: (crop, width)
     "sheets": (SHEETS, 2000),
     "checks": (LEFT_MSG, 2000),
     "export": (LEFT_MSG, 2000),
+    "light_stacked": (VIEW, 1800),     # the stacked vase lit by a desk lamp beside it
+    "light_room": (VIEW, 1800),        # the folded lamp in a bigger room: grey walls, a wood floor
     "labels": (None, 2000),            # captured already cropped: the top-left of a cut sheet, at closeup size
 }
 JOINT = (1400, 1050)                  # every joint closeup on the same 4:3 canvas, so the gallery does not jump
@@ -44,8 +46,27 @@ CLIPS = {                             # name: (crop, width, fps)
     "axes": (VIEW43, 1100, 18),       # radial with an axis per lobe: the dumbbell, its neck plane moved and tilted
     "lobes": (FULL, 1200, 16),        # the plane between two lobes selected, its sliders in frame
     "square": (FULL, 1200, 16),       # a cube 8° off square, then the Model tab's square it up button
-    "spacing": (FULL, 1200, 16),      # the spacing graph under the 3D view, its middle point dragged, the vase re-sliced
+    "spacing": (FULL, 1200, 16),      # the spacing graph in the form: ticked on, a shape picked, a point dragged, follow the model
+    "rings": (VIEW43, 1100, 18),      # stacked ring slices: the head solid, as rings, a wider wall, pieces 150 mm at most
+    "rings_light": (VIEW43, 1100, 18),   # the vase as ring slices with a gap, the LED inside: the light comes out between the layers
+    "rings_light_tube": (VIEW43, 1100, 18),   # the same on the tube
+    "radial_light": (VIEW3D, 1000, 20),  # the pear in radial slices, the LED moved up and down inside it while the view turns
+    "bands": (VIEW43, 1100, 18),      # the band lattice on the sphere: 4 a family, then 2, 4 x 4 x 3, and 4 again
+    "bands_build": (VIEW3D, 1000, 20),   # the 4 x 4 x 4 lattice built up in the order its pieces go in, then pulled apart
+    "light": (VIEW43, 1100, 20),      # the lamp folds up from its flat net, the light tick, one turn round it in its room
+    "light_build": (VIEW3D, 1000, 20),   # the radial bowl lit by its LED: parts go in one by one, then the slicing changes
+    "light_move": (FULL, 1200, 16),   # the move-a-light tool: up its arrow, across, back
+    "mask": (VIEW, 1200, 16),         # folded: the lion head, a seam round its face, the back selected and removed, turned to the front
 }
+
+POSTER = {"spacing": 54,             # the frame a clip's poster is, where the first one does not show its subject (the graph opens at frame 8)
+          "mask": 104,
+          "light": 110,              # lit, in its room (frames 0-74 are the net folding up)
+          "radial_light": 40,        # the light low in the pear, the pattern fanning on the floor
+          "light_build": 50,         # all parts in, the pattern complete
+          "light_move": 34,          # the light near the top of its arrow
+          "rings": 44,               # the stack as rings, wall 8 mm (frames 0-29 are the solid slices)
+          "bands_build": 44}         # the lattice two thirds built (frame 0 is its first band alone)
 
 
 def px(crop):
@@ -92,7 +113,7 @@ for name, (crop, width, fps) in CLIPS.items():
         w = width - width % 2
         im = im.resize((w, (round(im.height * w / im.width)) // 2 * 2), Image.LANCZOS)
         im.convert("RGB").save(tmp / f"{i:03d}.png")
-    save(Image.open(tmp / "000.png"), OUT / f"{name}_poster.jpg", width)
+    save(Image.open(tmp / f"{POSTER.get(name, 0):03d}.png"), OUT / f"{name}_poster.jpg", width)
     if not ffmpeg:
         print("no ffmpeg, skipping", name); continue
     out = OUT / f"{name}.mp4"                     # the page plays mp4 only (h264 plays everywhere)

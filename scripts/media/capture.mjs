@@ -26,10 +26,10 @@ const until = async (expr, tries = 400) => { for (let i = 0; i < tries; i++) { i
 const settle = async () => { await until("window.__t.idle()", 960); await sleep(400); };   // the fine-remeshed head takes ~30 s a slice
 const png = async (name, clip) => { const s = await send("Page.captureScreenshot", { format: "png", ...(clip ? { clip } : {}) }); fs.writeFileSync(`${OUT}/${name}.png`, Buffer.from(s.data, "base64")); };
 const shot = async name => { await png(name); await project(name); console.log("shot", name, await verdict()); };
-// the scene as a project file (what "save project" writes, minus the model: it names the bundled example),
+// the scene as a project file (the page's own, as the top bar's "save" writes it into the library, minus the model: it names the bundled example),
 // so a reviewer can open it in the app and see exactly this
 fs.mkdirSync("working-files/review", { recursive: true });
-const project = async name => fs.writeFileSync(`working-files/review/${name}.lamina.json`, await js(`JSON.stringify({version:3,name:'Lamina demo ${name}',rev:'1.0',mode:location.hash.slice(1),unit:window.__t.state().units||'mm',state:window.__t.state(),example:document.querySelector('#example').value})`));
+const project = async name => fs.writeFileSync(`working-files/review/${name}.lamina.json`, await js(`window.__t.project().then(p => JSON.stringify({...p, name: 'Lamina demo ${name}'}))`));
 
 // one parameter by its name: number / range / select / checkbox; a vector sets p_name_0, p_name_1, ...
 // (the form listens for 'input' delegated, the view controls for 'change' — fire both)
@@ -65,7 +65,7 @@ const heal = async (rounds = 12) => {
 // the base preparation goes in before the switch: the new mode slices at once with its remembered parameters, and
 // e.g. round 3 + a remembered facet 0 would unfold a remeshed 100k-triangle cube (never finishes)
 const mode = async m => { await params({}); await js(`document.querySelector('#modes button[data-m=${m}]').click()`); await settle(); };
-const example = async e => { await js(`(()=>{const s=document.querySelector('#example');s.value='${e}';s.dispatchEvent(new Event('change'))})()`); await settle(); };
+const example = async e => { await js(`window.__t.openExample('${e}')`); await settle(); };
 const tab = async t => { await js(`document.querySelector('nav button[data-t=${t}]').click()`); await sleep(300); };
 const cam = (az, el, d) => js(`window.__t.cam(${az},${el},${d ?? "null"})`);
 const fit = async () => { await js("document.querySelector('#fit').click()"); await sleep(300); };
@@ -177,21 +177,26 @@ S.lobes = async () => {       // the plane between two lobes is a part: select i
     });
     await js("window.__t.deselect()"); await fix({ offset: { "B-1-2": 0 }, tilt: { "B-1-2": 0 } });
 };
-S.curve = async () => {       // the horse is long along y; the curve follows the back and climbs the neck to the head
+S.curve = async () => {       // the horse is long along y; the curve follows the back and climbs the neck to the poll
     await example("horse"); await mode("curve"); await tab("technique");
-    // 20 ribs on one body spine, and a branch down each leg: ribs square to the leg and a spine of its own that slots
-    // into the body ribs, so no body rib cuts across a leg. Points in mm for the horse 300 mm long, as on the landing
-    // settings. The head goes up, not down: down, the head ribs cross (the legs no longer hold back the turn limit)
+    // 20 ribs on one body spine, and a branch down each leg and one for the head: ribs square to it and a spine of its
+    // own that slots into the body ribs, so no body rib cuts across a leg or the head. The head is turned to one side,
+    // where the flat body spine does not reach; the curve ends going up at the poll, so the head's spine lies in the
+    // head's profile. Points in mm for the horse 300 mm long, as in examples/presets.json
     await params({ plane: "yz", count: 20, spines: 1, round: 2, size: [0, 300, 0], thicken: 1 });
-    const CURVE = [[-119, 11], [-89, 18], [-59, 23], [-14, 10], [16, 13], [50, 22], [76, 47], [91, 76], [106, 89], [136, 83]];
+    const CURVE = [[-119, 18], [-89, 19], [-59, 19], [-14, 14], [16, 14], [50, 22], [76, 47], [86, 68], [94, 92], [97, 108]];
     const BRANCHES = [[[-2, 46.6, -33], [-5.2, 64.5, -128]], [[40.5, 36.8, -33], [49, 25.8, -125]],
-        [[-2.8, -100.1, -11], [-5, -134.2, -125]], [[52, -83.1, -15], [54.9, -101, -125]]];
+        [[-2.8, -100.1, -11], [-5, -134.2, -125]], [[52, -83.1, -15], [54.9, -101, -125]], [[2, 106, 94], [-68, 142, 62]]];
     await fix({ curve: CURVE, branches: BRANCHES }); await heal();
-    await view(-70, 16, 0.9, 1.0); await project("curve");
-    // 12 ribs leave a rib floating and the head point at 136 puts the spine's material in a rib's slot path: 13 and
-    // 130 are the neighbours that come out clean on the exact remesh
-    await techClip("curve", -70, 16, 0.9, [["8 ribs", () => set("count", 8)], ["13 ribs", () => set("count", 13)], ["20 ribs", () => set("count", 20)],
-        ["head point up", () => fix({ curve: [...CURVE.slice(0, -1), [130, 92]] })], ["head point back", () => fix({ curve: CURVE })]]);
+    // from the right front, turning toward the head's profile (it faces about 60°): from behind the head was hidden
+    await view(30, 16, 0.9, 1.0); await project("curve");
+    // 10 ribs put a front leg's spine in R-5's slot path: 8, 13 and 20 come out clean
+    await techClip("curve", 30, 16, 0.9, [["8 ribs", () => set("count", 8)], ["13 ribs", () => set("count", 13)], ["20 ribs", () => set("count", 20)],
+        // the lamp low, in front of the horse and outside it: the ribs throw long shadows on the wall behind; then it moves round to the back
+        ["lamp in front", async () => { await set("lamp", true); await sleep(700); await lt("select[data-l=like]", "desk"); await lt("select[data-l=aim]", "middle"); await lt("#lt_lm", 1000);
+            await lt("#lt_p0", 150); await lt("#lt_p1", 200); await lt("#lt_p2", 40); }],
+        ["lamp moved", async () => { await lt("#lt_p0", -200); await lt("#lt_p1", -120); }]]);
+    await dark();
 };
 S.folded = async () => {      // the cow mesh is y-up: rotate x 90° stands it up
     await example("cow"); await mode("folded"); await tab("technique");
@@ -302,26 +307,30 @@ S.edit = async () => {        // move the slice nearest the camera, so the whole
     await js("window.__t.deselect()");
 };
 
-// a point of the spacing graph dragged: the vase opens with a curve (dense at the foot, shoulder and lip); its middle
-// point is pulled down and let go, the model re-slices, then pulled back up. The graph is a 900 x 300 canvas with
-// 46 / 12 px beside and 10 / 26 px above and below the plot (spcGeom in the app)
-const spcPoint = async (t, v) => js(`(()=>{const c=document.querySelector('#spacing canvas'),r=c.getBoundingClientRect(),s=window.__t.state(),lo=+s.spacing_min,hi=+s.spacing_max;
-    return [r.left+r.width*(46+${t}*(900-58))/900, r.top+r.height*(300-26-(${v}-lo)/(hi-lo)*264)/300]})()`);
+// the spacing graph, start to finish: the vase evenly sliced; "vary the spacing" ticked and the graph opens under it; a
+// starting shape picked (dense at both ends); the middle point dragged down and let go; then "follow the model", which
+// draws the curve from how fast the vase's width changes; a point added and the curve smoothed. The model re-slices
+// after each step. The page says where a point of the graph is on the screen (__t.spcXY)
+const spcPoint = async (t, v) => js(`window.__t.spcXY('spacing_curve', ${t}, ${v})`);
 const mouse = (type, x, y, extra = {}) => send("Input.dispatchMouseEvent", { type, x, y, button: "left", buttons: 1, pointerType: "mouse", ...extra });
+const spcPress = async what => { await js(`document.querySelector('.spc button[${what}]').click()`); await settle(); };
 S.spacing = async () => {
     await example("vase"); await mode("stacked"); await tab("technique");
-    await params({ distribution: "count", count: 18, connect: "dowel", dowel_d: 4, n_points: 2, spacing_vary: true, spacing_min: 3, spacing_max: 30,
+    await params({ distribution: "count", count: 18, connect: "dowel", dowel_d: 4, n_points: 2, spacing_vary: false, spacing_min: 3, spacing_max: 30,
                    orient_mark: true, label_place: "part" });
-    await js("window.__t.state().spacing_curve=[[0,5],[0.12,6],[0.3,16],[0.5,18],[0.72,6],[0.9,5],[1,6]]"); await set("spacing_vary", true); await settle();
-    await view(-50, 14, 1.0); await js("document.querySelector('#spacing').scrollIntoView({block:'end'})"); await sleep(300);
-    const [x0, y0] = await spcPoint(0.5, 18), [, y1] = await spcPoint(0.5, 6);
-    await clip("spacing", 56, async i => {
-        if (i === 6) await mouse("mousePressed", x0, y0, { clickCount: 1 });
-        else if (i > 6 && i <= 18) await mouse("mouseMoved", x0, y0 + (y1 - y0) * (i - 6) / 12);
-        else if (i === 19) { await mouse("mouseReleased", x0, y1, { clickCount: 1 }); await settle(); }
-        else if (i === 32) await mouse("mousePressed", x0, y1, { clickCount: 1 });
-        else if (i > 32 && i <= 44) await mouse("mouseMoved", x0, y1 + (y0 - y1) * (i - 32) / 12);
-        else if (i === 45) { await mouse("mouseReleased", x0, y0, { clickCount: 1 }); await settle(); }
+    await view(-50, 14, 1.0);
+    const show = () => js("document.querySelector('.sec[data-sec=Spacing]').scrollIntoView({block:'start'})");
+    await show(); await sleep(300);
+    let x0, y0, y1;
+    await clip("spacing", 96, async i => {
+        if (i === 8) { await set("spacing_vary", true); await settle(); await show(); }
+        else if (i === 20) await spcPress("data-arg=ends");
+        else if (i === 32) { [x0, y0] = await spcPoint(0.5, (await js("window.__t.state().spacing_curve[1][1]"))); [, y1] = await spcPoint(0.5, 15); await mouse("mousePressed", x0, y0, { clickCount: 1 }); }
+        else if (i > 32 && i <= 44) await mouse("mouseMoved", x0, y0 + (y1 - y0) * (i - 32) / 12);
+        else if (i === 45) { await mouse("mouseReleased", x0, y1, { clickCount: 1 }); await settle(); }
+        else if (i === 58) await spcPress("data-arg=model");
+        else if (i === 72) await spcPress("data-spc=add");
+        else if (i === 80) await spcPress("data-spc=smooth");
         else await sleep(120);
     });
     await project("spacing");
@@ -342,10 +351,11 @@ S.labels = async () => {      // the vase's cut sheet, close: names in the singl
     await set("viewmode", "both"); await sleep(400);
 };
 
+// what the folded lamp's preset brings of its own stock (PETG, printed, the printer's bed): a scene on it puts these back
+const LAMP_KEEP = ["material", "printed", "machine", "sheet", "kerf", "thickness", "joint", "strategy", "facet", "window", "edge_labels"];
 S.fold = async () => {        // folded panels, printed: the lamp shade from its flat net to the folded shade and back, orbiting
     // the lamp's preset brings its own stock (PETG, printed, the printer's bed): what was there is put back at the end
-    const KEEP = ["material", "printed", "machine", "sheet", "kerf", "thickness", "joint", "strategy", "facet", "window", "edge_labels"];
-    const was = await js(`JSON.stringify(Object.fromEntries(${JSON.stringify(KEEP)}.map(k=>[k,window.__t.state()[k]])))`);
+    const was = await js(`JSON.stringify(Object.fromEntries(${JSON.stringify(LAMP_KEEP)}.map(k=>[k,window.__t.state()[k]])))`);
     await example("fold_lamp"); await tab("technique");
     await set("viewmode", "only3d"); await sleep(600);
     const look = () => js("(()=>{const t=window.__t.target();return [t.x,t.y,t.z,window.__t.camera.position.distanceTo(t)]})()");
@@ -365,13 +375,187 @@ S.fold = async () => {        // folded panels, printed: the lamp shade from its
     await js(`Object.assign(window.__t.state(),${was})`); await example("egg");
 };
 
+// ring slices: the head's stack as solid slices, then as rings with a wall, a wider wall, and pieces no longer than
+// 150 mm. Put back at the end: stacked remembers its settings, and the next stacked scene must not open as rings
+S.rings = async () => {
+    await example("head_igea"); await mode("stacked"); await tab("technique");
+    await params({ ...HEAD, distribution: "count", count: 10, connect: "dowel", ring_slices: false }); await heal();
+    await view(-50, 16, 1.05, 1.0); await project("rings");
+    await techClip("rings", -50, 16, 1.0, [["ring slices, wall 8 mm", async () => { await set("ring_slices", true); await settle(); await set("ring_wall", 8); }],
+        ["wall 15 mm", () => set("ring_wall", 15)], ["wall 8 mm", () => set("ring_wall", 8)],
+        ["pieces 150 mm at most", () => set("max_length", 150)], ["no limit", () => set("max_length", 0)]]);
+    await set("ring_slices", false); await settle();
+};
+// stacked ring slices with a gap, the LED inside: the light comes out between the layers
+const ringsLight = async (name, example_, extra, sweep) => {   // sweep: the light goes up and down inside, the gap stays
+    await example(example_); await mode("stacked"); await tab("technique");
+    await params({ distribution: "distance", space: 5, connect: "dowel", dowel_d: 4, spacing_vary: false, ring_slices: true, ring_wall: 8, ...extra }); await heal();
+    await set("lamp", true); await sleep(700); await view(-40, 18, 1.0, 1.0);
+    if (!sweep) await techClip(name, -40, 18, 1.0, [["gap 9 mm", () => set("space", 9)], ["gap 5 mm", () => set("space", 5)]]);
+    else {
+        await set("viewmode", "only3d"); await sleep(600); await fit();
+        const d = await far(1.0), z0 = +(await js("document.querySelector('#lt_p2').value")); let az = -40;
+        await clip(name, 90, async i => { await lt("#lt_p2", (z0 * (1 + 0.75 * Math.sin(i * 2 * Math.PI / 90))).toFixed(1)); az += 1.2; await cam(az, 18, d); await sleep(150); });
+        await set("viewmode", "both"); await sleep(400);
+    }
+    await dark(); await example("egg");
+};
+S.rings_light = () => ringsLight("rings_light", "vase", {});
+S.rings_light_tube = () => ringsLight("rings_light_tube", "tube", { connect: "tab" }, true);
+S.radial_light = async () => {              // the pear (the droplet is a 34 mm flat disc and errors in radial) in radial slices, the LED in its centre, moved up and down inside while the view turns
+    await example("pear"); await mode("radial"); await tab("technique"); await params({ hollow: 6 }); await heal();   // a shell 6 mm thick: room inside for the light
+    for (const [c, r] of [[8, 3], [10, 3], [8, 4], [10, 4], [12, 4], [6, 3], [12, 3], [8, 2], [10, 5]]) {   // the first count that slices with no warning
+        await set("count", c); await set("ring_count", r); await settle(); const v = await verdict(); console.log("  radial_light try", c, r, v); if (/E0 W0/.test(v)) break;
+    }
+    await set("viewmode", "only3d"); await sleep(600); await set("lamp", true); await sleep(700); await fit();
+    const d = await far(1.5); let az = -60; await cam(az, 22, d); await sleep(500);
+    const z0 = +(await js("document.querySelector('#lt_p2').value"));
+    await clip("radial_light", 100, async i => {
+        await lt("#lt_p2", (z0 + 40 * Math.sin(i * 2 * Math.PI / 50)).toFixed(1)); az += 1.4; await cam(az, 22, d); await sleep(150);
+    });
+    await project("radial_light"); await dark(); await set("viewmode", "both"); await sleep(400); await example("egg");
+};
+// the band lattice on the sphere, the shape it suits: rings across x, y and z, half-lapped where they cross. In 3 mm
+// stock 4 x 4 x 4 (the default), 4 x 4 x 3 and 2 x 2 x 2 have every piece with a way in; 5 x 5 x 4 locks two. No
+// heal(): its grown outlines stay on the bands as the counts change. The technique card orbits 4 x 4 x 4 and changes
+// the counts; the second clip builds it up in the order its pieces go in, the first family whole and every later
+// piece slid in along its slots, then pulls it apart
+const BANDS = async (n) => { await set("nx", n[0]); await set("ny", n[1]); await set("nz", n[2]); };
+S.bands = async () => {
+    await example("sphere"); await mode("bands"); await tab("technique");
+    await params({ nx: 4, ny: 4, nz: 4 });
+    await view(-50, 22, 1.0, 1.0); await project("bands");
+    await techClip("bands", -50, 22, 1.0, [["2 x 2 x 2", () => BANDS([2, 2, 2])], ["4 x 4 x 3", () => BANDS([4, 4, 3])], ["4 x 4 x 4", () => BANDS([4, 4, 4])]]);
+    await BANDS([4, 4, 4]); await settle();
+    await set("viewmode", "only3d"); await sleep(600); await fit();
+    const dist = (await js("window.__t.camera.position.length()")) * 0.95;
+    const nparts = await js("window.__t.parts().length");
+    await cam(-50, 22, dist);
+    await clip("bands_build", 80, async i => {
+        if (i < 56) { await set("steps", Math.max(1, Math.round((i + 1) * nparts / 56))); await sleep(60); }
+        else { const t = (i - 56) / 23; await set("explode", (1 + 1.2 * Math.sin(t * Math.PI)).toFixed(2)); }
+    });
+    await set("explode", 1); await set("steps", nparts);
+    await set("viewmode", "both"); await sleep(500);
+};
+// a mask from a model: the lion head in Folded Panels, a seam round the back of its head, the back selected with one click and
+// "connected", removed (its faces as dashed outlines), then turned to the front: only the mask is cut, and the
+// outlines behind it show what went. Real clicks
+// on the 3D view; the page says where a face is on the screen (__t.faces().under)
+// the back of the lion: the largest joined area of faces that face backward; a seam round it keeps the whole front mane
+const LION_BACK = `(() => { const F = window.__t.plan().faces3d, V = F.v, sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const ny = F.f.map(([a, b, c]) => { const u = sub(V[b], V[a]), w = sub(V[c], V[a]), n = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]]; return n[1] / Math.hypot(...n) });
+  const my = F.f.map(f => (V[f[0]][1] + V[f[1]][1] + V[f[2]][1]) / 3), nb = F.f.map(() => []); F.adj.forEach(([a, b]) => { nb[a].push(b); nb[b].push(a) });
+  const ok = F.f.map((_, i) => ny[i] > 0.3 && my[i] > 0), seen = new Set(); let best = [];
+  for (let i = 0; i < F.f.length; i++) { if (!ok[i] || seen.has(i)) continue; const part = [i]; seen.add(i);
+    for (let k = 0; k < part.length; k++) for (const j of nb[part[k]]) if (ok[j] && !seen.has(j)) { seen.add(j); part.push(j) }
+    if (part.length > best.length) best = part }
+  const back = new Set(best);
+  return {back: [...back], loop: F.adj.filter(([a, b]) => back.has(a) !== back.has(b)).map(([a, b]) => F.f[a].filter(i => F.f[b].includes(i)).map(i => V[i]))} })()`;
+const press = async (x, y) => { await mouse("mousePressed", x, y, { clickCount: 1 }); await mouse("mouseReleased", x, y, { clickCount: 1, buttons: 0 }); };
+S.mask = async () => {
+    await example("lion_head"); await tab("technique");    // opens in Folded Panels; the Model tab would draw the rotate rings
+    await until("window.__t.plan()?.faces3d"); await settle();
+    await fix({ seams: (await js(LION_BACK)).loop });
+    await js("document.querySelector('#tools [data-tool=seam]').click()"); await sleep(400);
+    await fit(); const d = (await js("window.__t.camera.position.distanceTo(window.__t.target())")) * 0.88;
+    let az = 75; await cam(az, 12, d); await sleep(300);
+    const back = () => js(`(()=>{const back=new Set(${LION_BACK}.back),r=window.__t.canvas().getBoundingClientRect(),f=window.__t.faces();let best=null;
+        for(let x=r.left+80;x<r.right-80;x+=10)for(let y=r.top+100;y<r.bottom-120;y+=10){const u=f.under(x,y);if(u?.face===undefined||!back.has(u.face))continue;
+          const dd=Math.hypot(x-r.left-r.width/2,y-r.top-r.height/2);if(!best||dd<best.dd)best={x,y,dd}}
+        return best})()`);
+    await clip("mask", 120, async i => {
+        // 0–15 the seam loop · 16 select faces, one click · 26 grow · 36 connected · 48 remove · 60–105 turning to the front
+        if (i === 16) { await js("document.querySelector('#tools [data-tool=face]').click()"); await sleep(300); const p = await back(); await press(p.x, p.y); await sleep(300); }
+        else if (i === 26) { await js("document.querySelector('[data-faces=grow]').click()"); await sleep(300); }
+        else if (i === 36) { await js("document.querySelector('[data-faces=connected]').click()"); await sleep(300); }
+        else if (i === 48) { await js("document.querySelector('[data-faces=remove]').click()"); await settle(); }
+        else if (i >= 60 && i < 106) { az -= 3; await cam(az, 12, d); }
+        else await sleep(120);
+    });
+    console.log("  mask:", await js("(()=>{const p=window.__t.plan();return p.faces3d.f.length+' faces left, '+p.faces3d.removed+' removed'})()"));
+    await project("mask");
+    await js("document.querySelector('[data-faces=back]').click()"); await fix({ seams: [] });
+    await example("egg");
+};
+
+// ---- the light (js/light.js): the lamp lit, the Light tab's lamps, a light moved, a stack lit from the side, a room
+// a control of the Light tab, set as a user sets it (its rows carry data-l, not the p_ ids `set` looks for)
+const lt = (sel, v) => js(`(()=>{const e=document.querySelector('#g-light ${sel}');if(!e)throw new Error('no light control ${sel}');
+    if(e.type==='checkbox')e.checked=${JSON.stringify(v)};else e.value=${JSON.stringify(String(v))};e.dispatchEvent(new Event(e.type==='checkbox'?'change':'input',{bubbles:true}))})()`);
+// the light off and as a new project has it: the lights are cleared by the next model, the room is not
+const dark = async () => { await js("delete window.__t.state().room;delete window.__t.state().light_video"); await set("lamp", false); await js("document.querySelector('section[data-tab=light] button.reset').click()"); };
+// a scene on the folded lamp: its preset brings its own stock, which is put back at the end (as S.fold does)
+const withLamp = async fn => {
+    const was = await js(`JSON.stringify(Object.fromEntries(${JSON.stringify(LAMP_KEEP)}.map(k=>[k,window.__t.state()[k]])))`);
+    await example("fold_lamp"); await fn();
+    await dark(); await set("viewmode", "both"); await sleep(400); await js(`Object.assign(window.__t.state(),${was})`); await example("egg");
+};
+const far = k => js("window.__t.camera.position.distanceTo(window.__t.target())").then(d => d * k);
+S.light = () => withLamp(async () => {      // the flat net folds up into the shade, the light tick, one turn round it in its room
+    await tab("technique"); await set("viewmode", "only3d"); await sleep(600);
+    const look = () => js("(()=>{const t=window.__t.target();return [t.x,t.y,t.z,window.__t.camera.position.distanceTo(t)]})()");
+    await fit(); const v1 = await look();
+    await js("window.__t.fold(0)"); await fit(); const v0 = await look();
+    // as S.fold: start nearly face on to the inside of the flat net, where the grooves are
+    const [nx, ny, nz] = await js("(()=>{const M=window.__t.plan().slices[0].pieces[0].facets[0].M;return [-M[0][2],-M[1][2],-M[2][2]]})()");
+    const az0 = Math.atan2(ny, nx) * 180 / Math.PI - 20, el0 = Math.min(75, Math.asin(nz) * 180 / Math.PI + 25), az1 = az0 + 150, el1 = 20;
+    const ease = x => x * x * (3 - 2 * x);
+    await clip("light", 170, async i => {
+        // 0–9 the flat net · 10–64 folding up · 65–74 the shade · 75 the light goes on · 75–169 a turn, drawing back to show the room
+        const f = i < 10 ? 0 : i < 65 ? ease((i - 10) / 55) : 1, back = i < 75 ? 0 : ease(Math.min(1, (i - 75) / 30)), turn = i < 65 ? 0 : (i - 65) * 1.7;
+        if (i === 75) await set("lamp", true);
+        const [x, y, z, d] = v0.map((a, k) => a + (v1[k] - a) * f);
+        await js(`(()=>{${i <= 65 ? `window.__t.fold(${f});` : ""}window.__t.target().set(${x},${y},${z});window.__t.cam(${az0 + (az1 - az0) * f + turn},${el0 + (el1 - el0) * f},${d * (0.82 + 0.7 * back)})})()`);
+        await sleep(i === 75 ? 700 : 60);
+    });
+    await js("window.__t.fold(1)"); await project("light");
+});
+S.light_build = async () => {               // the radial bowl lit by its LED: the parts go in one by one and the shadow pattern builds up, then the slicing changes while lit
+    await example("bowl"); await mode("radial"); await params({ count: 10, ring_count: 4 }); await tab("technique");
+    await set("viewmode", "only3d"); await sleep(600); await set("lamp", true); await sleep(700); await fit();
+    const d = await far(1.5); let az = -70; const all = () => js("window.__t.parts().length"); const n0 = await all();
+    await cam(az, 26, d); await set("steps", 1); await sleep(500);
+    // B: five slicing values, all W0 (checked with the probe: 12 slices and 6 rings, or 14 and more, warn)
+    const B = [() => set("count", 8), () => set("count", 12), () => set("ring_count", 5), () => set("count", 10), () => set("ring_count", 4)];
+    await clip("light_build", 52 + 5 * 14, async i => {
+        if (i < 52) await set("steps", Math.max(1, Math.round((i + 1) * n0 / 52)));
+        else if ((i - 52) % 14 === 0) { if (i === 52) await set("steps", n0); await B[(i - 52) / 14](); await settle(); await set("steps", 999); }
+        az += 1.2; await cam(az, 26, d); await sleep(i < 52 ? 60 : 100);
+    });
+    await project("light_build"); await set("steps", 999); await dark(); await set("viewmode", "both"); await sleep(400); await example("egg");
+};
+S.light_move = () => withLamp(async () => { // the move-a-light tool: the light up its arrow, across, and back; the pattern on the walls follows
+    await tab("light"); await set("lamp", true); await fit();
+    await cam(-60, 22, await far(1.5)); await js("document.querySelector('#tools [data-tool=light]').click()"); await sleep(600);
+    const z0 = +(await js("document.querySelector('#lt_p2').value")), ease = x => x * x * (3 - 2 * x);
+    await clip("light_move", 96, async i => {
+        // 0–9 still · 10–39 up its arrow · 40–69 across · 70–95 back to the middle
+        const u = i < 10 ? 0 : i < 40 ? ease((i - 10) / 30) : 1, v = i < 40 ? 0 : i < 70 ? ease((i - 40) / 30) : 1, k = 1 - (i < 70 ? 0 : ease((i - 70) / 25));
+        await lt("#lt_p2", (z0 + 32 * u * k).toFixed(1)); await lt("#lt_p0", (26 * v * k).toFixed(1)); await lt("#lt_p1", (-14 * v * k).toFixed(1)); await sleep(120);
+    });
+    await js("document.querySelector('#tools button[data-tool=\"\"]').click()"); await project("light_move");
+});
+S.light_room = () => withLamp(async () => { // a bigger room, grey walls, a wood floor, a brighter bulb to fill it
+    await tab("light"); await set("lamp", true); await lt("#lt_lm", 800); await lt("#lt_r_size", 2.5); await lt("#lt_r_back", 25); await lt("select[data-l=r_walls]", "grey"); await lt("select[data-l=r_floor]", "wood");
+    await fit(); await cam(-60, 22, await far(1.9)); await sleep(1500); await shot("light_room");
+});
+S.light_stacked = async () => {             // light is for every technique: the stacked vase and a desk lamp beside it
+    await example("vase"); await mode("stacked"); await tab("light"); await set("lamp", true);
+    await lt("select[data-l=like]", "desk"); await lt("select[data-l=aim]", "middle"); await lt("#lt_p0", -150); await lt("#lt_p1", -120); await lt("#lt_p2", 190);
+    await fit(); await cam(-35, 18, await far(1.7)); await sleep(1500); await shot("light_stacked");
+    await dark(); await example("egg");
+};
+
 await send("Page.reload"); await sleep(4000);              // a fresh tab: the last run may have left it mid-request
 await until("document.querySelector('#stats').textContent.includes('parts')");
 await js("document.querySelector('#pname').value='Lamina demo';document.querySelector('#pname').dispatchEvent(new Event('input'))");
 const want = process.argv.slice(2);
 for (const name of want.length ? want : Object.keys(S)) {
     if (!S[name]) { console.log("no scene", name); continue; }
+    const t = Date.now();
     try { await S[name](); } catch (e) { console.log("scene", name, "failed:", e.message); }
+    console.log("scene", name, "took", Math.round((Date.now() - t) / 1000), "s");   // scripts/shards.py record: media.yml's groups
 }
 console.log("done");
 ws.close(); process.exit(0);

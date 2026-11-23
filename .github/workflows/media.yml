@@ -1,7 +1,7 @@
 name: media
 
 # The landing page's stills and clips, recorded from the app itself on every release, so they always show the
-# version people download. A pre-commit hook would be the wrong place: a full recording takes a quarter of an hour.
+# version people download. A pre-commit hook would be the wrong place: a full recording takes two hours in one job.
 # Run it by hand from the Actions tab too, with a few scene names to redo only those (e.g. "axes lobes").
 on:
   push:
@@ -16,22 +16,49 @@ on:
 permissions:
   contents: write            # commits the refreshed docs/media back to the branch it recorded
 
-concurrency:
-  group: media
+concurrency:                 # one run at a time for each branch it commits to (BRANCH below); other branches go on
+  group: media-${{ github.event_name == 'push' && 'main' || github.ref_name }}
   cancel-in-progress: false
 
+env:
+  # a tag push records main, where the site deploys from; a run by hand records the branch it was started on — a
+  # release branch before its tag, so a scene that ends on errors on Linux stops the release instead of following it
+  BRANCH: ${{ github.event_name == 'push' && 'main' || github.ref_name }}
+
 jobs:
-  record:
+  # every scene of capture.mjs in 6 groups of about the same time (scripts/shards.py, by the times in shards.json),
+  # or the scene names given as one group; and the commit they all record, so no group records a later push
+  plan:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    env:
-      # a tag push records main, where the site deploys from; a run by hand records the branch it was started on — a
-      # release branch before its tag, so a scene that ends on errors on Linux stops the release instead of following it
-      BRANCH: ${{ github.event_name == 'push' && 'main' || github.ref_name }}
+    outputs:
+      groups: ${{ steps.plan.outputs.groups }}
+      sha: ${{ steps.plan.outputs.sha }}
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ env.BRANCH }}
+      - id: plan
+        env:
+          SCENES: ${{ github.event.inputs.scenes }}
+        run: |
+          echo "groups=$(python3 scripts/shards.py media 6 $SCENES)" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  record:
+    needs: plan
+    strategy:
+      fail-fast: false       # every group to the end: one broken scene does not hide another
+      matrix:
+        scenes: ${{ fromJSON(needs.plan.outputs.groups) }}
+    runs-on: ubuntu-latest
+    # a group takes about 20 min (its lit clips are drawn in software GL, 070); scene names given by hand can be any
+    # number of them, so that one job keeps the whole set's time. record.py prints each scene's line with its minute,
+    # so a run that still ends here shows which scene it was on
+    timeout-minutes: ${{ github.event.inputs.scenes && 150 || 45 }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
       - uses: astral-sh/setup-uv@v7
       - uses: actions/setup-node@v7
         with:
@@ -39,7 +66,29 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: uv sync --frozen
       - run: uv run playwright install --with-deps chromium
-      - run: uv run python scripts/media/record.py ${{ github.event.inputs.scenes }}
+      # docs/media emptied first, so it holds only this group's files when the recording ends
+      - run: rm -rf docs/media && uv run python scripts/media/record.py $SCENES
+        env:
+          SCENES: ${{ matrix.scenes }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: media-${{ strategy.job-index }}
+          path: docs/media
+          retention-days: 3
+
+  # every group's files over the commit they recorded, in one commit, as one job made it
+  commit:
+    needs: [plan, record]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: media-*
+          path: docs/media
+          merge-multiple: true
       - name: commit the media if they changed
         run: |
           git config user.name "github-actions[bot]"

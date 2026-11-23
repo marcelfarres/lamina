@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Interlocking slices: egg-crate sculpture from a 3D model | Lamina</title>
+<meta name="description" content="How to make an interlocking slice sculpture, also called egg-crate or waffle: two families of slotted slices cut from cardboard or plywood. Lamina makes the slots, checks that they go in and exports SVG or DXF. Free.">
+<link rel="canonical" href="https://marcelfarres.github.io/lamina/interlocking-slices/">
+<link rel="icon" href="../favicon.svg">
+<link rel="stylesheet" href="../guide.css">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://marcelfarres.github.io/lamina/interlocking-slices/">
+<meta property="og:title" content="How to make an interlocking slice sculpture">
+<meta property="og:description" content="Egg-crate or waffle slices from any 3D model, in cardboard or plywood. A free laser slicer makes the slots and checks they go in.">
+<meta property="og:image" content="https://marcelfarres.github.io/lamina/media/interlocked_poster.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"How to make an interlocking slice sculpture",
+"image":"https://marcelfarres.github.io/lamina/media/interlocked_poster.jpg","dateModified":"2026-11-23",
+"about":{"@type":"SoftwareApplication","name":"Lamina","url":"https://marcelfarres.github.io/lamina/","applicationCategory":"DesignApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}}
+</script>
+</head>
+<body>
+<header><div class="wrap">
+  <a class="home" href="../"><img src="../favicon.svg" alt="" width="24" height="24" style="border:0;background:none">Lamina</a>
+  <nav aria-label="Guides">
+    <a href="../3d-model-to-laser-cut/">3D model to laser cut</a>
+    <a href="../slicer-for-fusion-360-alternative/">vs Slicer for Fusion 360</a>
+    <a href="../stacked-slices/">Stacked slices</a>
+    <a href="../interlocking-slices/" aria-current="page">Interlocking slices</a>
+    <a href="../papercraft/">Papercraft</a>
+    <a href="../3d-print-flat-parts/">3D print flat parts</a>
+  </nav>
+  <a class="btn" href="../app/index.html">Try it in your browser</a>
+</div></header>
+<main class="wrap">
+  <h1>How to make an interlocking slice sculpture</h1>
+  <p class="lead">Two families of flat slices cross at right angles and slot into each other, like an egg crate. People
+  also call it a waffle or a slice form. Cardboard works well for big pieces, and plywood or acrylic for strong ones.
+  This guide uses Lamina, a free laser slicer that runs in your browser.</p>
+  <figure>
+    <video src="../media/interlocked.mp4" poster="../media/interlocked_poster.jpg" width="1100" height="824" muted loop playsinline controls preload="none"
+           aria-label="A torus in two perpendicular families of slotted slices, turning; then 6 by 5, 12 by 9 and 9 by 7 slices"></video>
+    <figcaption>A torus in 3 mm cardboard, 9 by 7 slices, then 6 by 5 and 12 by 9. More slices show more of the
+    surface, and give more slots to cut.</figcaption>
+  </figure>
+
+  <h2>Which shapes work</h2>
+  <p>One family of slices goes in from above and the other from below. So each slice must have a straight way in.
+  A torus works, because every vertical line meets its tube once. A head with ears above the skull on the same
+  lines does not, and Lamina's insertion check says so. For such a shape, use
+  <a href="../stacked-slices/">stacked slices</a> or <a href="../#techniques">radial slices</a> instead.</p>
+
+  <h2>Steps</h2>
+  <ol class="steps">
+    <li>Open <a href="../app/index.html">Lamina in your browser</a> and load the model.</li>
+    <li>Set the size of the finished piece.</li>
+    <li>Pick <b>Interlocked slices</b>. Choose the assembly axis, then the count or spacing of each family.</li>
+    <li>Pick the material and type the thickness you measured.</li>
+    <li>Set the slot offset for the fit you want: a tighter slot for a press fit, a wider slot for a loose fit.</li>
+    <li>For a CNC router, pick <b>router</b> as the machine. Dog-bone relief puts the round bit in every slot corner,
+    and the parts lie twice the bit apart on the sheet.</li>
+    <li>Read the Checks tab. Where a region would float, auto-fix adds a crossing slice.</li>
+    <li>Export the SVG or DXF and cut the sheets.</li>
+    <li>Slide the slices of one family in from above and the other from below.</li>
+  </ol>
+
+  <h2>Why the slots fit</h2>
+  <p>Lamina calculates the depth of each slot at each crossing from the mesh itself. So a hollow or an uneven shape
+  notches correctly, where older tools left the slices loose. You can also set the notch ratio and the flare at the
+  mouth of the slot, rotate the grid, and add extra slices at the places you choose.</p>
+  <figure>
+    <img src="../media/checks.jpg" width="2000" height="963" loading="lazy" alt="The Checks tab with a list of errors and a fix button beside each">
+    <figcaption>The Checks tab: errors, warnings, and a fix button for most of them.</figcaption>
+  </figure>
+
+  <h2>Made with interlocked slices</h2>
+  <div class="cards">
+    <figure class="card"><img src="../media/gallery/2026-11-jarkien-dragon.jpg" loading="lazy" alt="Giant dragon head, interlocked slices"><div><h3>Giant dragon head</h3><p>by jarkien</p></div></figure>
+  </div>
+  <p class="sub">More in the <a href="../#made">gallery</a>. For rings in three directions on a sphere, an egg or a
+  box, see the <a href="../#techniques">band lattice</a>.</p>
+  <div class="cta">
+    <a class="btn" href="../app/index.html">Open Lamina in your browser</a>
+    <a class="btn ghost" href="../#techniques">All seven techniques</a>
+  </div>
+</main>
+<footer><div class="wrap">
+  <nav aria-label="All guides">
+    <a href="../">Lamina home</a>
+    <a href="../3d-model-to-laser-cut/">3D model to laser cut</a>
+    <a href="../slicer-for-fusion-360-alternative/">Slicer for Fusion 360 alternative</a>
+    <a href="../stacked-slices/">Stacked slices</a>
+    <a href="../interlocking-slices/">Interlocking slices</a>
+    <a href="../papercraft/">Papercraft</a>
+    <a href="../3d-print-flat-parts/">3D print flat parts</a>
+  </nav>
+  Lamina is free software under the AGPL-3.0 ·
+  <a href="https://github.com/marcelfarres/lamina">GitHub</a> ·
+  <a href="https://www.reddit.com/r/Lamina3D">r/Lamina3D</a> ·
+  <a href="https://discord.gg/N66bCQxmt3">Discord</a>
+</div></footer>
+</body>
+</html>

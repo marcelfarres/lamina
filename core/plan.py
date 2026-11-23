@@ -11,11 +11,13 @@ from shapely.ops import unary_union
 from . import progress as bar
 from .progress import DETAIL, progress
 from .modes import load_all, Ctx
-from .geometry import section_polygons, as_multi, poly_coords, line_coords, mark_box, mark_rot, min_dims, orient_arrows, trim_thin
+from .geometry import section_polygons, as_multi, poly_coords, line_coords, min_dims, trim_thin
+from .labels import mark_box, mark_rot, mark_size, orient_arrows
 from .checks import STRUCTURAL, check_plan, suggest_fixes, crossing_suggestions
-from .split import split_slice, fits_rotated, islands
+from .split import split_slice, fits_rotated, islands, pieces_of
 from .nest import nest
 from .mesh import load_mesh, reuse, simplify, square_up
+from .unfold import points_at
 from .identical import mark_identical
 from .model import Piece, label_codes, label_tag
 
@@ -39,7 +41,7 @@ def coerce_params(mode, raw: dict) -> dict:
 ONE_SHEET_H = 100000.0     # "one sheet" mode nests against this height and reports the length actually used
 
 
-def coverage(mesh, slices, r, lat=3.0):
+def coverage(mesh, slices, r, lat=3.0, skip=None):
     """Fraction of the model's surface represented by the parts: sample points on the surface and count those that
     have a part within `r` across its plane (about half a slice spacing) and within `lat` sideways. A leg or an ear
     no slice reaches lowers it.
@@ -50,8 +52,12 @@ def coverage(mesh, slices, r, lat=3.0):
     gigabytes on a 40k-face model, while surface points answer the same question for one barycentric mix each.
     Dense slicings (interlocked, radial) put a slice near every point and legitimately score close to 100 %; the
     number carries the most signal for stacked and folded work.
+    `skip`: triangles (n × 3 × 3) where the parts are not meant to be, the faces the user removed from a folded model;
+    the points there are not counted.
     """
-    pts = mesh.sample(3000, seed=0)                      # seeded: the same model and params must give the same plan
+    pts, face = mesh.sample(3000, seed=0, return_index=True)   # seeded: the same model and params must give the same plan
+    if skip is not None:
+        pts = pts[~points_at(pts, mesh.face_normals[face], skip)]
     if len(pts) == 0:
         return 1.0
     covered = np.zeros(len(pts), bool)
@@ -59,7 +65,10 @@ def coverage(mesh, slices, r, lat=3.0):
     for sl in slices:
         if sl.profile is None or sl.group in ("P", "J", "W"):     # spacers, pegs and a plaque's back plate are not sections of the model
             continue
-        for M, geom in (sl.facets or [(sl.M, sl.profile)]):
+        panes = getattr(sl, "papers", None) or []                 # folded: a window closed by a pane covers the model there
+        for i, (M, geom) in enumerate(sl.facets or [(sl.M, sl.profile)]):
+            if i < len(panes) and panes[i]:
+                geom = geom.union(panes[i][0])
             loc = (np.linalg.inv(M) @ P.T).T
             idx = np.where((np.abs(loc[:, 2]) <= r) & ~covered)[0]
             if not len(idx):
@@ -112,6 +121,16 @@ def swap_in(write, dest, waits=(0, 0.05, 0.1, 0.2, 0.4, 0.8)):
         return False
     finally:
         tmp.unlink(missing_ok=True)
+
+
+def _closer_than(pieces, d):
+    """Pairs of parts on one sheet less than `d` apart as laid, (distance, label, label), closest first."""
+    if len(pieces) < 2:                                # no pair; an empty query is not a geometry array (bugs/076)
+        return []
+    geoms = [pc.placed for pc in pieces]
+    a, b =shapely.STRtree(geoms).query(geoms, predicate="dwithin", distance=d - 1e-6)
+    return sorted((geoms[i].distance(geoms[j]), pieces[i].label, pieces[j].label)
+                  for i, j in zip(a, b) if i < j and pieces[i].place[0] == pieces[j].place[0])
 
 
 def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
@@ -167,23 +186,36 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         notes.append(f"{shaved} sliver(s) thinner than {p['min_feature']:g} mm everywhere left out: shavings a slot cuts off its own part, "
                      f"and specks under {p['min_part']:g} mm where a slice only grazes the surface — too small to cut or handle")
     suggest_fixes(slices, p, ctx, mode)
-    n_err += len(ctx.errors) + len(dropped)
 
     # split + pack
     progress("nesting the parts on sheets", 0.85)
     for sl in slices:
+        if sl.facets is None and (geoms := mode.cut(ctx, sl)):      # the technique cuts it itself (a locked band)
+            sl.pieces = pieces_of(sl, geoms)
+            continue
         if p["split"] and sl.facets is None:
             split_slice(sl, p["sheet"], p["sheet_margin"], p["tab"], p["grain"])
         else:
             sl.pieces = islands(sl) if sl.facets is None else [Piece(sl.label, sl.profile, sl, sl.lines, sl.marks)]   # a folded net stays whole
-    n_err += _oversize(slices, p, sheet0, mesh, ctx)
+    _oversize(slices, p, sheet0, mesh, ctx)
     pieces = [pc for sl in slices for pc in sl.pieces]
     if p["orient_mark"]:                               # the same two directions on every part: which way is up, which face is the front
         for pc in pieces:                               # placed after the dowel and seam marks, in the room they leave
-            pc.lines = pc.lines + orient_arrows(pc.geom, keep=[mark_box(*m[:3], p["font"], mark_rot(m)) for m in pc.marks])
+            room = pc.geom if pc.parent.cover is None else pc.geom.intersection(pc.parent.cover)   # a stacked layer: under the one above
+            pc.lines = pc.lines + orient_arrows(room, keep=[mark_box(*m[:3], mark_size(m, p["font"]), mark_rot(m)) for m in pc.marks])
     kerf = p["kerf"] if p["compensate"] else 0.0       # off by default: many machines compensate their own kerf
     tag = label_tag(p, model_path)                     # the model's name, engraved before every label: nested with room for it
-    n_sheets = nest(pieces, p["sheet"], p["gap"], p["sheet_margin"], kerf, p["labels"], p["font"], tag, p["label_place"], p["grain"])
+    n_sheets = nest(pieces, p["sheet"], p["gap"], p["sheet_margin"], kerf, p["labels"], p["font"], tag, p["label_place"], p["grain"], p["printed"])
+    _past_the_edge(slices, p)
+    if p["tool_d"] > 0 and (close := _closer_than(pieces, p["tool_d"])):   # a bit cuts its own width round each part
+        d, a, b = close[0]
+        ctx.warnings.append(f"{len(close)} pair(s) of parts lie closer on the sheet than the {p['tool_d']:g} mm bit (closest: {a} "
+                            f"and {b}, {d:.2f} mm): the bit that cuts round one cuts into the other. Set the gap between parts "
+                            f"to {2 * p['tool_d']:g} mm, twice the bit, as the router machines do")
+    # counted once the parts are cut and laid: splitting a slice, cutting a ring into pieces, a piece too big for the
+    # sheet and parts too close for the bit add their own, which the count taken at the check left out (bug 052)
+    n_err = sum(len(s.errors) for s in slices) + len(ctx.errors) + len(dropped)
+    n_warn = sum(len(s.warnings) for s in slices) + len(ctx.warnings)
     if crowded := [pc.label for pc in pieces if pc.crowded]:
         notes.append(f"no free spot beside {len(crowded)} part(s) for their labels ({', '.join(crowded[:6])}{'…' if len(crowded) > 6 else ''}): "
                      "they sit on the part, overrunning it where it is small — a smaller font, a bigger gap or sheet, or `label_model` off gives them room")
@@ -192,14 +224,18 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     # checks and the 3D view are the "plans" you consult when you give up — and the export carries the key.
     codes = label_codes([pc.label for pc in pieces], f"{pathlib.Path(model_path).name}|{mode_name}") if p["label_style"] == "code" else {}
     sheet_thick = [p["thickness"]] * n_sheets           # the stock each sheet is cut from: nest keeps one per sheet
+    sheet_stock = [""] * n_sheets                       # … and what that stock is, when it is not the job's material ("paper")
+    tallest = {}                                        # a print plate holds every thickness: its tallest part
     for pc in pieces:
-        sheet_thick[pc.place[0]] = pc.parent.thickness
+        tallest[pc.place[0]] = max(tallest.get(pc.place[0], 0.0), pc.parent.thickness); sheet_stock[pc.place[0]] = pc.parent.stock
+    for s, t in tallest.items():
+        sheet_thick[s] = t
     sheet_out = sheet0
     if p["one_sheet"]:                              # report the strip at the length the parts and their labels actually took
         top = max([pc.placed.bounds[3] for pc in pieces] + [pc.label_pos[1] + p["font"] * 0.7 for pc in pieces if pc.label_pos], default=0.0) + p["sheet_margin"]
         sheet_out = [sheet0[0], float(np.ceil(top))]; p["sheet"] = sheet0
     progress("measuring coverage", 0.94)
-    cov = coverage(mesh if ctx.clip is None else mesh.slice_plane(*ctx.clip), slices, ctx.cover_r or max(mesh.extents) / 8, lat=max(3.0, p["thickness"]))
+    cov = coverage(mesh if ctx.view["clip"] is None else mesh.slice_plane(*ctx.view["clip"]), slices, ctx.cover_r or max(mesh.extents) / 8, lat=max(3.0, p["thickness"]), skip=ctx.cover_skip)
     progress("done", 1.0)
     if ctx.notes_extra:
         notes.append(ctx.notes_extra)
@@ -209,25 +245,21 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     plan = {
         "model": str(pathlib.Path(model_path).resolve()), "mode": mode_name, "params": p, "notes": notes,
         "legend": mode.legend,                                               # what the labels mean (Export tab, assembly key)
+        "fit_test": mode.fit_test(p),                                        # a joint the slot offset sizes: the Export tab's step 1
         "bbox": [float(e) for e in mesh.extents],
         "axes": [a.tolist() for a in ctx.ax], "mid": ctx.mid.tolist(),      # slicing frame (for click-placed points in the UI)
-        "curve3d": ctx.curve3d, "curve_pts": ctx.curve_pts,
-        "axes3d": ctx.axes3d,                                                # radial's fan axes, curve's branches: drawn and dragged in 3D
-        "clip": ctx.clip,                                                    # plaque: the plate's front face [point, normal]; the model behind it is not shown
-        "bounds3d": ctx.bounds3d,                                            # the planes between lobes or at a branch's joint, moved and tilted like slices
-        "spacing": ctx.spacing,                                              # what the drawn spacing curves gave: positions along each axis, for the graph
-        "rods": ctx.rods,                                                    # dowel rods for the 3D view and the key: [[x0,y0,z0],[x1,y1,z1],d,section [[x,y]…] in the slice's x/y,slice x axis,name (Z-3a),from slice,to slice]
+        **ctx.view,                                                          # what the technique hands the 3D view: rods, curve, axes, bounds, spacing, clip, …
         "params_used": {k: p[k] for k in ("extra_x", "extra_y", "ring_count") if k in p},   # what autofix=add changed
-        "sheets": n_sheets, "sheet": sheet_out, "sheet_thick": sheet_thick, "kerf": kerf,
+        "sheets": n_sheets, "sheet": sheet_out, "sheet_thick": sheet_thick, "sheet_stock": sheet_stock, "kerf": kerf,
         "counts": {"slices": len(slices), "parts": len(pieces), "errors": n_err, "warnings": n_warn, "faces": int(len(mesh.faces))},
         "codes": codes,                                                      # puzzle mode: engraved code → real label
         "label_tag": tag,                                                    # engraved before every label (the model's name)
+        "warnings": ctx.warnings,                                            # what the technique left out that was asked for
         "errors": ctx.errors, "fixes": ctx.fixes,                            # mode-level errors and their one-click fixes
         "square": square and {"rotate": square[0], "off": round(square[1], 1)},   # a boxy model a few degrees off its axes
         "material_area_mm2": float(sum(pc.geom.area for pc in pieces)),
         "coverage": cov,
         "timing": bar.timing(),
-        "core_d_min": ctx.core_d_min,
         "sheet_usage": float(sum(pc.geom.area for pc in pieces) / max(1e-9, n_sheets * sheet_out[0] * sheet_out[1])),
         "slices": [_slice_json(sl) for sl in slices],
         "dropped": [{"label": s.label, "errors": s.errors} for s in dropped],
@@ -283,11 +315,11 @@ def _profiles(slices, mesh, p, again):
 def _oversize(slices, p, sheet0, mesh, ctx):
     """Every finished piece, however it was made, has to fit the sheet: a part that does not overhangs the drawing and
     takes a sheet to itself, so it is an error whether or not `split` was asked to cut it — with the size the model
-    would have to be for its parts to fit, so "too big for my sheet" comes with the number. Returns the errors added."""
+    would have to be for its parts to fit, so "too big for my sheet" comes with the number."""
     over = [(sl, pc, *min_dims(pc.geom)) for sl in slices for pc in sl.pieces      # rotation is free on the sheet
             if not fits_rotated(pc.geom, p["sheet"], p["sheet_margin"], p["grain"])]
     if not over:
-        return 0
+        return
     sw, sh = p["sheet"][0] - 2 * p["sheet_margin"], p["sheet"][1] - 2 * p["sheet_margin"]
     if p["grain"]:                                  # the part as it stands: its width on the sheet's, its height on the sheet's
         over = [(sl, pc, b[3] - b[1], b[2] - b[0]) for sl, pc, *_ in over for b in [pc.geom.bounds]]
@@ -310,7 +342,23 @@ def _oversize(slices, p, sheet0, mesh, ctx):
     ctx.errors.append(f"{len(over)} part(s) are bigger than the {sheet0[0]:g} × {sheet0[1]:g} mm sheet: "
                       f"set `size` to about {fit_txt} mm ({f:.0%} of this model)"
                       + (", or use a bigger sheet" if p["one_sheet"] else ", use a bigger sheet, or turn on `one_sheet`"))
-    return len(over) + 1
+
+
+def _past_the_edge(slices, p):
+    """Every part that fits the sheet is on it once nested: one laid past the sheet's edge is an error, never a silent
+    overhang in the cut file (bug 073: a card panel laid at an angle where it did not fit, 0 errors). A part too big for
+    any sheet has its error already (_oversize). Runs before the errors are counted. Returns how many it added."""
+    W, H = p["sheet"]; added = 0
+    for sl in slices:
+        for pc in sl.pieces:
+            x0, y0, x1, y1 = pc.placed.bounds
+            past = x0 < -0.01 or y0 < -0.01 or x1 > W + 0.01 or (y1 > H + 0.01 and not p["one_sheet"])   # one long sheet grows to fit
+            if past and fits_rotated(pc.geom, p["sheet"], p["sheet_margin"], p["grain"]):
+                sl.errors.append(f"{pc.label} is laid past the edge of sheet {pc.place[0] + 1} (to {max(x1, W):.0f} × {max(y1, H):.0f} mm on "
+                                 f"{W:g} × {H:g}), though it fits the sheet turned: the cut file would run off the sheet. Please report it; "
+                                 "a slightly bigger sheet or another face size lays it out again")
+                added += 1
+    return added
 
 
 def _slice_json(sl):
@@ -318,19 +366,19 @@ def _slice_json(sl):
     return {
         "label": sl.label, "group": sl.group, "M": np.round(sl.M, 6).tolist(), "thickness": sl.thickness, "note": sl.note,
         "engages": sl.engages, "extents": [round(sl.bbox[2] - sl.bbox[0], 2), round(sl.bbox[3] - sl.bbox[1], 2)],
-        "errors": sl.errors, "warnings": sl.warnings, "fixes": sl.fixes,
+        "errors": sl.errors, "warnings": sl.warnings, "fixes": sl.fixes, **({"stock": sl.stock} if sl.stock else {}),
         "pieces": [{"label": pc.label, "place": list(pc.place), "bbox": [round(b, 3) for b in pc.bbox],
-                    "facets": [{"M": np.round(M, 6).tolist(), "rings": poly_coords(g), **({"hinge": h} if h else {}), **({"bevel": b} if b else {}), **({"t": ft} if ft else {})}   # 3D view; hinge: how a folded panel's face unfolds, bevel: its grooved edges
-                               for (M, g), h, b, ft in zip(pc.facets, sl.hinges or [None] * len(pc.facets), sl.bevels or [None] * len(pc.facets), sl.facet_t or [None] * len(pc.facets))],
+                    "facets": [{"M": np.round(M, 6).tolist(), "rings": poly_coords(g), **sl.facet_extra(i)}   # 3D view; a technique adds what its facets need (folded: hinge, bevel, t)
+                               for i, (M, g) in enumerate(pc.facets)],
                     "kerfed": poly_coords(pc.kerfed),        # local 2D, kerf applied (per-piece export)
                     "placed": poly_coords(pc.placed),        # sheet coordinates, kerf applied
                     "lines": [[s, line_coords(l)[0]] for s, l in pc.placed_lines],   # fold and guide lines on the sheet
                     "kerfed_lines": [[s, line_coords(l)[0]] for s, l in pc.lines],   # the same in the part's own frame (per-piece export)
-                    "marks": [[round(m[0], 3), round(m[1], 3), m[2], round(mark_rot(m), 2)] for m in pc.placed_marks],
-                    "kerfed_marks": [[round(m[0], 3), round(m[1], 3), m[2], round(mark_rot(m), 2)] for m in pc.marks],
+                    "marks": [[round(m[0], 3), round(m[1], 3), m[2], round(mark_rot(m), 2), *m[4:]] for m in pc.placed_marks],   # a fifth value: its own size
+                    "kerfed_marks": [[round(m[0], 3), round(m[1], 3), m[2], round(mark_rot(m), 2), *m[4:]] for m in pc.marks],
                     "label_pos": pc.label_pos, "label_size": pc.label_size, "label_short": pc.label_short, "leader": pc.leader, "same": pc.same, "flipped": pc.flipped,
-                    **({"vees": [[round(float(x), 4) for x in v[:7]] + [bool(v[7])] for v in sl.vees]} if sl.vees else {}),
-                    **({"thin": [r for g in sl.thin for r in poly_coords(as_multi(g))], "thin_t": sl.thin_t} if sl.thin else {}),   # printed glue tabs: only the skin thick   # printed folded panels: a V groove per fold
+                    **({} if sl.cover is None else {"cover": poly_coords(as_multi(sl.cover.intersection(pc.geom)))}),   # local: where a printed label may go
+                    **sl.piece_extra(pc),
                     "area": round(float(pc.geom.area), 3),   # net of holes and slots: × its slice's thickness × density = its weight
                     } for pc in sl.pieces],
     }
@@ -363,6 +411,7 @@ def main(argv=None):
     c = plan["counts"]
     print(f"{plan['mode']}: {c['slices']} slices, {c['parts']} parts, {plan['sheets']} sheet(s) ({plan['sheet_usage']:.0%} used), {c['errors']} errors, {c['warnings']} warnings")
     for n in plan["notes"]: print(f"  note  {n}")
+    for w in plan["warnings"]: print(f"  warn  {w}")
     for e in plan["errors"]: print(f"  ERROR {e}")
     for sl in plan["slices"] + plan["dropped"]:
         for e in sl.get("errors", []): print(f"  ERROR {sl['label']}: {e}")

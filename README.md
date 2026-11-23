@@ -14,14 +14,14 @@
 
 **Turn a 3D model into flat parts you can cut, and check that they go back together.**
 
-Lamina is a free replacement for Autodesk's discontinued *Slicer for Fusion 360* (and *123D Make* before it). Load a model, pick a construction
-technique, and it computes every part, checks the assembly as a physical object (and fixes or explains what does
-not work), nests the parts on your sheets and exports cut files for a laser, CNC router, plasma table or vinyl
-cutter. It runs on your own machine; your models never leave it.
+Lamina is a free laser and CNC slicer, and a replacement for Autodesk's discontinued *Slicer for Fusion 360* (and *123D Make* before it). Choose your machine (laser, CNC router, 3D printer, or laser + 3D printer), load a model and pick a construction technique. Lamina computes every part and checks the assembly as a physical object: it fixes or explains what does not work. It nests the parts on your sheets or print plates, and exports cut files for a laser, CNC router, plasma table or vinyl cutter, or 3MF plates for a 3D printer. It runs on your own machine. Your models never leave it.
 
 **A quick word about the word "slicer"**, because it trips almost everyone up: this is not the 3D-printing kind.
 Lamina works out the flat pieces — layers, stacked slices, egg-crate slots, ribs, or a whole surface unfolded flat —
-that you cut from plywood, acrylic, cardboard, paper or steel and then put back together into the shape.
+that you cut from plywood, acrylic, cardboard, paper or steel, or print flat, and then put back together into the shape.
+For a print it does not make G-code: it gives your printer's own slicer one 3MF per plate.
+
+**Guides:** [3D model to laser-cut, CNC or 3D-printed parts](https://marcelfarres.github.io/lamina/3d-model-to-laser-cut/?ref=github-readme) · [compared with Slicer for Fusion 360](https://marcelfarres.github.io/lamina/slicer-for-fusion-360-alternative/?ref=github-readme) · [stacked slices](https://marcelfarres.github.io/lamina/stacked-slices/?ref=github-readme) · [interlocking slices](https://marcelfarres.github.io/lamina/interlocking-slices/?ref=github-readme) · [papercraft](https://marcelfarres.github.io/lamina/papercraft/?ref=github-readme) · [3D print flat parts](https://marcelfarres.github.io/lamina/3d-print-flat-parts/?ref=github-readme)
 
 ## ▶ [Try it in your browser now](https://marcelfarres.github.io/lamina/app/?ref=github-readme)
 
@@ -32,7 +32,7 @@ No install, no account, nothing uploaded — the Python runs in your own browser
 **[Landing page with screenshots and clips](https://marcelfarres.github.io/lamina/?ref=github-readme)** ·
 [parity with the original, option by option](docs/roadmap.md) · [how the unfolding works](docs/folded-panels.md)
 
-## The six ways to build a model
+## The seven ways to build a model
 
 Each one is a clip on the [landing page](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques);
 the stills below are the same scenes.
@@ -41,8 +41,9 @@ the stills below are the same scenes.
 |---|---|
 | [![Stacked: parallel slices with dowels](docs/media/stacked_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Stacked** — parallel sections, touching or spaced, held by dowels, pegs or spacers | [![Interlocked: two slotted families forming an egg-crate](docs/media/interlocked_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Interlocked** — two slotted families, egg-crate |
 | [![Radial: half-slices fanned around an axis with locking rings](docs/media/radial_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Radial** — half-slices around an axis, locked by rings | [![Curve: ribs following a curve through the model](docs/media/curve_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Curve** — ribs that follow a bend, not the grid |
-| [![Folded: a surface unfolded into flat panels with score lines](docs/media/folded_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#folded)<br>**Folded** — the surface unfolded flat, papercraft nets as Pepakura makes them, with 13 joint types | [![A cube net cut with the tongue joint](docs/media/joint_tongue.png)](https://marcelfarres.github.io/lamina/?ref=github-readme#folded)<br>**Thirteen joints** — seam, tab, gear, tongue, puzzle, laced… |
-| [![Plaque: a bonsai in slices standing on a flat back plate](docs/media/plaque_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Plaque** — for the wall: the model cut off at a back plate, its slices standing on the plate, held by teeth through plate slots | |
+| [![Folded: a surface unfolded into flat panels with score lines](docs/media/folded_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#folded)<br>**Folded** — the surface unfolded flat, papercraft nets as Pepakura makes them, with 15 joint types | [![A cube net cut with the tongue joint](docs/media/joint_tongue.png)](https://marcelfarres.github.io/lamina/?ref=github-readme#folded)<br>**Fifteen joints** — seam, tab, gear, tongue, puzzle, laced… |
+| [![Plaque: a bonsai in slices standing on a flat back plate](docs/media/plaque_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Plaque** — for the wall: the model cut off at a back plate, its slices standing on the plate, held by teeth through plate slots | [![Band lattice: a sphere as rings across x, y and z, half-lapped where they cross](docs/media/bands_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Band lattice** — rings across x, y and z, slotted together; Lamina gives the order the pieces slide in |
+| [![Stacked ring slices: a scanned head as a stack of rings on dowels](docs/media/rings_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Ring slices** — a stacked slice keeps only a wall: a shell on dowels, about a quarter of the material | [![The sphere's band lattice built up piece by piece](docs/media/bands_build_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Band lattice, piece by piece** — the first family whole, then every piece slid in along its slots |
 | [![Radial with an axis through each ball of a dumbbell, at right angles to each other, and the plane between them at the neck](docs/media/axes_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#techniques)<br>**Radial, an axis per lobe** — a fan per ball, one spine through all of them | [![The plane between two lobes of the snowman selected and tilted](docs/media/lobes_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#editing)<br>**Where lobes meet** — a plane you select, move and tilt like any slice |
 
 ## What it checks, and what you get
@@ -50,7 +51,7 @@ the stills below are the same scenes.
 | | |
 |---|---|
 | ![The checks panel listing errors and one-click fixes](docs/media/checks.jpg) | ![Two cut sheets with nested, labelled parts](docs/media/sheets.jpg) |
-| **Before you cut**, every part is checked as a physical object: too thin, severed by a slot, held by nothing, larger than your sheet — most with a one-click fix. | **Nesting and cut files**: parts packed against each other's outlines, engraved labels, and SVG, DXF, PDF or EPS with the usual cut / score / engrave layers. |
+| **Before you cut**, every part is checked as a physical object: too thin, severed by a slot, held by nothing, larger than your sheet — most with a one-click fix. | **Nesting and cut files**: parts packed against each other's outlines, engraved labels, and SVG, DXF, PDF or EPS with the usual cut / score / engrave layers, or 3MF print plates for a 3D printer. |
 
 *(GitHub renders stills only. The moving versions of all of these are on the
 [landing page](https://marcelfarres.github.io/lamina/?ref=github-readme).)*
@@ -92,15 +93,16 @@ sheet before you commit expensive material.
 
 **Found a bug?** There are two ways to say so, and neither is better than the other.
 
-- **report a problem**, in the app's header and on the landing page. Write a sentence and it fills in the rest:
+- **report a problem**, in the app's *help* menu and on the landing page. Write a sentence and it fills in the rest:
   the technique, every setting, what the checks said, and — unless you untick the box — the model itself, saved
   ready to attach, which is what makes a report reproducible. It shows you exactly what it has gathered, then
   opens either a prefilled email to `lamina.3d.app@gmail.com` or the prefilled GitHub issue form, and you press
   send. **Email needs no account anywhere**; an issue is public, an email is not.
 - **[The issue form](https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml)**, filled in by
   hand. It asks for the model and the settings that reproduce the problem; the quickest way to give both is
-  **save project** in the UI, which writes one file with the model embedded and every parameter in it — the same
-  file the button attaches.
+  **export** on the revision in the library (**library**, then **N revisions ▾** on the project's card), which
+  downloads one `.lamina.json` file with the model embedded and every parameter in it — the same file the button
+  attaches.
 
 **A question, an idea, or stuck on a build?** Ask in [r/Lamina3D](https://www.reddit.com/r/Lamina3D) on Reddit or on the
 [Lamina Discord](https://discord.gg/N66bCQxmt3), where
@@ -164,6 +166,128 @@ The image on GitHub Container Registry carries everything; the machine that runs
 
 ```bash
 docker run -d -p 8000:8000 -v lamina-jobs:/app/working-files ghcr.io/marcelfarres/lamina:latest
+```
+
+### Keep your projects in a folder (Docker)
+
+With Docker, Lamina keeps your library in a folder on your computer. Every browser then shows the same projects,
+Firefox and Safari too, and each project is a file that you can copy. Docker runs Lamina in a closed box (a
+*container*), so you do not install Python or anything else. You do these steps once.
+
+1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows, macOS) and start it. On Linux,
+   install [Docker Engine](https://docs.docker.com/engine/install/) with its compose plugin.
+2. Open a terminal. Windows: open the Start menu, type `PowerShell` and open it. macOS: open *Terminal* (in
+   *Applications → Utilities*). Linux: open your terminal.
+3. Make a folder for Lamina, and go into it:
+
+   ```bash
+   mkdir lamina
+   ```
+
+   ```bash
+   cd lamina
+   ```
+
+4. Download the file `docker-compose.yml` into this folder. It tells Docker what to start. Windows:
+
+   ```powershell
+   curl.exe -O https://raw.githubusercontent.com/marcelfarres/lamina/main/docker-compose.yml
+   ```
+
+   macOS and Linux:
+
+   ```bash
+   curl -O https://raw.githubusercontent.com/marcelfarres/lamina/main/docker-compose.yml
+   ```
+
+   Or open [docker-compose.yml](https://raw.githubusercontent.com/marcelfarres/lamina/main/docker-compose.yml) in
+   your browser and save it as `docker-compose.yml` in the `lamina` folder.
+5. Linux only: make the projects folder yourself before the first start, so that it is yours and not the system's:
+
+   ```bash
+   mkdir lamina-projects
+   ```
+
+   Lamina runs as user 1000 in the container. If `id -u` does not show `1000`, give the folder to user 1000 too:
+
+   ```bash
+   sudo chown 1000 lamina-projects
+   ```
+
+6. Start Lamina. The first start downloads it, which takes a few minutes. `-d` keeps it running after you close the
+   terminal.
+
+   ```bash
+   docker compose up -d
+   ```
+
+   Every device on your network (the same Wi-Fi) can open the page and change your projects. To allow only this
+   computer, write `127.0.0.1:8000:8000` in place of `8000:8000` in `docker-compose.yml`, then run
+   `docker compose up -d` again.
+
+7. Open <http://localhost:8000>. Press **library** in the top bar: the line at the top of the library reads
+   "📁 kept in the folder library on the server".
+
+**Your projects** are in the folder `lamina-projects`, in the `lamina` folder. Each revision is one file,
+`<name>_v<rev>.lamina.json`. A project file that you copy into this folder shows in the library.
+
+**Back up** your projects: copy the folder `lamina-projects` to another place, for example a USB drive. **export all
+(.zip)** on the library page also makes a backup.
+
+**Update** to the newest Lamina: in the `lamina` folder, run these two commands. Your projects stay.
+
+```bash
+docker compose pull
+```
+
+```bash
+docker compose up -d
+```
+
+**Stop** Lamina. Your projects stay in the folder.
+
+```bash
+docker compose down
+```
+
+**Linux: "⚠ The server cannot write to its library folder library".** The folder does not belong to user 1000:
+Docker made it as the system user (root). Run this in the `lamina` folder, then reload the page:
+
+```bash
+sudo chown -R 1000 lamina-projects
+```
+
+**Who can see your projects.** There is no login. Anyone who can open the page can read, change and delete these
+projects. Run it only where only you, or people that you trust, can reach the page.
+
+**Open it by a domain name.** The library answers only on the addresses of the computer and on local names
+(`localhost`, a name without a dot, or a name that ends in `.local`, `.lan` or `.home.arpa`). This stops a web
+page on another site from reading your projects through your browser. If you open Lamina by a domain name of your
+own (for example through a reverse proxy), add that name to `LAMINA_HOSTS` in `docker-compose.yml`. Without it,
+the library says "The library does not answer on the name …".
+
+A name that your router or VPN gives (for example `nas.fritz.box`, `*.localdomain`, `*.internal`, a Tailscale
+`*.ts.net` name or `*.localhost`) must be in `LAMINA_HOSTS` too. Behind a reverse proxy, forward the original Host
+(nginx: `proxy_set_header Host $host;`). Else the check sees the proxy's own name for Lamina.
+
+The same without the compose file, in one command. `-v` connects a folder on your computer to a folder in the
+container, and `-e` gives Lamina a setting. Run it in the folder where `lamina-projects` must go:
+
+```bash
+docker run -d -p 8000:8000 -v lamina-jobs:/app/working-files -v "$PWD/lamina-projects:/library" -e LAMINA_LIBRARY=/library ghcr.io/marcelfarres/lamina:latest
+```
+
+Without Docker, set `LAMINA_LIBRARY` to the folder before Lamina starts; the folder is made if it is not there. From
+a clone, on macOS and Linux (or `lamina3d` in place of `uv run uvicorn …` for the installed tool):
+
+```bash
+LAMINA_LIBRARY=~/lamina-projects uv run uvicorn web.app:app --port 8000
+```
+
+Windows (PowerShell):
+
+```powershell
+$env:LAMINA_LIBRARY="$HOME\lamina-projects"; uv run uvicorn web.app:app --port 8000
 ```
 
 ### Updating
@@ -232,16 +356,17 @@ and `docker compose pull && docker compose up -d` moves it to the newest build. 
 
 Several people can share one server: each browser tab holds a random id, everything it slices lives under that id,
 and no other tab can name it. A tab nobody has touched for `LAMINA_TTL_HOURS` (24 by default, 0 = never) is deleted,
-models and all, the next time anyone slices; the header's **clear my data** button deletes a tab's own at once.
+models and all, the next time anyone slices; **Clear my data** in the *help* menu deletes a tab's own at once.
 Uploads are not capped by default — your own computer's memory is the only limit, and a cap that refused a 40 MB
 mesh on a laptop with 32 GB was simply wrong. Set `LAMINA_MAX_UPLOAD_MB` when the server faces other people, where a
 stranger's 2 GB scan is not yours to hold. `WEB_CONCURRENCY` is how many slices run at the same
 time (one uvicorn worker each, about 300 MB). Lamina still has no login of its own, so put it behind your reverse
 proxy's authentication if the server is reachable from the internet.
 
-The Model tab opens on a bundled example; [examples/](examples/README.md) holds 24 of them, and each opens on the
-technique and parameters that suit it ([examples/presets.json](examples/presets.json) — the shape standing the right
-way up, sliced without an error; a test keeps that true). The same pipeline runs headless, so it can be scripted:
+The page resumes the tab's session, or opens the `blob` example on a first visit. The library shows every bundled
+example: [examples/](examples/README.md) holds 38 of them, and each opens on the technique and parameters that suit
+it ([examples/presets.json](examples/presets.json) — the shape standing the right way up, sliced without an error; a
+test keeps that true). The same pipeline runs headless, so it can be scripted:
 
 ```bash
 uv run python -m core.plan examples/egg.stl --mode interlocked --set nx=5 ny=4 thickness=3 --out out/egg
@@ -249,24 +374,26 @@ uv run python -m core.export out/egg.json --out out/egg_cut --fmt svg dxf pdf ep
 uv run python -m core.export out/egg.json --out out/egg_pieces --per-piece                  # one file per part
 uv run python -m core.solid out/egg.json --out out/egg.stl                                  # assembled solid; --part X-3 for one part
 uv run python -m core.solid out/egg.json --out out/egg.step                                 # the same as STEP: true solids for CAD
+uv run python -m core.solid out/egg.json --out out/egg.step --body                          # one solid: the whole model fused
 uv run python -m core.solid out/egg.json --proto out/egg_proto --scale 0.5 --labels groove  # scaled 3D-print prototype set
 uv run python -m core.plan examples/egg.stl --mode folded --list-params                     # every parameter with its help text
 ```
 
 ## What it does
 
-### Six construction techniques
+### Seven construction techniques
 
-The original's six techniques as five modes (its *3D Slices* is stacked with `surface=outer`), and one of Lamina's own, `plaque`.
+The original's six techniques as five modes (its *3D Slices* is stacked with `surface=outer`), and two of Lamina's own, `plaque` and `bands`.
 
 | mode | what you get | parts |
 |---|---|---|
-| `stacked` | parallel sections, touching or with an empty `space`, the whole stack movable along the axis with `shift` to land a slice on a feature; outline `mid` / `outer` (Slicer's 3D Slices: sand down to shape) / `inner`; connected by **dowels** (6 hole shapes), flat **pegs**, or tabbed **spacers** that keep the space; points aligned, random per pair, or along your 3D lines; `next_outline` engraves the outline of the layer above on each slice (GUIDE layer), a guide to glue the stack by, with an offset to tuck it under the layer above | `Z-n`, connectors `P-n` |
+| `stacked` | parallel sections, touching or with an empty `space`, the whole stack movable along the axis with `shift` to land a slice on a feature; outline `mid` / `outer` (Slicer's 3D Slices: sand down to shape) / `inner`; connected by **dowels** (6 hole shapes), flat **pegs**, or tabbed **spacers** that keep the space; points aligned, random per pair, or along your 3D lines; `next_outline` engraves the outline of the layer above on each slice (GUIDE layer), a guide to glue the stack by, with an offset to tuck it under the layer above; **ring slices** (`ring_slices`): only a wall `ring_wall` wide is left inside each slice's outline, measured in its own plane, with a wall round every hole, narrow stretches left solid, the ends solid or not (`ring_caps`), a wall of its own per slice (`wall`), a collar round each dowel or spacer the wall is too thin for, a lug in to the dowel of a neighbouring ring that lies inside its hole, and a longest piece (`max_length`, along the ring) past which a ring is cut across its wall with puzzle tabs — as is a ring too big for the sheet | `Z-n`, connectors `P-n` |
 | `interlocked` | two slotted families, egg-crate; notch ratio / flare / relief; grid rotation; extra slices at chosen positions | `X-n`, `Y-n` |
+| `bands` | **band lattice**: rings — a wall `ring_wall` wide left inside each section — across any of x, y and z, each family by count or spacing, half-lapped where two bands cross. Assembled family by family (`order`, or the order that needs the fewest cuts): the first family stays whole, and a later band whose joints slide in different ways is cut between them into pieces, each cut a straight tongue the later piece slides onto (`band_cuts`), placed only where both pieces get past the bands of the joints either side. Where a band's sheet runs along the wall of a band it crosses, on their crossing line, for more than 3¼ walls (the slot would split that wall lengthwise), one of the two moves a little along its normal, at most a quarter of the way to its neighbour, to where its lines run along no wall (`nudge`); a band moved by hand stays where it is, and the notes name each band moved, how far and why. Where two joints are too close for such a cut, the band is cut along one joint up to its slot, or the corner between the two slots, which no piece can slide in with, is cut off and glued in last. A band longer than `max_length` (measured along it), or too big for the sheet, is cut again between its joints, the cuts spread evenly and clear of the slots. Per band: its own `wall`, and a `cut_shift` that slides its cuts along it. Flags shallow crossings, slots too close together, bands held at one place, and each piece that cannot slide in past the pieces already there, with what is in its way | `X-n`, `Y-n`, `Z-n`, pieces `X-n-k` |
 | `radial` | half-slices around an axis (move it with `center`, turn the fan with `angle`) locked by horizontal ring slices with radial slots; ring count or spacing. **Several axes**: a fan per lobe — an axis through each of a dumbbell's balls, one per ball of a snowman, tilted to follow it. Neighbouring lobes are parted by a flat plane between their axes — a translucent part in the 3D view that you click and move or tilt like any slice — so the fans never run into each other, and a **spine** — one full plane through every axis, cut whole and slotted into every ring — ties the lobes together: automatic, found from how the axes lie (on one line, any number; on one plane, exactly one; on no plane, an error naming the fix). Every axis is drawn in the 3D view where it passes through the model: drag it whole or by either end (it stays on the plane the other axes share, so the spine survives the drag), alt-click the model for a parallel axis through that point, `+` to split one in two, alt-click an axis to remove it | `R-na/b` (`R2-na/b` per axis), rings `Z-n`, spines `SP-n` |
-| `curve` | ribs perpendicular to a curve through the model (its centre line by default, following the body across the plane too; drag the blue dots, alt-click to add or remove one, or type them in the `curve` table), so they follow a bend instead of staying parallel; locked together by spine slices. The turn between neighbouring ribs is limited so they do not meet inside the model. **Branches**: a straight line per leg, arm or tail, each with ribs square to it and a spine of its own that reaches back into the body and slots into the body's ribs, so a horse's legs are held instead of cut across by body ribs. Shift+alt-click a hoof to add one, drag its ends, alt-click it to remove it; a branch that starts past the body's ribs is an error, not a loose leg | `R-n`, spines `K-n`; branch 2: ribs `R2-n`, spine `K2`, joint `J-2` |
-| `plaque` | the model cut off at a flat back plate (`back`, `sink`), its slices standing on edge on the plate, side by side, as a radial fan round a centre hole, or as two crossed families half-lapped into each other (`layout`, `planes`, `radius`, `nx`, `ny`), with teeth through plate slots (`teeth`, `tooth_width`, `tooth_spacing`); the plate has its own `plate_thickness` and outline (circle, ellipse, rectangle, rounded, hexagon, shield, the model's silhouette, or an SVG / DXF file placed with `plate_scale`, `plate_mirror`, `plate_rotation`, `plate_offset`); a piece that does not reach the plate hangs from the slice beside it on flat spacers | `W-1` (plate), `X-n`, `X-na`, `R-n`, `Y-n` |
-| `folded` | surface unfolded into flat panels with score lines (strategies flat / strip / area, or auto); thirteen joints: seam, tab, multitab, diamond, ticked, gear, tongue, puzzle, rivet, laced, loops, strip, rib, each sized to its triangle; **separate** mode cuts every triangle alone. The model need not be closed: panels are cut from the surface, so a clothing pattern, a mask or a shell with a neck hole is panelled as it is — its boundary edges stay open and carry no joints. **Printed** (PLA, PETG), a panel keeps its full thickness and gets a V groove at every fold, cut to the fold's angle, with a thin skin as the hinge (`hinge`, `hinge_w`): print flat, fold up. `window` opens every face for a lamp shade; `edge_fit` cuts stiff sheet back at the seams so the panels meet at their inside edges; `score_side` puts scores and seam numbers inside or outside. The 3D view's fold slider folds the panels from flat to the model | `P-n`, strips `S-n`, ribs `R-n` |
+| `curve` | ribs perpendicular to a curve through the model (its centre line by default, following the body across the plane too; drag the blue dots, alt-click to add or remove one, or type them in the `curve` table), so they follow a bend instead of staying parallel; locked together by spine slices. The turn between neighbouring ribs is limited so they do not meet inside the model, by how far the model reaches on the inside of the bend where they meet: a slim neck turns more than a deep chest. A rib also turns no further than keeps it on a spine, where the curve runs on into a part the flat spines do not reach. **Branches**: a straight line per leg, arm, tail or a head turned to one side, each with ribs square to it and a spine of its own that reaches back into the body and slots into the body's ribs, so a horse's legs and head are held instead of cut across by body ribs (the body spine is flat and does not reach a turned head). Shift+alt-click a hoof to add one, drag its ends, alt-click it to remove it; a branch that starts past the body's ribs is an error, not a loose leg | `R-n`, spines `K-n`; branch 2: ribs `R2-n`, spine `K2`, joint `J-2` |
+| `plaque` | the model cut off at a flat back plate (`back`, `sink`), its slices standing on edge on the plate, side by side, as a radial fan round a centre hole, or as two crossed families half-lapped into each other (`layout`, `planes`, `radius`, `nx`, `ny`; `first` picks the crossed family that goes into the plate first, `first_height` makes it a low rail), with teeth through plate slots (`teeth`, `tooth_width`, `tooth_spacing`); the plate has its own `plate_thickness` and outline (circle, ellipse, rectangle, rounded, hexagon, shield, the model's silhouette, or an SVG / DXF file placed with `plate_scale`, `plate_mirror`, `plate_rotation`, `plate_offset`); a piece that does not reach the plate hangs from the slice beside it on flat spacers | `W-1` (plate), `X-n`, `X-na`, `R-n`, `Y-n` |
+| `folded` | surface unfolded into flat panels with score lines (strategies flat / strip / area, or auto); fifteen joints: seam, tab, multitab, diamond, ticked, gear, tongue, puzzle, snap, click, rivet, laced, loops, strip, rib, each sized to its triangle; **separate** mode cuts every triangle alone. The model need not be closed: panels are cut from the surface, so a clothing pattern, a mask or a shell with a neck hole is panelled as it is — its boundary edges stay open and carry no joints. **Printed** (PLA, PETG), a panel keeps its full thickness and gets a V groove at every fold, cut to the fold's angle, with a thin skin as the hinge (`hinge`, `hinge_w`): print flat, fold up. `window` opens every flat side for a lamp shade, and `windows are` = *closed with paper* closes each window with a pane: a paper part to glue inside on a cut job, a thin printed layer on a printed job; `edge_fit` cuts stiff sheet back at the seams so the panels meet at their inside edges; `score_side` puts scores and seam numbers inside or outside. The `put a seam` tool of the 3D view lets you say where the sheet is cut apart: click an edge on the model or on a sheet, or drag along edges, and the panels are laid out round your seams. The `select faces` tool takes faces off the model, to keep only a part of it (a mask from a head): select by click, drag, `grow` or `connected`, then `remove`, or `merge` to make the selected faces one flat face; the removed and the merged places stay as they are when the face size or the model's size changes. The 3D view's fold slider folds the panels from flat to the model | `P-n`, strips `S-n`, ribs `R-n`, panes `W-n-m` |
 
 Common to all: model `rotate` (three angles) and slicing `center`, per-slice `offset` / `tilt` / `roll` / `thick` /
 `skip` (delete), `size` (a target size on any axis) with `scale` multiplying it, `up_axis`, Modify Form (`shrinkwrap`,
@@ -298,15 +425,32 @@ does not slip through. It carries the most signal for stacked and folded work; d
   nested on sheets of its own. Every sheet title says the stock it is cut from, the sheet header in the UI repeats
   it, and as soon as a job mixes thicknesses the file names carry it (`sheet2 6mm.svg`, `Z-2 6mm x1.svg`) — a sheet cut
   from the wrong stock fits nothing. Every file name also carries the material it is cut from (`sheet1 plywood.svg`).
-- **One sheet** ignores the sheet height: every part goes on one strip as wide as the sheet and as long as it needs,
+- **One long sheet** (`one_sheet`) ignores the sheet height: every part goes on one strip as wide as the sheet and as long as it needs,
   to be cut apart at the machine.
-- **Non-uniform spacing**: stacked, interlocked, radial and curve can spread their slices by a curve you draw in a
-  graph under the 3D view (`spacing_vary`) — the distance between neighbours against the position along the way,
-  the angle between planes round the axis for radial (periodic), one graph per family for interlocked — dense where
-  the shape changes fast, sparse where it does not. Keep the count and the drawn spacings are scaled to span the
-  model, or keep the spacings and the count follows. The `vase`, `ripple`, `berry` and `hook` examples open with one.
-- **Labels** go on the part itself wherever the whole label fits on its material — inside the next layer's outline
-  where the technique marks one (stacked, `next_outline`), so the layer glued on top hides it, upright or turned along
+- **Non-uniform spacing**: stacked, interlocked, radial, curve and plaque can spread their slices by a curve you
+  draw. Tick *vary the spacing* (`spacing_vary`) and a graph opens under the tick: the gap between neighbours against
+  the position along the way. For radial it is the angle between planes round the axis (periodic). Interlocked has one
+  graph per family. The upright lines in the graph are the slices, and a strip under it draws the model from them.
+  Start from a shape (even, dense at both ends, dense in the middle, dense at the start) or press *follow the model*:
+  it makes the gaps small where the width of the model changes fast. Buttons add a point, remove one, smooth the
+  curve and reset it, and you can type the two numbers of a point. Keep the count and the drawn gaps are scaled to
+  span the model, or keep the gaps and the count follows. The `vase`, `ripple`, `berry` and `hook` examples open
+  with one.
+
+  [![The spacing graph, step by step: the box ticked, a starting shape picked, a point dragged, the curve drawn from the model](docs/media/spacing_poster.jpg)](https://marcelfarres.github.io/lamina/?ref=github-readme#spacing)
+
+  [Watch the walk-through](https://marcelfarres.github.io/lamina/?ref=github-readme#spacing).
+- **Dowels** can stay out of sight on a stacked model. With `hide_dowels` on, a dowel goes only where the layer
+  below its pair of layers and the layer above it cover the hole. The dowels still sit as far apart as that covered
+  area allows. On a model that tapers they are closer together than with the setting off, so a wide layer is held
+  less firmly. A piece too small to hide two dowels keeps them where they can show, and the notes name its layers.
+  The first and the last layer have no layer over them, so their holes show. Dowels you placed yourself do not move.
+
+  ![One layer of a stacked sphere from above, with hide dowels off and on: two holes on the open step, then all four under the layer glued on top](docs/media/hide_dowels.jpg)
+- **Labels** go on the part itself wherever the whole label fits on its material — on a stacked layer only where the
+  layer glued on top hides it (`hide_marks`, on by default; the arrows of `orient_mark`, the dowel numbers and the
+  label of a 3D-printed part keep to the same area, 1 mm in from the edge of the layer above, so the stack's top layer
+  carries nothing), upright or turned along
   the part, clear of its holes and marks — and otherwise beside the part with a leader line, in free space inside the
   sheet margin that no part, label or leader crosses. `label_place` switches that to always beside (nothing engraved
   on the parts) or always on the part (past its outline when it must, for you to trim in the laser software). Every
@@ -323,6 +467,23 @@ does not slip through. It carries the most signal for stacked and folded work; d
   from below and one with its own number the rod going up. A straight rod through several slices keeps the name of the
   slice it starts from; with tab connectors the peg or spacer is the connector and `Z-3a` is its part label. The
   assembly key lists every rod with its two ends and its length.
+- **Printed standoffs** (`connect` = `standoff`): the laser cuts the layers and a 3D printer makes the posts between
+  them. A standoff has a body as long as the gap and a pin at each end. The pins go into the holes of the two
+  layers, so the body keeps the distance and the pins line the layers up. The shape of a hole says which pin it
+  takes. A hole that two standoffs share has the dowel hole shape, and a short pin goes in from each side. A hole
+  that one standoff uses is a pentagon, and its pin goes through and ends flush with the far face. There are two
+  shapes because a layer inside the stack has a standoff under it and one over it in the same hole, so each pin can
+  go only half way in. A hole with a standoff on one side only has room for a pin through the whole layer, which
+  holds better and leaves no open hole. A long pin does not fit a shared hole, where it would push the other
+  standoff out. The export zip holds the print file, named `3D-PRINT standoffs`, and a note with each size and
+  where it goes. In that file each standoff is cut in half along its length. The two halves lie flat side down and
+  touch along one edge, where they are joined. They print without supports. Fold the halves together about that
+  edge and push the pins into the holes: the holes keep the standoff closed. A job with 3D-printed layers gets the same file in its print set. `shoulder` sets how wide the
+  body is, `pin_fit` how tight the pins are, `standoff_hinge` how high the two halves are joined. A print has
+  confirmed a 4 mm dowel diameter at the default `pin_fit`, so the plan warns under 4 mm, and when a shared pin is
+  under 2 mm long: print one to check. With
+  `placement` = `random` no hole is shared, and every pin is as long as the layer is thick. The `shade`
+  example opens with them.
 - **An assembly key** comes with the cut files (`assembly-key.txt`): what this technique's labels mean — `R-2a` is the
   *a* half of the second radial plane, `Z-3` the third ring up — then every part with its centre, what it slots onto,
   in the order the 3D view builds them. The same legend is shown in the Export tab, so the scheme is clear before the
@@ -353,17 +514,23 @@ does not slip through. It carries the most signal for stacked and folded work; d
   material's density, and gives the sheet area to buy — m², or ft² in inches, on whole sheets with their offcuts —
   with the area that becomes parts and the share of the stock used. Every material on the list has a typical density
   you can correct, and a material of your own (+ beside the material) keeps the density you give it.
-- **Scale check**: every export carries a calibration bar, 10 cm or 4 in following the units, to cut first and
+- **Calibration bar** (`scale_check`): every export carries a calibration bar, 10 cm or 4 in following the units, to cut first and
   measure before committing to the whole set.
 - **Kerf compensation is off by default**: many machines compensate their own kerf, and compensating twice ruins
-  the fit. Turn it on under Machine & cut compensation when yours does not.
-- **Solids**: STL of the assembled model or one part, the same as **STEP** for CAD (every part a body with flat
-  faces, no triangles: Fusion, FreeCAD, Onshape), and a **prototyping set** for test-printing a design: every part
+  the fit. Turn it on under Cut compensation (Sheet & fit) when yours does not.
+- **Solids**: STL of the assembled model or one part, the same as **STEP** for CAD (every part and standoff a body
+  with flat faces, no triangles: Fusion, FreeCAD, Onshape) or as **STEP: one body**, the whole model fused into one
+  solid (every part, standoff and dowel joined where they touch, grown by 0.02 mm so they do; not in the browser
+  build; on Folded Panels a CAD program may not accept it as a valid solid, and the page says so), and a
+  **prototyping set** for test-printing a design: every part
   flat at a scale or target size, thickness raised to a printable minimum, label engraved as a groove or cut through,
   as one STL per part plus a 3MF that OrcaSlicer or PrusaSlicer opens as separate named objects. The label is bold,
   at least the letter height you ask for in printed millimetres (5 mm by default, whatever the scale), and sits
   where the part is widest, away from slots and edges; a part with no room for it gets none and README.txt in the
-  zip names it.
+  zip names it. Each object in the 3MF carries the print settings it needs, measured on its mesh: a layer height
+  that makes its thin tops (a tag's chip, a hinge skin, a pane) whole layers over a 0.2 mm first layer, and thick
+  bridges with no support where it has a bridge (a click joint's bar). OrcaSlicer applies them when it opens the
+  file. The first layer height is set for the whole plate, so README.txt asks for it.
 - **Fit tests** before the model: five small assemblies with the job's joints (its thickness, connectors, and every
   radial half-slice, since that is what wedges) at slot offsets of ±1, ±2 steps around the current one, each part
   marked with its offset. Cut or print, assemble: the loosest that still holds is the offset to set. There are two,
@@ -371,13 +538,43 @@ does not slip through. It carries the most signal for stacked and folded work; d
   fit test** (Downloads) is at 1:1 for the real machine and predicts the model's fit; the **print fit test**
   (Prototyping) dials in the print's own **print slot offset**, in printed millimetres whatever the scale, which the
   prototype set uses in place of the job's.
-- **Every zip carries the project file** (`….lamina.json`) that the UI's *open project* reads back: technique, every
-  parameter and the uploaded model itself, so a printed part or a cut file found later leads back to what made it.
+- **Every zip carries the project file** (`….lamina.json`): technique, every parameter and the uploaded model
+  itself, so a printed part or a cut file found later leads back to what made it. Take it out of the zip, and
+  **import files…** on the library page reads it back.
 
 ### The web UI
 
-Dark, five tabs (Model · Technique · Sheet & fit · Checks · Export). Every change re-slices; the 3D view and the cut
-sheets are always the same plan. Hover a parameter name for its help.
+Dark, six tabs (Model · Technique · Sheet & fit · Light · Checks · Export). Every change re-slices. The 3D view and the cut
+sheets are always the same plan.
+
+- **Settings**: each tab is in sections (Slices, Joining, Spacing, Position and so on). Click a heading to fold a
+  section. A setting that another one switches on is set in under it. Every setting has a full name: the name in
+  backticks in this README is its key, the one a project file and the command line use.
+- **Find a setting**: type a word in the box over the tabs. Only the settings that match stay, from every tab.
+- **Help**: hover the name of a setting, or click it and the explanation opens under it.
+- **Basic / all**: the switch under the search box. *Basic* shows the settings a first piece needs and names the
+  others at the foot of each group. A setting you changed always shows. The result is the same either way.
+- **Changed settings**: a setting that is not at its default has a bold name and a ↺ sign. Click the sign to put the
+  default back.
+- **Techniques** are seven cards, each with a drawing of what it makes.
+- **Messages** say what they are: a warning starts with ⚠ WARNING and an error with ✖ ERROR. Several notes fold into
+  one line. A connector that was asked for and left out is a warning, with a ring in the 3D view at each place.
+- **Tools in the 3D view**: buttons at the left of the view add or remove a dowel, a curve point or an axis, add a
+  branch, put a seam, select faces to keep or remove (a mask), and tilt or roll a slice. Pick one, then click or drag the model. The keys (alt-click, shift-drag,
+  ctrl-drag) do the same.
+- **Light**: tick *light* over the 3D view to light the model and see the soft shadows it throws on the floor, walls
+  and ceiling of a room. The *Light* tab holds the lights, four at most. A light is a bulb (all round) or a spot (a
+  cone with a beam angle and a soft edge), like a real lamp you pick or your own. Each has a place (inside the model
+  or outside it), a source size (small is sharp, big is soft), a brightness in lumens and a colour, and can be turned
+  off. With the light on, the *move a light* tool of the 3D view drags a light across the view, or along one of its three
+  arrows, and aims a spot by the dot at the end of its cone. A spot points up, down, at the middle of the model, or in
+  a direction of its own: move its *tilt* or *turn* slider. *Room* sets the room: shown or not, its size, the walls, the floor, and how much light the walls give back.
+  *Picture* saves the view as a PNG and says if the assembly video is lit. All of it is saved with the project and
+  is a step of undo. An example or a model that opens turns the light off (a big model drawn lit is slow on a
+  computer without a graphics card); *reset tab* puts every Light setting back and turns the light off too.
+- **Export tab**: the buttons first. The text about a file opens with a click on the line under its button.
+- **Top bar**: project name, open and save, a *version* menu, undo and redo, and a *help* menu with the guide, a *tour of the page*, the
+  release notes, the links and *clear my data*.
 
 - **3D view**: drag to orbit, wheel to zoom, right-drag to pan. Click a part to select it: a yellow arrow slides it
   along its normal, shift-drag tilts, ctrl-drag rolls, and the panel gets sliders for offset / tilt / roll /
@@ -396,10 +593,14 @@ sheets are always the same plan. Hover a parameter name for its help.
   turn. A layer nothing joins is never deleted — the Checks tab says what would hold it.
 - **Model**: quarter-turn buttons and three angles to re-orient it, scale or target size, and Modify Form: shrinkwrap,
   hollow, thicken, round (drops features thinner than a radius) and smooth (Taubin passes for pointy vertices).
-- **Material, machine, sheet**: 21 materials — paper, card, cardboard, greyboard, plywood, MDF, basswood, balsa,
-  acrylic, polypropylene, foam board, EVA foam, steel, stainless steel, aluminium, brass, copper, leather, fabric, and
-  PLA and PETG to 3D-print the parts at full size (whole layers for thicknesses, print beds for sheets: picking one
-  ticks **3D printed**, the page counts plates and the Export tab offers one 3MF per plate instead of cut files). The
+- **Material, machine, sheet**: Sheet & fit starts with **What you make with**: laser, router, 3D printer, or laser +
+  3D printer (stacked layers on printed standoffs: picking standoffs switches to it, and back, with a line saying why).
+  The choice sets the machine with its values and bed, and a material
+  it can make; a setting that machine has no use for waits under its section's **+ more** line. 21 materials — paper,
+  card, cardboard, greyboard, plywood, MDF, basswood, balsa, acrylic, polypropylene, foam board, EVA foam, steel, stainless steel, aluminium, brass, copper, leather, fabric, and
+  PLA and PETG to 3D-print the parts at full size (whole layers for thicknesses, print beds for sheets: picking one, or
+  3D printer, turns on **3D printed**, the page counts plates and the Export tab offers one 3MF per plate instead of cut files; a
+  stacked job's dowels come as printed pins in `pins-1.3mf`, each `pin_fit` thinner than the dowel and named on a tag). The
   material sets its stock thicknesses (sheet steel by Manufacturers' Standard Gauge and stainless by its own gauge
   table, copper by ounces per square foot, chipboard by points, plate, plywood, acrylic and model wood by fraction of
   an inch, each shown in mm and decimal inches), the sheet sizes it comes in (4 × 8 and 5 × 10 ft, A-series, balsa
@@ -409,25 +610,97 @@ sheets are always the same plan. Hover a parameter name for its help.
 - **View cube**: the cube in the corner of the 3D view turns with the camera; click a face for a flat top, front or
   side view.
 - **Session and projects**: the session belongs to the browser tab, so a refresh resumes where you were; a second tab
-  is a second session, and on a shared server nobody sees anyone else's models or cut files. Project save / open
-  writes one file with the model embedded. Units mm / cm / in for every length field and for the DXF.
+  is a second session, and on a shared server nobody sees anyone else's models or cut files. A project is one file
+  with the model embedded ([Your projects](#your-projects)). Units mm / cm / in for every length field and for the DXF.
+
+### Your projects
+
+A project is a model with its technique, every setting, a name and a revision. **save** in the top bar puts the
+project you are working on into the library; until then "● unsaved changes" shows beside the button. **library**
+opens a page with a card for each project, newest first: a picture of the model, the name, the revision and the
+date. Click a card to open the newest revision. The **N revisions ▾** button on a card lists every revision, each
+with **open**, **export** and **✕ delete**, and under them **export all N** and **✕ delete project** for the whole
+project. A find box filters the cards by name. Opening a project or an example while there are unsaved changes asks
+first.
+
+Save writes the revision you are on. The **version ▾** menu (+0.1 or +1) starts a new revision at the next free number:
+with 1.0 to 1.3 saved, `+0.1` from 1.0 gives 1.4. Every revision stays until you delete it. Change the name and
+save, and it is a new project; the old one stays. A save that would land on a revision that is already there, and
+is not the one this tab opened or last saved, asks: **replace** it, **keep both** (the save takes the next free
+number), or **Cancel**.
+
+The bundled examples are on the same page, under your projects, marked "example · read-only". **pick an example…**
+on the Model tab opens the library at them; once one is loaded, the button reads "<name> · pick another…". Save an
+opened example and it becomes a project of yours.
+
+Where the projects are kept, said on the folder line at the top of the library page:
+
+- **In this browser** (every browser): "💾 kept in this browser only". Clearing the site data deletes them, so use
+  **export all (.zip)** for a backup. **Clear my data…** in the *help* menu does not touch the library.
+- **In a folder on your disk** (Chrome and Edge). **link a folder** moves the browser's projects into the folder you
+  pick; the folder line then reads "📁 kept in the folder <its name> · N files", with **change folder** and
+  **unlink**. The folder is the library: each revision is one `<name>_v<rev>.lamina.json` file, a project file you
+  put there appears in the library, and one you delete is gone. A revision that stays in the browser (a link whose
+  question was cancelled) is counted on the folder line. **unlink** and **change folder** leave the files where they
+  are, and the folder line says where. The browser asks for permission to the folder again on a later visit, unless
+  you allow it on every visit; **library** and **save** ask for it from their click. Until it is given, the folder
+  line says "⚠ The linked folder <its name> cannot be reached", with **reconnect folder**, **pick another folder**
+  and **unlink**, and a save fails instead of going somewhere else.
+- **In a folder on the server** (every browser), when the server starts with `LAMINA_LIBRARY` set
+  ([Keep your projects in a folder (Docker)](#keep-your-projects-in-a-folder-docker)): "📁 kept in the folder <its
+  name> on the server · N files". That folder is the library for everyone who opens the page, and the page offers no
+  folder of its own then. Projects that were in this browser before are counted on the folder line, and **move them
+  to the server folder** moves them in, with the same questions as a link. When the server cannot write to the
+  folder, the folder line says so with the fix, and a save fails instead of going somewhere else.
+
+**export all (.zip)** makes one zip of every project, the backup that lives somewhere else; **export** on a revision
+downloads that one file, and **export all N** the project as a zip. **import files…** (or a drop on the library page)
+takes project files and such zips, several at once. When a revision with the same name and number is already there,
+it asks: **replace**, **keep both** (the import takes the next free number), or **Cancel** (that file is skipped);
+"the same for the rest" answers once for every clash of that import. Linking a folder asks the same way when the
+folder already has that revision. Nothing of this goes to a server, except to the server's own folder when it is
+set up with `LAMINA_LIBRARY`: otherwise the page reads and writes the projects itself, the same in the local version
+and in the browser version.
 
 ## How it is built
 
-```text
-web/app.py  (FastAPI)  ──▶  core/plan.py  ──▶  plan.json ──▶  core/export.py   SVG/DXF/PDF/EPS (OUTER, INNER, SCORE, LABEL)
-web/static/index.html         │                            ──▶  core/solid.py    assembled / per-part STL, 3MF prototype set (core/step.py: the same as STEP)
-(three.js, live)              ▼                            ──▶  browser          3D view from the facets in plan.json
-                     core/modes/*.py   one file per technique (plug-in): Slice objects with a frame + cuts (+ facets)
-                     core/unfold.py    mesh → flat panels (greedy flattest-edge spanning tree, overlap-checked)
-                     core/notch.py     slots where families cross (ray casts, ratio, flare, relief)
-                     core/checks.py    physical checks and auto-fix
-                     core/split.py     split oversize parts with puzzle tabs      core/nest.py  outline nesting
-                     core/geometry.py  frames, mesh sections → shapely polygons, dowel shapes
-                     core/mesh.py      the model loaded, sized, mended, kept for the next slice    core/remesh.py  modify form
-                     core/identical.py which parts are one part in several copies    core/progress.py  stages and their timing
+```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 320}}}%%
+flowchart LR
+    subgraph IN["1 – 4 · slice and check"]
+        direction TB
+        APP["web/static/index.html: the form and the live three.js view<br/>→ web/app.py (FastAPI), or the CLI: python -m core.plan<br/>→ core/plan.py · build()"]
+        S1["1 · Load the model<br/>core/mesh.py: load, size, mend, keep for the next slice<br/>core/remesh.py: modify form"]
+        S2["2 · Place slices and slots<br/>core/modes/*.py: one file per technique<br/>→ Slice objects: a frame + cuts (+ facets)"]
+        S3["3 · Section<br/>core/geometry.py: mesh section → shapely polygons<br/>cuts taken out, slivers left out"]
+        S4["4 · Check<br/>core/checks.py: physical checks, one-click fixes"]
+        HELP[["used by the techniques in step 2<br/>core/notch.py: slots where families cross<br/>core/unfold.py: mesh → flat panels<br/>core/ring.py, core/ringcut.py: rings, bands<br/>core/slidein.py: the order band pieces go in<br/>core/modes/connectors.py: dowels, pegs, spacers"]]
+        APP -- "model + parameters" --> S1 --> S2 --> S3 --> S4
+        S1 -. "preview mesh" .-> APP
+        S4 -- "a part floats, autofix = add:<br/>add a crossing slice, build again<br/>(the first build and 2 fix rounds at most)" --> S2
+        S4 ~~~ HELP
+    end
+
+    subgraph OUT["5 – 7 · cut and nest"]
+        direction TB
+        S5["5 · Cut into pieces<br/>core/split.py: oversize parts get puzzle tabs<br/>a locked band: its technique cuts it (core/ringcut.py)"]
+        S6["6 · Nest on sheets<br/>core/nest.py: outline nesting<br/>core/nofit.py: where a part may go<br/>core/labels.py: where each label goes"]
+        S7["7 · Finish<br/>core/identical.py: one part in several copies<br/>coverage of the model measured"]
+        PLAN[("plan.json")]
+        EXP(["core/export.py<br/>SVG, DXF, PDF, EPS"])
+        SOL(["core/solid.py, core/step.py<br/>STL, 3MF, STEP"])
+        VIEW(["browser<br/>3D view"])
+        S5 --> S6 --> S7 --> PLAN
+        PLAN --> EXP
+        PLAN --> SOL
+        PLAN --> VIEW
+    end
+
+    IN --> OUT
 ```
 
+- **`core/progress.py` times every stage.** The page shows each stage on its progress bar, and `plan.json` keeps the
+  times in `timing`.
 - **All geometry is computed in Python** (trimesh sections → shapely polygons). The browser only extrudes finished
   polygons; the STL export extrudes the same polygons with trimesh.
 - **A construction technique is one file** in `core/modes/` (see `interlocked.py`, about 50 lines): declare `Param`s and
@@ -457,16 +730,17 @@ slice · not connected to the main assembly (region-level connectivity through s
 plane misses material · does not fit the sheet (auto-split when `split` is on) · two slots overlap · hole too close
 to the outline · folded: joint shrunk or skipped for its triangle, listed by seam number · folded: the material does
 not fold at that thickness (plywood, MDF, acrylic, balsa, foam board, printed plastic, or card and metal past their
-limit), with a one-click switch to faces joined by ribs · slot opens away from the insertion direction · a boxy model
+limit), with a one-click switch to faces joined by ribs · slot opens away from the insertion direction · a finger between two slots thinner than the material can take (warning, with its width) · a boxy model
 a few degrees off square (the Model tab offers **square it up**). Every message says what to do about it.
 
 ## Tests
 
-The `test` workflow runs the suite on every push and pull request; `docker` and `pages` publish from `main` only,
+The `test` workflow runs the suite on every push and pull request: on Linux with Python 3.11, 3.12 and 3.14, on
+Windows, and the browser tests in 4 parts, all at the same time. `docker` and `pages` publish from `main` only,
 and `pages` deploys nothing until the built site has sliced with every technique in a real browser.
 
 Two of them drive a real browser, because that is where the bugs people report actually live:
-[tests/test_ui.py](tests/test_ui.py) runs the app against a real server and does what a person does — fills every
+[tests/ui](tests/ui) runs the app against a real server and does what a person does — fills every
 box of every technique and checks each value reached the plan, walks the undo history end to end and back, uploads
 a broken model, saves and reopens a project, downloads the cut files — and fails on any uncaught JavaScript error
 or a status line that never settles. [tests/test_e2e_site.py](tests/test_e2e_site.py) does the same for the
@@ -484,7 +758,8 @@ uv run pytest tests -n auto             # pipeline, nesting, checks, export, the
 uv run --with pytest-cov pytest --cov=core --cov=web --cov-report=term-missing   # coverage: 88 % of core + web
 uv run python tests/browser_env.py working-files/jobs   # the whole matrix without the compiled extras Pyodide lacks
 uv run playwright install chromium
-LAMINA_UI=1 uv run pytest tests/test_ui.py   # the app itself, driven like a person: every parameter, undo, no number cut off (20 min)
+LAMINA_UI=1 uv run pytest tests/ui   # the app itself, driven like a person: every parameter, undo, no number cut off (20 min)
+LAMINA_UI=1 LAMINA_UI_PART=1/4 uv run pytest tests/ui   # part 1 of the 4 the test workflow runs (then 2/4, 3/4, 4/4)
 python deploy/build_site.py
 LAMINA_E2E=1 uv run pytest tests/test_e2e_site.py   # the built site, end to end, in Chromium
 uv run python tests/test_unfold.py      # folded-panel correctness: refold, area, seams, joints (a few minutes)
@@ -494,16 +769,17 @@ uv run python scripts/media/record.py [scene …]   # re-record the landing-page
 ```
 
 The landing-page media are re-recorded on every release tag by `.github/workflows/media.yml` (or by hand from the
-Actions tab), and committed back to main, so they always show the version people download.
+Actions tab), in 6 groups of scenes at the same time, and committed back to main in one commit, so they always show
+the version people download.
 
 ## Folder layout
 
 ```text
 core/        planner, modes, unfold, notch, checks, nest, split, export, solid
-web/         FastAPI app + single-page UI (vendored three.js)
-examples/    24 test models: 18 synthetic + a scanned head, a porcelain horse statue, three animals and the bunny (terms in examples/README.md)
+web/         FastAPI app + single-page UI: static/index.html (markup), static/js/ (one module per concern), static/app.css; vendored three.js
+examples/    38 test models: synthetic shapes, a scanned head, a porcelain horse statue, animals and the bunny (terms in examples/README.md)
 docs/        index.html + media/ (the GitHub Pages site), roadmap.md, folded-panels.md, original-slicer-reference.md
-tests/       pytest suite, test_ui.py (the app in a browser), test_unfold.py, run_matrix.py
+tests/       pytest suite, ui/ (the app in a browser), test_unfold.py, run_matrix.py
 ```
 
 ### Serving the docs
@@ -539,6 +815,7 @@ People whose pull requests are part of Lamina:
 - [@Schnema1](https://github.com/Schnema1) — the next layer's outline engraved on each stacked slice, labels
   engraved on the parts themselves, the wider steps slider with its counter, the stock area to buy, and the SVG's
   one-group-per-colour switch.
+- [@DaveLauber](https://github.com/DaveLauber) — ring slices, the band lattice and max piece length, made in his fork and adapted for 0.4.0
 
 ## Support
 

@@ -2,11 +2,11 @@
 that lie in the curve's plane."""
 import math
 import numpy as np
-from shapely.geometry import Point, Polygon
+from shapely.geometry import LineString, Point
 from shapely.ops import unary_union
 from . import Mode, Param, register, spacing_params
 from .radial import Radial
-from ..geometry import as_multi, frame, section_polygons, to_local
+from ..geometry import as_multi, frame, plane_plane_line, section_polygons, to_local
 from ..model import Slice
 from ..notch import interlock
 
@@ -24,6 +24,21 @@ def part(ctx, lab, group, M, isl):
     sl = Slice(lab, group, M, ctx.thickness_of(lab), clip=as_multi(isl.buffer(0.01)))   # the clip keeps slots to it
     sl.raw = as_multi(isl)
     return sl
+
+
+def _tongue_end(a, e, ribs, x):
+    """Where a branch's tongue ends, about `x` from its joint `a` along `e`: on the far face of the body rib nearest
+    there, so no wall is left past its last slot. A fixed end fell wherever the ribs left it: a 1.5 mm bridge past a
+    leaning rib's slot on an old horse, a loose piece past a slot through a shallow belly (bug 049). It moves half a
+    pitch (x / 3) at most: a branch past the body's ribs is not reached for. As (point, normal into the tongue)."""
+    s = math.copysign(1, x)
+    at = [((r.M[:3, 3] - a) @ r.M[:3, 2] / (e @ r.M[:3, 2]), r) for r in ribs if abs(e @ r.M[:3, 2]) > 0.3]
+    at = [q for q in at if abs(q[0] - x) <= abs(x) / 3]
+    if not at:                                       # no rib there: the end stays where it is
+        return a + e * x, -s * e
+    _, r = min(at, key=lambda q: abs(q[0] - x))
+    n = r.M[:3, 2] * s * np.sign(e @ r.M[:3, 2])     # away from the joint
+    return r.M[:3, 3] + n * r.thickness / 2, -n
 
 
 def resample(pts, n_dense=400):
@@ -51,8 +66,9 @@ class Curve(Mode):
     description = ("Slices perpendicular to a curve, like the ribs of a hull or the vertebrae of an animal: the ribs turn with the "
                    "model's bend instead of staying parallel. The default curve follows the middle of the model; alt-click on the "
                    "model in the 3D view to add or remove control points (orange line, blue dots). Spine slices in the curve plane "
-                   "lock the ribs together. A leg, arm or tail takes a branch: ribs square to it and a spine of its own that "
-                   "reaches back into the body and slots into the body's ribs (shift+alt-click its tip to add one).")
+                   "lock the ribs together. A leg, arm, tail or a head turned to one side takes a branch: ribs square to it and "
+                   "a spine of its own that reaches back into the body and slots into the body's ribs (shift+alt-click its tip "
+                   "to add one).")
 
     @staticmethod
     def fit(p):
@@ -68,16 +84,21 @@ class Curve(Mode):
         return {"title": f"add a rib ({ctx.p['count'] + 1} in total)", "set": {"count": ctx.p["count"] + 1, "distribution": "count"}}
 
     @staticmethod
-    def reach(ctx, eu, ev, Q, keep):
-        """How far the material reaches from the curve, measured in the curve's plane — two rib planes meet along a
-        line at some distance from the curve, and that line must stay outside the model. Sampled, not exact. Only
-        the `keep` vertices count: a leg with ribs of its own is not where the body ribs meet."""
+    def reach(ctx, eu, ev, Q, s, keep):
+        """How far the material reaches from the curve, measured in the curve's plane: for each bit of it, its
+        distance, where along the curve (arc length) it is nearest, and on which side (+1 left of the curve's
+        direction). Two rib planes meet along a line on the inside of the bend at some distance from the curve, and
+        that line must stay outside the model near those two ribs. Sampled, not exact. Only the `keep` vertices
+        count: a leg with ribs of its own is not where the body ribs meet."""
         V = ctx.mesh.vertices[keep]
-        V = V[:: max(1, len(V) // 2000)] - ctx.mid
-        C = Q[:: max(1, len(Q) // 60)]
-        d2 = (V @ eu)[:, None] - C[None, :, 0]
-        e2 = (V @ ev)[:, None] - C[None, :, 1]
-        return float(np.sqrt((d2 ** 2 + e2 ** 2).min(1)).max())
+        V = V[:: max(1, len(V) // 4000)] - ctx.mid
+        step = max(1, len(Q) // 100)
+        C, sc, T = Q[::step], s[::step], np.gradient(Q, axis=0)[::step]
+        X = np.stack([V @ eu, V @ ev], 1)[:, None] - C[None]
+        D = np.hypot(X[..., 0], X[..., 1])
+        j = D.argmin(1); r = np.arange(len(V))
+        side = np.sign(T[j, 0] * X[r, j, 1] - T[j, 1] * X[r, j, 0])
+        return D[r, j], sc[j], side
 
     def _centroids(self, ctx, u, eu, stations):
         """(s, world point) of the model's section centroid at each station s along `eu`; a station the plane misses is left out."""
@@ -133,8 +154,8 @@ class Curve(Mode):
                 continue
             out.append([i, a, b, d, L, ns, J])
         lobes, b3d = Radial._parted(ctx, [((a + b) / 2, d, L / 2, ns) for _, a, b, d, L, ns, _ in out], [br[0] + 1 for br in out])
-        ctx.axes3d = [[[float(x) for x in q] for q in seg] for seg in ctx.p["branches"] or []]    # as the table has them
-        ctx.bounds3d = [{"label": f"J-{i + 1}", "M": np.round(J, 6).tolist(), "size": round(0.6 * L, 1)} for i, _, _, _, L, _, J in out] + b3d
+        ctx.view["axes3d"] = [[[float(x) for x in q] for q in seg] for seg in ctx.p["branches"] or []]    # as the table has them
+        ctx.view["bounds3d"] = [{"label": f"J-{i + 1}", "M": np.round(J, 6).tolist(), "size": round(0.6 * L, 1)} for i, _, _, _, L, _, J in out] + b3d
         for br, lobe in zip(out, lobes):
             i, a, b, d, L, ns, J = br
             cell = [(J[:3, 3], J[:3, 2])] + lobe; nb = max(1, round(L / pitch)); secs = []
@@ -163,11 +184,13 @@ class Curve(Mode):
                 off = np.mean([(M[:3, :2] @ isl.centroid.coords[0] + M[:3, 3] - a) @ ns for _, M, isl in isles[len(isles) // 2:]])
                 a, b = a + ns * off, b + ns * off
             lab = f"K{i + 1}"; Mk = ctx.frame(lab, (a + b) / 2, ns, up_hint=d)
-            e = np.cross(ns, d) * 1.5 * pitch; down = d * max(2 * pitch, 4 * ctx.p["thickness"])
+            e = np.cross(ns, d); down = d * max(2 * pitch, 4 * ctx.p["thickness"])
             # the tongue stops short of each body spine: a branch at a slant would cross it in the body, unslotted
             h = [(s.thickness + ctx.thickness_of(lab)) / 2 + 1 for s in spines]
             bands = [Radial._owned(Mk, [(s.M[:3, 3] + s.M[:3, 2] * w, -s.M[:3, 2]), (s.M[:3, 3] - s.M[:3, 2] * w, s.M[:3, 2])], big) for s, w in zip(spines, h)]
-            tongue = Polygon(to_local(Mk, [a + e + d * pitch, a - e + d * pitch, a - e - down, a + e - down])).difference(unary_union(bands))
+            k = int(np.argmin([np.linalg.norm(r.M[:3, 3] - a) for r in ribs])) if ribs else 0
+            ends = [_tongue_end(a, e, ribs[max(k - 4, 0):k + 5], x * 1.5 * pitch) for x in (1, -1)]
+            tongue = Radial._owned(Mk, [(a + d * pitch, -d), (a - down, d), *ends], big).difference(unary_union(bands))
             others = unary_union([Radial._owned(Mk, c2, big) for *_, c2, _ in br if c2 is not cell])
             isl = island(Mk, section_polygons(ctx.mesh, Mk).intersection(unary_union([Radial._owned(Mk, cell, big), tongue]).difference(others)), a + d * pitch)
             ks = ctx.keep([part(ctx, lab, "Y", Mk, isl)] if isl is not None else [])
@@ -185,15 +208,15 @@ class Curve(Mode):
               "R2-3 = the 3rd rib of branch 2 · K2 = branch 2's spine · J-2 = where branch 2 leaves the body · "
               "B-1-2 = the plane between branches 1 and 2")
     params = [
-        Param("plane", "choice", "xz", "Plane that contains the curve (first letter = along, second = up)", choices=["xz", "yz", "xy"]),
-        Param("curve", "points", [], "Control points [[u,v],...] in the plane (model centred at 0); fewer than two = a curve through the middle along the plane's first axis", unit="mm"),
-        Param("branches", "lines3", [], "One line per leg, arm or tail: start where it leaves the body → its tip (mm from the model's centre). "
+        Param("plane", "choice", "xz", "Plane that contains the curve (first letter = along, second = up)", choices=["xz", "yz", "xy"], label="curve plane", section="Curve — where the ribs follow the model"),
+        Param("curve", "points", [], "Control points [[u,v],...] in the plane (model centred at 0); fewer than two = a curve through the middle along the plane's first axis", unit="mm", label="curve points"),
+        Param("branches", "lines3", [], "One line per leg, arm, tail or turned head: start where it leaves the body → its tip (mm from the model's centre). "
                                         "Each gets ribs square to it and its own spine, which reaches back into the body and slots into the "
                                         "body ribs. Empty = none", unit="mm"),
-        Param("distribution", "choice", "count", "count = N ribs; distance = one rib every `spacing` of curve length", choices=["count", "distance"]),
+        Param("distribution", "choice", "count", "count = N ribs; distance = one rib every `spacing` of curve length", choices=["count", "distance"], section="Slices — the ribs along the curve"),
         Param("count", "int", 8, "Rib count", 1, 300, 1),
-        Param("spacing", "number", 20, "Rib spacing along the curve (mm)", 1, 500, 0.5, unit="mm"),
-        Param("spines", "int", 1, "Spine slices in the curve plane (0 = ribs only, glue/wire them yourself)", 0, 20, 1),
+        Param("spacing", "number", 20, "Rib spacing along the curve (mm)", 1, 500, 0.5, unit="mm", label="distance between ribs"),
+        Param("spines", "int", 1, "Spine slices in the curve plane (0 = ribs only, glue/wire them yourself)", 0, 20, 1, section="Joining — what holds the ribs together"),
         *spacing_params("ribs", [("spacing_curve", "rib spacing", [[0, 20], [0.5, 20], [1, 20]])], 3, 60),
     ]
 
@@ -205,8 +228,8 @@ class Curve(Mode):
         Q, s = resample(pts)
         W = self.across(ctx, Q[:, 0], u, eu, ew)                 # the curve's third coordinate: through the body, not the box
         C = ctx.mid + np.outer(Q[:, 0], eu) + np.outer(Q[:, 1], ev) + np.outer(W, ew)
-        ctx.curve3d = C.tolist()                                 # for the 3D view
-        ctx.curve_pts = [[float(a), float(b), float(c)] for (a, b), c in zip(pts, self.across(ctx, pts[:, 0], u, eu, ew))]
+        ctx.view["curve3d"] = C.tolist()                                 # for the 3D view
+        ctx.view["curve_pts"] = [[float(a), float(b), float(c)] for (a, b), c in zip(pts, self.across(ctx, pts[:, 0], u, eu, ew))]
         n = p["count"] if p["distribution"] == "count" else max(1, int(s[-1] // p["spacing"]))
         br = self._branches(ctx, ew, C, s[-1] / (n + 1))
 
@@ -227,35 +250,15 @@ class Curve(Mode):
         # Ribs perpendicular to a bend meet on its inside: two neighbours whose planes differ by θ and sit `d` apart
         # cross at d / (2·tan(θ/2)) from the curve, so the turn between consecutive ribs is limited to keep that
         # crossing outside the model. The reach is doubled because a crossing exactly at the material's edge still
-        # cuts the parts living there. Clamping runs outward from the middle rib, so on a bend tighter than the
-        # model is wide the shortfall is shared by both ends instead of piling up at one.
-        V = ctx.mesh.vertices
-        body = ~np.any([np.all([(V - m) @ nm > 0 for m, nm in cell], axis=0) for *_, cell, _ in br], axis=0) if br else slice(None)
-        reach = 2 * (self.reach(ctx, eu, ev, Q, body) + p["thickness"])
-        turned = 0
-        mid = len(place) // 2
-        for i in list(range(mid + 1, len(place))) + list(range(mid - 1, -1, -1)):
-            k = i - 1 if i > mid else i + 1                      # the neighbour already settled
-            d = float(np.linalg.norm(place[i][0] - place[k][0]))
-            lim = 2 * math.atan(d / (2 * reach)) if reach > 1e-9 else math.pi
-            prev = place[k][1]
-            diff = (place[i][1] - prev + math.pi) % (2 * math.pi) - math.pi
-            if abs(diff) > lim:
-                place[i] = (place[i][0], prev + math.copysign(lim, diff), *place[i][2:]); turned += 1
-        if turned:
-            ctx.notes_extra = (f"{turned} rib(s) turned less than the curve so they do not cross inside the model "
-                               f"(the bend is tighter than the model is wide); a gentler curve or fewer ribs keeps them perpendicular")
-        ribs = []
-        for i, (q, ang, wq) in enumerate(place):
-            # ribs stay square to the curve within its plane: turning them with the sideways drift as well makes
-            # neighbours cross inside a turned neck, and the turn limit above only knows the in-plane angle
-            origin = ctx.mid + q[0] * eu + q[1] * ev + wq * ew
-            normal = math.cos(ang) * eu + math.sin(ang) * ev
-            lab = f"R-{i + 1}"
-            M = ctx.frame(lab, origin, normal, up_hint=ew)          # local y = plane normal, local x = in-plane perpendicular
-            ribs.append(Slice(lab, "X", M, ctx.thickness_of(lab), clip=clip(M)))
-        ribs = ctx.keep(ribs)
-        ctx.cover_r = s[-1] / (2 * max(1, n)) + p["thickness"]
+        # cuts the parts living there. It is the material's reach near those two ribs (a rib pitch either side) and
+        # on the inside of their bend, where they meet: one reach for the whole model, all round, let the depth of the
+        # chest hold back the ribs of a slim neck. Material across a tight U-turn is nearest the curve's other arm and
+        # not counted here; ribs that meet in it are still caught, as an error, by the collision check
+        # (checks.check_collisions). Clamping runs outward from the middle rib, so on a bend tighter than the model
+        # is wide the shortfall is shared by both ends.
+        # A rib also turns no further than keeps it on a spine. The spines are flat, and where the curve runs on into
+        # a part they do not reach — a head turned aside, with no branch of its own — a rib square to the curve
+        # meets none and floats. The one reach for the whole model used to hold such a rib back by chance.
         spines = []
         if p["spines"]:
             labs = [f"K-{k + 1}" for k in range(p["spines"])]; th = [ctx.thickness_of(l) for l in labs]
@@ -264,6 +267,64 @@ class Curve(Mode):
                 M = ctx.frame(lab, ctx.mid + ew * (off + w_mid), ew, up_hint=ev)
                 spines.append(Slice(lab, "Y", M, tk, clip=clip(M)))
             spines = ctx.keep(spines)
+
+        def rib_frame(i, ang):                                   # local y = plane normal, local x = in-plane perpendicular
+            q, _, wq = place[i]
+            return ctx.frame(f"R-{i + 1}", ctx.mid + q[0] * eu + q[1] * ev + wq * ew, math.cos(ang) * eu + math.sin(ang) * ev, up_hint=ew)
+
+        # each spine's material: where a rib can cross it is where its slot goes (branch regions already taken off)
+        material = [(sp.M, sec if sp.clip is None else sec.intersection(sp.clip)) for sp in spines for sec in [section_polygons(ctx.mesh, sp.M)]]
+
+        def held(i, ang):
+            """Rib i at `ang` crosses a spine's material over two thicknesses or more: less leaves each part,
+            notched halfway, a slot shallower than its own thickness."""
+            if not material:
+                return True
+            R = rib_frame(i, ang)
+            for M, sec in material:
+                ln = plane_plane_line(R, M)
+                if ln is not None:
+                    cut = sec.intersection(LineString(to_local(M, [ln[0] - ln[1] * ctx.span, ln[0] + ln[1] * ctx.span])))
+                    if max((g.length for g in getattr(cut, "geoms", [cut])), default=0.0) >= 2 * p["thickness"]:
+                        return True
+            return False
+        V = ctx.mesh.vertices
+        body = ~np.any([np.all([(V - m) @ nm > 0 for m, nm in cell], axis=0) for *_, cell, _ in br], axis=0) if br else slice(None)
+        dist, at, side = self.reach(ctx, eu, ev, Q, s, body)
+        pitch = s[-1] / (n + 1)
+        turned = 0
+        mid = len(place) // 2
+        for i in list(range(mid + 1, len(place))) + list(range(mid - 1, -1, -1)):
+            k = i - 1 if i > mid else i + 1                      # the neighbour already settled
+            d = float(np.linalg.norm(place[i][0] - place[k][0]))
+            prev = place[k][1]
+            diff = (place[i][1] - prev + math.pi) % (2 * math.pi) - math.pi
+            lo, hi = sorted((stations[i], stations[k]))
+            # the inside of the turn from k to i: left of the curve's direction when it turns left
+            near = dist[(at >= lo - pitch) & (at <= hi + pitch) & (side == math.copysign(1, diff * (i - k)))]
+            reach = 2 * (float(near.max(initial=0.0)) + p["thickness"])
+            lim = 2 * math.atan(d / (2 * reach))
+            turn = math.copysign(min(abs(diff), lim), diff)
+            if not held(i, prev + turn) and held(i, prev):       # as far as it still meets a spine: halve the turn
+                f0, f1 = 0.0, 1.0
+                for _ in range(12):
+                    f0, f1 = ((f0 + f1) / 2, f1) if held(i, prev + turn * (f0 + f1) / 2) else (f0, (f0 + f1) / 2)
+                turn *= f0
+            if turn != diff:
+                place[i] = (place[i][0], prev + turn, *place[i][2:]); turned += 1
+        if turned:
+            ctx.notes_extra = (f"{turned} rib(s) turned less than the curve so they do not cross inside the model or "
+                               f"run past the spines; a gentler curve or fewer ribs keeps them perpendicular")
+        ribs = []
+        for i, (_, ang, _) in enumerate(place):
+            # ribs stay square to the curve within its plane: turning them with the sideways drift as well makes
+            # neighbours cross inside a turned neck, and the turn limit above only knows the in-plane angle
+            lab = f"R-{i + 1}"
+            M = rib_frame(i, ang)
+            ribs.append(Slice(lab, "X", M, ctx.thickness_of(lab), clip=clip(M)))
+        ribs = ctx.keep(ribs)
+        ctx.cover_r = s[-1] / (2 * max(1, n)) + p["thickness"]
+        if spines:
             for r in ribs:                                           # ribs open toward their in-plane normal
                 interlock([r], spines, ctx, r.M[:3, 0], -r.M[:3, 0])
         return ribs + spines + self._limbs(ctx, br, spines, ribs, s[-1] / (n + 1))

@@ -2,10 +2,17 @@
 this) and it calls the very endpoint functions web/app.py serves — one code path whoever runs it. No ASGI, no
 threads: a request is a plain function call whose answer is (status, headers, body)."""
 from __future__ import annotations
-import io, json, mimetypes, urllib.parse
+import inspect, io, json, mimetypes, urllib.parse
 from fastapi import HTTPException, UploadFile
 from fastapi.responses import Response
 from web import app as A
+
+
+def call(endpoint, q: dict, **path):
+    """The endpoint called as the server calls it: each parameter the query names, by name and coerced by its
+    annotation, the rest left at the signature's default — a value can never land in the wrong slot."""
+    params = inspect.signature(endpoint, eval_str=True).parameters
+    return endpoint(**path, **{k: params[k].annotation(v) for k, v in q.items() if k in params and k not in path})
 
 
 def handle(method: str, path: str, query: str, form) -> tuple[int, dict, bytes]:
@@ -21,6 +28,8 @@ def handle(method: str, path: str, query: str, form) -> tuple[int, dict, bytes]:
         elif path == "api/examples":                         # the site ships the list; the models come one by one when picked
             idx = A.EXAMPLES / "index.json"
             out = json.loads(idx.read_text()) if idx.exists() else A.examples()
+        elif path == "api/project":
+            out = A.project()
         elif path == "api/presets":
             out = A.presets()
         elif path == "api/session":
@@ -35,21 +44,9 @@ def handle(method: str, path: str, query: str, form) -> tuple[int, dict, bytes]:
             return 200, {"content-type": mimetypes.guess_type(p.name)[0] or "application/octet-stream"}, p.read_bytes()
         elif path.startswith("api/job/"):
             _, _, client, job, what = path.split("/", 4)
-            # by name, as the server binds a query: a value in the wrong slot is a prototype with the wrong font
-            F = lambda k, d: float(q.get(k, d)); I = lambda k, d: int(q.get(k, d))
-            proto = dict(scale=F("scale", 1), size=F("size", 0), labels=q.get("labels", "groove"), font=F("font", 5),
-                         min_thick=F("min_thick", 1.2), offset=F("offset", 0.2))
-            routes = {"export": lambda: A.job_export(client, job, q.get("fmt", "svg,dxf"), I("labels", 1), I("per_piece", 0), I("key", 1), q.get("units", ""),
-                                                     grouped=I("grouped", 1)),
-                      "stl": lambda: A.job_stl(client, job, q.get("part", "")),
-                      "step": lambda: A.job_step(client, job, q.get("part", "")),
-                      "source": lambda: A.job_source(client, job),
-                      "proto": lambda: A.job_proto(client, job, **proto),
-                      "fit": lambda: A.job_fit(client, job, **proto, step=F("step", 0.1)),
-                      "fitcut": lambda: A.job_fitcut(client, job, q.get("fmt", "svg,dxf"), I("labels", 1), F("step", 0.1), q.get("units", ""))}
-            if what not in routes:
+            if what not in A.JOB_ROUTES:
                 raise HTTPException(404)
-            out = routes[what]()
+            out = call(A.JOB_ROUTES[what], q, client=client, job=job)
         else:
             raise HTTPException(404)
     except HTTPException as e:

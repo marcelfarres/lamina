@@ -2,7 +2,6 @@
 Every message says what is wrong AND what to do about it; `suggest_fixes` turns the common ones into one-click options."""
 from __future__ import annotations
 import math
-import re
 
 import numpy as np
 import shapely
@@ -12,13 +11,29 @@ from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
 
+from .model import Issue, LOOSE, kind_of
 from .geometry import (crossings, dowel_leverage, hole_reach, into, min_dims, plane_plane_line, rect_along, thin_spots,
                        to_local, to_world)
 
-HELD_GROUPS = ("X", "Y", "R", "C", "W")     # regions in these groups must be held by a slot / dowel / the core ("W" = a plaque's back plate)
-STRUCTURAL = ("X", "Y", "R", "C", "S")  # take part in the assembly-connectivity check (panels, pegs, strips, ribs do not)
+HELD_GROUPS = ("X", "Y", "Z", "R", "C", "W")     # regions in these groups must be held by a slot / dowel / the core ("W" = a plaque's back plate)
+STRUCTURAL = ("X", "Y", "Z", "R", "C", "S")  # take part in the assembly-connectivity check (panels, pegs, strips, ribs do not)
 CONNECTED = STRUCTURAL + ("W",)         # … and a plaque's back plate does too; it is not a plane through the model, so it gets no section treatment
 LEVERAGE_WARN = 1.5    # placement aims for 0.8 (geometry.LEVERAGE_OK); past this a piece's far edge visibly wanders
+# How each material takes a slotted assembly: (mm of material in a slice's way in that can still be got past — bent
+# aside or trimmed with a knife in a soft sheet, sanded or filed in a hard one; the thinnest finger of material between
+# two slots, as a share of the sheet's thickness). Up to 8 mm: the tube example's far walls (9 and 14 mm in the way)
+# block in every material. A material not listed takes the plywood figures, which were the only ones before.
+# ponytail: rules of thumb like folded's SQUISH and FOLDS, to be corrected by what gets built.
+FIT = {"paper": (8, 2), "card": (8, 2), "fabric": (8, 2), "cardboard": (8, 2), "EVA foam": (8, 2), "foam board": (8, 2),
+       "greyboard": (8, 2), "balsa": (8, 2), "leather": (8, 1), "polypropylene": (8, 1),
+       "plywood": (6, 1), "PETG": (6, 1), "basswood": (6, 1.5), "mdf": (4, 1.5), "PLA": (4, 1.5), "acrylic": (3, 1.5),
+       "steel": (2, 0.5), "stainless steel": (2, 0.5), "aluminium": (2, 0.5), "brass": (2, 0.5), "copper": (2, 0.5)}
+
+
+def fit_of(p):
+    """The material's name and its FIT figures (the plywood ones for a material not listed)."""
+    kind = p.get("material_kind") or p.get("material") or ""
+    return kind, FIT.get(kind, FIT["plywood"])
 
 
 def check_slice(sl, p):
@@ -29,18 +44,20 @@ def check_slice(sl, p):
     regions = list(sl.profile.geoms)
     if len(regions) > raw_n:
         what = "holes" if sl.group in ("F", "J", "P") else "slots"
-        sl.errors.append(f"{what} cut the part into {len(regions)} loose regions (was {raw_n}) — move this slice a little (offset), "
-                         f"lower the notch ratio, use fewer crossing slices, or make the connection holes smaller")
+        sl.errors.append(Issue(f"{what} cut the part into {len(regions)} loose regions (was {raw_n}) — move this slice a little (offset), "
+                               f"lower the notch ratio, use fewer crossing slices, or make the connection holes smaller", "cut-apart"))
     for i, reg in enumerate(regions):
+        if sl.springy:
+            continue
         tag = f"region {i + 1}" if len(regions) > 1 else "part"
         small, large = min_dims(reg)
         glued_island = sl.group == "S" and len(regions) > 1        # stacked islands (ears, horns) are kept: glue them carefully
         # a stacked spacer or peg is drawn at the connector's size: the model's thickness and rounding never reach it
         spacer = "it is drawn at the connector's size: use a bigger dowel_d" if sl.group == "P" else None
         if large < mp:
-            (sl.warnings if glued_island else sl.errors).append(f"{tag} too small ({small:.1f}×{large:.1f} mm < {mp} mm) — {'a tiny glued island: fiddly to handle, round / thicken the model to merge it' if glued_island else 'too small to cut and handle: delete it, enlarge the model, or lower min_part'}")
+            (sl.warnings if glued_island else sl.errors).append(Issue(f"{tag} too small ({small:.1f}×{large:.1f} mm < {mp} mm) — {'a tiny glued island: fiddly to handle, round / thicken the model to merge it' if glued_island else 'too small to cut and handle: delete it, enlarge the model, or lower min_part'}", "size"))
         elif small < mf:
-            (sl.warnings if glued_island else sl.errors).append(f"{tag} too thin ({small:.1f} mm < {mf} mm) — it would break: {spacer or 'thicken / round the model, use thicker material, or delete it'}")
+            (sl.warnings if glued_island else sl.errors).append(Issue(f"{tag} too thin ({small:.1f} mm < {mf} mm) — it would break: {spacer or 'thicken / round the model, use thicker material, or delete it'}", "size"))
         # tips and slivers: a point where the plane meets the surface at a grazing angle, a wall left between a slot
         # and the edge — thinner than the min feature and long, they snap at the cutter or in the hand
         # (a sectioned part with `trim_thin` on has had them cut off already; what is left is a bridge, reported below)
@@ -48,36 +65,56 @@ def check_slice(sl, p):
         thin = [] if trims and p.get("trim_thin") else thin_spots(reg, mf)
         if thin:
             longest = max(min_dims(q)[1] for q in thin)
-            sl.warnings.append(f"{tag} has {len(thin)} thin spot(s) — a tip or sliver thinner than the material can take for {longest:.0f} mm, which would break off: "
-                               + ("trim thin spots (the part ends blunt there), move the slice (offset), or thicken / round the model" if trims
-                                  else spacer or "thicken / round the model, or lower min_feature"))
+            sl.warnings.append(Issue(f"{tag} has {len(thin)} thin spot(s) — a tip or sliver thinner than the material can take for {longest:.0f} mm, which would break off: "
+                                     + ("trim thin spots (the part ends blunt there), move the slice (offset), or thicken / round the model" if trims
+                                        else spacer or "thicken / round the model, or lower min_feature"), "thin-spot"))
         # thin necks: erode by half the min feature; anything that vanishes or fragments is fragile
         eroded = reg.buffer(-mf / 2)
         if eroded.is_empty:
-            (sl.warnings if glued_island else sl.errors).append(f"{tag} thinner than {mf} mm everywhere — it would break: {spacer or 'thicken / round the model or lower min_feature'}")
+            (sl.warnings if glued_island else sl.errors).append(Issue(f"{tag} thinner than {mf} mm everywhere — it would break: {spacer or 'thicken / round the model or lower min_feature'}", "size"))
         elif eroded.geom_type == "MultiPolygon" and len(eroded.geoms) > 1:
-            sl.warnings.append(f"{tag} has a bridge thinner than {mf} mm (splits into {len(eroded.geoms)} pieces when eroded) — fragile: thicken / round the model, "
-                               f"move the slice (offset), or accept and handle with care")
+            sl.warnings.append(Issue(f"{tag} has a bridge thinner than {mf} mm (splits into {len(eroded.geoms)} pieces when eroded) — fragile: thicken / round the model, "
+                                     f"move the slice (offset), or accept and handle with care", "bridge"))
         # engagement: a region must be held by something (a slot, a dowel, the core) unless it is the only region of a stacked slice
         if sl.group in HELD_GROUPS or (sl.group == "S" and len(regions) > 1):
             held = any(reg.intersects(c) for c in sl.cuts) or any(reg.intersects(g) for _, g, _ in sl.links)   # a plaque's tooth is a link, not a cut
             if not held and sl.group != "S":
-                sl.errors.append(f"{tag} floats — no slot or dowel holds it: add a crossing slice through it, move this slice, or delete it")
+                sl.errors.append(Issue(f"{tag} floats — no slot or dowel holds it: add a crossing slice through it, move this slice, or delete it", "floats", region=i))
             elif not held and p.get("space", 0) > 0:     # stacked with a gap: nothing touches, so an island without a connector hangs in the air
-                sl.errors.append(f"{tag} floats — nothing holds it across the gap: add a connection point inside it (alt-click), use a smaller dowel, or set the gap to 0 and glue it")
-            elif not held:
-                sl.warnings.append(f"{tag} is a separate island — glued to its neighbours only (no dowel / peg through it); add a connection point inside it if it must be rigid")
-        if sl.group == "S" and p.get("connect") == "dowel":
+                sl.errors.append(Issue(f"{tag} floats — nothing holds it across the gap: add a connection point inside it (alt-click), use a smaller dowel, or set the gap to 0 and glue it", "gap", region=i))
+            elif not held and not _outlined(sl, reg):
+                sl.warnings.append(Issue(f"{tag} is a separate island — glued to its neighbours only, with no dowel / peg through it and nothing that "
+                                         f"shows where it goes: engrave the next layer outline, or add a connection point inside it", "island"))
+        if sl.group == "S" and p.get("connect") in ("dowel", "standoff"):
             _spread_warning(sl, reg, tag, p)
-    if sl.group in ("X", "Y") and not sl.engages:
-        sl.errors.append("no crossing slice — this slice touches nothing: add a slice of the other family through it, move it toward the centre, or delete it")
+    if sl.group in ("X", "Y", "Z") and not sl.engages:
+        sl.errors.append(Issue("no crossing slice — this slice touches nothing: add a slice of the other family through it, move it toward the centre, or delete it", "no-crossing"))
     # hole wall check: a closed cut (hole, slot, dowel) must leave at least min_feature of material to the outline
     if sl.cuts:
         inner = sl.raw.buffer(-(mf - 1e-3))     # a hole placed exactly min_feature in is not "closer than" it
         for c in sl.cuts:
             if sl.raw.contains(c) and not inner.contains(c):
-                sl.warnings.append(f"a hole sits closer than {mf} mm to the outline (thin wall may tear) — move the connection point inward, use a smaller dowel, or accept")
+                sl.warnings.append(Issue(f"a hole sits closer than {mf} mm to the outline (thin wall may tear) — move the connection point inward, use a smaller dowel, or accept", "hole-wall"))
                 break
+    # fingers: the material left between the slots of two crossing slices side by side. Narrower than the material
+    # takes (about the sheet's thickness in plywood, more in a brittle or soft sheet), a finger snaps or crushes when
+    # the crossing slice is pushed in, though it is wider than min_feature. Two slots of one crossing slice end to end
+    # (its line passes the model twice) leave no finger: that is not one. Every family slotted into another has
+    # them: a radial core ring between its half-slices' slots too (stacked layers carry dowel holes, not slots)
+    kind, (_, share) = fit_of(p)
+    least = share * sl.thickness
+    owner = {id(c): lab for lab, c, _ in sl.links}                  # each slot's crossing slice
+    if sl.group in ("X", "Y", "Z", "R", "C") and len(sl.cuts) > 1:
+        a, b = STRtree(sl.cuts).query(sl.cuts, predicate="dwithin", distance=least - 1e-6)
+        two = lambda i, j: {owner.get(id(sl.cuts[i])), owner.get(id(sl.cuts[j]))}   # noqa: E731
+        widths = [d for i, j in zip(a, b) if i < j and len(two(i, j) - {None}) == 2
+                  and (d := sl.cuts[i].distance(sl.cuts[j])) > 1e-6
+                  and sl.raw.contains(shapely.shortest_line(sl.cuts[i], sl.cuts[j]).interpolate(0.5, normalized=True))]
+        if widths:
+            need = f"{least:g} mm" + (f", {share:g} × the {sl.thickness:g} mm sheet" if share != 1 else " = the sheet's thickness")
+            sl.warnings.append(Issue(f"{len(widths)} finger(s) between slots are thinner than {kind or 'the material'} can take "
+                                     f"({min(widths):.1f} mm < {need}) and may break when the crossing slices go in: put the "
+                                     f"crossing slices farther apart (fewer of them, or a bigger gap), or use thinner material"))
     # Slicer's "multiple / overlapping notches on one part": two cuts crossing each other inside the material
     inside = [c for c in sl.cuts if sl.raw.intersects(c)]
     if len(inside) > 1:
@@ -86,6 +123,12 @@ def check_slice(sl, p):
             if any(j > i and a.intersection(inside[j]).intersection(sl.raw).area > 0.25 for j in tree.query(a)):
                 sl.warnings.append("two slots / holes overlap each other (the connection is weakened) — fewer connection points, move the slice (offset), change the angle, or delete one slice")
                 break
+
+
+def _outlined(sl, reg):
+    """A stacked island with no dowel through it is still put in place when the next layer outline is engraved: its own
+    outline on the layer below, or the outline of the layer above on it. Glue then holds it, as it holds every layer."""
+    return any(reg.intersects(q) for q in sl.outlined) or any(st == "guide" and reg.intersects(ln) for st, ln in sl.lines)
 
 
 def _spread_warning(sl, reg, tag, p):
@@ -113,16 +156,17 @@ def _spread_warning(sl, reg, tag, p):
     said = f"{tag} ({reg.area / 100:.0f} cm², {across:.0f} mm across) is held by " \
            f"{len(pts)} dowels bunched together — its far edge can shift {lev:.1f}× the play in their holes"
     if best and dowel_leverage(reg, pts + [best]) <= LEVERAGE_WARN:
-        sl.warnings.append(
+        sl.warnings.append(Issue(
             f"{said}. It needs one more, nearer its edge: a dowel at ({best[0]:.1f} mm, {best[1]:.1f} mm) brings that to "
             f"{dowel_leverage(reg, pts + [best]):.1f}× "
             + {"aligned": "(alt-click there, or the fix below)", "lines": "(alt-click there for a line up through it)"}
-            .get(p.get("placement"), "(set placement to aligned to place your own)"))
+            .get(p.get("placement"), "(set placement to aligned to place your own)"),
+            "bunched", spot=(round(best[0], 1), round(best[1], 1))))      # the spot as the sentence gives it, to the tenth
     elif across >= 5 * need and body.buffer(-need / 2).area < 0.1 * body.area:
         sl.warnings.append(
             f"{said}, and no dowel fits farther out: its wall is about {2 * body.area / body.length:.0f} mm, a "
             f"{p['dowel_d']:g} mm dowel needs {need:.0f} mm with its walls — a thicker wall (less hollow, or "
-            f"thicken the model), or accept it and line this layer up by eye")
+            f"thicken the model), or accept it and line this layer up by eye")      # no spot to add: no fix, so a plain sentence
 
 
 def check_insertion(slices, p):
@@ -132,12 +176,21 @@ def check_insertion(slices, p):
     in the path (the second wall of a hollow section the line crosses twice, a concave outline that closes over the
     mouth) makes the assembly physically impossible, however good the slots look on paper."""
     by = {s.label: s for s in slices}
+    step = {s.label: i for i, s in enumerate(slices)}               # the build order: the steps the 3D view plays
+    kind, (give, _) = fit_of(p)                                     # what of the path the material lets a slice get past
     for a in slices:
         if a.profile is None or a.profile.is_empty:
             continue
         for lb, o in a.slot_dirs.items():
             b = by.get(lb)
             if b is None or b.profile is None or b.profile.is_empty:
+                continue
+            # b goes in after a, along the one way it can move (a plaque's slice: toward the plate): it enters a's slot
+            # through the mouth, so that slot must open toward where b comes from
+            if b.travel is not None and step[lb] > step[a.label] and np.dot(o, b.travel) > -0.5:
+                b.errors.append(Issue(f"{b.label} cannot be put in: it goes in after {a.label}, but the slot in {a.label} opens away "
+                                      f"from where {b.label} comes from — the slices that go in first need their slots open toward the "
+                                      f"ones that come after them"))
                 continue
             ln = plane_plane_line(a.M, b.M)
             if ln is None:
@@ -156,9 +209,11 @@ def check_insertion(slices, p):
             if not strips:
                 continue
             blocked = a.profile.intersection(unary_union(strips))
-            if blocked.area > 6 * b.thickness:            # a few thicknesses of path: a sliver at the mouth is sanded, a wall is not
-                a.errors.append(f"{b.label} cannot slide into its slot: {a.label}'s material is in its path ({blocked.area / b.thickness:.0f} mm of it) — "
-                                f"the crossing line meets {a.label} twice (a hollow or concave section): move {b.label} (offset), lower the notch ratio, or delete {b.label}")
+            if blocked.area > give * b.thickness:         # a lip at the mouth is bent aside, trimmed or sanded; a wall is not
+                a.errors.append(Issue(f"{b.label} cannot slide into its slot: {a.label}'s material is in its path ({blocked.area / b.thickness:.0f} mm of it, "
+                                      f"{kind or 'the material'} lets {give:g} mm through) — "
+                                      f"the crossing line meets {a.label} twice (a hollow or concave section): move {b.label} (offset), lower the notch ratio, or delete {b.label}",
+                                      "blocked", other=b.label))
 
 
 def check_plan(slices, p, mesh=None, span=None):
@@ -178,7 +233,7 @@ def check_collisions(slices, mesh, span):
     they would physically collide. Crossing families are joined by slots and are fine."""
     groups = {}
     for s in slices:
-        if s.group in ("X", "Y", "S", "R", "C") and s.profile is not None:
+        if s.group in ("X", "Y", "Z", "S", "R", "C") and s.profile is not None:
             groups.setdefault(s.group, []).append(s)
     for members in groups.values():
         pairs = [(a, b) for i, a in enumerate(members) for b in members[i + 1:]]
@@ -190,8 +245,8 @@ def check_collisions(slices, mesh, span):
                 m = p0 + d * (s_in + s_out) / 2
                 la, lb = to_local(a.M, [m])[0], to_local(b.M, [m])[0]
                 if a.profile.contains(Point(la)) and b.profile.contains(Point(lb)):
-                    msg = f"crosses {b.label} inside the model and nothing joins them (they collide) — reduce the tilt / offset, move one, or delete one"
-                    a.errors.append(msg); b.errors.append(f"crosses {a.label} inside the model and nothing joins them (they collide) — reduce the tilt / offset, move one, or delete one")
+                    for x, y in ((a, b), (b, a)):
+                        x.errors.append(Issue(f"crosses {y.label} inside the model and nothing joins them (they collide) — reduce the tilt / offset, move one, or delete one", "collide", other=y.label))
                     break
 
 
@@ -239,17 +294,18 @@ def check_assembly(slices, p):
             continue
         labels = sorted({struct[i].label for i, _ in comp})
         for i, r in comp:
-            s = struct[i]; tag = f"region {r + 1} " if len(s.profile.geoms) > 1 else ""
-            s.errors.append(f"{tag}is not connected to the main assembly (separate group: {', '.join(labels)}) — nothing joins it to the rest: "
-                            f"add crossing slices / connection points through it, or delete it")
+            s = struct[i]; many = len(s.profile.geoms) > 1
+            s.errors.append(Issue(f"{f'region {r + 1} ' if many else ''}is not connected to the main assembly (separate group: {', '.join(labels)}) — nothing joins it to the rest: "
+                                  f"add crossing slices / connection points through it, or delete it",
+                                  "not-connected", group=labels, **({"region": r} if many else {})))
 
 
 def _loose(sl, ctx, mode):
-    """Each error saying a region of `sl` is held by nothing ("region 2 floats", "part floats", "no crossing slice",
-    "is not connected"), with the technique's fix that puts a crossing slice through that region's middle, or None."""
+    """Each error saying a region of `sl` is held by nothing (kinds LOOSE), with the technique's fix that puts a
+    crossing slice through that region's middle, or None. An error that names no region speaks of the first."""
     for e in sl.errors:
-        if "floats" in e or "no crossing" in e or "not connected" in e:
-            regs = list(sl.profile.geoms); r = int(e.split()[1]) - 1 if e.startswith("region") else 0
+        if kind_of(e) in LOOSE:
+            regs = list(sl.profile.geoms); r = e.about.get("region", 0)
             c = regs[r].centroid if r < len(regs) else None
             yield e, mode.crossing_fix(ctx, sl, to_world(sl.M, [(c.x, c.y)])[0]) if c else None
 
@@ -285,69 +341,69 @@ def suggest_fixes(slices, p, ctx, mode):
         grow = fix(f"grow {sl.label}'s outline {p['min_feature'] / 2:g} mm (bridges become ≥ {p['min_feature']:g} mm)", grow={sl.label: p["min_feature"] / 2})
         loose = dict(_loose(sl, ctx, mode))
         for e in sl.errors:
-            opts = []
-            if e in loose:
+            opts = []; kind = kind_of(e)
+            if kind in LOOSE:
                 opts += [loose[e]] if loose[e] else []
                 step = max(5.0, 0.1 * max(ctx.ext))
                 opts.append(fix(f"move {sl.label} {step:.0f} mm toward the centre", offset={sl.label: round(off + toward * step, 1)}))
-                if "not connected" in e:
-                    grp = e.split("separate group: ")[1].split(")")[0].split(", ")
+                if kind == "not-connected":
+                    grp = e.about["group"]
                     opts += delete(grp, f"delete the group ({len(grp)} parts)") + [rnd(3, "merges thin gaps")]
                     if stack:                          # keep the layer, join it instead: glue the stack or thin the pegs
                         opts += [glue, smaller]
-                elif "across the gap" in e:            # a stacked island the dowel does not fit in
+                elif kind == "gap":                    # a stacked island the dowel does not fit in
                     opts += [smaller, glue]
                 else:
                     opts += delete(sl.label)
-            elif "cannot slide into its slot" in e:
-                other = e.split()[0]
+            elif kind == "blocked":
+                other = e.about["other"]
                 opts += [move(other, 2 * t), move(other, -2 * t), *notch, *delete(other)]
-            elif "cut the part into" in e:
+            elif kind == "cut-apart":
                 opts += [move(sl.label, 2 * t), move(sl.label, -2 * t)]
                 if mode.name in ("interlocked", "curve", "radial"):
                     opts += notch
                 opts += delete(sl.label)
-            elif sl.group == "P" and ("too small" in e or "too thin" in e or "thinner than" in e):
+            elif sl.group == "P" and kind == "size":
                 # a tab spacer is 0.6 of the connector wide (a peg, with no gap, all of it): the size whose narrowest
                 # part keeps the wall, to the next half millimetre. Growing it alone would no longer fit its slots.
                 d = math.ceil(2 * (p["min_feature"] / (0.6 if p.get("space", 0) > 0 else 1) + 1)) / 2
                 if d > p.get("dowel_d", 6):
                     opts.append(fix(f"bigger connectors ({d:g} mm)", dowel_d=d))
-            elif "too small" in e or "too thin" in e or "thinner than" in e:
+            elif kind == "size":
                 opts += [grow, *delete(sl.label), fix("thicken the model 2 mm", thicken=2), rnd(2)]
-            elif "crosses" in e and "collide" in e:
-                other = e.split()[1]
+            elif kind == "collide":
+                other = e.about["other"]
                 opts += [fix(f"reset tilt / roll / offset of {sl.label}", tilt={sl.label: 0}, roll={sl.label: 0}, offset={sl.label: 0}), *delete(other)]
             if opts:
                 sl.fixes.append({"error": e, "options": opts})
         for w in sl.warnings:                          # warnings worth a one-click fix as well
-            opts = []
-            if "bridge thinner" in w:
+            opts = []; kind = kind_of(w)
+            if kind == "bridge":
                 opts = [grow, rnd(2)]
-            elif "thin spot" in w and sl.group in STRUCTURAL:
+            elif kind == "thin-spot" and sl.group in STRUCTURAL:
                 # the trim first: one click, every part, and done — a move or a grow is a change to the model that a
                 # second click repeats, and the thin spot may still be there afterwards
                 step = max(5.0, 0.1 * max(ctx.ext))
                 opts = [fix("trim thin spots off every part", trim_thin=True), grow,
                         fix(f"move {sl.label} {step:.0f} mm toward the centre", offset={sl.label: round(off + toward * step, 1)})]
-            elif "separate island" in w:
-                opts = [rnd(3, "merges it into the body")]
+            elif kind == "island":
+                opts = [fix("engrave the next layer outline", next_outline=True), rnd(3, "merges it into the body")]
                 if mode.name == "stacked" and p.get("connect") == "none":
                     opts.append(fix("hold the stack with pegs", connect="tab"))
-            elif "closer than" in w and "outline" in w:
+            elif kind == "hole-wall":
                 # the setting that sizes this part's holes: a joint's hole on folded panels, the dowel everywhere else
                 key, d = ("hole_d", p.get("hole_d", 2.5)) if mode.name == "folded" else ("dowel_d", p.get("dowel_d", 6))
                 small = round(max(0.5 if key == "hole_d" else 2.0, d * 0.6), 1)
                 opts = [fix(f"smaller {'holes' if key == 'hole_d' else 'connectors'} ({small:g} mm)", **{key: small})]
-            elif "bunched together" in w and "a dowel at (" in w and p.get("placement") == "aligned":
+            elif kind == "bunched" and p.get("placement") == "aligned":
                 # each coordinate with its mm, so the page's units switch turns the spot into inches with the rest
-                x, y = map(float, re.search(r"a dowel at \(([-\d.]+) mm, ([-\d.]+) mm\)", w).groups())
+                x, y = w.about["spot"]
                 opts = [fix(f"add a dowel at ({x:g} mm, {y:g} mm)", dowels=[*map(list, p["dowels"]), [x, y]])]
-            elif "skipped" in w and "connection point" in w:
-                opts = [smaller, fix("fewer connection points", n_points=max(1, int(p.get("n_points", 2)) - 1))]
-            elif "press up to" in w and "too small to cut back" in w:
-                opts = [fix(f"bigger triangles (facet {(p.get('facet') or 10) * 1.5:g} mm)", facet=round((p.get("facet") or 10) * 1.5, 1))]
-            elif "without a" in w and "seam" in w:
+            elif kind == "press" and w.about["cut_back"]:
+                # the cut-back takes up to 0.4 of a face's height: a face under 2.5 × the sheet (more at a sharp seam) is too small for it
+                opts = [fix(f"merge the faces under {4 * t:g} mm into their neighbours", min_face=round(4 * t, 1)),
+                        fix(f"bigger triangles (facet {(p.get('facet') or 10) * 1.5:g} mm)", facet=round((p.get("facet") or 10) * 1.5, 1))]
+            elif kind == "no-joint":
                 opts = [fix(f"bigger triangles (facet {p.get('facet', 15) * 1.5:g} mm)", facet=round(p.get("facet", 15) * 1.5, 1)),
                         fix("smaller joints", hole_d=round(max(1.0, p.get("hole_d", 2.5) * 0.7), 1), inset=round(max(1.0, p.get("inset", 4) * 0.7), 1))]
             if opts:

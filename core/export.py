@@ -21,12 +21,17 @@ import shapely
 from ezdxf import units as dxfunits
 from shapely import affinity
 from shapely.geometry import MultiPolygon, Polygon, box
-from .font import strokes as glyphs
-from .geometry import as_multi, label_box, label_rect, poly_coords
+from .font import bold_dot, strokes as glyphs
+from .geometry import as_multi, poly_coords
+from .labels import label_box, label_rect, mark_rot, mark_size
 
-COLORS = {"OUTER": "#0055ff", "INNER": "#00aa00", "SCORE": "#d4a800", "GUIDE": "#ff8800", "LABEL": "#ff0000"}
+# The layers in the order a machine runs them, which is the order every file writes them in: the engravings (labels,
+# then the next layer's outline), the scores, the holes, and the outlines last, so no part drops out of the sheet
+# before its holes are cut. FRAME, the sheet's border and title, is first and never run: it shows where the sheet is.
+ORDER = ("FRAME", "LABEL", "GUIDE", "SCORE", "INNER", "OUTER")
+COLORS = {"FRAME": "#808080", "LABEL": "#ff0000", "GUIDE": "#ff8800", "SCORE": "#d4a800", "INNER": "#00aa00", "OUTER": "#0055ff"}
 RGB = {k: tuple(int(v[i:i + 2], 16) / 255 for i in (1, 3, 5)) for k, v in COLORS.items()}
-ACI = {"OUTER": 5, "INNER": 3, "SCORE": 2, "GUIDE": 30, "LABEL": 1}
+ACI = {"FRAME": 8, "LABEL": 1, "GUIDE": 30, "SCORE": 2, "INNER": 3, "OUTER": 5}
 UNIT = {"mm": 1.0, "cm": 0.1, "in": 1 / 25.4}
 PT = 72 / 25.4
 
@@ -147,7 +152,7 @@ def item_for_piece(pc, note="", pad=1.0, names=None, tag="", font=4.0):
     x0, y0 = min(xs) - pad, min(ys) - pad
     it.rings = [(l, [(x - x0, y - y0) for x, y in r]) for l, r in it.rings]
     it.scores = [(s, [(x - x0, y - y0) for x, y in pts]) for s, pts in pc.get("kerfed_lines") or []]   # in the part's own frame, like `kerfed`
-    it.marks = [(m[0] - x0, m[1] - y0, m[2], m[3] if len(m) > 3 else 0.0) for m in pc.get("kerfed_marks") or []]
+    it.marks = [(m[0] - x0, m[1] - y0, m[2], m[3] if len(m) > 3 else 0.0, *m[4:]) for m in pc.get("kerfed_marks") or []]
     w, h = max(xs) - x0 + pad, max(ys) - y0 + pad
     it.leader = None
     on = label_on_part(pc)
@@ -194,7 +199,9 @@ def texts(items, font):
     lines in every format, so what the laser engraves never depends on a font the machine's software has."""
     for it in items:
         for m in it.marks:
-            yield str(m[2]), glyphs(str(m[2]), font * 0.6, m[0], m[1], it.rot + (m[3] if len(m) > 3 else 0.0)), None
+            t, size = str(m[2]), mark_size(m, font) * 0.6
+            sts = glyphs(t, size, m[0], m[1], it.rot + mark_rot(m))
+            yield t, (sts[:-1] + bold_dot(sts[-1], size) if t.endswith(".") else sts), None   # a seam number's dot, bold
         if it.label_pos:
             x, y, rot = it.label_pos
             yield it.label, glyphs(it.label, it.size or font, x, y, rot), it.leader
@@ -205,6 +212,11 @@ def sheet_thickness(plan, si):
     """The stock this sheet is cut from: nesting keeps one thickness per sheet."""
     p = plan["params"]
     return (plan.get("sheet_thick") or [p.get("thickness", 0.0)] * max(1, plan["sheets"]))[si]
+
+
+def sheet_stock(plan, si):
+    """What this sheet is cut from when that is not the job's material ("paper"), else ""."""
+    return (plan.get("sheet_stock") or [""] * (si + 1))[si]
 
 
 def thick_tag(plan, mm):
@@ -227,19 +239,21 @@ def design_name(plan):
     return f"{word(p.get('project') or p.get('model_name')) or 'model'}_v{word(p.get('rev')) or '1.0'}"
 
 
-def mat_tag(plan):
+def mat_tag(plan, stock=""):
     """The stock in a file name, when the job says what it is: a file that leaves for a machine should name what it is
-    cut from. It is one word, joined by dashes ("stainless-steel"), because the spaces separate part, material,
+    cut from. `stock`: what this sheet or part is cut from when that is not the job's material (a window's paper). It is one word, joined by dashes ("stainless-steel"), because the spaces separate part, material,
     thickness and quantity; anything but a letter or digit becomes a dash — the name travels from a project file
     someone else wrote, and a path separator in it must never reach the file system."""
-    m = "-".join("".join(c if c.isalnum() else " " for c in str(plan["params"].get("material") or "")).split())
+    m = "-".join("".join(c if c.isalnum() else " " for c in str(stock or plan["params"].get("material") or "")).split())
     return f" {m}" if m else ""
 
 
 def sheet_title(plan, si):
+    """What the sheet is, in its top margin: the project or the model, the technique, the stock it is cut from (its
+    material, "stock" when the job does not say), and which sheet of how many."""
     p = plan["params"]; u = p.get("units", "mm")
-    thick = f"{sheet_thickness(plan, si) * UNIT[u]:.3g} {u} stock"
-    return (f"{p.get('project') or ''} v{p.get('rev') or '1.0'} · {plan['mode']} · {thick} · "
+    thick = f"{sheet_thickness(plan, si) * UNIT[u]:.3g} {u} {sheet_stock(plan, si) or p.get('material') or 'stock'}"
+    return (f"{p.get('project') or p.get('model_name') or ''} v{p.get('rev') or '1.0'} · {plan['mode']} · {thick} · "
             f"{'plate' if p.get('printed') else 'sheet'} {si + 1}/{plan['sheets']}").strip(" ·")
 
 
@@ -248,13 +262,14 @@ def svg_doc(items, width, height, labels, border=False, font=4.0, units="mm", ti
     Every part is one <g class="piece" data-label="…">: its cuts, fold and guide lines, marks, arrows, label and
     leader, each in a sub-group named after its layer — so a part dragged somewhere else in Inkscape or Illustrator
     takes its labels and dowel numbers with it, and nothing goes out of register. The laser's software sorts the
-    lines by colour, which each layer group carries whatever part it is in. The border and the title, which belong to the
-    sheet and not to a part, are the first group. The title is engraved in the top margin, sized to fit the band
-    nothing else uses, or left out when the margin holds no legible text.
+    lines by colour, which each layer group carries whatever part it is in. Each part writes its layers in ORDER. The
+    border and the title, which belong to the sheet and not to a part, are the first group, on FRAME, which no machine
+    runs. The title sits in the top margin, sized to fit the band nothing else uses, or is left out when the margin
+    holds no legible text.
 
-    `grouped=False` writes the older colour-first layout instead: one group per colour for the whole sheet, with the
-    border, the arrows and every label in the single LABEL group. For a tool that keeps the colours apart and never
-    moves a part on its own."""
+    `grouped=False` writes the older colour-first layout instead: one group per colour for the whole sheet in ORDER,
+    the arrows and every label in the single LABEL group. For a tool that keeps the colours apart and never moves a
+    part on its own."""
     f = UNIT[units]
     out = ['<?xml version="1.0" encoding="UTF-8"?>',
            f'<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="{width * f:.4f}{units}" height="{height * f:.4f}{units}" viewBox="0 0 {width} {height}">']
@@ -266,8 +281,8 @@ def svg_doc(items, width, height, labels, border=False, font=4.0, units="mm", ti
         """One text: one path of open strokes, its words in data-text (what the tests and a reader of the file go by)."""
         return f'<path data-text="{html.escape(text, quote=True)}" d="{" ".join(d_of(st) for st in sts)}"/>'
 
-    def label_group(body):
-        return [f'<g class="LABEL" fill="none" stroke="{COLORS["LABEL"]}" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round">'] + body + ["</g>"]
+    def label_group(body, layer="LABEL"):
+        return [f'<g class="{layer}" fill="none" stroke="{COLORS[layer]}" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round">'] + body + ["</g>"]
 
     def layer_group(layer, on):
         body = [f'<g class="{layer}" fill="none" stroke="{COLORS[layer]}" stroke-width="0.15">']
@@ -285,7 +300,7 @@ def svg_doc(items, width, height, labels, border=False, font=4.0, units="mm", ti
         sheet.append(text_path(title, glyphs(title, size, size * 0.5, height - margin / 2, anchor="start")))
     def cut_layers(lines):
         """The cut, guide and score layers of `lines`, each a group; a layer with nothing on it is left out."""
-        return [row for layer in ("OUTER", "INNER", "GUIDE", "SCORE")
+        return [row for layer in ORDER[2:]
                 if (on := [s for s in lines if s[0] == layer]) for row in layer_group(layer, on)]
 
     def engraved(its, lines):
@@ -300,19 +315,19 @@ def svg_doc(items, width, height, labels, border=False, font=4.0, units="mm", ti
                 body.append(f'<line x1="{ax:.2f}" y1="{height - ay:.2f}" x2="{bx:.2f}" y2="{height - by:.2f}"/>')
         return body
 
-    def drawing(its, first=()):
-        """The layers of `its`, then one LABEL group of `first` and what they engrave, when there is any."""
+    def drawing(its):
+        """What `its` engrave, as one LABEL group when there is any, then their cut layers."""
         lines = list(strokes(its))
-        body = [*first, *engraved(its, lines)]
-        return cut_layers(lines) + (label_group(body) if body else [])
+        body = engraved(its, lines)
+        return (label_group(body) if body else []) + cut_layers(lines)
 
+    if sheet:
+        out += ['<g class="sheet">'] + label_group(sheet, "FRAME") + ["</g>"]
     if grouped:
-        if sheet:
-            out += ['<g class="sheet">'] + label_group(sheet) + ["</g>"]
         for it in items:
             out += [f'<g class="piece" data-label="{html.escape(it.key, quote=True)}">'] + drawing([it]) + ["</g>"]
     else:
-        out += drawing(items, sheet)
+        out += drawing(items)
     out.append("</svg>")
     return "\n".join(out)
 
@@ -327,19 +342,19 @@ def dxf_doc(items, labels, border=None, font=4.0, units="mm"):
     doc.linetypes.add("DOT", pattern=[0.6 * f, 0.0, -0.6 * f])
     msp = doc.modelspace()
     S = lambda pts: [(x * f, y * f) for x, y in pts]
-    for layer, pts, closed, style, _ in strokes(items):        # a cut ring takes its layer's linetype; a line names its own
-        if layer == "LABEL" and not labels:                       # the orientation arrows go with the labels
-            continue
-        msp.add_lwpolyline(S(pts), close=closed, dxfattribs={"layer": layer} if closed else {"layer": layer, "linetype": DASH[style][2]})
+    if border:
+        w, h = border
+        msp.add_lwpolyline(S([(0, 0), (w, 0), (w, h), (0, h)]), close=True, dxfattribs={"layer": "FRAME"})
     if labels:
         for _, sts, leader in texts(items, font):
             for st in sts:
                 msp.add_lwpolyline(S(st), dxfattribs={"layer": "LABEL"})
             if leader:
                 msp.add_line(tuple(v * f for v in leader[0]), tuple(v * f for v in leader[1]), dxfattribs={"layer": "LABEL"})
-    if border:
-        w, h = border
-        msp.add_lwpolyline(S([(0, 0), (w, 0), (w, h), (0, h)]), close=True, dxfattribs={"layer": "LABEL"})
+    for layer, pts, closed, style, _ in sorted(strokes(items), key=lambda s: ORDER.index(s[0])):   # stable: part by part in a layer
+        if layer == "LABEL" and not labels:                       # the orientation arrows go with the labels
+            continue                                              # a cut ring takes its layer's linetype; a line names its own
+        msp.add_lwpolyline(S(pts), close=closed, dxfattribs={"layer": layer} if closed else {"layer": layer, "linetype": DASH[style][2]})
     return doc
 
 
@@ -354,22 +369,10 @@ def pdf_doc(path, pages, labels, border, font):
             c.setPageSize((w * PT, h * PT))
         c.setLineWidth(0.3)
         lines = list(strokes(items))
-        for layer in ("OUTER", "INNER", "SCORE", "GUIDE"):
-            c.setStrokeColorRGB(*RGB[layer])
-            for lay, pts, closed, style, _ in lines:
-                if lay != layer:
-                    continue
-                if not closed:
-                    c.setDash(DASH[style][1])
-                p = c.beginPath(); p.moveTo(pts[0][0] * PT, pts[0][1] * PT)
-                for x, y in pts[1:]: p.lineTo(x * PT, y * PT)
-                if closed: p.close()
-                c.drawPath(p, stroke=1, fill=0)
-        c.setDash([])
-        c.setStrokeColorRGB(*RGB["LABEL"]); c.setFillColorRGB(*RGB["LABEL"])
         if border:
-            c.rect(0, 0, w * PT, h * PT, stroke=1, fill=0)
+            c.setStrokeColorRGB(*RGB["FRAME"]); c.rect(0, 0, w * PT, h * PT, stroke=1, fill=0)
         if labels:
+            c.setStrokeColorRGB(*RGB["LABEL"]); c.setFillColorRGB(*RGB["LABEL"])
             c.setLineCap(1); c.setLineJoin(1)                 # round: a stroke font's corners, like the laser draws them
             arrows = [[st[1]] for st in lines if st[0] == "LABEL"]
             for _, sts, leader in [*((None, a, None) for a in arrows), *texts(items, font)]:
@@ -379,6 +382,18 @@ def pdf_doc(path, pages, labels, border, font):
                     c.drawPath(p, stroke=1, fill=0)
                 if leader:
                     c.line(leader[0][0] * PT, leader[0][1] * PT, leader[1][0] * PT, leader[1][1] * PT)
+            c.setLineCap(0); c.setLineJoin(0)
+        for layer in ORDER[2:]:
+            c.setStrokeColorRGB(*RGB[layer])
+            for lay, pts, closed, style, _ in lines:
+                if lay != layer:
+                    continue
+                c.setDash(DASH[style][1])                     # every line its own: a cut after a dashed score is solid
+                p = c.beginPath(); p.moveTo(pts[0][0] * PT, pts[0][1] * PT)
+                for x, y in pts[1:]: p.lineTo(x * PT, y * PT)
+                if closed: p.close()
+                c.drawPath(p, stroke=1, fill=0)
+        c.setDash([])
         c.showPage()
     c.save()
 
@@ -391,20 +406,20 @@ def eps_doc(items, w, h, labels, border, font):
         s = " ".join(f"{x * PT:.2f} {y * PT:.2f} {'moveto' if i == 0 else 'lineto'}" for i, (x, y) in enumerate(pts))
         return f"newpath {s} {'closepath ' if close else ''}stroke"
     lines = list(strokes(items))
-    for layer in ("OUTER", "INNER", "SCORE", "GUIDE"):
-        out.append("%s setrgbcolor" % " ".join(f"{v:.3f}" for v in RGB[layer]))
-        out += [(f"[{' '.join(map(str, DASH[style][1]))}] 0 setdash " if not closed else "") + path(pts, closed)
-                for lay, pts, closed, style, _ in lines if lay == layer]
-    out.append("[] 0 setdash %s setrgbcolor" % " ".join(f"{v:.3f}" for v in RGB["LABEL"]))
+    rgb = lambda layer: "%s setrgbcolor" % " ".join(f"{v:.3f}" for v in RGB[layer])   # noqa: E731
     if border:
-        out.append(path([(0, 0), (w, 0), (w, h), (0, h)], True))
+        out += [rgb("FRAME"), path([(0, 0), (w, 0), (w, h), (0, h)], True)]
     if labels:
-        out.append("1 setlinecap 1 setlinejoin")
+        out += [rgb("LABEL"), "1 setlinecap 1 setlinejoin"]
         out += [path(pts, False) for lay, pts, *_ in lines if lay == "LABEL"]
         for _, sts, leader in texts(items, font):
             out += [path(st, False) for st in sts]
             if leader:
                 out.append(path([leader[0], leader[1]], False))
+        out.append("0 setlinecap 0 setlinejoin")
+    for layer in ORDER[2:]:                                   # every line sets its dash: a cut after a dashed score is solid
+        out.append(rgb(layer))
+        out += [f"[{' '.join(map(str, DASH[style][1]))}] 0 setdash " + path(pts, closed) for lay, pts, closed, style, _ in lines if lay == layer]
     out.append("%%EOF")
     return "\n".join(out)
 
@@ -412,6 +427,19 @@ def eps_doc(items, w, h, labels, border, font):
 # ------------------------------------------------------------------ assembly key: the map that comes out of the cut
 GROUPS = {"S": "stacked slice", "X": "X slice", "Y": "Y slice", "R": "radial half-slice", "C": "ring slice",
           "F": "folded panel", "J": "joint part", "P": "peg / spacer"}
+
+
+def rods_of(plan) -> dict:
+    """The plan's dowels by name, {name: {lo, hi, d, length}}: a rod per pair of slices, and a straight one through
+    several keeps its name, so it is one rod from the first slice it joins to the last. Its length is between its two
+    ends farthest apart: the far faces of its outer slices. The assembly key lists them; a printed job prints them."""
+    rods = {}
+    for r in plan.get("rods") or []:
+        if len(r) >= 8:
+            e = rods.setdefault(r[5], {"lo": r[6], "d": r[2], "pts": []}); e["hi"] = r[7]; e["pts"] += [r[0], r[1]]
+    for e in rods.values():
+        e["length"] = max(math.dist(a, b) for a in e["pts"] for b in e["pts"]); del e["pts"]
+    return rods
 
 
 def key_text(plan):
@@ -450,22 +478,23 @@ def key_text(plan):
             step += 1
             out.append(f"{step:>4}  " + (f"{codes.get(pc['label'], '--'):<7}" if codes else "")
                        + f"{pc['label']:<12}{what:<20}{centre:<24}{onto[:60]}")
-    rods = {}
-    for r in plan.get("rods") or []:                  # a rod per pair of slices; a straight one through several keeps its name
-        if len(r) >= 8:
-            e = rods.setdefault(r[5], {"lo": r[6], "d": r[2], "pts": []}); e["hi"] = r[7]; e["pts"] += [r[0], r[1]]
+    rods = rods_of(plan)
     if rods:
         out += ["", "Dowels — named after the lower of the two slices each joins and a letter: Z-3a is dowel a between Z-3 and Z-4,",
-                "and the mark 3a is engraved beside its hole on both slices. Cut each rod to its length.", "",
+                "and the mark 3a is engraved beside its hole on both slices. "
+                + ("Print the pins with the print set (README.txt says which file holds them), each named on a tag." if p.get("printed") else "Cut each rod to its length."), "",
                 f"{'dowel':<10}{'from':<10}{'to':<10}{'length':<12}diameter"]
         for name, e in rods.items():
-            length = max(math.dist(a, b) for a in e["pts"] for b in e["pts"])   # the ends along one line: the two farthest apart
-            out.append(f"{name:<10}{e['lo']:<10}{e['hi']:<10}{length * f:<12.3g}{e['d'] * f:.3g} {u}")
+            out.append(f"{name:<10}{e['lo']:<10}{e['hi']:<10}{e['length'] * f:<12.3g}{e['d'] * f:.3g} {u}")
+    if plan.get("standoffs"):
+        from .solid import standoff_text                # here, not at the top: core.solid imports this module
+        out += ["", *standoff_text(plan, f, u)]
     return "\n".join(out) + "\n"
 
 
 # ------------------------------------------------------------------ driver
-def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, border=True, font=None, units=None, key=False, grouped=True):
+def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, border=True, font=None, units=None, key=False, grouped=True,
+           readme=True):
     out_dir = pathlib.Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
     font = font or plan["params"].get("font", 4.0); units = units or plan["params"].get("units", "mm")
     names = plan.get("codes") or {}                 # puzzle mode: engraved codes instead of positions
@@ -494,10 +523,11 @@ def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, bor
             it, w, h = item_for_piece(cpc, cnote); write(stem, [it], w, h, False)
             rows.append((f"{design} {stem}", 1, size_of(it), cnote))
         thick = {pc["label"]: sl["thickness"] for sl in plan["slices"] for pc in sl["pieces"]}
+        stock = {pc["label"]: sl.get("stock", "") for sl in plan["slices"] for pc in sl["pieces"]}
         for pc, note, same, flips in identical_groups(plan):
             n = len(same); t = thick[pc["label"]]
             # in puzzle mode the file is named after the code too: a folder of Z-1, Z-2 … gives the order away
-            stem = names.get(pc["label"], pc["label"]) + mat_tag(plan) + thick_tag(plan, t) + f" x{n}"
+            stem = names.get(pc["label"], pc["label"]) + mat_tag(plan, stock[pc["label"]]) + thick_tag(plan, t) + f" x{n}"
             # the drawing carries the count and how many of them are turned over; the cut list names which ones
             it, w, h = item_for_piece(pc, " ".join(x for x in ([f"×{n}"] if n > 1 else []) + [f"({len(flips)} turned over)" if flips else "", note] if x), names=names,
                                       tag=plan.get("label_tag", ""), font=font)
@@ -515,12 +545,18 @@ def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, bor
         W, H = plan["sheet"]
         pages = [(items_for_sheet(plan, si), W, H) for si in range(plan["sheets"])]
         for si, (items, _, _) in enumerate(pages):
-            write(f"sheet{si + 1}{mat_tag(plan)}{thick_tag(plan, sheet_thickness(plan, si))}", items, W, H, border,
+            write(f"sheet{si + 1}{mat_tag(plan, sheet_stock(plan, si))}{thick_tag(plan, sheet_thickness(plan, si))}", items, W, H, border,
                   [x for x in fmts if x != "pdf"], sheet_title(plan, si) if labels else "")
         if "pdf" in fmts:                           # one multi-page PDF for all sheets
             f = out_dir / f"{design} sheets.pdf"; pdf_doc(f, pages, labels, border, font); written.append(f)
     if key:
         f = out_dir / f"{design} assembly-key.txt"; f.write_text(key_text(plan), encoding="utf-8"); written.append(f)
+    if plan.get("standoffs"):                       # the printed connectors travel with the cut files
+        from .solid import standoff_files
+        written += standoff_files(plan, out_dir, design)
+    if readme:                                      # what is in the folder and how to cut it (core.readme)
+        from .readme import write_readme
+        written = write_readme(plan, out_dir, written)
     return written
 
 

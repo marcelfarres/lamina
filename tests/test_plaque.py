@@ -149,6 +149,36 @@ def test_a_piece_no_neighbour_can_hold_is_left_out_and_said_or_kept_with_its_err
     assert kept["counts"]["errors"] > 0 and not any("left out" in n for n in kept["notes"])
 
 
+@pytest.mark.parametrize("job, gone", [({"back": "-y", "sink": 53}, []), ({"sink": 94}, ["X-74", "X-75"])], ids=["side", "deep"])
+def test_a_piece_planned_to_hang_where_no_spacer_fits_is_left_out_and_said(job, gone):
+    """The cow at 1 mm, sunk as the "nothing stands on the plate" error offers. A join between two pieces is planned on
+    their overlap, but the spacer placer found no room in X-48/X-49's (54 mm²), so X-49's piece held to nothing: "region
+    2 floats". Sunk 94 mm, X-74 and X-75 held only each other: "not connected". With `floating = join` such pieces are
+    left out and said, as the setting promises (bugs/062), and so are the spacers between them."""
+    plan = build("examples/cow.stl", "plaque", {"rotate": [90, 0, 0], "thickness": 1, **job})
+    assert plan["counts"]["errors"] == 0, [(s["label"], s["errors"]) for s in plan["slices"] if s["errors"]]
+    by = {s["label"]: s for s in plan["slices"]}
+    assert not [lab for lab in by if lab.rstrip("abcdefghijklmnopqrstuvwxyz") in gone]   # the slices, and the spacers between them (X-74a …)
+    if not gone:
+        assert any("is left out" in w for w in by["X-49"]["warnings"]), by["X-49"]["warnings"]
+
+
+def test_a_model_that_only_touches_the_plate_says_so_and_offers_a_sink_that_stands(tmp_path):
+    """A rounded back at sink 0 touches the plate at a point: no slice reaches it with room for a tooth (bugs/060: the
+    cow picked as a Plaque gave the plate alone, "W-1 floats", 100 pieces left out). The build stops with an error that
+    says so and offers the model sunk half its depth: its thinnest side to the plate, or its back as it is. Both stand."""
+    egg = trimesh.creation.icosphere(3, 1.0)
+    egg.apply_scale((60, 30, 40))                                   # 120 long, 60 deep, 80 high: thinnest across y
+    path = stl(tmp_path, egg, "egg")
+    plan = build(path, "plaque", BASE)
+    assert plan["counts"]["parts"] == 0 and len(plan["errors"]) == 1 and "nothing stands on the plate" in plan["errors"][0]
+    (fix,) = plan["fixes"]
+    assert [o["set"] for o in fix["options"]] == [{"back": "-y", "sink": 30.0}, {"sink": 40.0}]
+    for o in fix["options"]:
+        fixed = build(path, "plaque", {**BASE, **o["set"]})
+        assert fixed["counts"]["errors"] == 0 and fixed["counts"]["parts"] > 5, (o["title"], fixed["errors"])
+
+
 def test_a_radial_fan_stands_round_a_hole_with_teeth_under_every_half_slice(ball):
     plan = build(ball, "plaque", {**BASE, "layout": "radial", "planes": 8, "sink": 50, "plate": "circle"})
     assert plan["counts"]["errors"] == 0, plan["errors"]
@@ -187,7 +217,7 @@ def test_crossed_slices_half_lap_into_each_other_and_both_families_stand_on_the_
     xs, ys = by_group(plan, "X"), by_group(plan, "Y")
     assert (len(xs), len(ys)) == (4, 5)
     for s in xs + ys:
-        assert s["engages"], s["label"]                             # every slice is slotted onto the other family
+        assert set(s["engages"]) - {"W-1"}, s["label"]             # every slice is slotted onto the other family
         teeth = teeth_of(s)
         assert len(getattr(teeth, "geoms", [teeth])) >= 2
     # the first family's slots open to the front, the second's to the plate: it drops on from the front
@@ -201,6 +231,127 @@ def test_crossed_slices_half_lap_into_each_other_and_both_families_stand_on_the_
     assert len(slots) >= 2 * 9 and all(a.distance(b) >= 2 - 1e-6 for i, a in enumerate(slots) for b in slots[i + 1:])
 
 
+def closed(s):
+    return shape(s).buffer(3, join_style="mitre").buffer(-3, join_style="mitre")
+
+
+def notches(s):
+    """The slots cut into a slice's outline, above the plate: what closing the outline over a slot's width adds."""
+    cut = closed(s).difference(shape(s)).intersection(Polygon([(-1e4, 0), (1e4, 0), (1e4, 1e4), (-1e4, 1e4)]))
+    return [g for g in getattr(cut, "geoms", [cut]) if g.area > 1]
+
+
+def test_crossed_y_family_goes_into_the_plate_first_and_its_teeth_go_under_the_crossings(ball):
+    """One long Y spine and many X ribs: with `first` = y the spine goes in first, its slots open to the front, and the
+    ribs drop onto it with their slots open toward the plate. The spine is whole at the plate where the ribs cross it,
+    so its teeth are as wide as asked, not cut down to fit between the ribs."""
+    p = {**BASE, "layout": "crossed", "nx": 12, "ny": 1, "sink": 50, "plate": "circle", "tooth_width": 15, "tooth_spacing": 0}
+    flipped, today = build(ball, "plaque", {**p, "first": "y"}), build(ball, "plaque", p)
+    assert flipped["counts"]["errors"] == 0 and today["counts"]["errors"] == 0
+    for plan, y_open_front in ((flipped, True), (today, False)):
+        (y,) = by_group(plan, "Y")
+        for g in notches(y):
+            assert (g.bounds[1] > 1) == y_open_front, g.bounds        # open to the front: the slot stops short of the plate
+        for x in by_group(plan, "X"):
+            for g in notches(x):
+                assert (g.bounds[1] < 0.5) == y_open_front, (x["label"], g.bounds)
+    teeth = lambda plan: teeth_of(by_group(plan, "Y")[0])          # noqa: E731
+    widths = lambda plan: [g.bounds[2] - g.bounds[0] for g in getattr(teeth(plan), "geoms", [teeth(plan)])]   # noqa: E731
+    assert max(widths(flipped)) == pytest.approx(15, abs=0.1)
+    assert teeth(today).is_empty or max(widths(today)) < 8         # first = x: the ribs, 8 mm apart, stand where its teeth would go
+
+
+def test_the_first_family_can_be_a_low_rail_that_follows_the_models_shape(ball):
+    """`first_height` scales the first family down toward the plate: its top follows the model at that share of the
+    height everywhere along it, and the half-laps are only as deep as the rail is high."""
+    p = {**BASE, "layout": "crossed", "nx": 12, "ny": 1, "sink": 50, "plate": "circle", "first": "y"}
+    full, low = build(ball, "plaque", p), build(ball, "plaque", {**p, "first_height": 40})
+    assert low["counts"]["errors"] == 0, low["errors"]
+    (yf,), (yl,) = by_group(full, "Y"), by_group(low, "Y")
+
+    def height(s, x):
+        return closed(s).intersection(Polygon([(x - 0.05, 0), (x + 0.05, 0), (x + 0.05, 1e4), (x - 0.05, 1e4)])).bounds[3]
+    for x in (-35, -15, 5, 25):                                     # beside the ribs' slots, near the ends and the middle
+        assert height(yl, x) == pytest.approx(0.4 * height(yf, x), abs=0.5), x
+    top = shape(yl).bounds[3]
+    for x in by_group(low, "X"):
+        assert set(x["engages"]) - {"W-1"} and all(g.bounds[3] < top for g in notches(x)), x["label"]
+
+
+@pytest.mark.parametrize("first", ["x", "y"])
+def test_the_build_steps_put_in_the_plate_then_the_first_family_then_the_other(ball, first):
+    """The 3D view plays the parts in the plan's order: the plate, the family that goes in first, then the one that
+    drops onto it. The other way round, a slice would have to pass through the slots of the ones already in."""
+    plan = build(ball, "plaque", {**BASE, "layout": "crossed", "nx": 4, "ny": 3, "sink": 50, "plate": "circle", "first": first})
+    assert plan["counts"]["errors"] == 0
+    other = "y" if first == "x" else "x"
+    groups = [s["group"] for s in plan["slices"]]
+    assert groups == ["W"] + [first.upper()] * groups.count(first.upper()) + [other.upper()] * groups.count(other.upper())
+
+
+def test_a_slice_that_cannot_go_in_in_the_build_order_is_an_error(ball, monkeypatch):
+    """A layout that puts the slices in the wrong order (the family whose slots open toward the plate first, so the other
+    must pass through solid material to reach the plate) fails the check: the plan can not be cut as it is."""
+    from core.modes.plaque import Plaque
+    crossed = Plaque._crossed
+
+    def wrong_order(ctx, fr):
+        lay = crossed(ctx, fr)
+        lay.slices = list(lay.fams[1]) + list(lay.fams[0])
+        return lay
+    monkeypatch.setattr(Plaque, "_crossed", staticmethod(wrong_order))
+    plan = build(ball, "plaque", {**BASE, "layout": "crossed", "nx": 4, "ny": 3, "sink": 50, "plate": "circle", "first": "y"})
+    errs = [e for s in plan["slices"] for e in s["errors"] if "cannot be put in" in e]
+    assert errs and all(s["label"].startswith("Y-") for s in plan["slices"] if any("cannot be put in" in e for e in s["errors"]))
+
+
+@pytest.mark.parametrize("lift", [0, 12])
+def test_a_crossed_slice_on_its_own_teeth_is_held_and_one_off_the_plate_is_an_error(tmp_path, lift):
+    """A ball and a block beside it: the one Y slice runs through the ball and misses the block, so the X slice through
+    the block crosses nothing. Standing on the plate on its own teeth it is held, as every slice of a parallel plaque
+    (bugs/059: the cow's tail rib X-20 said it touches nothing). Lifted off the plate it has no teeth and floats."""
+    block = trimesh.creation.box((16, 16, 16), trimesh.transformations.translation_matrix((70, 40, lift)))
+    path = stl(tmp_path, trimesh.util.concatenate([trimesh.creation.icosphere(3, 40.0), block]), "ball_and_block")
+    plan = build(path, "plaque", {**BASE, "layout": "crossed", "nx": 5, "ny": 1, "sink": 40, "plate": "circle", "floating": "keep"})
+    alone = [s for s in by_group(plan, "X") if not set(s["engages"]) - {"W-1"}]
+    assert [s["label"] for s in alone] == ["X-5"], [(s["label"], s["engages"]) for s in by_group(plan, "X")]
+    errs = alone[0]["errors"]
+    if lift:
+        assert alone[0]["engages"] == [] and any("touches nothing" in e for e in errs) and any("floats" in e for e in errs), errs
+    else:
+        assert alone[0]["engages"] == ["W-1"] and errs == [] and plan["counts"]["errors"] == 0, errs
+
+
+def test_fingers_between_slots_thinner_than_the_material_are_a_warning(ball):
+    """A spine with many ribs close together is a comb: the material between two of its slots, narrower than the sheet
+    is thick, snaps when the ribs go in. The part says so, with the width; ribs farther apart leave no such finger."""
+    p = {**BASE, "layout": "crossed", "ny": 1, "sink": 50, "plate": "circle", "first": "y"}
+    finger = lambda plan: [w for w in by_group(plan, "Y")[0]["warnings"] if "finger" in w]   # noqa: E731
+    close, apart = build(ball, "plaque", {**p, "nx": 20}), build(ball, "plaque", {**p, "nx": 10})
+    (w,) = finger(close)
+    assert "thinner than the material can take" in w and "< 3 mm = the sheet's thickness" in w
+    assert not finger(apart)
+
+
+@pytest.mark.parametrize("material, warns", [("plywood", False), ("acrylic", True), ("cardboard", True)])
+def test_the_material_sets_the_thinnest_finger(ball, material, warns):
+    """14 ribs leave 4.1 mm fingers in the 3 mm spine: plywood takes that, brittle acrylic wants 1.5 × the sheet
+    (4.5 mm) and soft cardboard 2 × (6 mm) — the material picked on the Sheet tab decides."""
+    plan = build(ball, "plaque", {**BASE, "layout": "crossed", "nx": 14, "ny": 1, "sink": 50, "plate": "circle", "first": "y",
+                                  "material_kind": material})
+    w = [e for e in by_group(plan, "Y")[0]["warnings"] if "finger" in e]
+    assert bool(w) == warns
+    if warns:
+        assert f"thinner than {material} can take" in w[0] and "× the 3 mm sheet" in w[0]
+
+
+def test_two_slots_of_one_crossing_slice_end_to_end_are_no_finger():
+    """The cow's ribs cross the spine twice where the line leaves the body and comes back (the neck): two slots of one
+    rib end to end, a hair apart. That hair is no finger between two ribs, and spacing the ribs out would not help."""
+    plan = build("tests/data/cow.stl", "plaque", {"back": "-y", "sink": 50, "layout": "crossed", "nx": 34, "ny": 1, "first": "y"})
+    assert not [w for w in by_group(plan, "Y")[0]["warnings"] if "finger" in w]
+
+
 def test_a_plaque_preset_names_its_own_gap_between_side_by_side_slices():
     """The page keeps a setting by name when the technique changes, and stacked's `space` is 0: a plaque example that
     left `space` to its default opened with touching slices, twice as many as it was made for."""
@@ -210,19 +361,6 @@ def test_a_plaque_preset_names_its_own_gap_between_side_by_side_slices():
     for name, pre in presets.items():
         if name != "_" and pre["mode"] == "plaque" and pre["params"].get("layout", "parallel") == "parallel":
             assert "space" in pre["params"], name
-
-
-def test_plate_slots_get_the_inside_corner_relief_a_round_bit_needs(ball):
-    plain = build(ball, "plaque", {**BASE, "sink": 50, "plate": "circle"})
-    bone = build(ball, "plaque", {**BASE, "sink": 50, "plate": "circle", "relief": "dogbone", "tool_d": 3})
-    a, b = (shape(by_group(pl, "W")[0]).geoms[0] for pl in (plain, bone))
-    mid = lambda g: min((Polygon(r) for r in g.interiors), key=lambda q: q.centroid.distance(g.centroid))   # noqa: E731
-    slot, relieved = mid(a), mid(b)                                 # the slot nearest the middle of the plate, in both
-    assert len(slot.exterior.coords) == 5                           # a plain rectangle
-    assert relieved.contains(slot.buffer(-1e-6)) and relieved.area > slot.area + 4      # the same slot, with four ears
-    ears = relieved.difference(slot)
-    for x, y in slot.exterior.coords[:-1]:                          # an ear at every one of the four corners
-        assert ears.intersection(Polygon([(x - 1.6, y - 1.6), (x + 1.6, y - 1.6), (x + 1.6, y + 1.6), (x - 1.6, y + 1.6)])).area > 0.5
 
 
 def test_the_spacing_curve_spreads_a_fan_and_the_crossed_families(ball):

@@ -2,7 +2,7 @@ import numpy as np
 import shapely
 from shapely.geometry import LineString, Point
 from . import Mode, Param, register, spacing_params
-from ..model import Slice
+from ..model import LOOSE, Slice, kind_of
 from ..geometry import as_multi, frame, rot_about, section_polygons, to_local, to_world
 from ..notch import interlock
 
@@ -16,14 +16,14 @@ class Interlocked(Mode):
               "auto-fix added is numbered after the family's own) · "
               "the two families cross at right angles and half-lap into each other: X slots drop in from one side, Y from the other")
     params = [
-        Param("up", "choice", "z", "Assembly axis: 1st family is inserted from +up, 2nd family from −up", choices=["x", "y", "z"]),
-        Param("distribution", "choice", "count", "count = N slices per family; distance = one slice every `spacing`", choices=["count", "distance"]),
-        Param("nx", "int", 5, "1st family: slice count", 1, 200, 1, show_if=("distribution", "count")),
-        Param("ny", "int", 4, "2nd family: slice count", 1, 200, 1, show_if=("distribution", "count")),
-        Param("spacing", "number", 30, "Slice spacing (mm)", 1, 500, 0.5, unit="mm", show_if=("distribution", "distance")),
+        Param("up", "choice", "z", "Assembly axis: 1st family is inserted from +up, 2nd family from −up", choices=["x", "y", "z"], label="assembly axis", section="Grid — how the two families stand"),
         Param("rotate_grid", "number", 0, "Rotate the grid about the assembly axis (deg)", 0, 180, 5, unit="deg"),
-        Param("extra_x", "chips", [], "Extra 1st-family slices at these positions, measured from the centre — added by the fix buttons", unit="mm"),
-        Param("extra_y", "chips", [], "Extra 2nd-family slices at these positions, measured from the centre", unit="mm"),
+        Param("distribution", "choice", "count", "count = N slices per family; distance = one slice every `spacing`", choices=["count", "distance"], section="Slices — how many slices in each family"),
+        Param("nx", "int", 5, "1st family: slice count", 1, 200, 1, show_if=("distribution", "count"), label="slices, 1st family"),
+        Param("ny", "int", 4, "2nd family: slice count", 1, 200, 1, show_if=("distribution", "count"), label="slices, 2nd family"),
+        Param("spacing", "number", 30, "Slice spacing (mm)", 1, 500, 0.5, unit="mm", show_if=("distribution", "distance"), label="distance between slices"),
+        Param("extra_x", "chips", [], "Extra 1st-family slices at these positions, measured from the centre — added by the fix buttons", unit="mm", label="extra 1st-family slices"),
+        Param("extra_y", "chips", [], "Extra 2nd-family slices at these positions, measured from the centre", unit="mm", label="extra 2nd-family slices"),
         *spacing_params("slices", [("spacing_curve", "1st family spacing", [[0, 15], [0.5, 15], [1, 15]]),
                                    ("spacing_curve_y", "2nd family spacing", [[0, 15], [0.5, 15], [1, 15]])], 3, 40, count="nx / ny"),
     ]
@@ -90,9 +90,9 @@ class Interlocked(Mode):
         loose = {}                                       # (slice, region) → its group's key
         for sl in xy:
             for e in sl.errors:
-                if "floats" in e or "no crossing" in e or "not connected" in e:
-                    key = e.split("separate group: ")[1].split(")")[0] if "separate group" in e else sl.label
-                    for r in [int(e.split()[1]) - 1] if e.startswith("region") else range(len(sl.profile.geoms)):
+                if kind_of(e) in LOOSE:
+                    key = ", ".join(e.about["group"]) if kind_of(e) == "not-connected" else sl.label
+                    for r in [e.about["region"]] if "region" in e.about else range(len(sl.profile.geoms)):
                         loose[(sl.label, r)] = key
         parent = {}
 

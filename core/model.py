@@ -44,6 +44,29 @@ def label_codes(labels, seed: str) -> dict:
     return {lab: pool[i % len(pool)] for i, lab in enumerate(sorted(set(labels)))}
 
 
+# What a check's finding can be, for the code that offers its fixes; a kind is added here and nowhere else.
+KINDS = ("floats", "gap", "no-crossing", "not-connected",      # a region nothing holds: LOOSE
+         "blocked", "cut-apart", "size", "collide",           # the other errors with a fix
+         "bridge", "thin-spot", "island", "hole-wall", "bunched", "press", "no-joint")   # warnings with a fix
+LOOSE = KINDS[:4]
+
+
+class Issue(str):
+    """A check's finding: the sentence the user reads, and, for the code that offers its fixes, what kind of finding it
+    is (one of KINDS) and what it is about (`about`: the region, the other slice's label …). A str, so the plan, the
+    page and every test read it as before; a plain str is a finding with no fix."""
+    def __new__(cls, text, kind="", **about):
+        if kind and kind not in KINDS:
+            raise ValueError(f"unknown kind of finding: {kind}")
+        self = super().__new__(cls, text)
+        self.kind, self.about = kind, about
+        return self
+
+
+def kind_of(finding) -> str:
+    return getattr(finding, "kind", "")
+
+
 @dataclass
 class Slice:
     label: str                 # Slicer-style "Axis-Index" e.g. "X-3", "Z-6", "R-2a", "C-4", "P-12" (panel), "S-7" (strip),
@@ -57,43 +80,29 @@ class Slice:
     links: list = field(default_factory=list)     # (other label, cut polygon, world point) — a physical connection through that cut
     engages: list = field(default_factory=list)   # labels of slices this one is slotted onto
     slot_dirs: dict = field(default_factory=dict)  # other label → world direction its slot opens toward (the way it slides in)
+    travel: tuple | None = None         # world direction the part moves to go into place, where the technique fixes it (a plaque's slice: toward the plate)
     raw: MultiPolygon | None = None     # section ∩ clip, before cuts. Modes may set it directly (synthetic parts)
     profile: MultiPolygon | None = None # raw − cuts (what gets cut out), before kerf
     lines: list = field(default_factory=list)     # [(style, LineString)] score / fold lines (local): "mountain" | "valley"
+    outlined: list = field(default_factory=list)  # stacked: this layer's polygons (local) whose outline is engraved on the layer below (GUIDE)
     marks: list = field(default_factory=list)     # [(x, y, text) or (x, y, text, rot)] small engraved marks (local): seam and dowel numbers, rot = turned to read along an edge
+    cover: MultiPolygon | None = None   # local: where an engraving is hidden once assembled (stacked: under the layer above; empty: nowhere, the top layer). None = anywhere
     facets: list | None = None          # [(M, MultiPolygon)] for the 3D view when the part is not one flat slice (folded panels)
     pieces: list = field(default_factory=list)    # Piece objects when split
     warnings: list = field(default_factory=list)
     errors: list = field(default_factory=list)
     fixes: list = field(default_factory=list)     # [{"error", "options": [{"title", "set"}]}] one-click fixes (checks.suggest_fixes)
     note: str = ""                      # extra text shown with the label (e.g. rib angle)
-    # what a technique keeps on its own slices while it builds them
-    pair: int = 0                       # stacked peg / spacer: the pair of layers it sits between (assembly order)
-    cutkeys: dict = field(default_factory=dict)   # stacked: (x, y, angle) → the cut there, so an aligned dowel is cut once
-    cutnames: dict = field(default_factory=dict)  # stacked: the same key → its dowel's name (Z-3a), so a rod carried up keeps its name
-    inner: MultiPolygon | None = None   # stacked: raw eroded by min_feature, where a cut keeps a full wall (cached)
-    dowel_room: list = field(default_factory=list)  # stacked: where a rod through this slice and a neighbour can go (checks)
-    radial: np.ndarray | None = None    # radial half-slice: the way it points out from the axis
-    lobe: int = 0                       # radial: which axis's lobe the part belongs to
-    pn: object = None                   # folded: the Panel this slice is cut from
-    additions: list = field(default_factory=list)   # folded: tabs added to the panel's outline
-    skipped: dict = field(default_factory=dict)     # folded: what → seams whose joint found no room
-    room: MultiPolygon | None = None    # folded: the panel with its tabs so far, a hair in, where a seam number may go (cached)
-    room_tabs: int = -1                 # … and how many tabs it had when that was last worked out
-    mark_boxes: list = field(default_factory=list)  # folded: the room each of `marks` takes, boxed once (cached)
-    reduced: int = 0                    # folded: joints made smaller than asked
-    vees: list = field(default_factory=list)        # folded, printed: [x0, y0, x1, y1, land, skin, half width, top] a V groove per fold and seam edge
-    hinges: list | None = None                      # folded: per facet, [parent facet, point xyz, axis xyz, unfold angle] or None: how the 3D view folds it
-    bevels: list | None = None                      # folded, printed: per facet, [[x0, y0, x1, y1, width, closing face (1 inside, -1 outside)]] its grooved edges
-    pressed: list = field(default_factory=list)     # folded: how far (mm) each seam edge of this panel still presses into its neighbour
-    taken: object = None                            # folded: the panel and the tabs it has so far (cached), what a new tab may not touch
-    taken_tabs: int = -1
-    thin: list = field(default_factory=list)        # folded, printed: the glue tabs, printed only as thick as the hinge skin
-    thin_t: float = 0.0                             # … and that thickness
-    tab_t: list = field(default_factory=list)       # folded: the thickness of each of `tab_facets` when it is not the sheet's (a thin printed tab)
-    facet_t: list | None = None                     # folded: per facet, that thickness or None
-    tab_of: list = field(default_factory=list)      # folded: the face each of `tab_facets` lies on
-    tab_facets: list = field(default_factory=list)  # folded: the tabs as the 3D view shows them, folded onto their panel
+    stock: str = ""                     # what it is cut from when that is not the job's sheet (a window's pane: "paper")
+    springy: bool = False               # a part drawn thin on purpose, to bend (a snap clip): the size and thin-spot checks pass it
+
+    def piece_extra(self, pc) -> dict:
+        """What this slice adds to its piece `pc` in the plan, beyond what every slice has."""
+        return {}
+
+    def facet_extra(self, i) -> dict:
+        """What this slice adds to its i-th facet in the plan (a technique whose parts are not one flat slice)."""
+        return {}
 
     @property
     def bbox(self):
@@ -113,6 +122,7 @@ class Piece:
     placed: MultiPolygon | None = None      # kerf-compensated, on the sheet
     placed_lines: list = field(default_factory=list)
     placed_marks: list = field(default_factory=list)
+    placed_cover: MultiPolygon | None = None  # its slice's `cover`, on the sheet
     label_pos: tuple | None = None          # (x, y, rotation) of the label text on the sheet
     label_size: float | None = None         # the label's capital height: the job's font, or smaller where that was all that fit
     label_short: bool = False               # the label engraved without the model's short name: all a small part had room for

@@ -5,6 +5,7 @@ into each other, and a spine (one full plane through every axis, cut whole and s
 lobes together.
 Assembly: stack the rings on a pole or jig, then slide each half-slice in from the outside."""
 import math
+from dataclasses import dataclass
 import numpy as np
 from shapely.geometry import Polygon
 from shapely.ops import unary_union
@@ -33,6 +34,13 @@ def axis_room(n, t, slot_offset):
     return 2 * (n * (t + slot_offset) / math.pi + t)
 
 
+@dataclass
+class RadialSlice(Slice):
+    """A half-slice or a ring of a radial fan, with what the slotting needs to know about it."""
+    radial: np.ndarray | None = None    # the half-slice's direction out from the axis
+    lobe: int = 0                       # which axis's lobe the part belongs to
+
+
 @register
 class Radial(Mode):
     name = "radial"
@@ -45,7 +53,7 @@ class Radial(Mode):
               "Z-3 = the 3rd ring slice along the axis, counted from the low end · "
               "SP-1 = a spine: the full plane that runs through every axis and ties the fans together")
     params = [
-        Param("axis", "choice", "z", "Central axis (when `axes` below is empty)", choices=["x", "y", "z"]),
+        Param("axis", "choice", "z", "Central axis (when `axes` below is empty)", choices=["x", "y", "z"], section="Slices — the half-slices fanned round each axis"),
         Param("axes", "lines3", [], "One line per fan (start → end, from the model's centre): where that axis sits, which way it points, "
                                     "and the stretch of the model its rings are spread along. Empty = one axis through the centre. Neighbouring "
                                     "lobes are parted by a flat plane between their axes (B-1-2, a translucent part in the 3D view: click it and "
@@ -56,19 +64,19 @@ class Radial(Mode):
                                     "through the click, then drag it to the ball's centre. A snowman: + splits the axis in two, then drag the "
                                     "ends to the waists. Alt-click an axis to remove it. Seen face-on, the plane the other axes share holds "
                                     "the drag, so the spine survives it; turn the view until that plane is edge-on to move an axis off it. "
-                                    "Every fan shares `count`, so neighbouring fans meet plane for plane", unit="mm"),
-        Param("count", "int", 6, "Radial planes through each axis (gives 2 × count half-slices per axis)", 1, 90, 1),
-        *spacing_params("planes", [("spacing_curve", "plane spacing round the axis", [[0, 30], [0.5, 30], [1, 30]])], 5, 60, unit="deg"),
+                                    "Every fan shares `count`, so neighbouring fans meet plane for plane", unit="mm", label="fan axes"),
+        Param("count", "int", 6, "Radial planes through each axis (gives 2 × count half-slices per axis)", 1, 90, 1, label="planes per axis"),
         Param("angle", "number", 0, "Turn the whole fan about the axis (deg): where the first radial plane starts. The pattern repeats every 180 / count degrees. "
-                                    "Axes side by side on one plane start their fans on the spine instead, and this does nothing", -90, 90, 1, unit="deg"),
+                                    "Axes side by side on one plane start their fans on the spine instead, and this does nothing", -90, 90, 1, unit="deg", label="rotate the fan"),
+        Param("core_d", "number", 0, "Central clearance: half-slices stop at this diameter (mm). 0 = automatic minimum so 2 × count slices fit around the axis; smaller than the minimum = collision error", 0, 300, 1, unit="mm", label="center hole diameter"),
+        Param("rings", "choice", "count", "Ring slices along each axis: count = N evenly spread, distance = one every `ring_spacing`", choices=["count", "distance"], label="ring distribution", section="Rings — the slices across each axis"),
+        Param("ring_count", "int", 4, "Number of ring slices (per axis)", 1, 200, 1, show_if=("rings", "count"), label="number of rings"),
+        Param("ring_spacing", "number", 40, "Ring spacing along the axis (mm)", 2, 1000, 1, unit="mm", show_if=("rings", "distance"), label="distance between rings"),
         Param("spine", "int", 0, "Full planes through every axis, cut whole and slotted into every ring: what holds one fan to the next. "
                                  "0 = automatic: none for one axis, one for several. Axes on one line (a snowman's balls, one above the other) "
-                                 "can take more; axes side by side on one plane share exactly one", 0, 8, 1),
-        Param("core_d", "number", 0, "Central clearance: half-slices stop at this diameter (mm). 0 = automatic minimum so 2 × count slices fit around the axis; smaller than the minimum = collision error", 0, 300, 1, unit="mm"),
-        Param("rings", "choice", "count", "Ring slices along each axis: count = N evenly spread, distance = one every `ring_spacing`", choices=["count", "distance"]),
-        Param("ring_count", "int", 4, "Number of ring slices (per axis)", 1, 200, 1, show_if=("rings", "count")),
-        Param("ring_spacing", "number", 40, "Ring spacing along the axis (mm)", 2, 1000, 1, unit="mm", show_if=("rings", "distance")),
-        Param("hole_d", "number", 0, "Hole in the middle of every ring for a pole / dowel (mm); 0 = none", 0, 100, 0.5, unit="mm"),
+                                 "can take more; axes side by side on one plane share exactly one", 0, 8, 1, label="spine planes", section="Joining — what holds the fans and rings together"),
+        Param("hole_d", "number", 0, "Hole in the middle of every ring for a pole / dowel (mm); 0 = none", 0, 100, 0.5, unit="mm", label="pole hole diameter"),
+        *spacing_params("planes", [("spacing_curve", "plane spacing round the axis", [[0, 30], [0.5, 30], [1, 30]])], 5, 60, unit="deg"),
     ]
     hidden_common = ("notch_ratio",)
 
@@ -206,9 +214,9 @@ class Radial(Mode):
         axes = self._axes(ctx)
         # where each axis runs, for the 3D view to draw and for its ends to be dragged — the single default axis
         # included, so it can be taken hold of before `axes` has ever been filled in
-        ctx.axes3d = [[(O - u * h).tolist(), (O + u * h).tolist()] for O, u, h, _ in axes]
+        ctx.view["axes3d"] = [[(O - u * h).tolist(), (O + u * h).tolist()] for O, u, h, _ in axes]
         several = len(axes) > 1
-        lobes, ctx.bounds3d = self._parted(ctx, axes)
+        lobes, ctx.view["bounds3d"] = self._parted(ctx, axes)
         # the spine: automatic for several axes — without one nothing joins a fan to the next and the lobes part
         kind, n_s, off, flat = self._layout(axes, t)
         n_sp = p["spine"] or (1 if several else 0)
@@ -237,7 +245,7 @@ class Radial(Mode):
                               f"can plan: fewer radial planes, fewer rings, or fewer axes")
             return []
         halves, rings, ring_i = [], [], 0
-        ctx.core_d_min = 0.0
+        ctx.view["core_d_min"] = 0.0
         for i, (O, u, h, e1) in enumerate(axes):
             # the planes of this fan, minus the ones a spine already is: that sheet is cut whole instead of in halves
             fan = []
@@ -248,7 +256,7 @@ class Radial(Mode):
                     fan.append((k, radial, nrm))
             need = axis_room(len(fan), t, p["slot_offset"])                  # the kept slices have to fit around the axis
             core_r = (p["core_d"] or need) / 2
-            ctx.core_d_min = max(ctx.core_d_min, need)
+            ctx.view["core_d_min"] = max(ctx.view["core_d_min"], need)
             if p["core_d"] and p["core_d"] < need - 1e-6:
                 ctx.errors.append(f"core_d = {p['core_d']:g} mm is too small: {2 * len(fan)} half-slices of {t:g} mm collide at the axis — core_d must be ≥ {need:.0f} mm (or fewer radial planes, or thinner material)")
             if p["hole_d"] and p["hole_d"] > 2 * core_r - 2 * p["min_feature"]:
@@ -258,7 +266,7 @@ class Radial(Mode):
                 for half, sgn in (("a", 1), ("b", -1)):
                     lab = f"{tag}-{k + 1}{half}"
                     M = ctx.frame(lab, O, nrm, up_hint=u)      # local x = ±radial, local y = the axis
-                    sl = Slice(lab, "R", M, ctx.thickness_of(lab))
+                    sl = RadialSlice(lab, "R", M, ctx.thickness_of(lab))
                     sx = np.sign(np.dot(M[:3, 0], radial)) * sgn   # which local-x side is this half
                     # its own side of the axis, past the core; with several axes its own lobe — up to the planes
                     # between it and its neighbours, however long its line is drawn — else the stretch of the axis
@@ -271,7 +279,7 @@ class Radial(Mode):
             labs = [f"Z-{ring_i + j + 1}" for j in range(nr)]; ring_i += nr
             th = [ctx.thickness_of(l) for l in labs]
             for lab, z, tk in zip(labs, ctx.positions(2 * h, th), th):
-                sl = Slice(lab, "C", ctx.frame(lab, O + u * z, u, up_hint=e1), tk)
+                sl = RadialSlice(lab, "C", ctx.frame(lab, O + u * z, u, up_hint=e1), tk)
                 sl.lobe = i
                 if several:                                   # a ring of one ball must not run on into the other
                     sl.clip = as_multi(self._owned(sl.M, lobes[i], big))

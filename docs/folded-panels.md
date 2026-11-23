@@ -37,6 +37,19 @@ Greedy spanning tree with a priority per edge:
    a seam.
    It is also refused when it would lie edge to edge (within 0.01 mm, for over 1 mm, away from a shared corner)
    against a face that is not its neighbour on the model: the outline would join the two along that line.
+   With a joint that puts a glue flap out from the edge (tab, multitab, diamond, ticked, gear, tongue, puzzle),
+   every free edge of the panel keeps the room of its flap (the trapezoid the tab is drawn as, `tab_h` high, at most
+   0.6 of the edge): the face is refused when it would lie in that room, or when its own free edges would have
+   none. Without it the cow example had 40 of its 217 seams with no room for a tab on either side.
+   With windows (`window` > 0), a face of a flat piece (faces in one plane, joined edge to edge across edges that bend less than 1°, and not
+   across a seam the user chose: a box side, a pentagon of a dodecahedron) is laid with the rest of its piece, and
+   every test above holds for all of them or none is laid (`flat_pieces`, `lay_flat`). So no seam cuts across a flat
+   side, and the side keeps one window. A flat piece too big for the sheet is laid face by face, as before, and so is
+   one whose faces meet along a line where they share no edge (the bracket's base, cut by a boolean: laid whole, two
+   of its faces lay edge to edge in the net, bug 072). Without windows the faces are laid one by one as before: on
+   the lion head, with 20 flat pairs, laying them whole gave other panels and 4 warnings. On the
+   three-dodecahedra lamp (32 pentagons) the panels used to cut 6 to 20 pentagons in two, depending
+   on the strategy and the tab room; now none, and it takes 5 panels instead of 10.
 4. Repeat until nothing can be attached; start the next panel.
 5. `auto` runs flat, strip, area and two randomised flat orders, and keeps the fewest panels / most compact result.
 
@@ -48,7 +61,27 @@ Every mesh edge is exactly one of: fold (inside a panel, exported on the SCORE l
 dashed, dotted when `perforate`) or seam (numbered; the number is engraved beside the joint on **both** panels so
 the mating edges can be found on the cut sheet). A fold between two faces in one plane (less than 1° apart: the
 diagonal of a rectangle, the spokes of a hexagon cap) is not scored: the SCORE layer holds only the edges to bend.
-An edge whose two faces already lie side by side in a panel is a fold, never a seam.
+An edge whose two faces already lie side by side in a panel is a fold, never a seam, unless the user chose a seam
+there.
+
+### Seams the user chooses
+`seams` is a list of edges, each kept by its two end points in model coordinates. `edges_at` finds the mesh edge
+for each (both ends within 0.05 mm of a vertex). The unfolder leaves these edges out of the graph it grows panels
+over, so no panel grows across one, and the last step above does not make one a fold again. Everything after the
+unfolding reads the same list of seams, so a chosen seam gets its joint, its number and its edge fit like any other.
+
+A closed surface in *n* panels has a fixed number of seams (edges − faces + *n*). A chosen seam therefore takes the
+place of one the unfolder would have put somewhere else; it does not add work, unless it splits off a new panel.
+
+An edge is kept by its place, not by its index, because the indices belong to one simplified mesh. Another facet
+size, model size or `smallest face` gives other edges. A chosen seam that is on no edge of the new mesh is left out
+and the first panel carries a warning that says how many.
+
+For the page, the plan lists every edge that is a seam or a bent fold (`edges3d`: index, `fold` / `seam` / `chosen`,
+the two ends, the direction out of the model), and every folded piece lists where its edges lie on the sheet
+(`edges`: index, x0, y0, x1, y1). The page draws them on the model with three line styles (thin, dashed, thick),
+lights the edge under the pointer in both views, and adds or removes a seam on a click. The joins inside one flat
+face are not listed: there is nothing to fold there.
 
 ## Which face is up, and how thick a sheet can fold
 The sheet's outer face lies on the model's surface and its thickness goes inwards, so the outside of the built model
@@ -56,6 +89,9 @@ is one surface and keeps the model's size. Every fold closes on one face: the in
 outside of a valley (concave) fold.
 
 `score side` picks the face that is up on the cutter, and so the face that carries the scores and the seam numbers.
+A seam number that reads as another number upside down (6 and 9, 16 and 91, 68 and 89) has a dot after it, as
+Pepakura marks them: `6.` is a 6 whichever way the panel is turned. The dot is 1 mm across on a laser sheet (rings a
+kerf apart, burned into one dot) and on a print, less on a number made smaller to fit a short edge.
 `inside` (the default) mirrors the net: the scores and numbers are inside the model and the outside stays clean.
 `outside` lays the net as seen from outside, for a paper model printed on its outer side. Mountain and valley are
 read from the face that is up: seen from inside, a convex edge is a valley fold.
@@ -80,15 +116,156 @@ face to face, with room for glue. Only outward seams are mitred: at an inward se
 tab joints (tab, multitab, diamond, ticked, gear) print their tabs as flaps of the skin alone (`thin` per piece):
 a tab as thick as the sheet would fold into the panel it glues to. The flap folds round the mitred edge onto the
 outside of the next panel. Tongue, puzzle and strip are not printed this way and keep the material error.
+
+### The snap joint: walls inside, a clip over them
+A printed model can be closed without glue and with nothing on its outside. The `snap` joint puts a wall
+(`Folded.snap_wall`) on the inside face of each panel along a seam, 2 mm thick and 7 mm long, one pair for every
+`spacing` of seam. His first print had walls 1.2 mm thick and clips with 1.0 mm legs: they broke every time. A
+longer wall grows into a neighbour seam's at a corner of the box. The front of a wall is the plane the two panels meet on: an outward seam turns about the top of its skin, so
+that plane goes through the top of the skin at half the bend, which is also the plane of the mitre. The two walls
+of a shut seam therefore lie face to face, at any bend, and one clip shape (`Folded.snap_clip`) fits every seam.
+
+Why a separate clip: the two walls move apart sideways when a seam opens, so what holds them must reach round the
+back of the other wall. A part printed flat, without support, cannot grow a hook that goes over a wall and comes
+down behind it. The clip is a U, 9 mm across and 8.2 mm long, closed at one end by a plate 1.2 mm thick (`SNAP_PLATE`)
+that fills the space between its legs. Its legs are 2.4 mm thick and its top 3 mm, and each leg ends in a hook
+0.5 mm into a groove 0.7 mm deep in the back of its wall. The groove is 3.6 mm up the wall, so that a leg clears the
+other panel beside a 2 mm wall on a seam bent 100°. The plate ties the legs, so the clip cannot open: it slides on
+along the seam, its hooks running in the grooves, until the plate meets the end of the walls. The walls are as long
+as the clip's channel (7 mm, `SNAP_LONG` is `SNAP_CLIP` less the plate), so there the clip covers them end to end.
+The first clips with a plate covered 5.8 mm of a 9 mm wall, and 3.2 mm of every wall stood out of the clip (bug
+078). A clip as long as those walls (10.2 mm) needs that much seam free beside a wall to go on, and 5 of the box's
+12 seams are too short for it. A clip that slides needs room on every face it slides on: `snap fit` across,
+and 0.3 mm (`SNAP_SLIDE`) under the groove's ledge and over the walls' tops. The first clips with a plate had
+0.05 mm under the ledge, and the clip's rounded inside corners (0.25 mm) filled it: they touched the walls and
+stuck part way on (bug 065). It prints standing on
+that plate. His second clip test (legs 1.6 mm, an open U standing on 34 mm² of the bed): "too small, too thin, they
+pop out of the bed and too fragile", and the clip opened. The plate is 90 mm² at the default `snap wall`; under
+`CLIP_AREA` (60 mm²) the plan warns and names the `snap wall` that gives a clip that size.
+
+A wall leans over its own panel by half the bend, so it prints without support up to a bend of 100° (`SNAP_LEAN`);
+a sharper seam is left plain with a warning, like a window frame narrower than the wall's foot, or a seam with
+no clip's length (8.2 mm) of seam free beside a wall: a clip goes on only from there, along the seam. At an inward seam the panels meet outside the edge: the wall starts on the panel's
+edge, leans out to that plane at 45° and follows it. A shallow seam's mitre is wider than its bend needs (it is as
+wide as the groove's flat bottom): the wall starts at the mitre and leans out to the plane in the same way.
+
+Bend limits, for both joints that stand walls on the panels (`Folded.past_bend`, bug 063). Outward, a wall leans by
+half the bend: up to 100° (`SNAP_LEAN`). Inward, the two walls start where the panels meet, out over the edge, at
+t / (1 - tan(bend / 2)) - t: up to `SNAP_REACH` (5 mm) out, which is 71° on a 2 mm sheet; at 90° they never meet.
+The click joint's tooth also needs walls taller than `snap wall` on an inward seam past 40° at the default 10.5 mm
+(up to about 70° at 20 mm): that seam is said with the wall height it needs. A seam past a limit is left plain, and
+the plan names it with its bend and the cure: glue it. The limits are in the help of the joint setting.
+
+The walls travel in the plan with each piece (`rails`, a `Rail` each: its line in the net, the direction into the
+panel, its cross-section) and `core.solid.rail` fuses them onto the panel. The 3D view draws each as a facet of its
+face. A clip is a part of its own (`K-n`, group J, 8.2 mm thick, `springy`: the thin-part checks pass it). The joint
+needs a printed material, a hinge and `score side` inside, because the walls stand on the face that is up on the bed.
+
+### The click joint: a tooth under a bridged bar, no part of its own
+The `click` joint closes a printed seam with nothing loose. It uses the same plane as the snap joint: one panel
+gets a wall with a tooth (`CLICK_NOSE` wide) that goes through the plane, the other gets a bar beside the plane,
+bridged between two posts `CLICK_SPAN` apart. Pressed shut, the tooth goes under the bar and
+stands `tooth height` up behind it. `Folded.click_parts` makes the five cross-sections; all of them are walls in the
+plan (`rails`), so `core.solid` needs nothing new.
+
+Why a bridge: a part that grows up from a flat panel is weak where it is bent or pulled across its layers. A bar
+between two posts is printed as a bridge and bends along its lines. It is the only part that bends; the tooth is
+rigid.
+
+How the bar is sized: lifted by the tooth's height in its middle, a beam held at both ends is stretched by
+12 · lift · thickness / length², where the length is the part of the bar free to bend: its span less the ridge,
+the fillets and the support. The bar is never stretched past `CLICK_STRAIN` (6 % for PETG, 3 % for PLA). In his
+eighth print the bars stretched 6.4 % held, and one broke where they reached 8.6 and 12 %. Its span is as long as
+the seam allows, 16 to 24 mm. The bar is as thick as `bar thickness` asks (1.2 mm, never under `CLICK_THIN`: a bar
+of 0.8 mm broke in the hand). Where even a bar with nothing under it would stretch too far, the tooth is made lower,
+a layer (0.2 mm) at a time, down to `CLICK_LOW` (0.6 mm), and only then the bar thinner; the plan names the seams
+whose tooth is lower. With a tooth 1 mm high in PETG, a 24 mm bar keeps the full tooth and a 16 mm bar gets a
+0.6 mm one. A free bar is also no thicker than a hand can press shut: the force to lift a beam held at both ends is
+192 · E · I · lift / length³, under `CLICK_PRESS` (80 N, about 8 kg). Across the seam the bar is `bar depth` deep
+(2.4 mm). The depth, not the thickness, keeps the bar straight when the seam is pulled: a 2.0 mm deep bar broke in
+the eighth print. The ridge of the tooth is `CLICK_RIDGE` long, in the middle: a ridge as wide as the tooth would
+hold the bar flat over that width and bend the rest of it far too much.
+
+What the bar can still stretch goes first to a fillet at each end (`CLICK_FILLET`, 0.9 mm): three blocks under the
+bar, 0.2 mm deeper each nearer its support, fused to it. The bar thickens from 1.2 to 1.8 mm into its support
+instead of meeting it at a sharp step, which is where the bar broke. Each step reaches 0.3 mm further along the
+seam than the one below, about 55° from upright, so it prints as a ledge on the post. What is left goes to `bar
+support` (0.5 at most): the two posts grow in under the bar, which makes it stronger and stiffer. On a 24 mm bar that
+is 2.6 mm a side; a 16 mm bar gets 0.4 mm. The plan still warns when a click takes more than `CLICK_HARD` to press
+shut, with the kilos.
+
+`click size` scales the whole joint: every size in this section is for size 1. A small model takes 0.7, so that
+its short seams have room for a click. A big model takes 1.5 or 2: its seams carry more and have the room.
+`post size` scales the two posts alone: their length along the seam beyond the bar, and their ramp.
+
+What a 0.4 mm nozzle and 0.2 mm layers can print set the tooth. The first print had a ridge 0.4 mm high, measured
+up a wall that leans by half the bend: on a 94° seam that is 0.27 mm above the bed, one layer, on a top 0.5 mm
+wide. It lined the seam up and held nothing. The ridge is now 1 mm high (`tooth height`, in steps of one layer) and
+its flat top is `CLICK_LAND` wide, three lines. Its back face is square to the pull, so a pull does not lift the bar.
+
+A click also stands clear of the faces that fold or close over its panel. Shut, such a face is the panel's mirror
+image in the plane that halves the edge's angle. A corner of a post, bar or wall whose mirror image lies in the
+sheet under that face is in its way: the fold would stop short. The click then slides along its seam or takes the
+shortest bar, and is left out with a warning when neither helps. The check looks at the faces next to the panel,
+not at the walls that stand on them.
+
+Which seams get a click when not all can: the seams between two panels come first, since they are all that holds a
+piece to the rest; then `Folded.far` puts the others in order, farthest from a fold of their flat face first. A lid hangs on one fold. The seam opposite that fold holds it shut, so it finds its place before the
+seams beside the fold, which the fold holds already.
+
+A seam a click does not fit, a frame too narrow beside a window or a seam too short, tries a smaller click before it
+is left plain: 85 % and then 70 % of `click size` (`CLICK_SMALLER`); the plan names those seams. A piece with a seam
+but no click on any of them gets a warning, since nothing would hold it. His v9 lamp had such a piece: a loose
+triangle whose two seams missed their click, one by 0.07 mm of frame, the other to a click placed first next door.
+
+One click at a time: several clicks that must go in at the same moment are hard to press shut. `Folded.closing`
+finds the seams that close in one motion and gives only one of them a click; the others get a locator, the tooth
+without its ridge, which keeps the edges level and goes in with no force. It assumes an order of folding: out from
+the biggest flat part of the biggest panel; a flap (a part on one fold with nothing beyond it, like a lid) after
+the parts that carry others; of two flaps, the one with more seams on its edges; a panel of its own after the bigger
+ones. A seam closes when the later of its two parts moves. Two parts equally late, such as two walls on one bottom,
+close their seam one after the other, so both keep their clicks. The box's lid closes five seams as it folds down:
+it gets one click, opposite its fold, and locators where there is room. The fold holds the lid on one side, and the
+click opposite it stops the lid turning about it with the longest lever. A piece on no fold (a panel of its own)
+gets two clicks, or it could swing out about the one. A model folded in another order can still close two clicks at
+once, as the last wall of a ring does. `one click at a time` (`click_together`) turns the rule off: every seam its
+own click.
+
+Everything else is a plain block. The tooth is one block 10 mm wide on a 2.4 mm wall, with the one ridge. Every
+upright (the tooth's wall, the posts, the blocks under the bar) is a wedge (`Folded.braced`, `CLICK_FOOT`): its
+front, a flat top, and one slope down into the panel, so a pull on the seam does not bend a thin wall at its foot
+across its layers. A window frame too narrow for the slope gets a shorter one, down to the bare wall. A click
+slides along its seam to stand clear of the walls of the seams round the corner (`Rail.foot`), takes the shortest
+bar when that is not enough, and is left out, with a warning, when it still finds no room: two walls grown into one
+would not fold.
+
+The underside of the tooth rises as steeply as prints without support and stays 0.3 mm over the other panel's
+inside face. It is a short overhang, so it may lean 55° from upright (`CLICK_LEAN`), where a tall wall may lean 50°.
+How far the tooth reaches past the plane sets the joint's height: on a sharp seam because the other panel stands up
+there, on a shallow one because the underside rises all the way. So every part of the reach is short: the bar's
+depth, the ridge's top, and a lead-in ramp of `CLICK_LEAD` with a tip `CLICK_TIP` thick. His sixth print found the
+joint too tall to assemble; these cut 0.5 to 1.1 mm. `bar depth` 2.0 cuts about 0.3 mm more.
+
+The fronts of the tooth's wall, the posts, the bar and the blocks stand `CLICK_BACK` (0.15 mm) back from the plane.
+Shut, only the panel edges meet there. A printed face a little proud, or the steps of its layers, would otherwise
+hold the seam open by that much.
+
+A seam whose tooth needs walls higher than `snap wall` is left plain with a warning, like a seam bent over 100°, a
+seam too short for the shortest bar and its posts (about 22 mm at `click size` 1), or a window frame narrower than a
+wall's foot. A block each side of the tooth, from it to the post and
+1 mm under the bar, stops the seam from sliding along its length.
+
+Across the thickness of the sheet the tooth sits between the bar and the other panel's inside face, so the two
+edges stay level: the panel stops it one way, the bar's spring the other.
 Mountain folds are grooved from the face up on the bed, valley folds from the
-bed side. Edges between faces in one plane get no groove. The grooves travel in the plan with each piece (`vees`)
+bed side. Edges between faces in one plane get no groove. The grooves travel in the plan with each piece (`grooves`, a `Groove` each: its line, flat bottom, skin, half opening and face)
 and `core/solid.py` cuts them from the printed part; the browser build has no boolean engine and exports plain parts,
 and the first panel carries a warning that says so.
 The example `fold_test` (48 × 48 × 32 mm, 2 mm PETG) carries 45°, 76°, 80°, 90° and 104° folds and a valley edge.
 
 ## Stiff sheet: seams meet at the inside edges
 Two square-cut panels that both reach the model's edge occupy the same corner on every outward (convex) seam: a
-t × t square at 90°. Paper gives; metal, wood and acrylic do not, and the part cannot close. With `edge fit` =
+t × t square at 90°. Paper gives; metal, wood and acrylic do not, and the part cannot close. With `how seams meet` =
 inner (the default) each outward seam edge is cut back by t · tan(bend / 2), so the inside edges of the two
 panels meet and the gap is on the outside. Holes, slots and seam numbers are measured from the new edge. Inward
 seams need nothing: their material moves apart. Joints with a tab or loop on the edge are not cut back, and
@@ -106,7 +283,9 @@ face otherwise lies inside the sheet of another. Without manifold3d (the browser
 Only what the sheet cannot take up itself is cut: the cut-back is t · tan(bend / 2) less the material's crush
 (`SQUISH` × t). Paper, card, cardboard and fabric crush through their whole thickness and are never cut back, nor
 is a material that is not listed; cut back like steel, the small panels of a laced cow in 1 mm card fell under
-the minimum part size. A rib too small to cut and handle (under `min_part` both ways) is left out and reported.
+the minimum part size. A rib too small to cut and handle (under `min_part` both ways) is left out and reported. The cut-back is never what
+makes a panel too small: a panel it would take under `min_part` or `min_feature` keeps its edges and carries the
+press warning.
 
 What is left presses into the next panel: t · tan(bend / 2) less the cut-back (capped at 0.4 of the face's height,
 so a sliver keeps its middle; nothing with a tab joint). `SQUISH` in `core/modes/folded.py` gives the share of the
@@ -117,11 +296,146 @@ Measured on the examples in 3 mm steel, every face its own panel, by intersectin
 to 1 (1 mm³); egg 530 to 1; torus 359 to 54 (99 mm³ in all); cow 340 to 70; bowl 378 to 41. What remains is at
 saddle vertices, where panels that share only a corner meet, and on slivers the cap protects. Not yet handled.
 
+## Faces too small for the sheet
+The cut-back takes at most 0.4 of a face's height, so a face lower than about 2.5 sheets (more at a sharp seam)
+cannot be cut back all the way and carries the press warning. The warning offers two fixes. *Bigger triangles*
+raises `facet` and makes the whole model coarser. *Merge the faces under 4 × the sheet* sets `min_face`
+(`merge_small` in `core/mesh.py`): after the model is simplified, each face whose least height is under `min_face`
+has its shortest edge closed up to its middle, the smallest faces first, until no such face is left. The other
+faces do not move, except those that share a corner with a merged face.
+
+Measured on the cow in 1 mm steel, laced, facet 15, `min_face` 4 (2026-11-14): 408 faces become 282, the 66 faces
+under 4 mm become 0, the press warnings go from 6 to 0, all warnings from 84 to 62, errors stay 0. The model is
+1.2 mm shorter. On the bowl 2012 faces become 1994 and on the torus 1092 become 1036; both stay closed.
+Limits: the shortest edge is closed whatever it is, so a flat wide triangle with no short edge is pulled out of
+shape and not removed, and an edge on the rim of an open surface moves that rim.
+
+## A model thinner than two sheets
+The sheet lies inside the surface, one thickness deep. Where the model itself is thinner than two sheets (a fin, an
+ear, a thin shell), the sheet under one side runs into the sheet under the other. `check_walls` sends one ray from
+the middle of each face straight into the model; a face that meets the far side within two thicknesses puts a
+warning on its panel, with the least depth found. One ray per face: a wall that thins only near an edge is missed.
+It needs the ray engine's rtree, which the browser build has not.
+
 ## Windows
 `window` opens every face with a hole of its own shape, for a lamp shade or a lantern. The frame left around it is
-what the share asks for and never less than 1.25 × the minimum feature width, plus what the face's grooves or
+what the share asks for and never less than 1.35 × the minimum feature width, plus what the face's grooves or
 cut-back edges take, plus the reach of the joint's holes or slots. A face too small for that stays whole.
-The example `fold_lamp` uses it: a twisted, swelling tube of 72 triangles, printed in 2 mm PETG on one plate.
+With a joint that puts a glue flap on the edge (tab, multitab, diamond, ticked, gear, tongue, puzzle), a tab is glued
+to the frame of the face it folds under, never over its window: the frame is at least twice the minimum feature width
+(and `TAB_CLEAR`, 0.5 mm) wide, room for a tab worth gluing, and `tabs` makes no tab taller than that face's frame less
+`TAB_CLEAR`. Before, on the first paper lamp (the pear), 41 of its 45 tabs reached into a window: half their glue was
+over the opening, and in the 3D view the tab and the pane, both against the inside face, drew dark stair-stepped
+lines across the paper. On the new lamp the 10 mm tabs are 8.8 mm under a 9.3 mm frame. `tests/test_paper.py`
+measures the tab area over the windows in the closed model: 1017 mm² on the lamp without the limit, 0 with it.
+The example `fold_lamp` uses it: a twisted, swelling tube of 30 triangles (about 58 × 29 mm each, 12 seams to close), printed in 2 mm PETG on one
+plate. It had 72 triangles of 38 × 19 mm and 32 seams at first: too many and too small to put together by hand.
+The lantern keeps the 72: at 420 mm they are big enough.
+
+A window belongs to a flat piece, not to a triangle. The faces of a panel that are joined across an edge with no
+bend (under 1°, the same rule that leaves such an edge without a score) are one flat piece, and get one window
+between them. The side of a box is two triangles and gets one square window. Before 0.4.0 it got two triangles.
+A flat piece is not cut by a seam the program chooses (see Unfolding); one cut by a seam the user chose is two
+pieces and gets two windows. Its outline is drawn through its rim corners (`outline`), not as a union of its
+triangles: laid out one by one they meet only to rounding, and a union left pentagons in pieces.
+The example `paper_lamp` is the five-leg lantern: twelve regular dodecahedra (40 mm edge) joined face to face, a raised
+hub, five legs of two cells down to five feet, one cell on top (122 pentagons, about 400 mm across and 260 mm tall),
+in 1 mm card with `window` 0.7, `windows are` paper and tab joints. The pentagons two cells share are open, so one
+bulb in the hub lights every cell; the hub's bottom pentagon, 80 mm above the table, is removed for the cable, and
+the Light tab's first bulb (over the middle of the foot, half the height up) is in the hub. 25 panels on 4 card
+sheets, 121 windows and 121 papers on 2 paper sheets, all the same regular pentagon, so any paper fits any window.
+It stands on its five feet and tips only past 64°. Before 0.4.0 it was three dodecahedra stacked (31 windows), and
+first the pear, which looked crooked.
+
+### Panes: windows closed with paper
+`window_fill` = `paper` closes each window with a pane, so the light shines through it. `paper_t` is its thickness.
+
+- Cut job: the window is cut out as before. The pane is a part of its own, a slice with the label `W-<panel>-<n>`
+  (`W-7-3` is the third window of panel `P-7`), `paper_t` thick. It is `PANE_OVER` (4 mm) bigger than its window
+  all round, less on a narrow frame, and it stays 0.2 mm clear of the fold grooves. It is glued on the inside face
+  of the frame. Pane slices have `stock` = `paper`: the nester keeps one stock per sheet, so they are on sheets of
+  their own, and the plan's `sheet_stock`, the sheet list and the names of the cut files say `paper`.
+- Printed job: the window is not cut out. The print keeps `paper_t` of the panel there, on the bed, and the frame
+  keeps the whole thickness (`core/solid.py` cuts the rest away, as it does for a thin glue tab). The plan's piece
+  carries `paper` (the rings on the plate) and `paper_t`. A `paper_t` that is not thinner than the panel gives a
+  warning, and the windows stay open.
+- The 3D view and the light: each facet with a pane carries `paper` = `{rings, t, z}`. `rings` is in the facet's own
+  frame. `z` is where the pane's outer face is, along the facet's normal from the facet's outer face: 0 on a printed
+  job (inside face up), minus the sheet thickness on a cut job. A flat piece of several faces has its pane on one
+  facet only. `paper_color` and `paper_through` are for the light; the slicer does not use them.
+- Coverage counts a pane as covered surface.
+- A pane passes the thin-spot check: a sharp corner of a paper triangle does not break off.
+
+Glue the papers in first, then close the seams: a tab lies over the paper's margin inside the frame.
+
+No number on the frame says which paper goes where (Marcel's choice). The 3D view shows it: each facet's `paper` key
+names its paper part (`part`, cut job only), and selecting a paper part (on the sheet, in the parts table or in the
+list of findings) selects its panel and hatches its window there (`showPane`, `markPane`: the pane mesh draws that
+pane's triangles in the `hatched` material, so the mark folds with the panel). A plain click on a window's paper in
+the 3D view does the same for its paper part (`paneAt`: the panes take no hits of their own, so a drag and the seam
+and face tools go through them to the panel). The paper parts are not drawn as parts of their own. On the `paper_lamp` example every paper is the same pentagon, so any paper fits any window.
+
+## Merged faces
+`merged` holds groups of faces the user merged. Each group becomes one flat face (`flatten`, `core/mesh.py`), after
+the model is simplified and before faces are removed:
+
+1. The faces of the group are found again by their place, as removed faces are (`faces_at`). The biggest piece that
+   is joined edge to edge is used, with any face it encloses: at another facet size one face in the middle can be
+   missed.
+2. A plane is fitted to them: the average of their normals, weighted by area, through their centre.
+3. The corners on the rim of the group move onto that plane. The faces next to the group follow their corners. The
+   corners inside the group go.
+4. The rim is filled again with triangles in the plane (ear clipping). They are one flat piece: no score, one window.
+
+A group stays as it is, with a warning that gives the reason, when fewer than two of its faces are there, when it
+has no single rim (several pieces of the same size, the whole model), when its faces turn more than a quarter turn
+away from each other, or when its rim crosses itself in the plane.
+
+The plan's `faces3d.merged` gives, for each face, the number of the group it came from, or -1. On the page the
+`merge` button of the `select faces` tool adds the selected triangles as a group. A group under the selection is
+replaced by the new one. `unmerge` takes away the groups under the selection.
+
+Limit: one plane for the whole group. Half a ball becomes a disc, and the faces round it are pulled with it.
+
+## Removed faces
+`removed` holds the faces the user took off the surface, to keep only a part of the model (a mask from a head). They
+go after the model is simplified and before it is unfolded. What is left is an open surface: the rim round the
+removed faces is a boundary like any other, a plain cut edge with no seam and no joint.
+
+A removed face is kept by its place, not by its number: its triangle, in the coordinates of the model file. The plan
+gives the 4 × 4 matrix from the file's coordinates to the plan's millimetres (`frame`; `core/mesh.py` builds it from
+every scale, turn and move it applies). So the same places are removed after a change of facet size, of the model's
+size or of its rotation. After a change of facet size the rim moves by one triangle at most.
+
+`faces_at` (`core/unfold.py`) finds the faces at those places. A face is removed when the line through its middle,
+along its own normal, meets a stored triangle that faces the same way, no further off than half that triangle's
+longest edge. The stored triangles of a region lie edge to edge, so a line through the region meets one of them; a
+flat projection onto each triangle leaves a gap along every ridge between two. The far side of a thin wall faces
+the other way and stays.
+
+- A seam the user chose that is now on the rim, or among the removed faces, is left out and nothing is said. The
+  page takes it off the list when the face is removed; undo brings back the face and the seam.
+- A piece of the surface that the removed faces cut off from the rest is cut as panels of its own. A warning names
+  the panels. It is not deleted.
+- When every face is removed, the plan has an error and no parts.
+- Coverage is measured on the model without the points at the removed places.
+
+Measured on `head_igea` in 0.5 mm card (2026-11-17): the back of the head picked at facet 20 mm, 246 faces, leaves
+451 cm² of 944 cm². At facet 12 mm with the same list, 703 faces are removed and 456 cm² is left.
+Not done: a smooth rim along a drawn line. The rim follows the edges of the triangles.
+Limit: where the surface folds over itself within half an edge length and both layers face the same way (the
+curls of a carved mane), a face under a removed one can be at the same place and go with it. On the lion head
+at face size 25 mm, one selection of 617 faces removed 618.
+
+On the page (`web/static/js/faces.js`) the `select faces` tool of the 3D view makes the list. The plan gives the
+faces that are left (`faces3d`: the corners, the faces, and the two faces across each edge, numbered as `edges3d`).
+A click or a drag selects faces. `grow` adds the faces across an edge of the selection, `connected` goes on until
+nothing is added; both stop at a seam the user chose, and so at a removed face and at the rim, where there is no
+face across the edge. `remove` adds the selected triangles to `removed`, carried to the file's coordinates with the
+inverse of `frame`. A removed face is drawn as a dashed outline while the tool is on; a click on one takes its
+triangle out of the list. Selected faces are hatched: the three looks (hatched, dashed outline, thick seam line)
+do not depend on colour. In the seam tool and in this one, a drag with the left button paints, so the right button
+turns the view and the middle one moves it.
 
 ## The fold slider
 Each panel face remembers the face it was unfolded from (`Panel.parent`). The plan gives every facet a `hinge`:
@@ -171,10 +485,16 @@ In tests/test_modes.py: the built cube is exactly the model's size (the sheet li
 convex folds are valley lines with `score side` inside and mountain lines with outside, and a 5 mm sphere warns that
 its folds cannot close in an 8 mm sheet but not in a 1.5 mm one.
 
+In tests/test_seams.py: a chosen seam is never a fold and the net still folds back; a chosen seam across a flat face
+stays a seam; the plan marks every fold once and every seam twice on the sheets, a fold on its score line and a seam
+on the cut outline, with the net mirrored and not; a seam on no edge is reported and left out. In tests/ui/test_edit3d.py:
+a seam is chosen on the model, another on a sheet, one is given back, and both views mark the same edges.
+
 Run: `uv run python tests/test_unfold.py`.
 
 ## Roadmap for this technique
 1. Simulated annealing / tabu search over the spanning tree when `auto` still leaves many panels (Korpitsch, Zawallich).
 2. Shape relaxation until a single patch unfolds (Bhargava 2024) — for paper models where fidelity can give a little.
-3. Click-to-add / remove seams in the 3D view (Pepakura-style manual control).
+3. Edges the user wants kept as folds ("keep this area in one piece"): possible only as a preference, because an
+   overlap or the sheet size can still force a seam there.
 4. Tab placement by stability, not on every seam (Korpitsch 2020).

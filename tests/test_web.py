@@ -15,8 +15,7 @@ CUBE = {"mode": "stacked", "example": "cube", "params": '{"distribution":"count"
 
 
 @pytest.fixture
-def api(tmp_path, monkeypatch):
-    monkeypatch.setattr(webapp, "JOBS", tmp_path)      # jobs go to the test's own directory, not the repo's
+def api(jobs):
     return TestClient(webapp.app)
 
 
@@ -107,20 +106,78 @@ def test_the_solid_downloads_of_a_job(api):
     step = api.get(f"/api/job/{MINE}/{job}/step")                                 # the same as solids, for CAD
     assert step.status_code == 200 and step.content.startswith(b"ISO-10303-21;") and ".step" in step.headers["content-disposition"]
     assert api.get(f"/api/job/{MINE}/{job}/step", params={"part": "no such"}).status_code == 404
+    one = api.get(f"/api/job/{MINE}/{job}/step", params={"body": 1})                # the whole model fused: one solid
+    assert one.status_code == 200 and "onebody.step" in one.headers["content-disposition"] and one.content.count(b"MANIFOLD_SOLID_BREP(") == 1
     names = lambda r: zipfile.ZipFile(io.BytesIO(r.content)).namelist()
-    same = names(api.get(f"/api/job/{MINE}/{job}/proto", params={"scale": 1, "offset": 0}))
-    assert "plate.3mf" in same and "README.txt" not in same                     # the job as it is: nothing to say
-    thin = names(api.get(f"/api/job/{MINE}/{job}/proto", params={"scale": 0.1, "min_thick": 1.2}))
-    assert "plate.3mf" in thin and "README.txt" in thin
-    fit = names(api.get(f"/api/job/{MINE}/{job}/fit", params={"scale": 1, "offset": 0.2, "step": 0.05}))
-    assert "plate.3mf" in fit and "README.txt" in fit and "fit_0.25.stl" in fit and "fit_0.10.stl" in fit
-    cut = names(api.get(f"/api/job/{MINE}/{job}/fitcut", params={"fmt": "svg", "step": 0.1}))
-    assert "README.txt" in cut and {n.split("/")[0] for n in cut if "/" in n} == {"fit_-0.20", "fit_-0.10", "fit_0.00", "fit_0.10", "fit_0.20"}
+    called = lambda r: r.headers["content-disposition"].split('filename="')[1].rstrip('"')
+
+    def section(r, head):
+        """One section of the zip's README.txt (core/readme.py), its lines without their indent."""
+        lines = zipfile.ZipFile(io.BytesIO(r.content)).read("README.txt").decode().splitlines()
+        i = lines.index(head) + 1
+        return [x.strip() for x in lines[i:lines.index("", i) if "" in lines[i:] else None]]
+    same = api.get(f"/api/job/{MINE}/{job}/proto", params={"scale": 1, "offset": 0})
+    # the job as it is, not planned again. Its notes say one thing (bugs/068): the top layer prints clean (hidden
+    # marks), so it carries its number on a tag beside it (bugs/061); then the print settings written into the plate
+    note, *settings = section(same, "NOTES")
+    assert "plate.3mf carries the print settings" in settings[0]
+    assert "plate.3mf" in names(same) and note.startswith("1 part(s) have no room") and "Z-3" in note
+    assert called(same).endswith("_stacked_prototype_x1.zip") and "assembly-key.txt" not in " ".join(names(same))   # a laser job's print
+    assert section(same, "MACHINE AND MATERIAL") == ["For a 3D printer (FDM)."]
+    thin = api.get(f"/api/job/{MINE}/{job}/proto", params={"scale": 0.1, "min_thick": 1.2})
+    assert "plate.3mf" in names(thin) and section(thin, "NOTES")[0].startswith("re-planned at") and called(thin).endswith("_prototype_x0.1.zip")
+    fit = api.get(f"/api/job/{MINE}/{job}/fit", params={"scale": 1, "offset": 0.2, "step": 0.05})
+    assert {"plate.3mf", "README.txt", "fit_0.25.stl", "fit_0.10.stl"} <= set(names(fit)) and called(fit).endswith("_print-fit-test_x1.zip")
+    cut = api.get(f"/api/job/{MINE}/{job}/fitcut", params={"fmt": "svg", "step": 0.1})
+    assert "README.txt" in names(cut) and {n.split("/")[0] for n in names(cut) if "/" in n} == {"fit_-0.20", "fit_-0.10", "fit_0.00", "fit_0.10", "fit_0.20"}
+    assert called(cut).endswith("_cut-fit-test_svg.zip") and "LAYERS" in zipfile.ZipFile(io.BytesIO(cut.content)).read("README.txt").decode()
+    # the job printed at its own size: its print set is the plates, with the assembly key, as the sheets zip has it
+    printed = api.post("/api/slice", data={"client": MINE, **CUBE, "params": '{"distribution":"count","count":3,"autofix":"off","printed":true}'}).json()["job"]
+    plates = api.get(f"/api/job/{MINE}/{printed}/proto", params={"scale": 1})
+    key = [n for n in names(plates) if n.endswith("assembly-key.txt")]
+    assert called(plates).endswith("_stacked_print-plates.zip") and len(key) == 1 and "README.txt" in names(plates)
+    assert section(plates, "PUT IT TOGETHER")[0] == f"Read {key[0]}: what each label means, and the order to build in."
+
+
+def test_the_key_and_the_standoffs_download_on_their_own(api, jobs):
+    """The Export tab gives each machine a button of its own: the assembly key as text, and the standoffs as the 3MF
+    the sheets zip carries (fit=1: the fit test's). A job with no standoffs has no such file. The plan says whether
+    the job has a fit test at all."""
+    import json
+    cube = api.post("/api/slice", data={"client": MINE, **CUBE}).json()
+    key = api.get(f"/api/job/{MINE}/{cube['job']}/key")
+    assert key.status_code == 200 and "assembly-key.txt" in key.headers["content-disposition"]
+    assert all(pc["label"] in key.text for s in cube["plan"]["slices"] for pc in s["pieces"]), key.text[:300]
+    assert cube["plan"]["fit_test"] is True and cube["plan"]["standoffs"] is None
+    assert api.get(f"/api/job/{MINE}/{cube['job']}/standoffs").status_code == 404
+    egg = api.post("/api/slice", data={"client": MINE, "mode": "stacked", "example": "egg", "params": json.dumps(
+        {"space": 8, "connect": "standoff", "dowel_d": 5, "dowel_shape": "square", "thickness": 3, "autofix": "off"})}).json()
+    n = len(egg["plan"]["standoffs"]["items"])
+    own = api.get(f"/api/job/{MINE}/{egg['job']}/standoffs")
+    assert own.content[:2] == b"PK" and f"3D-PRINT standoffs x{n}.3mf" in own.headers["content-disposition"]
+    fit = api.get(f"/api/job/{MINE}/{egg['job']}/standoffs", params={"fit": 1})
+    assert fit.content[:2] == b"PK" and "fit test 3D-PRINT standoffs x" in fit.headers["content-disposition"]
+    # what the buttons say is read from the files: the fit test's standoffs as its 3MF holds them, a printed job's
+    # print set as its zip holds it; a plain cut job has nothing to read
+    import re
+    made = len(re.findall(rb'<object id="\d+" name="', zipfile.ZipFile(io.BytesIO(fit.content)).read("3D/3dmodel.model")))
+    assert api.get(f"/api/job/{MINE}/{egg['job']}/contents").json() == {"fit_standoffs": made} and made > 0
+    assert api.get(f"/api/job/{MINE}/{cube['job']}/contents").json() == {}
+    printed = api.post("/api/slice", data={"client": MINE, "mode": "stacked", "example": "cube", "params": json.dumps(
+        {"distribution": "count", "count": 3, "autofix": "off", "printed": True, "sheet": [256, 256]})}).json()["job"]
+    button = {"scale": 1, "offset": 0, "labels": "groove"}                 # the print set button's own settings
+    names = api.get(f"/api/job/{MINE}/{printed}/contents", params=button).json()["print_set"]
+    kept = list(jobs.rglob(f"{printed}/proto-*.zip"))
+    proto = api.get(f"/api/job/{MINE}/{printed}/proto", params=button)
+    assert "plate-1.3mf" in names and set(names) == set(zipfile.ZipFile(io.BytesIO(proto.content)).namelist())
+    assert len(kept) == 1 and proto.content == kept[0].read_bytes()       # one build: the download is the zip /contents made
+    api.get(f"/api/job/{MINE}/{printed}/proto", params={**button, "labels": "hole"})   # other settings: a new set, the old one gone
+    assert [z.name for z in jobs.rglob(f"{printed}/proto-*.zip")] != [kept[0].name] and len(list(jobs.rglob(f"{printed}/proto-*.zip"))) == 1
 
 
 def test_every_zip_carries_the_project_file_that_reopens_the_job(api):
     """A cut file or a printed part found later has to lead back to the model that made it: the zips carry the same
-    project file the UI's "open project" reads (technique, every parameter, and an uploaded model itself)."""
+    project file the library's import reads (technique, every parameter, and an uploaded model itself)."""
     import json
     job = api.post("/api/slice", data={"client": MINE, **CUBE}).json()["job"]
     for url in (f"/api/job/{MINE}/{job}/export", f"/api/job/{MINE}/{job}/proto?scale=1"):
@@ -134,3 +191,18 @@ def test_every_zip_carries_the_project_file_that_reopens_the_job(api):
 def test_a_job_id_cannot_climb_out_of_its_client(api):
     assert api.get(f"/api/job/{MINE}/ex_.././ex_cube/export").status_code in (400, 404)
     assert api.post("/api/slice", data={"client": MINE, "mode": "stacked", "example": "../cube"}).status_code == 400
+
+
+def test_an_export_zip_carries_the_project_file_the_page_saves(api):
+    """The zip's project file says the layout version the page writes and reads, and the bug-report form offers every
+    technique under the title the page sends (the page takes it from the schema)."""
+    import json
+    import pathlib
+    import re
+    job = api.post("/api/slice", data={"client": MINE, **CUBE}).json()["job"]
+    z = zipfile.ZipFile(io.BytesIO(api.get(f"/api/job/{MINE}/{job}/export").content))
+    proj = json.loads(z.read(next(n for n in z.namelist() if n.endswith(".lamina.json"))))
+    assert proj["version"] == api.get("/api/project").json()["version"] == webapp.PROJECT_VERSION
+    form = pathlib.Path(__file__).parent.parent / ".github/ISSUE_TEMPLATE/bug_report.yml"
+    options = re.findall(r"^ +- (\S.*)$", form.read_text(encoding="utf-8").split("options:")[1].split("validations:")[0], re.M)
+    assert sorted(options[:-1]) == sorted(m["title"] for m in api.get("/api/modes").json()) and options[-1].startswith("Not technique-specific")

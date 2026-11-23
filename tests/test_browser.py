@@ -1,5 +1,6 @@
 """The browser build (web/browser.py) answers the page's requests by calling the same endpoint functions the server
 runs — so slicing, the ghost model, the cut files and the guards all work without a server."""
+import inspect
 import io
 import json
 import os
@@ -9,17 +10,12 @@ import sys
 import zipfile
 
 import pytest
+from fastapi.responses import Response
 
 from web import app as webapp, browser
 
 MINE = "0" * 32
 PARAMS = '{"distribution":"count","count":3,"autofix":"off"}'
-
-
-@pytest.fixture
-def jobs(tmp_path, monkeypatch):
-    monkeypatch.setattr(webapp, "JOBS", tmp_path)
-    return tmp_path
 
 
 def test_slice_ghost_and_cut_files_without_a_server(jobs):
@@ -74,10 +70,10 @@ def test_the_guards_still_answer(jobs):
 
 
 def test_every_download_reaches_its_endpoint_with_the_values_the_page_sent(jobs, monkeypatch):
-    """The browser build hands a download's query on by name, as the server binds it: `key=0` leaves the assembly key
-    out, the fit tests (print and cut) answer, and a prototype's font, thickness and offset land in their own slots —
-    passed by position, the minimum thickness used to arrive as the font."""
-    from fastapi.responses import Response
+    """The browser build binds a download's query to the endpoint's own signature, by name: `key=0` leaves the assembly
+    key out, the fit test answers, and a value reaches the parameter of its name, coerced by that parameter's type,
+    while a parameter the query leaves out keeps the endpoint's default (by position the minimum thickness used to
+    arrive as the font)."""
     status, _, body = browser.handle("POST", "api/slice", "", [["client", MINE], ["mode", "stacked"], ["params", PARAMS], ["example", "cube"]])
     job = json.loads(body)["job"]
     names = lambda q: zipfile.ZipFile(io.BytesIO(browser.handle("GET", f"api/job/{MINE}/{job}/export", q, None)[2])).namelist()
@@ -86,10 +82,16 @@ def test_every_download_reaches_its_endpoint_with_the_values_the_page_sent(jobs,
     status, _, body = browser.handle("GET", f"api/job/{MINE}/{job}/fitcut", "fmt=svg&labels=1&step=0.1", None)
     assert status == 200 and any(n.endswith(".svg") for n in zipfile.ZipFile(io.BytesIO(body)).namelist())
     seen = {}
-    monkeypatch.setattr(webapp, "job_proto", lambda client, job, **kw: seen.update(proto=kw) or Response(b""))
-    monkeypatch.setattr(webapp, "job_fit", lambda client, job, **kw: seen.update(fit=kw) or Response(b""))
+
+    def spy(name):                                   # the endpoint's own signature, an answer that records what arrived
+        real = webapp.JOB_ROUTES[name]
+        f = lambda *a, **kw: seen.update({name: kw}) or Response(b"")
+        f.__signature__ = inspect.signature(real, eval_str=True)
+        monkeypatch.setitem(webapp.JOB_ROUTES, name, f)
+    spy("proto"), spy("fit")
     q = "scale=1&size=0&labels=hole&font=6&min_thick=2&offset=0.3"
     assert browser.handle("GET", f"api/job/{MINE}/{job}/proto", q, None)[0] == 200
     assert browser.handle("GET", f"api/job/{MINE}/{job}/fit", q + "&step=0.05", None)[0] == 200
-    want = {"scale": 1.0, "size": 0.0, "labels": "hole", "font": 6.0, "min_thick": 2.0, "offset": 0.3}
-    assert seen == {"proto": want, "fit": {**want, "step": 0.05}}
+    assert browser.handle("GET", f"api/job/{MINE}/{job}/proto", "", None)[0] == 200 and seen["proto"] == {"client": MINE, "job": job}
+    want = {"client": MINE, "job": job, "scale": 1.0, "size": 0.0, "labels": "hole", "font": 6.0, "min_thick": 2.0, "offset": 0.3}
+    assert seen["fit"] == {**want, "step": 0.05}

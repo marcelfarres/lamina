@@ -63,6 +63,109 @@ MESH_PARAMS = ("up_axis", "rotate", "size", "scale", "shrinkwrap", "hollow", "th
 _last = None   # [key, mesh, notes, {name: what was worked out from it}]: the model as last prepared
 
 
+SHARP = 2 * math.atan(0.25)    # 28°: a corner this sharp is thinner than min_feature for twice its length, a thin tip
+SHARP_HEIGHT = 2.0              # a sharp face is merged while its height is under this × min_face: a long sliver keeps the shape
+
+
+def merge_small(mesh, least, rounds=40):
+    """The faces too small to work with merged into their neighbours, the rest of the model left as it is: a face whose
+    least height is under `least` (mm), or whose sharpest corner is under SHARP, has its shortest edge closed up to its
+    middle, the smallest faces first, round after round until none is left (or `rounds` rounds). The shortest edge is
+    the one facing the sharpest corner, so closing it takes the corner away. A long, sharp face passed the height test
+    and ended a panel in a thin tip (the lion head's last four warnings, bug 045). Where a bigger facet size would
+    coarsen the whole model, this touches only the slivers, the sharp faces and the small faces.
+    ponytail: the shortest edge, whatever it is; a flat wide triangle with no short edge is pulled out of shape
+    rather than removed, and an edge on the rim of an open surface moves that rim."""
+    m = mesh
+    for _ in range(rounds):
+        tri = m.triangles
+        edge = np.linalg.norm(tri - np.roll(tri, -1, axis=1), axis=2)        # edge i runs from corner i to corner i + 1
+        height = 2 * m.area_faces / np.maximum(edge.max(1), 1e-12)
+        small = np.nonzero((height < least) | ((m.face_angles.min(1) < SHARP) & (height < SHARP_HEIGHT * least)))[0]
+        if not len(small):
+            break
+        v = np.array(m.vertices); to = np.arange(len(v)); taken = np.zeros(len(v), bool)
+        for f in small[np.argsort(height[small])]:
+            i = int(edge[f].argmin()); a, b = int(m.faces[f][i]), int(m.faces[f][(i + 1) % 3])
+            if taken[a] or taken[b]:                                        # one closing per corner in a round
+                continue
+            taken[[a, b]] = True; v[a] = (v[a] + v[b]) / 2; to[b] = a
+        faces = to[m.faces]
+        faces = faces[(faces[:, 0] != faces[:, 1]) & (faces[:, 1] != faces[:, 2]) & (faces[:, 0] != faces[:, 2])]
+        if len(faces) < 4:                                                  # nothing left to be a model: keep the last one that was
+            break
+        m = trimesh.Trimesh(v, faces, process=True)
+        m.update_faces(m.unique_faces()); m.update_faces(m.nondegenerate_faces()); m.remove_unreferenced_vertices()
+    if m is not mesh:
+        trimesh.repair.fix_normals(m)
+    return m
+
+
+def _ears(pts):
+    """The triangles [(i, j, k), …] that fill the simple polygon `pts` (n × 2, counter-clockwise) with every corner
+    used, by ear clipping, or None when it cannot be filled (it crosses itself)."""
+    def side(a, b, c):
+        return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+    idx, out = list(range(len(pts))), []
+    while len(idx) > 3:
+        for q in range(len(idx)):
+            i, j, k = idx[q - 1], idx[q], idx[(q + 1) % len(idx)]
+            a, b, c = pts[i], pts[j], pts[k]
+            if side(a, b, c) <= 1e-9:                         # a corner that turns in, or three in a line: no ear
+                continue
+            if any(m not in (i, j, k) and min(side(a, b, pts[m]), side(b, c, pts[m]), side(c, a, pts[m])) >= -1e-12 for m in idx):
+                continue                                      # another corner lies in it
+            out.append((i, j, k)); del idx[q]
+            break
+        else:
+            return None
+    return out + [tuple(idx)] if side(*pts[idx]) > 1e-9 else None
+
+
+def flatten(mesh, pick):
+    """The faces `pick` (a bool per face) made one flat face: the corners on their rim are moved onto the plane that
+    fits the faces best, the corners inside go, and the rim is filled again with triangles in that plane. The faces
+    next to them follow their moved corners. Returns (the new mesh, the faces of `mesh` that went: a bool per face),
+    or (None, why not). The flat face's triangles are the new mesh's last faces; the faces that stay keep their order.
+    ponytail: one plane through whatever is picked; half a ball becomes a disc. That is the user's choice to make."""
+    if pick.sum() < 2:
+        return None, "fewer than two faces are there now"
+    # Found again by their place on a mesh made with another facet size, the faces come back ragged: a face in the
+    # middle not found, a stray one found beside them. The biggest piece is taken, with what it encloses.
+    adj = mesh.face_adjacency
+
+    def pieces(which):
+        return sorted(trimesh.graph.connected_components(adj[which[adj].all(1)], nodes=np.nonzero(which)[0]), key=len)
+    pick = np.isin(np.arange(len(pick)), pieces(pick)[-1])
+    for island in pieces(~pick)[:-1]:
+        pick[island] = True
+    faces = mesh.faces[pick]
+    e = np.concatenate([faces[:, [0, 1]], faces[:, [1, 2]], faces[:, [2, 0]]])      # directed, as the faces wind
+    _, inv, count = np.unique(np.sort(e, axis=1), axis=0, return_inverse=True, return_counts=True)
+    rim = e[count[inv.ravel()] == 1]
+    after = {int(a): int(b) for a, b in rim}
+    loop = [int(rim[0, 0])] if len(rim) else []
+    while loop and after[loop[-1]] != loop[0] and len(loop) <= len(rim):
+        loop.append(after[loop[-1]])
+    if len(loop) < 3 or len(after) != len(rim) or len(loop) != len(rim):
+        return None, "they are not one piece with one rim (several pieces, a hole in the middle, or the whole model)"
+    area = mesh.area_faces[pick]
+    n = (mesh.face_normals[pick] * area[:, None]).sum(0); n /= np.linalg.norm(n) or 1.0
+    if (mesh.face_normals[pick] @ n).min() < 0.05:
+        return None, "they turn more than a quarter turn away from each other"
+    o = (mesh.triangles_center[pick] * area[:, None]).sum(0) / area.sum()
+    v = np.array(mesh.vertices)
+    v[loop] -= ((v[loop] - o) @ n)[:, None] * n
+    u = np.cross(n, [1.0, 0, 0] if abs(n[0]) < 0.9 else [0, 1.0, 0]); u /= np.linalg.norm(u)
+    tris = _ears(np.c_[(v[loop] - o) @ u, (v[loop] - o) @ np.cross(n, u)])
+    if tris is None:
+        return None, "their rim crosses itself when it is laid flat"
+    new = trimesh.Trimesh(v, np.r_[mesh.faces[~pick], np.asarray(loop)[np.asarray(tris)]], process=False)
+    new.remove_unreferenced_vertices()
+    new.metadata.update(mesh.metadata)
+    return new, pick
+
+
 def load_mesh(path, params, notes=None, surface=False):
     """The model as every later stage sees it. The last one is kept: a new project name, a sheet, a thickness reslices
     without loading and remeshing it again (a second or more of every slice, many more in the browser). `surface`:
@@ -100,22 +203,30 @@ def _prepare(path, params, notes, surface):
     # `size` is the model's own, along the file's axes, and is applied before any turn: aimed at the world axes after
     # the turn, as it used to be, a bear made 500 mm tall and then stood up along x was 500 mm long and half as big
     # again (034). The page shows and takes the numbers along the view's axes and keeps them on the model's.
+    frame = np.eye(4)                                 # the file's coordinates → the model's: every scale, turn and move below
+
+    def move(T):
+        nonlocal frame
+        mesh.apply_transform(T); frame = T @ frame
+
+    def scale(s):
+        move(np.diag([*(np.ones(3) * s), 1.0]))
     size = params.get("size") or []
     if any(size):
         tgt = np.array([s if s else 0 for s in (list(size) + [0, 0, 0])[:3]], float)
         ext = mesh.extents
         if (tgt > 0).sum() == 1:                      # one value → uniform
-            i = int(np.argmax(tgt)); mesh.apply_scale(tgt[i] / ext[i])
+            i = int(np.argmax(tgt)); scale(tgt[i] / ext[i])
         else:
-            mesh.apply_scale([tgt[i] / ext[i] if tgt[i] > 0 else 1 for i in range(3)])
+            scale([tgt[i] / ext[i] if tgt[i] > 0 else 1 for i in range(3)])
     if params["scale"] != 1:                          # multiplies the target size when one is set
-        mesh.apply_scale(params["scale"])
+        scale(params["scale"])
     if params["up_axis"] != "z":
         src = "xyz".index(params["up_axis"])
-        mesh.apply_transform(trimesh.geometry.align_vectors(np.eye(3)[src], [0, 0, 1]))
+        move(trimesh.geometry.align_vectors(np.eye(3)[src], [0, 0, 1]))
     rot = params.get("rotate") or [0, 0, 0]
     if any(rot):
-        mesh.apply_transform(trimesh.transformations.euler_matrix(*np.radians(rot[:3]), "sxyz"))
+        move(trimesh.transformations.euler_matrix(*np.radians(rot[:3]), "sxyz"))
     if max(mesh.extents) < 5:                         # Blender writes metres: a 100 mm cube arrives 0.1 mm across
         notes.append(f"the model is only {max(mesh.extents):.3g} mm across — saved in metres or centimetres? Set size "
                      "to its real size in mm (100 mm cube: size 100)")
@@ -145,8 +256,11 @@ def _prepare(path, params, notes, surface):
     if params["smooth"] or auto:                      # Taubin: a volume-preserving Laplacian, so pointy vertices soften and nothing shrinks
         progress("smoothing", 0.16)
         mesh = mesh.copy(); trimesh.smoothing.filter_taubin(mesh, iterations=int(params["smooth"] or 10))
-    mesh.apply_translation(-mesh.bounds.mean(0))
+    move(trimesh.transformations.translation_matrix(-mesh.bounds.mean(0)))
     mesh.metadata["sized_extents"] = sized
+    # what the user marks on the model and keeps by its place (the removed faces of a folded model) is kept in the file's
+    # coordinates and brought here with this, so it follows the model when its size or its rotation changes
+    mesh.metadata["frame"] = frame
     return mesh
 
 

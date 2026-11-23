@@ -1,6 +1,7 @@
 """Modify form and connector placement keep to what was asked: a small thicken stays small, a square dowel keeps
 its wall."""
 import collections
+import json
 import os
 import pathlib
 import re
@@ -295,6 +296,43 @@ def test_a_stack_is_dowelled_through_without_holes_running_together(name, over, 
             f"dowels {min(gaps):.1f} mm apart at z={z} leave no wall between them (d={d}, min_feature={min_feature})"
 
 
+def test_the_vase_example_opens_with_every_dowel_it_asks_for():
+    """Bug 046: the vase example, as it opens, left 4 dowels out at its waist with a warning. The points shared by the
+    whole stack fell 3.8 mm from the rods carried up from the wider layers below, the holes overlapped, and each
+    was turned down. Every dowel it asks for is cut now, and no two holes in a layer run into each other."""
+    preset = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["vase"]
+    plan = build(EXAMPLES / "vase.stl", preset["mode"], {"slot_offset": 0.1, "kerf": 0.15, **preset["params"]})
+    assert plan["counts"]["errors"] == 0 and plan["counts"]["warnings"] == 0, plan["warnings"]
+    assert plan["left_out"] == [] and len(plan["rods"]) == 38
+    d, wall = preset["params"]["dowel_d"], 2.0
+    for z, pts in dowels_by_level(plan).items():
+        gaps = [float(np.hypot(*(pts[i] - pts[j]))) for i in range(len(pts)) for j in range(i + 1, len(pts))]
+        assert all(g >= d + wall - 0.01 for g in gaps), f"holes {min(gaps):.1f} mm apart at z={z}"
+
+
+def test_a_typed_dowel_that_cannot_be_cut_is_left_out():
+    """Bug 050: two dowel points typed 3 mm apart on the vase cannot both be cut. Since bug 045's fix a missed point
+    counted only while its piece was short of dowels, and the piece was topped up somewhere else, so the point typed
+    was dropped without a word. A typed point that is not cut is always left out: a warning, and a ring at each place."""
+    preset = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["vase"]
+    plan = build(EXAMPLES / "vase.stl", preset["mode"], {**preset["params"], "dowels": [[0, 0], [3, 0]]})
+    said = [w for w in plan["warnings"] if "left out" in w]
+    assert said and int(said[0].split()[0]) == len(plan["left_out"]) > 0, plan["warnings"]
+
+
+@pytest.mark.timeout(600)   # the remeshed bunny: about a minute alone
+def test_a_point_whose_piece_got_its_dowels_anyway_is_not_left_out():
+    """Bug 045: the bunny as it shipped in 0.3.3 opened with "24 connector(s) left out". The random placer works on
+    the overlap shrunk by the wall, which splits the hollow bunny's rings into pieces, and asks for two points in each;
+    24 of them found no room, but the topping-up gave every ring the two dowels it asks for. Nothing was left out, and
+    no dowel is lost for saying so."""
+    plan = build(EXAMPLES / "bunny.stl", "stacked", {"slot_offset": 0.1, "kerf": 0.15, "thickness": 3, "rotate": [90, 0, 0], "axis": "z",
+                                                     "connect": "dowel", "dowel_d": 4, "placement": "random", "n_points": 2,
+                                                     "round": 2, "thicken": 2, "margin": 4})
+    assert not any("left out" in w for w in plan["warnings"]), plan["warnings"]
+    assert plan["left_out"] == [] and len(plan["rods"]) == 733
+
+
 def test_a_stack_with_nothing_joining_its_layers_keeps_every_layer():
     """Reported as "the model loses some layers when lines is selected". With a gap between layers and no line
     through them nothing joins the layers; autofix took each unheld island away, and a layer that is all islands (the
@@ -306,8 +344,8 @@ def test_a_stack_with_nothing_joining_its_layers_keeps_every_layer():
     off = build(EXAMPLES / "horse.stl", "stacked", {**job, "autofix": "off"})
     layers = lambda plan: {s["label"] for s in plan["slices"] if s["group"] == "S"}      # noqa: E731
     assert layers(on) == layers(off) and len(layers(on)) == 20, sorted(layers(off) - layers(on))
-    note = next(n for n in on["notes"] if "got no connector" in n)
-    assert "line" in note and "set dowel_d" not in note, note
+    note = next(n for n in on["warnings"] if "got no connector" in n)
+    assert "line" in note and "dowel diameter" not in note, note
 
 
 @pytest.mark.parametrize("model", ["egg", "dumbbell", "torus"])
@@ -426,22 +464,22 @@ def test_a_wall_too_thin_for_the_dowel_says_so():
     thin = build(EXAMPLES / "cow_spot.stl", "stacked",
                  {"connect": "dowel", "dowel_d": 6, "n_points": 2, "thickness": 3, "hollow": 6,
                   "distribution": "count", "count": 20})
-    note = [n for n in thin["notes"] if "no connector" in n]
+    note = [n for n in thin["warnings"] if "no connector" in n]
     assert note and not thin["rods"], (note, len(thin["rods"]))
-    assert "set dowel_d" not in note[0], f"names a size, but none of them work here: {note[0]}"
+    assert "dowel diameter" not in note[0], f"names a size, but none of them work here: {note[0]}"
 
     job = {"connect": "dowel", "dowel_d": 6, "n_points": 2, "thickness": 3, "hollow": 8,
            "distribution": "count", "count": 20}
     plan = build(EXAMPLES / "cow_spot.stl", "stacked", job)
-    said = [n for n in plan["notes"] if "set dowel_d to about" in n]
+    said = [n for n in plan["warnings"] if "set the dowel diameter to about" in n]
     assert said, plan["notes"]
-    d = float(re.search(r"set dowel_d to about ([\d.]+) mm", said[0]).group(1))
+    d = float(re.search(r"set the dowel diameter to about ([\d.]+) mm", said[0]).group(1))
     assert d < job["dowel_d"], f"offers {d} mm, no smaller than the {job['dowel_d']} mm that just failed"
     after = build(EXAMPLES / "cow_spot.stl", "stacked", {**job, "dowel_d": d})
     assert len(after["rods"]) > 3 * len(plan["rods"]) + 20, f"following the advice ({d} mm) placed few more dowels"
 
     def bare(plan):                                   # pairs the note says got no connector
-        return sum(int(re.search(r"(\d+) pair\(s\) of slices got no connector", n).group(1)) for n in plan["notes"] if "no connector" in n)
+        return sum(int(re.search(r"(\d+) pair\(s\) of slices got no connector", n).group(1)) for n in plan["warnings"] if "no connector" in n)
 
     assert bare(after) <= bare(plan) // 4, (bare(plan), bare(after))      # measured 18 → 4
 

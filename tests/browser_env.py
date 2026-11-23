@@ -6,7 +6,7 @@ import sys
 for name in ("rtree", "fast_simplification", "manifold3d", "mapbox_earcut", "embreex", "triangle"):
     sys.modules[name] = None                            # import → ImportError, as in Pyodide
 
-import json, pathlib
+import io, json, pathlib, zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -25,16 +25,29 @@ def call(method, path, query="", form=None):
 def main(jobs):
     A.JOBS = pathlib.Path(jobs)
     modes = [m["name"] for m in json.loads(call("GET", "api/modes"))]
+    def sliced(mode, example, params):
+        form = [["client", MINE], ["mode", mode], ["params", json.dumps({"autofix": "off", **params})], ["example", example]]
+        return json.loads(call("POST", "api/slice", "", form))["plan"]
+
     for mode in modes:
         for example in ("egg", "cube"):
-            plan = json.loads(call("POST", "api/slice", "", [["client", MINE], ["mode", mode], ["params", '{"autofix":"off"}'], ["example", example]]))["plan"]
+            plan = sliced(mode, example, {})
+            if plan["counts"]["parts"] == 0 and plan["fixes"]:   # bugs/060: the egg's round back only touches a plaque's plate:
+                (fix,) = plan["fixes"]                           # the error and its one-click fixes, and each fix must stand
+                assert "nothing stands on the plate" in fix["error"], (mode, example, plan["errors"])
+                for o in fix["options"]:
+                    fixed = sliced(mode, example, o["set"])
+                    assert fixed["counts"]["parts"] > 0 and not fixed["errors"], (mode, example, o["title"], fixed["errors"])
+                plan = fixed
             assert plan["counts"]["parts"] > 0, (mode, example)
             print(f"{mode:12s} {example:5s} {plan['counts']['parts']:4d} parts  {plan['counts']['errors']} errors")
     call("GET", f"api/job/{MINE}/ex_egg/export", "fmt=svg,dxf,pdf,eps&labels=1")
     call("GET", f"api/job/{MINE}/ex_egg/export", "fmt=svg&per_piece=1")
     call("GET", f"api/job/{MINE}/ex_egg/stl")
     assert call("GET", f"api/job/{MINE}/ex_egg/step").count(b"MANIFOLD_SOLID_BREP('") > 0
-    call("GET", f"api/job/{MINE}/ex_egg/proto", "scale=0.5&labels=groove")
+    proto = zipfile.ZipFile(io.BytesIO(call("GET", f"api/job/{MINE}/ex_egg/proto", "scale=0.5&labels=groove")))
+    plate = zipfile.ZipFile(io.BytesIO(proto.read("plate.3mf")))
+    assert b'key="layer_height"' in plate.read("Metadata/model_settings.config")   # the print settings, without manifold3d too
     call("GET", f"jobs/{MINE}/ex_egg/model.stl")
     data = (ROOT / "examples" / "pear.stl").read_bytes()   # an upload: not watertight, so it goes through the shrinkwrap
     for mode in modes:

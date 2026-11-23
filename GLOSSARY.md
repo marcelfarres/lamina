@@ -2,6 +2,20 @@
 
 The words Lamina uses for its parts. One word for one thing.
 
+## Stacked
+
+- **Standoff**: a 3D-printed connector between two layers of a stack that has a gap. Not a *dowel*, which is a rod
+  through the layers, and not a *spacer*, which is a flat part cut from the sheet.
+- **Body**: the middle of a standoff. It is as long as the gap and wider than the hole, so the layers rest on it.
+- **Pin**: an end of a standoff. It goes into the hole of one layer.
+- **Shared hole**: a hole that two standoffs use, one from each side of the layer. It has the dowel hole shape. Each
+  pin in it is half the layer deep.
+- **Flush pin**: the pin in a hole that only one standoff uses. The hole is a pentagon. The pin is as long as the
+  layer is thick, so its end is level with the far face.
+- **Shoulder**: how much wider than the pin the body is, all round.
+- **Standoff hinge**: the edge along which the two halves of a printed standoff touch and are joined. The halves fold
+  together about it. The setting is how high they are joined. Not the *skin* of a folded panel, which is the hinge of a fold in a panel.
+
 ## Plaque
 
 - **Plaque**: the technique. The model is cut off at a flat plate and its slices stand on edge on that plate.
@@ -33,15 +47,54 @@ The words Lamina uses for its parts. One word for one thing.
   away from you, a valley fold toward you. The same fold is a mountain from one face and a valley from the other.
 - **Seam**: an edge between two faces that are cut apart. A **joint** holds a seam together. An **outward seam** is on
   an outside corner of the model, an **inward seam** on an inside corner.
+- **Chosen seam**: a seam the user put on an edge. The unfolder never folds there. Every other seam is the
+  program's: the unfolder decides it.
 - **Score**: a line cut part of the way through, where a panel folds. Not a *cut*, which goes through.
 - **Score side**: the face of the sheet that is up on the cutter. It carries the scores and the seam numbers.
 - **Groove**: the V cut along a fold of a printed panel. Its two walls meet when the fold reaches its bend.
 - **Skin**: the thin layer left under a groove. It is the hinge of a printed fold. The setting is *hinge*.
 - **Mitre**: the half of a groove on a seam edge of a printed panel. Two mitred edges meet face to face.
+- **Smallest face** (`min_face`): the least height a face may have, in mm. A smaller face is merged into its
+  neighbours; the rest of the model stays as it is. 0 keeps every face.
 - **Fold stop**: where a printed fold stops, in degrees past or short of its bend.
 - **Edge fit**: where two panels of stiff sheet meet at an outward seam. *Inner*: each edge is cut back, the inside
   edges meet. *Through*: one panel runs to the model's edge, the other is cut back to butt against it. *Outer*: both
   edges are on the model's edge.
 - **Cut-back**: the strip taken off a seam edge so that stiff panels do not occupy the same corner.
-- **Window**: an opening cut in a face, the shape of the face. The **frame** is what is left round it.
+- **Window**: an opening in a flat piece of a panel, the shape of the piece. The **frame** is what is left round it.
+- **Flat piece**: the faces of one panel that lie in one plane and are joined edge to edge. It has no score and gets one
+  window.
+- **Pane**: what closes a window and lets the light through. On a cut job it is a part cut from paper and glued
+  inside the frame. On a printed job it is a thin layer printed across the window. The settings call it *paper*.
+  Not the *skin*, which is the hinge of a printed fold.
+- **Merged face**: a group of faces the user made into one flat face. The corners on its rim move onto one plane.
+  A merged face stays merged when the faces are made again.
+- **Snap wall**: a short wall that stands on the inside face of a printed panel along a seam. The two walls of a
+  seam lie face to face when the seam is shut. The joint is *snap*.
+- **Clip**: the small printed part that is pushed over the two snap walls of a seam and holds them together.
+- **Tooth**: the rigid hook on the inside of one panel at a seam. It goes under the bar of the other panel and
+  stands up behind it. The joint is *click*.
+- **Bar**: the small beam on the inside of the other panel, printed as a bridge between two posts. It springs up to
+  let the tooth past.
+- **Locator**: a click without the tooth's ridge. It keeps the edges of a seam level but does not hold the seam shut.
+  A seam gets one when it closes in the same motion as another seam that has a click, as on a lid.
+- **Removed face**: a face the user took off the surface. It is not cut and belongs to no panel. A removed face stays
+  removed when the faces are made again. Used to keep part of the surface, for example a mask from a head.
+  Not a *window*, which opens a face and leaves its frame.
+- **Rim**: the free edge round removed faces, or round an opening the model has itself. It is a plain cut edge: not a
+  seam, and it has no joint.
 - **Tab**: a flap on a seam edge that is glued to the next panel. On a printed panel a tab is only as thick as the skin.
+
+## Library
+
+- **Model**: the 3D shape that is uploaded or picked from the examples. Not a *project*.
+- **Project**: a model together with the technique, all settings, a name and a revision. One model can be in many
+  projects.
+- **Revision**: one saved state of a project, numbered `1.0`, `1.1`, `2.0`. A project keeps every revision until it
+  is deleted.
+- **Library**: the page that shows your projects and the examples, each with a preview.
+- **Example**: a model that comes with Lamina. An example is read-only. When you save it, it becomes a project of
+  yours.
+- **Linked folder**: a folder on your computer that holds the library as files, one file for each revision.
+- **Server folder**: a folder that Lamina's server keeps the library in (`LAMINA_LIBRARY`, a Docker volume), one
+  file for each revision, for every browser that opens the page. While there is one, it is the library.

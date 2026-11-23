@@ -4,7 +4,7 @@
 
 geometric: cube, cylinder, cone, pyramid, sphere, torus, bracket (L + hole), tube (hollow), tall_bar (needs splitting)
 organic:   egg, snowman (asymmetric), blob (metaball, bumpy), pear, twisted (twisted ellipsoid), bowl (thin shell),
-           dumbbell (two spheres on a neck: radial with an axis per lobe), wavy_torus (ring with a 3-period sine wave and an LED channel through it)
+           dumbbell (two spheres on a neck: radial with an axis per lobe), shade (a two-lobed lamp shade: stacked on printed standoffs), wavy_torus (ring with a 3-period sine wave and an LED channel through it)
 """
 import sys, pathlib
 import numpy as np
@@ -85,6 +85,17 @@ def vase():
     return m.apply_translation([0, 0, -27])
 
 
+def shade():
+    """A lamp shade for stacked layers held apart by printed standoffs: wide at the foot, a waist, a rounded top, and
+    two lobes across, so no two layers are the same and none is round. 45 mm tall before the ×3."""
+    z = np.linspace(0, 45, 46)
+    r = 17 + 7 * np.exp(-(z / 16) ** 2) - 3 * np.exp(-((z - 24) / 9) ** 2) - 9 * (z / 45) ** 6      # foot, waist, top
+    m = trimesh.creation.revolve(np.c_[np.r_[0, r, 0], np.r_[z[0], z, z[-1]]], sections=96)
+    v = m.vertices.copy(); v[:, :2] *= (1 + 0.16 * np.cos(2 * np.arctan2(v[:, 1], v[:, 0])))[:, None] * [1.25, 1]
+    m.vertices = v
+    return m.apply_translation([0, 0, -22.5])
+
+
 def ripple():
     """A block whose top is a ripple that tightens from one end to the other, for the interlocked spacing curves:
     the first family needs close slices where the ripple is tight and few where it is slow, and the second family
@@ -128,10 +139,22 @@ def fold_test():
     return trimesh.Trimesh(v / 3, m.faces)                # the export scales every model × 3
 
 
-def fold_lamp(rings=6, around=6, height=120.0):
+def fold_box():
+    """A box to print flat and fold (folded panels, printed): a six-sided base and a smaller six-sided lid, turned a
+    twelfth of a turn against it, so the wall between them is twelve leaning triangles and every fold has its own
+    angle. Closed, all outward corners. 66 mm across and 46 mm tall as exported."""
+    a = 2 * np.pi * np.arange(6) / 6
+    base = np.c_[33 * np.cos(a), 33 * np.sin(a), np.zeros(6)]
+    lid = np.c_[25 * np.cos(a + np.pi / 6), 25 * np.sin(a + np.pi / 6), np.full(6, 46.0)]
+    return trimesh.convex.convex_hull(np.vstack([base, lid]) / 3)      # the export scales every model × 3
+
+
+def fold_lamp(rings=3, around=5, height=120.0):
     """A lamp shade to print flat and fold (folded panels, printed, with `window`): an open tube of triangles whose
     radius swells and narrows like the blob in a lava lamp, each ring half a step round from the one below and the
-    whole given a twist, so no two folds line up. Open at both ends; about 80 mm across and 120 mm tall as exported."""
+    whole given a twist, so no two folds line up. Open at both ends; about 80 mm across and 120 mm tall as exported.
+    30 triangles of about 58 × 29 mm: the first version had 72 of 38 × 19 mm and 32 seams, too many and too small to
+    put together by hand at this size."""
     def ring(i):
         u = i / rings; z = height * u
         a = 2 * np.pi * (np.arange(around) + 0.5 * i) / around + 0.5 * np.sin(2.2 * u * np.pi)
@@ -145,6 +168,41 @@ def fold_lamp(rings=6, around=6, height=120.0):
             c, d = (i + 1) * around + j, (i + 1) * around + (j + 1) % around      # ring i + 1 sits half a step on
             faces += [(a, b, c), (b, d, c)]
     return trimesh.Trimesh(v / 3, faces, process=False)   # the export scales every model × 3
+
+
+def paper_lamp(edge=40.0):
+    """A lamp for folded card with paper windows, the five-leg lantern: twelve regular dodecahedra (edge 40 mm) joined
+    face to face. A raised hub, five legs of two cells each splaying down to five feet on the table, one cell on top.
+    Every pentagon two cells share goes, so it is one closed surface of 122 regular pentagons and one bulb in the hub
+    lights every cell. Every pentagon is three triangles in one plane: one flat piece, one window, and every paper the
+    same pentagon. About 400 mm across and 260 mm tall as exported; the hub's bottom pentagon, 80 mm above the table,
+    is the one the preset opens for the bulb's cable."""
+    ico = trimesh.creation.icosahedron()
+    d = trimesh.Trimesh(ico.triangles_center, process=False).convex_hull      # its dual: the dodecahedron
+    d.apply_transform(trimesh.geometry.align_vectors(d.facets_normal[0], [0, 0, 1]))   # standing on a pentagon
+    n = d.facets_normal; up = np.argmax((n[:, 2] > 0.1) & (n[:, 2] < 0.9))
+    d.apply_transform(trimesh.transformations.rotation_matrix(-np.arctan2(n[up, 1], n[up, 0]), [0, 0, 1]))   # an upper face toward +x
+    # the pentagons by number: 0 the top, 1-5 the upper ring and 6-10 the lower ring (turning left from +x), 11 the bottom
+    n = d.facets_normal
+    order = np.lexsort((np.round(np.degrees(np.arctan2(n[:, 1], n[:, 0])), 3) % 360, -np.round(n[:, 2], 3)))
+    pent = np.empty(len(d.faces), int)
+    for k, f in enumerate(order):
+        pent[d.facets[f]] = k
+    # (cell, pentagon): a new cell, that cell mirrored through that pentagon, so the two share the whole pentagon.
+    # The hub's five lower faces carry the legs; each leg goes on through the face opposite, down to its foot
+    steps = [(0, 6 + j) for j in range(5)] + [(1 + j, 1 + (j + 3) % 5) for j in range(5)] + [(0, 0)]
+    cells = [(d.vertices - d.vertices.mean(0)) * edge / d.edges_unique_length[0]]
+    for parent, f in steps:
+        v = cells[parent]; a, b, c = v[d.faces[pent == f][0]]; nrm = np.cross(b - a, c - a); nrm /= np.linalg.norm(nrm)
+        cells.append(v - 2 * np.outer((v - a) @ nrm, nrm))
+    m = trimesh.Trimesh(np.vstack(cells), np.vstack([d.faces + k * len(d.vertices) for k in range(len(cells))]), process=False)
+    m.merge_vertices(digits_vertex=6)
+    key = np.array([sorted(set(m.faces[k * len(d.faces) + np.flatnonzero(pent == p)].ravel())) for k in range(len(cells)) for p in range(12)])
+    _, inv, cnt = np.unique(key, axis=0, return_inverse=True, return_counts=True)   # a pentagon is its five corners
+    m.update_faces((cnt[inv.ravel()] == 1)[np.arange(len(cells)).repeat(len(d.faces)) * 12 + np.tile(pent, len(cells))])   # shared by two cells: inside
+    m.remove_unreferenced_vertices(); trimesh.repair.fix_normals(m)
+    m.apply_translation([*-m.bounds.mean(0)[:2], -m.bounds[0, 2]])            # on the table, z = 0
+    return trimesh.Trimesh(m.vertices / 3, m.faces)       # the export scales every model × 3
 
 
 def droplet():
@@ -237,9 +295,15 @@ MODELS = {
     "ripple": ripple,
     "berry": berry,
     "hook": hook,
+    # laser-cut layers on 3D-printed standoffs
+    "shade": shade,
     # printed and folded: a groove at every fold
     "fold_test": fold_test,
     "fold_lamp": fold_lamp,
+    "fold_box": fold_box,
+    "fold_lantern": lambda: fold_lamp(6, 6).apply_scale(3.5),      # the lamp shade at 420 mm, for sheet: every face a part of its own
+    # a lamp of folded card, its windows closed with paper: twelve dodecahedra, one window per pentagon
+    "paper_lamp": paper_lamp,
     # for the plaque
     "droplet": droplet,
     "bonsai": bonsai,
@@ -251,7 +315,7 @@ if __name__ == "__main__":
     for name, fn in MODELS.items():
         m = fn()
         m.apply_scale(3)                      # ~150–200 mm objects: realistic for card / cardboard / sheet metal
-        if not m.is_watertight and name != "fold_lamp":        # the lamp is an open shade: its two ends stay open
+        if not m.is_watertight and name not in ("fold_lamp", "fold_lantern"):        # the lamp is an open shade: its two ends stay open
             trimesh.repair.fill_holes(m)
         m.export(out / f"{name}.stl")
         print(f"{name:9s} bbox {np.round(m.extents, 1)} watertight={m.is_watertight} faces={len(m.faces)}")

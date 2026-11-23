@@ -61,7 +61,9 @@
     const u = typeof url === 'string' ? url : url.url;
     if (!isApi(u)) return real(url, opts);
     if (mode !== 'static') {
-      const r = await real(url, opts).catch(() => null);
+      // no answer at all: before the first answer that means no server here; once a server answered, it is that server
+      // not answering, said as such (a deliberate abort keeps its own AbortError)
+      const r = await real(url, opts).catch(e => { if (mode === 'server') throw e.name === 'AbortError' ? e : new Error('The server did not answer.'); return null });
       if (mode === 'server' || (r && r.status !== 404)) { mode = 'server'; return r }
       mode = 'static'; document.documentElement.dataset.static = '1';   // the page tells the user what running in the browser costs
     }

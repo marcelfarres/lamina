@@ -14,7 +14,7 @@ import trimesh
 from lxml import etree
 from shapely.geometry import Polygon
 
-from core.export import design_name, export
+from core.export import ORDER, RGB, design_name, export
 from core.plan import build
 from core.solid import assembled, proto_set
 
@@ -67,7 +67,7 @@ def test_next_layer_outline_goes_on_the_guide_layer_and_identical_slices_stay_on
     assert not tree.xpath('//svg:g[@class="SCORE"]', namespaces=SVG_NS)
     assert len(tree.xpath('//svg:g[@class="GUIDE"]/svg:path', namespaces=SVG_NS)) == sum(len(pc["lines"]) for pc in pieces if pc["place"][0] == 0)
 
-    files = {f.name.split(" ", 1)[1]: f for f in export(plan, tmp_path / "pieces", fmts=("svg",), labels=True, per_piece=True)}
+    files = {f.name.split(" ", 1)[1]: f for f in export(plan, tmp_path / "pieces", fmts=("svg",), labels=True, per_piece=True) if f.name != "README.txt"}
     assert "Z-1 x3.svg" in files and "Z-4 x1.svg" in files, files
     # the one-file-per-part export carries the guide too, in the part's own frame
     piece = etree.parse(str(files["Z-1 x3.svg"]))
@@ -164,7 +164,7 @@ def test_a_lone_part_file_carries_its_seam_numbers(tmp_path):
     plan = build(EXAMPLES / "cube.stl", "folded", {"facet": 0, "joint": "laced", "autofix": "off"})
     pieces = {pc["label"]: pc for sl in plan["slices"] for pc in sl["pieces"]}
     assert any(pc["marks"] for pc in pieces.values())
-    for f in export(plan, tmp_path, fmts=("svg",), labels=True, per_piece=True):
+    for f in export(plan, tmp_path, fmts=("svg",), labels=True, per_piece=True, readme=False):
         lab = f.name.split(" ")[1]
         if lab in pieces:
             texts = etree.parse(str(f)).xpath('//svg:g[@class="LABEL"]/svg:path/@data-text', namespaces=SVG_NS)
@@ -199,8 +199,9 @@ def test_svg_score_and_label_counts_folded(tmp_path):
 
     tree = etree.parse(str(tmp_path / f"{design_name(plan)} sheet1.svg"))
     assert len(tree.xpath('//svg:g[@class="SCORE"]/svg:path', namespaces=SVG_NS)) == exp["score"]
-    # LABEL texts (one stroke path each) = per-piece marks + per-piece label + the sheet title
-    assert len(tree.xpath('//svg:g[@class="LABEL"]/svg:path[@data-text]', namespaces=SVG_NS)) == exp["marks"] + exp["label_pos"] + 1
+    # LABEL texts (one stroke path each) = per-piece marks + per-piece label; the sheet's title is on FRAME, which no machine runs
+    assert len(tree.xpath('//svg:g[@class="LABEL"]/svg:path[@data-text]', namespaces=SVG_NS)) == exp["marks"] + exp["label_pos"]
+    assert len(tree.xpath('//svg:g[@class="FRAME"]/svg:path[@data-text]', namespaces=SVG_NS)) == 1
 
 
 def test_dxf_reloads_with_same_layers_and_matching_entity_counts(tmp_path):
@@ -209,17 +210,35 @@ def test_dxf_reloads_with_same_layers_and_matching_entity_counts(tmp_path):
     exp = sheet0_expected_counts(plan)
 
     doc = ezdxf.readfile(str(tmp_path / f"{design_name(plan)} sheet1.dxf"))
-    assert sorted(l.dxf.name for l in doc.layers if l.dxf.name in ("OUTER", "INNER", "SCORE", "LABEL")) == [
-        "INNER", "LABEL", "OUTER", "SCORE",
-    ]
+    assert [l.dxf.name for l in doc.layers if l.dxf.name in ORDER] == list(ORDER)        # the layer table in the order they run
     msp = doc.modelspace()
-    cut = [e for e in msp.query("LWPOLYLINE") if e.dxf.layer != "LABEL"]
+    cut = [e for e in msp.query("LWPOLYLINE") if e.dxf.layer not in ("LABEL", "FRAME")]
     assert len(cut) == exp["outer"] + exp["inner"] + exp["score"]
-    # the labels are strokes on the LABEL layer — at least one per mark and per label, open, beside the closed border
-    # rectangle export() draws when border=True (the default) — and never TEXT, which would take the reader's font
+    # the labels are open strokes on the LABEL layer, at least one per mark and per label, and never TEXT, which would
+    # take the reader's font; the border export() draws when border=True (the default) is on FRAME, closed
     label = [e for e in msp.query("LWPOLYLINE") if e.dxf.layer == "LABEL"]
-    assert sum(1 for e in label if e.closed) == 1 and sum(1 for e in label if not e.closed) >= exp["marks"] + exp["label_pos"]
+    assert not any(e.closed for e in label) and len(label) >= exp["marks"] + exp["label_pos"]
+    assert [e.closed for e in msp.query("LWPOLYLINE") if e.dxf.layer == "FRAME"] == [True]
     assert not list(msp.query("TEXT"))
+
+
+def test_every_format_writes_its_layers_in_the_order_a_machine_runs_them(tmp_path):
+    """Engrave, score, holes, outlines (Marcel, export review Q5): a part drops out of the sheet once its outline is
+    cut, so its holes come first. The sheet's border and title are on FRAME, first, which no machine runs. Each part of
+    the SVG keeps its group and lists its layers in that order; DXF and EPS write the whole sheet in it."""
+    plan = build(EXAMPLES / "cube.stl", "folded", {"facet": 0, "joint": "laced", "autofix": "off"})   # outlines, holes, scores, labels
+    export(plan, tmp_path, fmts=("svg", "dxf", "eps"), labels=True, readme=False)
+    stem = str(tmp_path / f"{design_name(plan)} sheet1")              # not with_suffix: "v1.0 sheet1" has a dot
+    tree = etree.parse(stem + ".svg")
+    assert [g.get("class") for g in tree.xpath('/svg:svg/svg:g[@class="sheet"]/svg:g', namespaces=SVG_NS)] == ["FRAME"]
+    for piece in tree.xpath('//svg:g[@class="piece"]', namespaces=SVG_NS):
+        mine = [g.get("class") for g in piece.xpath('svg:g', namespaces=SVG_NS)]
+        assert mine == sorted(mine, key=ORDER.index), mine
+    layers = [e.dxf.layer for e in ezdxf.readfile(stem + ".dxf").modelspace()]
+    assert layers == sorted(layers, key=ORDER.index) and {"FRAME", "LABEL", "SCORE", "INNER", "OUTER"} <= set(layers)
+    eps = pathlib.Path(stem + ".eps").read_text(encoding="latin-1")
+    at = [eps.index(" ".join(f"{v:.3f}" for v in RGB[k]) + " setrgbcolor") for k in ("FRAME", "LABEL", "SCORE", "INNER", "OUTER")]
+    assert at == sorted(at)
 
 
 def test_a_project_name_is_text_in_the_svg_not_markup(tmp_path):
@@ -229,7 +248,7 @@ def test_a_project_name_is_text_in_the_svg_not_markup(tmp_path):
     export(plan, tmp_path, fmts=("svg",), labels=True)
     tree = etree.parse(str(tmp_path / f"{design_name(plan)} sheet1.svg"))                          # still well-formed…
     assert not tree.xpath("//*[local-name()='img']")                          # …and the tag is not an element
-    assert '<img' in "".join(tree.xpath('//svg:g[@class="LABEL"]/svg:path/@data-text', namespaces=SVG_NS))   # but text
+    assert '<img' in "".join(tree.xpath('//svg:g[@class="FRAME"]/svg:path/@data-text', namespaces=SVG_NS))   # but text
 
 
 def test_assembly_key_explains_the_labels_and_lists_every_part(tmp_path):
@@ -306,25 +325,205 @@ def test_solid_assembled_is_watertight_trimesh_with_positive_volume():
 
 def test_proto_label_is_readable_and_clear_of_the_slot():
     """A printed label is a groove: it has to be read, so it is never shrunk below the asked height, and it goes where
-    the part is widest, not beside the slot it slides on. A part with no room for it gets none, not a tiny one."""
+    the part is widest, not beside the slot it slides on. A part with no room for it gets none on the part, not a
+    tiny one (it carries its number on a tag beside it instead)."""
     from shapely.geometry import box
-    from core.solid import label_inside
-    slot = box(28, 10, 32, 20)
+    from core.solid import label_on
+    slot = box(40, 10, 44, 20)
     part = box(0, 0, 60, 20).difference(slot)                          # a 60 × 20 bar with a slot from the top edge
-    lab = label_inside(part, "Z-12-3", 5.0)
+    lab = label_on(part, "Z-12-3", 5.0)
     assert lab is not None
     assert lab.bounds[3] - lab.bounds[1] >= 5.0 - 1e-6                  # capitals at least 5 mm tall
     assert part.buffer(-1.0 + 1e-6).contains(lab)                        # inside, a millimetre off every edge
     assert lab.distance(slot) >= 1.0 - 1e-6                              # the slot included
-    assert label_inside(box(0, 0, 60, 6), "Z-12-3", 5.0) is None         # a 6 mm bar cannot hold 5 mm letters
+    assert label_on(box(0, 0, 60, 6), "Z-12-3", 5.0) is None             # a 6 mm bar cannot hold 5 mm letters
 
 
-def test_proto_set_says_which_parts_had_no_room_for_a_label(tmp_path):
-    plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 3, "autofix": "off"})
-    files = proto_set(plan, tmp_path, font=150)                          # "Z-1" in 150 mm letters fits no 180 mm square
+def _number(m):
+    """Where an exported part's number is, measured on its mesh: ("part", letter height) for a groove in its top face,
+    ("tag", letter height) for letters standing on a chip one layer high, (None, 0) for no number. A letter height is
+    the short side of the smallest rectangle round the letters."""
+    from shapely.geometry import MultiPoint
+    from core.solid import CHIP_H, LETTER_H
+    up, z, top = m.face_normals[:, 2] > 0.99, m.triangles_center[:, 2], m.bounds[1][2]
+    for kind, at in (("part", top - min(top / 2, 0.6)), ("tag", CHIP_H + LETTER_H)):
+        faces = m.triangles[up & (abs(z - at) < 0.01)]
+        if kind == "tag" and not (up & (abs(z - CHIP_H) < 0.01)).any():
+            continue                                                     # letters with no chip under them are not a tag
+        if len(faces):
+            r = MultiPoint(faces.reshape(-1, 3)[:, :2]).minimum_rotated_rectangle.exterior.coords
+            return kind, min(np.hypot(*np.subtract(r[1], r[0])), np.hypot(*np.subtract(r[2], r[1])))
+    return None, 0.0
+
+
+def test_every_part_of_a_printed_plate_has_a_number_on_it_or_on_a_tag(tmp_path):
+    """Bug 061: a printed part too small for its number had none, and nobody could tell where it went. Every part of
+    every plate now carries its number: a groove on the part where it fits, else raised letters on a chip one layer
+    high beside it, joined to the part by a thin line (one solid with it), on free room of the bed the nester kept
+    for it: the tag touches no other part. The small end layers and the top layer, which is left clean on purpose,
+    carry theirs on a tag."""
+    from shapely.ops import unary_union
+    from shapely.geometry import Polygon
+    from core.solid import LINE_W
+    bed = [150, 150]
+    plan = build(EXAMPLES / "egg.stl", "stacked", {"printed": True, "sheet": bed, "sheet_margin": 2, "size": [0, 0, 60], "thickness": 3,
+                                                   "autofix": "off", "font": 4})
+    files = proto_set(plan, tmp_path, font=4)
+    where, feet = {}, {}
+    for f in (f for f in files if f.name.startswith("plate-")):
+        scene = trimesh.load(f)
+        for name in scene.graph.nodes_geometry:
+            M, g = scene.graph[name]; m = scene.geometry[g].copy(); m.apply_transform(M)
+            kind, h = _number(m)
+            assert kind and h >= 4 - 0.05, (name, kind, h)                # a number, its letters 4 mm tall at least
+            assert m.body_count == 1, name                                # the tag holds on to its part
+            lo, hi = m.bounds
+            assert lo[:2].min() >= 2 - 1e-6 and (hi[:2] <= np.array(bed) - 2 + 1e-6).all(), (name, lo, hi)   # on the bed, in its margin
+            down = m.triangles[(m.face_normals[:, 2] < -0.99) & (m.triangles_center[:, 2] < 1e-3)]
+            feet[f.name, name] = unary_union([Polygon(t[:, :2]) for t in down]).buffer(0)
+            where[name] = kind
+    assert set(where) == {pc["label"] for sl in plan["slices"] for pc in sl["pieces"]}   # every part, once
+    tagged = sorted(n for n, k in where.items() if k == "tag")
+    assert plan["slices"][-1]["pieces"][0]["label"] in tagged and len(tagged) >= 2, tagged   # the clean top, and the smallest
+    for (fa, a), ga in feet.items():
+        for (fb, b), gb in feet.items():
+            if fa == fb and a < b:
+                assert ga.distance(gb) > LINE_W, (a, b)                    # no tag or line runs into another part
     readme = (tmp_path / "README.txt").read_text(encoding="utf-8")
-    assert tmp_path / "README.txt" in files
-    assert all(pc["label"] in readme for sl in plan["slices"] for pc in sl["pieces"])
+    assert all(n in readme for n in tagged) and "snap the tag off" in readme and "no free room" not in readme
+
+
+def test_a_printed_stacked_job_prints_one_pin_per_dowel(tmp_path):
+    """Marcel, 2026-11-22: "Yes, add pins to the export". A printed stacked job's print set had its layers and no
+    dowels (print-lab drew the pins of prints 9 and 10 with a script of its own). Its pins now come on the last plate
+    when they fit above its layers, else on beds of their own, pins-1.3mf …: one per dowel, named as the assembly key
+    and the marks by its holes name it, on a tag; its
+    section the dowel's less the pin fit, its length the key's less PIN_END. With random placement every dowel is one
+    pair of holes; aligned, a straight dowel through several layers is one long pin."""
+    from shapely.geometry import MultiPoint
+    from core.export import rods_of
+    from core.solid import CHIP_H, LETTER_H, PIN_END, pin_files
+    bed, job = [256, 256], {"printed": True, "size": [0, 0, 60], "thickness": 4, "connect": "dowel", "dowel_d": 3,
+                            "dowel_shape": "square", "n_points": 2, "pin_fit": 0.2, "autofix": "off"}
+    plan = build(EXAMPLES / "egg.stl", "stacked", {**job, "sheet": bed, "placement": "random"})
+    pairs, rods, margin = [r[5] for r in plan["rods"]], rods_of(plan), plan["params"]["sheet_margin"]
+    assert len(pairs) >= 10 and len(set(pairs)) == len(pairs) == len(rods)  # random: every dowel one pair of holes
+    files = proto_set(plan, tmp_path)
+    pins, holders = {}, set()
+    for f in (f for f in files if f.suffix == ".3mf"):                        # on the last plate, or in pins files
+        scene = trimesh.load(f)
+        for name in (n for n in scene.graph.nodes_geometry if n in rods):
+            holders.add(f.name)
+            M, g = scene.graph[name]; m = scene.geometry[g].copy(); m.apply_transform(M)
+            lo, hi = m.bounds
+            assert m.body_count == 1 and lo[:2].min() >= margin - 1e-6 and (hi[:2] <= np.array(bed) - margin + 1e-6).all(), (name, lo, hi)
+            kind, h = _number(m)
+            assert kind == "tag" and h >= 4 - 0.05, (name, kind, h)           # its name on a tag, 4 mm letters
+            top = m.vertices[m.vertices[:, 2] > CHIP_H + LETTER_H + 0.01]      # above the tag: the pin's top face
+            r = MultiPoint(top[:, :2]).minimum_rotated_rectangle.exterior.coords
+            pins[name] = sorted(np.hypot(*np.subtract(r[i + 1], r[i])) for i in (0, 1)), top[:, 2].max()
+    assert sorted(pins) == sorted(rods)                                        # one pin per dowel, each named as the key
+    for name, ((wide, long), z) in pins.items():
+        assert abs(wide - 2.8) < 1e-3 and abs(z - 2.8) < 1e-6, (name, wide, z)   # 3 mm dowel less 0.2 fit, both ways
+        assert abs(long - (rods[name]["length"] - PIN_END)) < 1e-3, (name, long, rods[name]["length"])
+    readme = (tmp_path / "README.txt").read_text(encoding="utf-8")
+    plates = sorted(f.name for f in files if f.name.startswith("plate-"))
+    assert holders == {plates[-1]} and f"pin(s) in {plates[-1]}" in readme if holders <= set(plates) else \
+        all(h.startswith("pins-") for h in holders) and "pin(s) in pins-N.3mf" in readme
+    for f in (f for f in files if f.name in holders):                         # their print settings, as every 3MF has them:
+        assert {s.get("layer_height") for n, s in _print_settings(f).items() if n in rods} == {"0.2"}   # 2.8 mm on the bed is 0.2 + 13 layers
+        assert f"{f.name} carries the print settings" in readme
+    aligned = build(EXAMPLES / "egg.stl", "stacked", {**job, "sheet": bed, "placement": "aligned"})
+    straight = rods_of(aligned)
+    assert len(straight) < len(aligned["rods"])                                # dowels through several layers
+    assert sum(len(trimesh.load(f).geometry) for f in pin_files(aligned, tmp_path)) == len(straight)
+    # a pin 2.9 mm high (fit 0.1) is no whole number of 0.2 mm layers over the first: its layer height comes from the
+    # pin's top, not from its tag's chip, though the chips cover more of the plate
+    loose = build(EXAMPLES / "egg.stl", "stacked", {**job, "sheet": bed, "placement": "random", "pin_fit": 0.1})
+    (tmp_path / "fit").mkdir()
+    assert {s.get("layer_height") for f in pin_files(loose, tmp_path / "fit") for s in _print_settings(f).values()} == {"0.1"}
+
+
+def test_a_printed_vase_lays_its_pins_on_its_last_plate(tmp_path):
+    """Export review Q9: the printed vase's 14 pins had a third file, 300 x 40 mm of a bed, while its second plate used
+    311 x 173. They now lie in the band above that plate's layers, each on its tag: two files to print, not three."""
+    from core.export import rods_of
+    params = json.loads((ROOT / "examples" / "presets.json").read_text(encoding="utf-8"))["vase"]["params"]
+    plan = build(EXAMPLES / "vase.stl", "stacked", {**params, "printed": True, "material": "PETG", "material_kind": "PETG",
+                                                    "sheet": [300, 320], "sheet_margin": 2, "slot_offset": 0.2, "autofix": "off"})
+    files = proto_set(plan, tmp_path, font=3)
+    assert sorted(f.name for f in files if f.suffix == ".3mf") == ["plate-1.3mf", "plate-2.3mf"]
+    last = trimesh.load(tmp_path / "plate-2.3mf", force="scene")
+    assert set(rods_of(plan)) <= set(last.geometry) and len(rods_of(plan)) == 14
+    for name in last.graph.nodes_geometry:                                    # all on the bed, inside its margin
+        M, g = last.graph[name]; m = last.geometry[g].copy(); m.apply_transform(M); lo, hi = m.bounds
+        assert lo[:2].min() >= 2 - 1e-6 and (hi[:2] <= np.array([300, 320]) - 2 + 1e-6).all(), (name, lo, hi)
+    assert "14 dowel pin(s) in plate-2.3mf" in (tmp_path / "README.txt").read_text(encoding="utf-8")
+
+
+def test_every_seam_number_of_a_printed_panel_is_on_the_print_and_readable(tmp_path):
+    """Bug 064: a printed folded panel's seam numbers were not on the print at all (marks at 0.6 of the font, too thin
+    for a nozzle; on a glue tab, which prints as the hinge skin only). Now each is cut into the panel 5 mm tall, its
+    strokes two nozzle lines wide, clear of the tabs; a seam side with no room for that carries it on a tag beside the
+    panel (a chip one layer high, the number standing on it). Measured on the exported mesh: every number the plan
+    gives is there at full height, and every seam has its number on both sides. A laser job's numbers do not change."""
+    from shapely import affinity, box, unary_union
+    from core.labels import PRINT_MARK
+    from core.solid import CHIP_H, LETTER_H
+    pre = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["fold_test"]["params"]
+    plan = build(EXAMPLES / "fold_test.stl", "folded", {**pre, "joint": "tab"})
+    pc = plan["slices"][0]["pieces"][0]
+    proto_set(plan, tmp_path)
+    scene = trimesh.load(tmp_path / "plate-1.3mf")
+    M, g = scene.graph[pc["label"]]; m = scene.geometry[g].copy(); m.apply_transform(M)
+    up, z, top = m.face_normals[:, 2] > 0.99, m.triangles_center[:, 2], m.bounds[1][2]
+    faces = lambda at: unary_union([Polygon(t[:, :2]) for t in m.triangles[up & (abs(z - at) < 0.01)]])   # noqa: E731
+    grooves, chips, letters = faces(top - min(top / 2, 0.6)), faces(CHIP_H).buffer(0.6), faces(CHIP_H + LETTER_H)
+    assert pc["marks"] and pc["seam_tags"], "the job shows both: numbers on the panel and on tags"
+    for x, y, text, rot, size in pc["marks"]:                           # on the panel: cut, full height, off the tabs
+        turn = rot + pc["place"][3]
+        cut = affinity.rotate(grooves.intersection(affinity.rotate(box(x - 8, y - 4, x + 8, y + 4), turn, origin=(x, y))), -turn, origin=(x, y))
+        assert 0.6 * size == PRINT_MARK and cut.bounds[3] - cut.bounds[1] >= PRINT_MARK - 0.05, (text, cut.bounds)
+    on_tags = [letters.intersection(n) for n in getattr(letters.buffer(1.2), "geoms", [letters.buffer(1.2)])]
+    on_tags = [n for n in on_tags if chips.contains(n.centroid)]
+    assert len(on_tags) == len(pc["seam_tags"])                          # one tag for each number with no room on the panel
+    for n in on_tags:                                                    # each standing 5 mm tall (one way or the other: 7 or 12)
+        x0, y0, x1, y1 = n.bounds
+        assert any(abs(e - PRINT_MARK) < 0.05 for e in (x1 - x0, y1 - y0)), n.bounds
+    sides = [str(mk[2]) for mk in pc["marks"]] + [str(j) for *_, j in pc["seam_tags"]]
+    assert all(sides.count(s) == 2 for s in sides), sorted(sides, key=lambda s: int(s.rstrip(".")))   # both sides of every seam
+    laser = build(EXAMPLES / "fold_test.stl", "folded", {**pre, "joint": "tab", "printed": False, "material": "cardboard", "material_kind": "cardboard"})
+    lpc = laser["slices"][0]["pieces"][0]
+    assert "seam_tags" not in lpc and all(len(mk) < 5 or mk[4] < laser["params"]["font"] for mk in lpc["marks"])
+
+
+def test_a_seam_number_that_reads_as_another_upside_down_has_a_dot(tmp_path):
+    """A seam number 6 turned along its edge reads as 9 (Marcel, 2026-11-22: "Add a dot after 6 and 9", as Pepakura
+    does). Every number that turned reads as another gets a dot after it, on the laser sheet and on the print; the
+    rest stay plain. Measured on the exported sheet: the laser's dot is 1 mm across, filled
+    with rings a kerf apart (Marcel: "A bigger dot on the laser": the font's '.' was a 0.3 mm point), less on a
+    short edge whose number was made smaller."""
+    from core.font import strokes
+    from core.labels import seam_text
+    assert [seam_text(j) for j in (6, 9, 16, 91, 68, 18, 106)] == ["6.", "9.", "16.", "91.", "68.", "18.", "106."]
+    assert [seam_text(j) for j in (8, 69, 96, 88, 10, 60, 25, 7)] == ["8", "69", "96", "88", "10", "60", "25", "7"]
+    pre = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["fold_test"]["params"]
+    laser = {"printed": False, "material": "cardboard", "material_kind": "cardboard"}
+    for plan in (build(EXAMPLES / "fold_test.stl", "folded", {**pre, "joint": "tab"}),                 # printed (the preset)
+                 build(EXAMPLES / "fold_test.stl", "folded", {**pre, "joint": "tab", **laser})):
+        texts = [str(mk[2]) for sl in plan["slices"] for pc in sl["pieces"] for mk in pc["marks"]]
+        texts += [str(j) for sl in plan["slices"] for pc in sl["pieces"] for *_, j in pc.get("seam_tags", [])]
+        assert {"6.", "9."} <= set(texts) and all(t == seam_text(int(t.rstrip("."))) for t in texts), sorted(texts)
+    export(plan, tmp_path, fmts=("svg",))                                # the laser job's sheet
+    sheets = list(tmp_path.glob(f"{design_name(plan)} sheet*.svg"))
+    paths = [p for s in sheets for p in etree.parse(str(s)).xpath('//svg:path[@data-text="6." or @data-text="9."]', namespaces=SVG_NS)]
+    assert paths
+    across = []
+    for p in paths:
+        subs = [np.array(re.findall(r"-?\d+\.\d+", s), float).reshape(-1, 2) for s in p.get("d").split("M")[1:]]
+        dot = np.vstack(subs[len(strokes(p.get("data-text")[0], 3.0)):])   # after the digit's strokes: the dot's rings
+        across.append(max(np.ptp(dot @ [np.cos(a), np.sin(a)]) for a in np.linspace(0, np.pi, 9)))
+    assert all(0.6 < a < 1.05 for a in across) and max(across) > 0.95, across
 
 
 def test_a_printed_job_comes_out_as_one_plate_per_bed(tmp_path):
@@ -344,6 +543,18 @@ def test_a_printed_job_comes_out_as_one_plate_per_bed(tmp_path):
         assert (hi - lo)[:2].max() <= max(bed) + 1e-6 and lo[:2].min() >= -1e-6, (i, lo, hi)
     export(plan, tmp_path / "cut", fmts=("svg",))
     assert "plate 1/" in next((tmp_path / "cut").glob("* sheet1.svg")).read_text(encoding="utf-8")   # by name: Linux lists a folder unsorted
+
+
+def test_a_fit_test_is_offered_only_for_a_joint_the_slot_offset_sizes():
+    """The Export tab's fit-test step (plan["fit_test"], Mode.fit_test): glued layers, and folded joints that cut no
+    slot or hole (glue tabs; the printed seam, snap and click, whose fit is snap_fit), give it nothing to show. The
+    glued paper lamp got 1,100 parts of fit test."""
+    from core.modes.folded import JOINTS
+    from core.plan import MODES
+    stacked, folded = MODES["stacked"].fit_test, MODES["folded"].fit_test
+    assert [stacked({"connect": c}) for c in ("dowel", "tab", "standoff", "none")] == [True, True, True, False]
+    assert {j for j in JOINTS if folded({"joint": j})} == {"rib", "tongue", "puzzle"}    # the three that read slot_offset
+    assert all(MODES[m].fit_test({}) for m in ("interlocked", "radial", "bands", "plaque", "curve"))   # every crossing slot
 
 
 def test_fit_test_is_the_jobs_joints_at_five_offsets_on_a_small_stand_in(tmp_path):
@@ -391,6 +602,83 @@ def test_proto_set_3mf_reloads_with_one_named_geometry_per_part(tmp_path):
     assert len(scene.geometry) == plan["counts"]["parts"]
     expected_labels = {pc["label"] for sl in plan["slices"] for pc in sl["pieces"]}
     assert set(scene.geometry.keys()) == expected_labels
+
+
+def _print_settings(f):
+    """The settings per object a written 3MF carries, {object name: {key: value}}, read as OrcaSlicer reads them:
+    Metadata/model_settings.config, each <object id> one of the model's objects, named as that object is."""
+    z = zipfile.ZipFile(f)
+    assert z.namelist().count("Metadata/model_settings.config") == 1
+    model = etree.fromstring(z.read("3D/3dmodel.model"))
+    names = {o.get("id"): o.get("name") for o in model.iter("{*}object")}
+    out = {}
+    for o in etree.fromstring(z.read("Metadata/model_settings.config")).iter("object"):
+        meta = {m.get("key"): m.get("value") for m in o.iter("metadata")}
+        assert meta.pop("name") == names[o.get("id")]
+        out[names[o.get("id")]] = meta
+    return out
+
+
+def test_a_print_plate_carries_the_settings_each_part_needs(tmp_path):
+    """Marcel (2026-11-22): a print that needs a layer height, or bridges, to succeed has to say so in the file. Each
+    object of the 3MF carries the settings its mesh needs, where OrcaSlicer reads them: the click joint's bar is a
+    bridge between two posts, so its panel gets thick bridges and no support under it; every part gets a layer height
+    that makes its flat tops (a 2 mm panel, a 0.4 mm hinge skin, a 0.2 mm chip) whole layers over a 0.2 mm first one.
+    The snap joint's 0.7 mm ledge is a short overhang that prints: no bridge settings. The README says it all."""
+    from core.solid import FIRST, THIN
+    pre = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["fold_box"]["params"]
+    for joint, bridged in (("click", True), ("snap", False)):
+        plan = build(EXAMPLES / "fold_box.stl", "folded", {**pre, "material_kind": "PETG", "autofix": "off", "joint": joint})
+        out = tmp_path / joint
+        proto_set(plan, out)
+        for f in sorted(out.glob("plate-*.3mf")):
+            got, scene = _print_settings(f), trimesh.load(f)
+            assert set(got) == set(scene.geometry)                         # every object, by its name
+            for name, s in got.items():
+                assert s["layer_height"] == "0.2", (f.name, name, s)
+                m = scene.geometry[name]
+                up = (m.face_normals[:, 2] > 0.99) & (m.triangles_center[:, 2] > 0.01)
+                z, area = m.triangles_center[up, 2].round(2), m.area_faces[up]
+                tops = np.append(z[z <= THIN], z[area.argmax()])           # the thin tops and the main face (the walls' own steps are free)
+                assert np.allclose((tops - FIRST) / 0.2, np.round((tops - FIRST) / 0.2), atol=0.03), (name, tops)
+                panel = name.startswith("P")
+                assert ("thick_bridges" in s) == (bridged and panel), (joint, name, s)
+                if "thick_bridges" in s:
+                    assert s["thick_bridges"] == "1" and s["enable_support"] == "0"
+        readme = (out / "README.txt").read_text(encoding="utf-8")
+        assert "Layer height 0.2 mm" in readme and "first layer height to 0.2 mm" in readme
+        assert ("Thick bridges on and supports off" in readme) == bridged
+
+
+def test_every_print_3mf_carries_its_settings(tmp_path):
+    """The fit test's plate and the standoffs' file are written the same way as the part plates: each 3MF carries its
+    objects' settings and still opens as the same named objects; the standoffs' note says what was set."""
+    from core.solid import fit_set, standoff_files
+    plan = build(EXAMPLES / "cube.stl", "stacked", {"thickness": 3, "autofix": "off"})
+    fit_set(plan, tmp_path / "fit", scale=0.5)
+    got = _print_settings(tmp_path / "fit" / "plate.3mf")
+    assert set(got) == set(trimesh.load(tmp_path / "fit" / "plate.3mf").geometry) and all(s.get("layer_height") for s in got.values())
+    job = {"space": 8, "connect": "standoff", "dowel_d": 5, "dowel_shape": "square", "thickness": 3, "autofix": "off"}
+    f, note = standoff_files(build(EXAMPLES / "egg.stl", "stacked", job), tmp_path, "egg")
+    got = _print_settings(f)
+    assert set(got) == set(trimesh.load(f).geometry) and {s["layer_height"] for s in got.values()} == {"0.2"}
+    assert not any("thick_bridges" in s for s in got.values())             # the halves only narrow as they rise
+    assert "Layer height 0.2 mm for every part" in note.read_text(encoding="utf-8")
+
+
+def test_a_part_no_layer_height_fits_is_said_not_set(tmp_path):
+    """A layer height is written only where it makes the part whole layers: 3 mm parts at x0.5 print 1.5 mm, which
+    0.1 mm layers over a 0.2 mm first one make; at x0.457 they print 1.37 mm, which none of the heights make. Those
+    parts get no layer height, and the README names them instead of hiding it."""
+    plan = build(EXAMPLES / "cube.stl", "stacked", {"thickness": 3, "autofix": "off"})
+    proto_set(plan, tmp_path / "half", scale=0.5)
+    assert {s["layer_height"] for s in _print_settings(tmp_path / "half" / "plate.3mf").values()} == {"0.1"}
+    proto_set(plan, tmp_path / "odd", scale=0.457)
+    got, labels = _print_settings(tmp_path / "odd" / "plate.3mf"), [pc["label"] for sl in plan["slices"] for pc in sl["pieces"]]
+    bare = [n for n in labels if "layer_height" not in got.get(n, {})]
+    assert bare
+    readme = (tmp_path / "odd" / "README.txt").read_text(encoding="utf-8")
+    assert "a whole number of layers" in readme and all(n in readme for n in bare)
 
 
 def _step_rows(text):
@@ -483,6 +771,38 @@ def test_step_reads_back_as_valid_solids_in_a_cad_kernel(tmp_path):
         assert abs(sum(b.Volume() for b in solids) - want) < 1e-6 * want
 
 
+def test_step_one_body_fuses_the_whole_model_into_one_closed_solid(tmp_path):
+    """Marcel, 2026-11-22: his STEP files had "over 100,000 parts", and he asked for "A choice on the STEP button":
+    STEP: one body, every part, standoff and dowel fused into one solid. A stack whose layers stand apart is one solid
+    through its dowels, a folded net one through its folds, slotted slices one through their slots. Read from the
+    text: one solid named after the model (a folded box with the air inside it as a void), every edge walked once each way, its box the assembly's grown by the weld.
+    In OpenCascade, when the CAD extra is there: one valid solid, with at least the parts' volume (nothing lost)."""
+    import pytest
+    from core.geometry import facet_polys
+    from core.solid import WELD, one_body
+    from core.step import step_text
+    try:
+        import cadquery as cq
+    except ImportError:
+        cq = None
+    for mode, prm in (("stacked", {"distribution": "count", "count": 3}), ("folded", {}), ("interlocked", {"nx": 2, "ny": 2}), ("radial", {})):
+        plan = build(EXAMPLES / "cube.stl", mode, {**prm, "autofix": "off"})
+        text = step_text(plan, name="cube", lumps=one_body(plan))
+        assert re.findall(r"(?:MANIFOLD_SOLID_BREP|BREP_WITH_VOIDS)\('([^']*)'", text) == ["cube"], mode   # a closed box: with its hollow as a void
+        walked = re.findall(r"ORIENTED_EDGE\('',\*,\*,(#\d+),\.([TF])\.\)", text)
+        assert sorted(walked) == sorted((e, d) for e in re.findall(r"(#\d+)=EDGE_CURVE", text) for d in "TF"), mode
+        pts = np.array([[float(x) for x in m.split(",")] for m in re.findall(r"CARTESIAN_POINT\('',\(([^)]*)\)\)", text)])
+        lo, hi = assembled(plan).bounds                                   # grown by WELD, up to 5 WELD at a sharp mitred corner
+        assert (pts.min(0) <= lo + 1e-6).all() and (pts.min(0) >= lo - 5 * WELD).all() and (pts.max(0) >= hi - 1e-6).all() and (pts.max(0) <= hi + 5 * WELD).all(), mode
+        if cq:
+            (tmp_path / "it.step").write_text(text, encoding="ascii")
+            (solid,) = cq.importers.importStep(str(tmp_path / "it.step")).solids().vals()
+            parts = sum(g.area * (own or sl["thickness"]) for sl in plan["slices"] for pc in sl["pieces"] for g, _, own in facet_polys(pc))
+            assert solid.isValid() and solid.Volume() > parts, (mode, solid.Volume(), parts)
+    if cq is None:
+        pytest.skip("checked from the text only: the CAD kernel is an extra (uv sync --extra cad)")
+
+
 def test_the_command_line_writes_step_and_refuses_what_it_cannot_write(tmp_path):
     """`--out x.step` writes solids named after the design, as the download does. A part that is not in the plan,
     or no output at all, is an error said in words: it was an empty file that looked fine, and a crash."""
@@ -507,9 +827,10 @@ def test_every_file_carries_the_design_name_so_two_designs_never_mix(tmp_path):
         out = tmp_path / str(per_piece)
         a = export(cube, out, fmts=("svg", "dxf", "pdf"), labels=True, per_piece=per_piece, key=True)
         b = export(egg, out, fmts=("svg", "dxf", "pdf"), labels=True, per_piece=per_piece, key=True)
+        a, b = ([f for f in x if f.name != "README.txt"] for x in (a, b))   # the one name every zip shares: what to read first
         assert all(f.name.startswith("cube_v1.0 ") for f in a), [f.name for f in a]
         assert all(f.name.startswith("my_egg_v2.1 ") for f in b), [f.name for f in b]
-        assert len({f.name for f in a} | {f.name for f in b}) == len(a) + len(b) == len(list(out.iterdir()))
+        assert len({f.name for f in a} | {f.name for f in b}) == len(a) + len(b) == len(list(out.iterdir())) - 1
 
 
 def test_a_hostile_revision_in_a_project_file_writes_nothing_outside_the_job_folder(tmp_path):
@@ -557,7 +878,9 @@ def test_svg_can_fall_back_to_one_group_per_colour(tmp_path):
     assert len(tree.xpath('//svg:g[@class="OUTER"]', namespaces=SVG_NS)) == 1
     assert len(tree.xpath('//svg:g[@class="OUTER"]/svg:path', namespaces=SVG_NS)) == exp["outer"]
     assert len(tree.xpath('//svg:g[@class="LABEL"]', namespaces=SVG_NS)) == 1
-    assert len(tree.xpath('//svg:g[@class="LABEL"]/svg:path[@data-text]', namespaces=SVG_NS)) == exp["marks"] + exp["label_pos"] + 1
+    assert len(tree.xpath('//svg:g[@class="LABEL"]/svg:path[@data-text]', namespaces=SVG_NS)) == exp["marks"] + exp["label_pos"]
+    groups = [g.get("class") for g in tree.xpath('//svg:g[@class]', namespaces=SVG_NS) if g.get("class") in ORDER]
+    assert groups == sorted(groups, key=ORDER.index) and groups[0] == "FRAME"     # one group per colour, in the order they run
 
 
 def test_job_export_can_switch_part_grouping_off():

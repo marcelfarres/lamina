@@ -45,21 +45,22 @@ def test_the_same_outline_is_not_the_same_part_with_its_holes_or_its_marks_elsew
 
 
 def test_per_piece_export_merges_identical_pieces_with_a_quantity(tmp_path):
-    """A cube cut into four equal slabs is four identical squares: one file, quantity 4, the twins named in the cut list.
+    """A cube cut into four equal slabs: the three under a layer are identical squares, one file, quantity 3, the twins
+    named in the cut list; the top one carries no dowel numbers (hide engravings), so it is a part of its own, x1.
     Every per-piece file is "<part> <material> x<qty>", quantity last and written even when there is one of it."""
     plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 4, "autofix": "off", "material": "plywood"})
-    files = {f.name.split(" ", 1)[1] for f in export(plan, tmp_path, fmts=("svg", "eps"), labels=True, per_piece=True)}
-    assert "Z-1 plywood x4.svg" in files and not any(f.startswith("Z-2") for f in files)
+    files = {f.name.split(" ", 1)[1] for f in export(plan, tmp_path, fmts=("svg", "eps"), labels=True, per_piece=True) if f.name != "README.txt"}
+    assert "Z-1 plywood x3.svg" in files and "Z-4 plywood x1.svg" in files and not any(f.startswith(("Z-2", "Z-3")) for f in files)
     assert "scale-check plywood x1.svg" in files and "scale-check plywood x1.eps" in files
     cut_list = (tmp_path / f"{design_name(plan)} cut-list.txt").read_text(encoding="utf-8")
-    assert "Z-1 plywood x4" in cut_list and "also Z-2, Z-3, Z-4" in cut_list
-    assert "×4" in (tmp_path / f"{design_name(plan)} Z-1 plywood x4.svg").read_text(encoding="utf-8")
+    assert "Z-1 plywood x3" in cut_list and "also Z-2, Z-3" in cut_list
+    assert "×3" in (tmp_path / f"{design_name(plan)} Z-1 plywood x3.svg").read_text(encoding="utf-8")
     # a material of several words is one word in the name, so the spaces still split it into its four fields;
     # a stranger's material name cannot reach outside the folder
     for material, tag in (("stainless steel", "stainless-steel"), ("birch / yard\\..", "birch-yard")):
         plan["params"]["material"] = material
-        names = {f.name.split(" ", 1)[1] for f in export(plan, tmp_path / tag, fmts=("svg",), labels=True, per_piece=True)}
-        assert f"Z-1 {tag} x4.svg" in names, names
+        names = {f.name.split(" ", 1)[1] for f in export(plan, tmp_path / tag, fmts=("svg",), labels=True, per_piece=True) if f.name != "README.txt"}
+        assert f"Z-1 {tag} x3.svg" in names, names
         assert all(len(n.split(" ")) in (3, 4) for n in names if n.endswith(".svg")), names
 
 
@@ -105,7 +106,7 @@ def test_mirror_ok_merges_a_part_with_its_mirror_image(tmp_path):
     flips = [(pc["label"], pc["flipped"]) for sl in on["slices"] for pc in sl["pieces"] if pc["flipped"]]
     assert flips, "no mirror pair found on the curve egg"
     assert len(identical_groups(on)) == len(identical_groups(off)) - len(flips)        # each pair is one file fewer
-    files = {f.name.split(" ", 1)[1] for f in export(on, tmp_path, fmts=("svg",), labels=True, per_piece=True)}
+    files = {f.name.split(" ", 1)[1] for f in export(on, tmp_path, fmts=("svg",), labels=True, per_piece=True) if f.name != "README.txt"}
     label, twins = flips[0]
     assert f"{label} x2.svg" in files and not any(f.startswith(twins[0] + ".") for f in files)
     cut_list = (tmp_path / f"{design_name(on)} cut-list.txt").read_text(encoding="utf-8")
@@ -174,6 +175,32 @@ def test_split_tabs_interlock_on_a_plain_bar():
     ha = as_multi(a.intersection(box(150.02, -big, big, big))); hb = as_multi(b.intersection(box(-big, -big, 149.98, big)))
     assert len(ha.geoms) >= 2 and len(hb.geoms) >= 2                  # tabs on both sides
     assert a.intersection(b).area < 1e-6 and abs(a.area + b.area - profile.area) < 1e-6
+
+
+def test_split_tabs_interlock_on_a_bar_split_across_its_height():
+    """Bug 048: a part cut across y (a tall part) came out as two plain halves joined by a butt cut. Its tabs were
+    given to the piece they stick into, so the union and the difference did nothing. Stood up, the plain bar is cut
+    across y, and both pieces carry tabs past the cut, as they do across x."""
+    profile = as_multi(box(0, 0, 120, 300))
+    sl = types.SimpleNamespace(label="B-1", profile=profile, lines=[], marks=[], warnings=[], pieces=None, facets=None)
+    split_slice(sl, (200, 200), 5, 8)
+    a, b = sorted((pc.geom for pc in sl.pieces), key=lambda g: g.bounds[1])
+    big = 1e4
+    ha = as_multi(a.intersection(box(-big, 150.02, big, big))); hb = as_multi(b.intersection(box(-big, -big, big, 149.98)))
+    assert len(ha.geoms) >= 2 and len(hb.geoms) >= 2                  # tabs on both sides of the cut
+    assert a.intersection(b).area < 1e-6 and abs(a.area + b.area - profile.area) < 1e-6
+
+
+def test_a_sheet_with_no_room_inside_its_margin_is_not_searched_to_the_piece_limit():
+    """The slider's smallest sheet, 10 × 10 mm with its 5 mm margin, has no room for a strip at all. The search for a
+    strip count that fits (bug 048) tried every count to MAX_PIECES for every strip of every pass, and the tiny-sheet
+    cases of test_params ran past their 600 s. Nothing can fit, so each pass cuts once, as before. A room of exactly
+    the two free tab widths (26 mm less the margins, 8 mm tabs) divided by zero."""
+    for sheet in ((10, 10), (26, 26)):
+        sl = types.SimpleNamespace(label="B-1", profile=as_multi(box(0, 0, 180, 180)), lines=[], marks=[], warnings=[],
+                                   errors=[], pieces=None, facets=None)
+        split_slice(sl, sheet, 5, 8)
+        assert len(sl.pieces) <= 2 ** 4                               # four passes, each cut in two
 
 
 def test_a_split_never_leaves_a_loose_piece():
