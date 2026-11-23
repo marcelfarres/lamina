@@ -116,18 +116,18 @@ def _oversize(pc, rot0, sheet_i, margin):
 
 def fit_angle(g, job):
     """The angle the nester turns a part to before it tries its quarter turns: its minimum-rectangle angle, the tightest,
-    when the part fits the sheet that way; else the first whole degree at which its box does (bug 073: a long, slanted
-    card panel 632 x 176 mm at its minimum-rectangle angle fits a 600 x 400 sheet upright, 547 x 356, and was placed
-    past the sheet's edge at the angle that did not fit, with no error). A part that fits at no angle keeps the
-    minimum-rectangle angle: it is too big for the sheet, and that is said elsewhere (plan._oversize)."""
-    W, H = job.sheet[0] - 2 * job.margin - 2 * TOL, job.sheet[1] - 2 * job.margin - 2 * TOL   # the nester grows every part by TOL
+    or that plus a quarter turn, whichever lies on the sheet as it is; else the first whole degree at which its box does
+    (bug 073: a long, slanted card panel, 632 x 176 mm at its tightest angle, fits a 600 x 400 sheet upright, 547 x 356,
+    and was placed past the sheet's edge at the angle that did not fit, with no error). A part with no room left for the
+    gap lands at this angle at the margin (_oversize), so it is one at which the part lies on the sheet. A part that fits
+    at no angle keeps its tightest one: it is too big for the sheet, and plan._oversize says so."""
+    W, H = job.sheet[0] - 2 * job.margin, job.sheet[1] - 2 * job.margin
 
-    def fits(a):
+    def lies(a):
         x0, y0, x1, y1 = affinity.rotate(g, a, origin=(0, 0)).bounds
-        w, h = x1 - x0, y1 - y0
-        return (w <= W and h <= H) or (h <= W and w <= H)
+        return x1 - x0 <= W + 1e-9 and y1 - y0 <= H + 1e-9
     r0 = min_rect_angle(g)
-    return r0 if fits(r0) else next((float(a) for a in range(180) if fits(a)), r0)
+    return next((a for a in (r0, r0 + 90) if lies(a)), next((float(a) for a in range(180) if lies(a)), r0))
 
 
 def _rect_nest(prepared, job):
