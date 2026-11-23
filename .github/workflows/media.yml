@@ -16,8 +16,8 @@ on:
 permissions:
   contents: write            # commits the refreshed docs/media back to the branch it recorded
 
-concurrency:
-  group: media
+concurrency:                 # one run at a time for each branch it commits to (BRANCH below); other branches go on
+  group: media-${{ github.event_name == 'push' && 'main' || github.ref_name }}
   cancel-in-progress: false
 
 env:
