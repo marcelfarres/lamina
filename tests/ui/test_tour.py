@@ -95,7 +95,7 @@ def test_the_tour_of_what_is_new_runs_live_and_puts_everything_back(page):
 
 def test_the_arrows_step_the_tour_and_esc_ends_only_the_tour(page):
     before = page.evaluate(LOOK)
-    page.evaluate(f"async () => {TOUR}.start([{{target: '#find', title: 'a', text: 'one'}}, {{target: '#level', title: 'b', text: 'two'}}])")
+    page.evaluate(f"async () => {{ {TOUR}.start([{{target: '#find', title: 'a', text: 'one'}}, {{target: '#level', title: 'b', text: 'two'}}]) }}")   # not awaited: it settles when the tour ends
     page.wait_for_selector("#tourdlg[open]")
     title = lambda: page.text_content("#tourdlg h4")
     assert title() == "a"
@@ -111,9 +111,9 @@ def test_the_arrows_step_the_tour_and_esc_ends_only_the_tour(page):
 
 def test_a_step_with_nothing_to_show_is_skipped(page):
     """A part that is not on the page, or an action that throws: the step is left out and the tour goes on."""
-    page.evaluate(f"""async () => {TOUR}.start([{{target: '#no-such-part', title: 'gone'}},
+    page.evaluate(f"""async () => {{ {TOUR}.start([{{target: '#no-such-part', title: 'gone'}},
         {{target: '#fit', title: 'throws', open() {{ throw new Error('broken step') }}}},
-        {{target: '#popen', title: 'shown', text: 'the library'}}])""")
+        {{target: '#popen', title: 'shown', text: 'the library'}}]) }}""")
     page.wait_for_function("() => document.querySelector('#tourdlg')?.open && document.querySelector('#tourdlg h4').textContent === 'shown'")
     assert page.text_content("#tourdlg .n") == "3 / 3"
     page.click("#tourdlg .go")

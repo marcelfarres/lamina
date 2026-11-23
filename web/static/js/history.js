@@ -25,6 +25,8 @@ export function step(from,to){if(!from.length)return;const ch=changes(cur,from.a
   if(lit){syncUndo();return ST.light()}   // only the lights changed: they are drawn again, nothing is sliced
   ST.unit=d.u; deselect(); applyUnit(); syncUndo(); schedule()}
 function syncUndo(){$('#undo').disabled=!undos.length;$('#redo').disabled=!redos.length}
+// the stack as it is now, and how to put it back: a tour that opened an example for a while leaves no steps behind (tourpaths.js)
+export function hold(){const u=[...undos],r=[...redos],c=cur;return()=>{undos.splice(0,undos.length,...u);redos.splice(0,redos.length,...r);cur=c;syncUndo()}}
 
 // ---------------------------------------------------------------- what happened since the model loaded
 // The state at the end rarely says how somebody got there — an example's settings kept by an upload, a ring nudged

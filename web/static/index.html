@@ -24,13 +24,13 @@
   <div id="news_tour" hidden><button class="go">▶ Show me on the page</button><span class="hint"></span></div><div id="news_body"></div>
   <div class="row"><button id="news_go" class="go">OK</button></div></dialog>
 <dialog id="helpdlg"><h3>How Lamina works</h3>
-  <p style="margin:0;color:var(--muted)">Five tabs, left to right, in the order you use them. Everything re-slices as you change it.</p>
+  <p style="margin:0;color:var(--muted)">Six tabs, left to right, in the order you use them. Everything re-slices as you change it.</p>
   <h4>The workflow</h4>
   <ol>
     <li><b>Model</b> — upload your own (STL, OBJ, 3MF, PLY, OFF, GLB, STEP) or pick an example, then set how big you want the finished piece: type one of the <b>size</b> boxes and the other two follow the model's proportions. <b>turn</b> stands it the right way up.</li>
-    <li><b>Technique</b> — how the model is taken apart: stacked layers, interlocked slices, a radial fan, ribs along a curve, folded panels, a plaque on a back plate. Each has its own settings underneath.</li>
+    <li><b>Technique</b> — how the model is taken apart: stacked layers, interlocked slices, a radial fan, ribs along a curve, folded panels, a plaque on a back plate, a lattice of bands. Each has its own settings underneath.</li>
     <li><b>Sheet &amp; fit</b> — what you cut and on what: material and its density, thickness, sheet size (your machine's bed), and the cut compensation. PLA or PETG print the parts instead, nested on your printer's bed. Not on the list? Type any thickness or sheet size, or a material's density, and press <b>+</b> to keep it.</li>
-    <li><b>Checks</b> — whether it holds together. Every error offers one-click fixes; press one and it re-slices.</li>
+    <li><b>Checks</b> — whether it holds together. Every error offers one-click fixes; press one and it re-slices. Click a message and its part is selected, in the 3D view and on the sheet.</li>
     <li><b>Export</b> — the cut files (SVG, DXF, PDF, EPS), a 3D-printable prototype, a fit test, the assembly key.</li>
   </ol>
   <h4>The settings</h4>
@@ -51,7 +51,9 @@
       where it stands (shift-drag and ctrl-drag still do the same two). Only the handles move it: a drag anywhere
       else, on the part too, turns the view</li>
     <li>alt-click = add or remove a connection point, a curve point or a radial axis · shift+alt-click = a curve
-      branch out to that point (a leg, an arm, a tail)</li></ul>
+      branch out to that point (a leg, an arm, a tail)</li>
+    <li><b>sheets</b> — under the view, the parts laid out on your sheets, as the cut files hold them. Click a part to
+      select it. <b>open full size</b> shows one sheet alone.</li></ul>
   <h4>Dowels in a stack</h4>
   <ul><li><b>aligned</b> — the same points straight through every layer, so each dowel is one rod. Alt-click a slice to
       add a dowel there, alt-click one to remove it; each is listed under <b>dowels</b> with its x, y, to type exactly —
@@ -98,7 +100,8 @@
     <li>An example opens as it is; save it and it becomes a project of yours.</li></ul>
   <h4>Keyboard</h4>
   <ul><li><kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Ctrl</kbd>+<kbd>Y</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redo — the last 60 changes, including a part you moved by accident (⌘ on a Mac); the <b>↶ undo</b> button in the top bar does the same</li>
-    <li><kbd>?</kbd> this help · <kbd>Esc</kbd> close a dialog or deselect</li></ul>
+    <li><kbd>?</kbd> this help · <kbd>Esc</kbd> close a dialog or deselect</li>
+    <li>in a tour (<b>Tour of the page</b> in the help menu): <kbd>→</kbd> next · <kbd>←</kbd> back · <kbd>Esc</kbd> ends it</li></ul>
   <h4>When something does not fit</h4>
   <ul><li>Parts bigger than your sheet: the Checks tab says so and offers the size that fits, <b>split</b> (cut into pieces joined by puzzle tabs), or <b>one sheet</b> (one long strip).</li>
     <li>A big model in this browser version takes minutes where the local version takes seconds — and never a layer of your model goes anywhere: <a href="https://marcelfarres.github.io/lamina/#start" target="_blank" rel="noopener">how to run it on your own computer</a>.</li>
@@ -111,7 +114,7 @@
   <button id="pminor" title="new minor revision (1.0 → 1.1)">A small change · +0.1</button><button id="pmajor" title="new major revision (1.x → 2.0)">A new design · +1</button></div></details>
 <button class="small" id="undo" title="undo the last change (Ctrl+Z)" disabled>↶ undo</button><button class="small" id="redo" title="redo (Ctrl+Y or Ctrl+Shift+Z)" disabled>↷</button>
 <details class="menu"><summary class="small" title="how it works, every shortcut, and what to do when something does not fit (?)">? help ▾</summary><div class="pop">
-  <button id="helpbtn">How Lamina works</button><button id="newsbtn" title="what changed in this version, and every version before it">What is new</button><a href="https://marcelfarres.github.io/lamina/?ref=app" target="_blank" rel="noopener" data-tip="What Lamina does, every technique explained, how to run it yourself">Documentation ↗</a><hr>
+  <button id="helpbtn">How Lamina works</button><button id="tourbtn" title="a short tour of the page, from the model to the files for your machine">Tour of the page</button><button id="newsbtn" title="what changed in this version, and every version before it">What is new</button><a href="https://marcelfarres.github.io/lamina/?ref=app" target="_blank" rel="noopener" data-tip="What Lamina does, every technique explained, how to run it yourself">Documentation ↗</a><hr>
   <a data-feedback href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml" target="_blank" rel="noopener" data-tip="Something came out wrong? Write a sentence here and the report fills in the rest: the technique, every setting, what the checks said, the steps you took since loading the model, and the model saved ready to attach unless you untick that box. It then opens a prefilled email or the GitHub issue form for you to send — email needs no account.">Report a problem ↗</a><a href="https://discord.gg/N66bCQxmt3" target="_blank" rel="noopener" data-tip="Questions, ideas and builds: the Lamina Discord, where other people cutting with it can answer too">Discord ↗</a><a href="https://www.reddit.com/r/Lamina3D" target="_blank" rel="noopener" data-tip="r/Lamina3D on Reddit: show what you built, ask for help, say what Lamina should do next">Reddit ↗</a><a href="https://github.com/marcelfarres/lamina" target="_blank" rel="noopener" data-tip="Source code, issues, releases (AGPL-3.0)">GitHub ↗</a><hr>
   <button id="clear" title="delete everything this tab sliced — uploaded models, cut files, session (presets and the library stay)">Clear my data…</button></div></details>
 <span class="sp"></span><span id="dot" title="green = ready · orange = slicing · red = error"></span><span id="status"></span>
