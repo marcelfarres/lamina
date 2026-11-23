@@ -363,3 +363,14 @@ def test_every_control_does_what_it_says_and_every_download_holds_the_plan(page,
     assert plan(page)["counts"]["errors"] == 0, plan(page)["errors"]
     page.remove_listener("dialog", answer)
     assert not page.errors, page.errors
+
+
+def test_the_one_body_step_warns_on_folded_panels(page):
+    """Marcel, 2026-11-22: STEP: one body on every technique, and on a Folded Panels job a plain warning that the file
+    may not open as a valid solid in CAD (CAD rejected the fused panels of 6 of 8 folded examples). A stacked job has
+    the row and no warning."""
+    warning = "() => document.querySelector('#dl_step_body .warn')?.textContent || ''"
+    use(page, "fold_box"); page.click('nav button[data-t="export"]')
+    assert page.is_visible("#dl_step_body") and "may not open as a valid solid in CAD" in page.evaluate(warning)
+    use(page, "vase"); page.click('nav button[data-t="export"]')
+    assert page.is_visible("#dl_step_body") and page.evaluate(warning) == ""

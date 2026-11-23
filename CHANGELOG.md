@@ -82,8 +82,8 @@ inside to see it as a lamp.
 
   ![The tool column at the left of the 3D view](web/static/news/0.4.0-tools.jpg)
 
-- **A short Export tab.** The download buttons come first. The rest opens with a click. A printed stack's print
-  set holds its dowel pins, each named on a tag.
+- **A short Export tab.** Download buttons first; the rest opens with a click. A printed stack's print set holds
+  its dowel pins, each named on a tag. *STEP: one body*: the model as one solid. STEP holds standoffs too.
 
   ![The Export tab, with the download buttons first](web/static/news/0.4.0-export.jpg)
 

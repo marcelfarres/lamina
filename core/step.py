@@ -165,10 +165,11 @@ class _Step:
         return self.add(f"MANIFOLD_SOLID_BREP('{_text(name)}',{self.add(f'''CLOSED_SHELL('',({','.join(faces)}))''')})")
 
     def shell(self, name, V, F):
-        """One closed triangle mesh (V, F), one piece of material, as a solid with flat faces. Its surface round the
-        outside is its closed shell; a hollow inside it (a folded box closes its panels round air) has a surface of its
-        own, which STEP writes as a void: a closed shell facing into the hollow, taken the other way (BREP_WITH_VOIDS).
-        The outside is the surface that encloses a positive volume."""
+        """A closed triangle mesh (V, F) as solids with flat faces, a list. A surface that encloses a positive volume is
+        the outside of a solid. One piece of material (a lump of one_body) has one, and a hollow inside it (a folded box
+        closes its panels round air) has a surface of its own, which STEP writes as a void: a closed shell facing into
+        the hollow, taken the other way (BREP_WITH_VOIDS). Several outsides with no hollow (a standoff's pin, body and
+        pin where nothing joins them, in the browser build) are a solid each."""
         import trimesh
         # an edge shorter than MIN_EDGE (a union leaves some of 1e-8 mm where solids cross) would be written as one
         # point twice: its ends become one vertex, and the triangles on it, left without area, go
@@ -179,13 +180,19 @@ class _Step:
         F = first[one][F]
         F = F[(F[:, 0] != F[:, 1]) & (F[:, 1] != F[:, 2]) & (F[:, 2] != F[:, 0])]
         part = trimesh.graph.connected_component_labels(trimesh.Trimesh(V, F, process=False).face_adjacency, node_count=len(F))
-        surfaces = sorted((F[part == k] for k in range(part.max() + 1)),
-                          key=lambda f: -np.einsum("ij,ij->", V[f[:, 0]], np.cross(V[f[:, 1]], V[f[:, 2]])))
-        outside = self.add(f"CLOSED_SHELL('',({','.join(self.faces(V, surfaces[0]))}))")
-        if len(surfaces) == 1:
-            return self.add(f"MANIFOLD_SOLID_BREP('{_text(name)}',{outside})")
-        voids = [self.add(f"ORIENTED_CLOSED_SHELL('',*,{self.add(f'''CLOSED_SHELL('',({','.join(self.faces(V, f[:, ::-1]))}))''')},.F.)") for f in surfaces[1:]]
-        return self.add(f"BREP_WITH_VOIDS('{_text(name)}',{outside},({','.join(voids)}))")
+        surfaces = [F[part == k] for k in range(part.max() + 1)]
+        volume = [np.einsum("ij,ij->", V[f[:, 0]], np.cross(V[f[:, 1]], V[f[:, 2]])) for f in surfaces]
+        outsides = [f for f, v in zip(surfaces, volume) if v > 0]
+        hollows = [f for f, v in zip(surfaces, volume) if v <= 0]
+        if hollows and len(outsides) > 1:                # one_body gives one lump at a time: it never happens there
+            raise ValueError(f"{name}: hollows inside {len(outsides)} solids, and which one holds which is not known")
+        closed = lambda f: self.add(f"CLOSED_SHELL('',({','.join(self.faces(V, f))}))")   # noqa: E731
+        if not outsides:                                 # a crumb a union splits off, with no volume: nothing to write
+            return []
+        if not hollows:
+            return [self.add(f"MANIFOLD_SOLID_BREP('{_text(name)}',{closed(f)})") for f in outsides]
+        voids = [self.add(f"ORIENTED_CLOSED_SHELL('',*,{closed(f[:, ::-1])},.F.)") for f in hollows]
+        return [self.add(f"BREP_WITH_VOIDS('{_text(name)}',{closed(outsides[0])},({','.join(voids)}))")]
 
     def faces(self, V, F):
         """A closed triangle surface as flat faces: the triangles that lie side by side in one plane are one face
@@ -260,15 +267,17 @@ class _Step:
         return faces
 
 
-def step_text(plan, part=None, name="lamina", lumps=None) -> str:
+def step_text(plan, part=None, name="lamina", lumps=None, meshes=()) -> str:
     """The assembled model (or the one part labelled `part`) as a STEP file: one solid per flat piece of a part,
-    named with the part's label, each where it sits in the assembly. With `lumps` (core.solid.one_body: the model
-    fused, a closed mesh per piece of it that touches no other) one solid per lump instead, named after the model."""
-    s, name = _Step(), _text(name)
-    shape, context, frame = s.product(name)
-    solids = ([s.shell(name, V, F) for V, F in lumps] if lumps is not None else
+    named with the part's label, each where it sits in the assembly, then the parts given as closed meshes, `meshes`
+    [(label, V, F)] (a standoff), each as its solid. With `lumps` (core.solid.one_body: the model fused, a closed mesh
+    per piece of it that touches no other) one solid per lump instead, named after the model."""
+    s = _Step()
+    shape, context, frame = s.product(_text(name))
+    solids = ([b for V, F in lumps for b in s.shell(name, V, F)] if lumps is not None else
               [b for sl in plan["slices"] for pc in sl["pieces"] if part is None or pc["label"] == part
-               for poly, M, own in facet_polys(pc) if (b := s.prism(pc["label"], poly, M, own or sl["thickness"]))])
+               for poly, M, own in facet_polys(pc) if (b := s.prism(pc["label"], poly, M, own or sl["thickness"]))]
+              + [b for label, V, F in meshes for b in s.shell(label, V, F)])
     shown = s.add(f"ADVANCED_BREP_SHAPE_REPRESENTATION('',({','.join([frame, *solids])}),{context})")
     s.add(f"SHAPE_DEFINITION_REPRESENTATION({shape},{shown})")
-    return HEAD.format(name=name) + "".join(f"#{i}={row};\n" for i, row in enumerate(s.rows, 1)) + "ENDSEC;\nEND-ISO-10303-21;\n"
+    return HEAD.format(name=_text(name)) + "".join(f"#{i}={row};\n" for i, row in enumerate(s.rows, 1)) + "ENDSEC;\nEND-ISO-10303-21;\n"

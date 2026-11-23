@@ -276,8 +276,14 @@ def solid_bytes(plan, part=None, fmt="stl", body=False) -> bytes:
     plan has no such part."""
     if part and part not in {pc["label"] for sl in plan["slices"] for pc in sl["pieces"]}:
         raise LookupError(f"no part {part} in this plan")
-    data = (step_text(plan, part, design_name(plan), one_body(plan) if body and not part else None) if fmt == "step"
-            else assembled(plan, part).export(file_type=fmt))
+    if fmt == "step":
+        # the standoffs are parts too, each a solid named by its size and the layers it joins (S1 Z-3/Z-4)
+        size = {id(e): tag for tag, *_, items in standoff_kinds(plan) for e in items}
+        items = (plan.get("standoffs") or {}).get("items", [])
+        meshes = [(f"{size[id(e)]} {e['lo']}/{e['hi']}", m.vertices, m.faces) for e, m in zip(items, _standoffs(plan))] if not part and not body else []
+        data = step_text(plan, part, design_name(plan), one_body(plan) if body and not part else None, meshes)
+    else:
+        data = assembled(plan, part).export(file_type=fmt)
     return data if isinstance(data, bytes) else data.encode()         # STEP and some mesh formats (OBJ, OFF) are text
 
 

@@ -80,11 +80,14 @@ export function renderDownloads(){ // the labels checkbox applies to every cut f
   $('#pr_go').textContent=state.printed?`download print plates (plate-1.3mf … plate-${ST.plan.sheets}.3mf, one per bed, + one STL per part${ST.plan.rods?.length?' + pins-1.3mf, the dowel pins':''})`
     :'download prototype set (plate.3mf for OrcaSlicer + one STL per part)';
   // every file says what it is for: eight buttons in a row left the reader to know which program wants which format
-  const rows=r=>r.map(([t,u,use])=>`<div class="r"><a href="${u}">${t}</a>${use?`<details class="info"><summary>what is it for?</summary><span class="hint">${use}</span></details>`:''}</div>`).join('');
+  // a row: [text, link, what it is for, its id, a warning shown under it]
+  const rows=r=>r.map(([t,u,use,id,warn])=>`<div class="r"${id?` id="${id}"`:''}><a href="${u}">${t}</a>${use?`<details class="info"><summary>what is it for?</summary><span class="hint">${use}</span></details>`:''}${warn?`<div class="msg warn"><b>⚠ WARNING</b> · ${warn}</div>`:''}</div>`).join('');
   const more=[['assembled STL',`${b}/stl`,'the whole model built from its parts, as one 3D file: to look at it or render it in another program'],
-    ['STEP: parts',`${b}/step`,'the same model as true solids, for CAD (Fusion, FreeCAD, Onshape): every part a body with flat faces, not a triangle mesh'],
-    // one body needs the solids library the browser build has none of (core.solid.one_body)
-    ...(document.documentElement.dataset.static?[]:[['STEP: one body',`${b}/step?body=1`,'the whole model as one solid with flat faces, for CAD: every part, standoff and dowel joined where they touch (grown by 0.02 mm so they do). A part that touches nothing stays a body of its own']]),
+    ['STEP: parts',`${b}/step`,'the same model as true solids, for CAD (Fusion, FreeCAD, Onshape): every part a body with flat faces, not a triangle mesh','dl_step'],
+    // one body needs the solids library the browser build has none of (core.solid.one_body). Folded panels fuse where
+    // grown panels and tabs cross, and CAD rejected 6 of 8 examples (Marcel: offer it with a warning)
+    ...(document.documentElement.dataset.static?[]:[['STEP: one body',`${b}/step?body=1`,'the whole model as one solid with flat faces, for CAD: every part, standoff and dowel joined where they touch (grown by 0.02 mm so they do). A part that touches nothing stays a body of its own','dl_step_body',
+      ST.mode.name==='folded'?'on Folded Panels this file may not open as a valid solid in CAD. If it does not, take STEP: parts':'']]),
     ['plan.json',`jobs/${CLIENT}/${ST.job}/plan.json`,'everything Lamina worked out, for scripts and other tools']];
   $('#dl_title').textContent=state.printed?'The parts':'2 · The parts';
   // standoffs: which file is for which machine. Printed layers: one more file in the print set
