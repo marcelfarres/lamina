@@ -25,9 +25,13 @@ from .font import bold_dot, strokes as glyphs
 from .geometry import as_multi, poly_coords
 from .labels import label_box, label_rect, mark_rot, mark_size
 
-COLORS = {"OUTER": "#0055ff", "INNER": "#00aa00", "SCORE": "#d4a800", "GUIDE": "#ff8800", "LABEL": "#ff0000"}
+# The layers in the order a machine runs them, which is the order every file writes them in: the engravings (labels,
+# then the next layer's outline), the scores, the holes, and the outlines last, so no part drops out of the sheet
+# before its holes are cut. FRAME, the sheet's border and title, is first and never run: it shows where the sheet is.
+ORDER = ("FRAME", "LABEL", "GUIDE", "SCORE", "INNER", "OUTER")
+COLORS = {"FRAME": "#808080", "LABEL": "#ff0000", "GUIDE": "#ff8800", "SCORE": "#d4a800", "INNER": "#00aa00", "OUTER": "#0055ff"}
 RGB = {k: tuple(int(v[i:i + 2], 16) / 255 for i in (1, 3, 5)) for k, v in COLORS.items()}
-ACI = {"OUTER": 5, "INNER": 3, "SCORE": 2, "GUIDE": 30, "LABEL": 1}
+ACI = {"FRAME": 8, "LABEL": 1, "GUIDE": 30, "SCORE": 2, "INNER": 3, "OUTER": 5}
 UNIT = {"mm": 1.0, "cm": 0.1, "in": 1 / 25.4}
 PT = 72 / 25.4
 
@@ -256,13 +260,14 @@ def svg_doc(items, width, height, labels, border=False, font=4.0, units="mm", ti
     Every part is one <g class="piece" data-label="…">: its cuts, fold and guide lines, marks, arrows, label and
     leader, each in a sub-group named after its layer — so a part dragged somewhere else in Inkscape or Illustrator
     takes its labels and dowel numbers with it, and nothing goes out of register. The laser's software sorts the
-    lines by colour, which each layer group carries whatever part it is in. The border and the title, which belong to the
-    sheet and not to a part, are the first group. The title is engraved in the top margin, sized to fit the band
-    nothing else uses, or left out when the margin holds no legible text.
+    lines by colour, which each layer group carries whatever part it is in. Each part writes its layers in ORDER. The
+    border and the title, which belong to the sheet and not to a part, are the first group, on FRAME, which no machine
+    runs. The title sits in the top margin, sized to fit the band nothing else uses, or is left out when the margin
+    holds no legible text.
 
-    `grouped=False` writes the older colour-first layout instead: one group per colour for the whole sheet, with the
-    border, the arrows and every label in the single LABEL group. For a tool that keeps the colours apart and never
-    moves a part on its own."""
+    `grouped=False` writes the older colour-first layout instead: one group per colour for the whole sheet in ORDER,
+    the arrows and every label in the single LABEL group. For a tool that keeps the colours apart and never moves a
+    part on its own."""
     f = UNIT[units]
     out = ['<?xml version="1.0" encoding="UTF-8"?>',
            f'<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="{width * f:.4f}{units}" height="{height * f:.4f}{units}" viewBox="0 0 {width} {height}">']
@@ -274,8 +279,8 @@ def svg_doc(items, width, height, labels, border=False, font=4.0, units="mm", ti
         """One text: one path of open strokes, its words in data-text (what the tests and a reader of the file go by)."""
         return f'<path data-text="{html.escape(text, quote=True)}" d="{" ".join(d_of(st) for st in sts)}"/>'
 
-    def label_group(body):
-        return [f'<g class="LABEL" fill="none" stroke="{COLORS["LABEL"]}" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round">'] + body + ["</g>"]
+    def label_group(body, layer="LABEL"):
+        return [f'<g class="{layer}" fill="none" stroke="{COLORS[layer]}" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round">'] + body + ["</g>"]
 
     def layer_group(layer, on):
         body = [f'<g class="{layer}" fill="none" stroke="{COLORS[layer]}" stroke-width="0.15">']
@@ -293,7 +298,7 @@ def svg_doc(items, width, height, labels, border=False, font=4.0, units="mm", ti
         sheet.append(text_path(title, glyphs(title, size, size * 0.5, height - margin / 2, anchor="start")))
     def cut_layers(lines):
         """The cut, guide and score layers of `lines`, each a group; a layer with nothing on it is left out."""
-        return [row for layer in ("OUTER", "INNER", "GUIDE", "SCORE")
+        return [row for layer in ORDER[2:]
                 if (on := [s for s in lines if s[0] == layer]) for row in layer_group(layer, on)]
 
     def engraved(its, lines):
@@ -308,19 +313,19 @@ def svg_doc(items, width, height, labels, border=False, font=4.0, units="mm", ti
                 body.append(f'<line x1="{ax:.2f}" y1="{height - ay:.2f}" x2="{bx:.2f}" y2="{height - by:.2f}"/>')
         return body
 
-    def drawing(its, first=()):
-        """The layers of `its`, then one LABEL group of `first` and what they engrave, when there is any."""
+    def drawing(its):
+        """What `its` engrave, as one LABEL group when there is any, then their cut layers."""
         lines = list(strokes(its))
-        body = [*first, *engraved(its, lines)]
-        return cut_layers(lines) + (label_group(body) if body else [])
+        body = engraved(its, lines)
+        return (label_group(body) if body else []) + cut_layers(lines)
 
+    if sheet:
+        out += ['<g class="sheet">'] + label_group(sheet, "FRAME") + ["</g>"]
     if grouped:
-        if sheet:
-            out += ['<g class="sheet">'] + label_group(sheet) + ["</g>"]
         for it in items:
             out += [f'<g class="piece" data-label="{html.escape(it.key, quote=True)}">'] + drawing([it]) + ["</g>"]
     else:
-        out += drawing(items, sheet)
+        out += drawing(items)
     out.append("</svg>")
     return "\n".join(out)
 
@@ -335,19 +340,19 @@ def dxf_doc(items, labels, border=None, font=4.0, units="mm"):
     doc.linetypes.add("DOT", pattern=[0.6 * f, 0.0, -0.6 * f])
     msp = doc.modelspace()
     S = lambda pts: [(x * f, y * f) for x, y in pts]
-    for layer, pts, closed, style, _ in strokes(items):        # a cut ring takes its layer's linetype; a line names its own
-        if layer == "LABEL" and not labels:                       # the orientation arrows go with the labels
-            continue
-        msp.add_lwpolyline(S(pts), close=closed, dxfattribs={"layer": layer} if closed else {"layer": layer, "linetype": DASH[style][2]})
+    if border:
+        w, h = border
+        msp.add_lwpolyline(S([(0, 0), (w, 0), (w, h), (0, h)]), close=True, dxfattribs={"layer": "FRAME"})
     if labels:
         for _, sts, leader in texts(items, font):
             for st in sts:
                 msp.add_lwpolyline(S(st), dxfattribs={"layer": "LABEL"})
             if leader:
                 msp.add_line(tuple(v * f for v in leader[0]), tuple(v * f for v in leader[1]), dxfattribs={"layer": "LABEL"})
-    if border:
-        w, h = border
-        msp.add_lwpolyline(S([(0, 0), (w, 0), (w, h), (0, h)]), close=True, dxfattribs={"layer": "LABEL"})
+    for layer, pts, closed, style, _ in sorted(strokes(items), key=lambda s: ORDER.index(s[0])):   # stable: part by part in a layer
+        if layer == "LABEL" and not labels:                       # the orientation arrows go with the labels
+            continue                                              # a cut ring takes its layer's linetype; a line names its own
+        msp.add_lwpolyline(S(pts), close=closed, dxfattribs={"layer": layer} if closed else {"layer": layer, "linetype": DASH[style][2]})
     return doc
 
 
@@ -362,22 +367,10 @@ def pdf_doc(path, pages, labels, border, font):
             c.setPageSize((w * PT, h * PT))
         c.setLineWidth(0.3)
         lines = list(strokes(items))
-        for layer in ("OUTER", "INNER", "SCORE", "GUIDE"):
-            c.setStrokeColorRGB(*RGB[layer])
-            for lay, pts, closed, style, _ in lines:
-                if lay != layer:
-                    continue
-                if not closed:
-                    c.setDash(DASH[style][1])
-                p = c.beginPath(); p.moveTo(pts[0][0] * PT, pts[0][1] * PT)
-                for x, y in pts[1:]: p.lineTo(x * PT, y * PT)
-                if closed: p.close()
-                c.drawPath(p, stroke=1, fill=0)
-        c.setDash([])
-        c.setStrokeColorRGB(*RGB["LABEL"]); c.setFillColorRGB(*RGB["LABEL"])
         if border:
-            c.rect(0, 0, w * PT, h * PT, stroke=1, fill=0)
+            c.setStrokeColorRGB(*RGB["FRAME"]); c.rect(0, 0, w * PT, h * PT, stroke=1, fill=0)
         if labels:
+            c.setStrokeColorRGB(*RGB["LABEL"]); c.setFillColorRGB(*RGB["LABEL"])
             c.setLineCap(1); c.setLineJoin(1)                 # round: a stroke font's corners, like the laser draws them
             arrows = [[st[1]] for st in lines if st[0] == "LABEL"]
             for _, sts, leader in [*((None, a, None) for a in arrows), *texts(items, font)]:
@@ -387,6 +380,18 @@ def pdf_doc(path, pages, labels, border, font):
                     c.drawPath(p, stroke=1, fill=0)
                 if leader:
                     c.line(leader[0][0] * PT, leader[0][1] * PT, leader[1][0] * PT, leader[1][1] * PT)
+            c.setLineCap(0); c.setLineJoin(0)
+        for layer in ORDER[2:]:
+            c.setStrokeColorRGB(*RGB[layer])
+            for lay, pts, closed, style, _ in lines:
+                if lay != layer:
+                    continue
+                c.setDash(DASH[style][1])                     # every line its own: a cut after a dashed score is solid
+                p = c.beginPath(); p.moveTo(pts[0][0] * PT, pts[0][1] * PT)
+                for x, y in pts[1:]: p.lineTo(x * PT, y * PT)
+                if closed: p.close()
+                c.drawPath(p, stroke=1, fill=0)
+        c.setDash([])
         c.showPage()
     c.save()
 
@@ -399,20 +404,20 @@ def eps_doc(items, w, h, labels, border, font):
         s = " ".join(f"{x * PT:.2f} {y * PT:.2f} {'moveto' if i == 0 else 'lineto'}" for i, (x, y) in enumerate(pts))
         return f"newpath {s} {'closepath ' if close else ''}stroke"
     lines = list(strokes(items))
-    for layer in ("OUTER", "INNER", "SCORE", "GUIDE"):
-        out.append("%s setrgbcolor" % " ".join(f"{v:.3f}" for v in RGB[layer]))
-        out += [(f"[{' '.join(map(str, DASH[style][1]))}] 0 setdash " if not closed else "") + path(pts, closed)
-                for lay, pts, closed, style, _ in lines if lay == layer]
-    out.append("[] 0 setdash %s setrgbcolor" % " ".join(f"{v:.3f}" for v in RGB["LABEL"]))
+    rgb = lambda layer: "%s setrgbcolor" % " ".join(f"{v:.3f}" for v in RGB[layer])   # noqa: E731
     if border:
-        out.append(path([(0, 0), (w, 0), (w, h), (0, h)], True))
+        out += [rgb("FRAME"), path([(0, 0), (w, 0), (w, h), (0, h)], True)]
     if labels:
-        out.append("1 setlinecap 1 setlinejoin")
+        out += [rgb("LABEL"), "1 setlinecap 1 setlinejoin"]
         out += [path(pts, False) for lay, pts, *_ in lines if lay == "LABEL"]
         for _, sts, leader in texts(items, font):
             out += [path(st, False) for st in sts]
             if leader:
                 out.append(path([leader[0], leader[1]], False))
+        out.append("0 setlinecap 0 setlinejoin")
+    for layer in ORDER[2:]:                                   # every line sets its dash: a cut after a dashed score is solid
+        out.append(rgb(layer))
+        out += [f"[{' '.join(map(str, DASH[style][1]))}] 0 setdash " + path(pts, closed) for lay, pts, closed, style, _ in lines if lay == layer]
     out.append("%%EOF")
     return "\n".join(out)
 
