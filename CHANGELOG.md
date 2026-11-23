@@ -2,6 +2,17 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.4.1
+
+This release adds a way to look inside the 3D model.
+
+### Added
+
+- **Cut the 3D view open.** The new *section* control, next to *explode*, takes a plane square to x, y or z through
+  the model and removes what lies beyond it. 0 is off. It changes the view only, never the cut.
+
+  ![The vase cut in half across y, with the section control in the bar](web/static/news/0.4.1-section.jpg)
+
 ## 0.4.0
 
 This release makes Lamina easier for a new user: help on every setting, clearer names, a tour of the page, and one
