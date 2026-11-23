@@ -671,7 +671,8 @@ def job_proto(client: str, job: str, scale: float = 1.0, size: float = 0.0, labe
     plan, note = proto_plan(plan, scale, min_thick, offset)  # thicker material and the print's own clearance, so the slots fit
     try:
         return _zip(client, jd, plan, lambda tmp: proto_set(plan, tmp, scale, _engrave(labels), font, min_thick, note=note),
-                    f"{design_name(plan)}_{plan['mode']}_proto_x{scale:.3g}.zip")
+                    f"{design_name(plan)}_{plan['mode']}_" + ("print-plates.zip" if plan["params"].get("printed") and abs(scale - 1) < 1e-9
+                                                               else f"prototype_x{scale:.3g}.zip"))
     except RuntimeError as e:          # what the set cannot do on this computer, said in its own words (027: no scikit-image on 3.15)
         raise HTTPException(400, str(e)) from None
 
@@ -683,7 +684,7 @@ def job_fit(client: str, job: str, scale: float = 1.0, size: float = 0.0, labels
     jd, plan = _plan(client, job)
     scale = _scale(plan, scale, size)
     return _zip(client, jd, plan, lambda tmp: fit_set(plan, tmp, scale, _engrave(labels), font, min_thick, offset, step),
-                f"{design_name(plan)}_{plan['mode']}_printfit_x{scale:.3g}.zip")
+                f"{design_name(plan)}_{plan['mode']}_print-fit-test_x{scale:.3g}.zip")
 
 
 @app.get("/api/job/{client}/{job}/fitcut")
@@ -692,7 +693,7 @@ def job_fitcut(client: str, job: str, fmt: str = "svg,dxf", labels: int = 1, ste
     at slot offsets around its own, a folder of sheets each (see core.solid.fit_sheets) — zipped with a README."""
     jd, plan = _plan(client, job)
     plan, fmts = with_units(plan, units), _fmts(fmt)
-    return _zip(client, jd, plan, lambda tmp: fit_sheets(plan, tmp, fmts, bool(labels), step), f"{design_name(plan)}_{plan['mode']}_fit_{'-'.join(fmts)}.zip")
+    return _zip(client, jd, plan, lambda tmp: fit_sheets(plan, tmp, fmts, bool(labels), step), f"{design_name(plan)}_{plan['mode']}_cut-fit-test_{'-'.join(fmts)}.zip")
 
 
 @app.get("/api/job/{client}/{job}/key")

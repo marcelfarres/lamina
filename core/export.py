@@ -249,9 +249,11 @@ def mat_tag(plan, stock=""):
 
 
 def sheet_title(plan, si):
+    """What the sheet is, in its top margin: the project or the model, the technique, the stock it is cut from (its
+    material, "stock" when the job does not say), and which sheet of how many."""
     p = plan["params"]; u = p.get("units", "mm")
-    thick = f"{sheet_thickness(plan, si) * UNIT[u]:.3g} {u} {sheet_stock(plan, si) or 'stock'}"
-    return (f"{p.get('project') or ''} v{p.get('rev') or '1.0'} · {plan['mode']} · {thick} · "
+    thick = f"{sheet_thickness(plan, si) * UNIT[u]:.3g} {u} {sheet_stock(plan, si) or p.get('material') or 'stock'}"
+    return (f"{p.get('project') or p.get('model_name') or ''} v{p.get('rev') or '1.0'} · {plan['mode']} · {thick} · "
             f"{'plate' if p.get('printed') else 'sheet'} {si + 1}/{plan['sheets']}").strip(" ·")
 
 
@@ -491,7 +493,8 @@ def key_text(plan):
 
 
 # ------------------------------------------------------------------ driver
-def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, border=True, font=None, units=None, key=False, grouped=True):
+def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, border=True, font=None, units=None, key=False, grouped=True,
+           readme=True):
     out_dir = pathlib.Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
     font = font or plan["params"].get("font", 4.0); units = units or plan["params"].get("units", "mm")
     names = plan.get("codes") or {}                 # puzzle mode: engraved codes instead of positions
@@ -551,6 +554,9 @@ def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, bor
     if plan.get("standoffs"):                       # the printed connectors travel with the cut files
         from .solid import standoff_files
         written += standoff_files(plan, out_dir, design)
+    if readme:                                      # what is in the folder and how to cut it (core.readme)
+        from .readme import write_readme
+        written = write_readme(plan, out_dir, written)
     return written
 
 

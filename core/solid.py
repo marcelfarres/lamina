@@ -21,8 +21,9 @@ from shapely.geometry import LineString, Point, Polygon, MultiPolygon
 from shapely.ops import nearest_points, unary_union
 from shapely.strtree import STRtree
 import shapely
-from .export import design_name, export, rods_of
+from .export import design_name, export, key_text, rods_of
 from .geometry import dowel, even_odd, facet_polys
+from .readme import write_readme
 from .labels import PRINT_MARK, TAG_CLEAR, TAG_FONT, TAG_PAD, beside, fit_on_part, label_angles, mark_box, tag_room
 from .step import step_text
 
@@ -611,12 +612,6 @@ def _plate(plan, scene, scale, labels, font, min_thick, dx=0.0, tag=None, plates
         yield pc, m, q, where, lost
 
 
-def _readme(out_dir, lines, files):
-    if lines:
-        f = out_dir / "README.txt"; f.write_text("\n".join(lines) + "\n", encoding="utf-8"); files.append(f)
-    return files
-
-
 def _tag_note(tagged, over, font, lost=()):
     """What the README says about the parts that carry their number on a tag, and about the tags (a part's, or a
     seam number's: `lost`, (part, seam)) that found no free room on the plate."""
@@ -632,10 +627,11 @@ def _tag_note(tagged, over, font, lost=()):
 
 
 def proto_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2, plate=True, note=None):
-    """One STL per part (flat) plus plate.3mf holding every part as its own named object, and README.txt when there
-    is something to say: `note` (the re-plan, see proto_plan) and the parts that had no room for a label `font` mm
-    tall, which carry it on a tag beside them, and the print settings each plate carries (write_3mf). `font` is the
-    letter height in printed millimetres whatever the scale: a label has to be read, not scaled.
+    """One STL per part (flat) plus plate.3mf holding every part as its own named object, and README.txt (write_readme)
+    with `note` (the re-plan, see proto_plan), the parts that had no room for a label `font` mm tall, which carry it on
+    a tag beside them, and the print settings each plate carries (write_3mf). `font` is the letter height in printed
+    millimetres whatever the scale: a label has to be read, not scaled. A printed job at full size also gets its
+    assembly key, as the sheets zip does.
 
     The plate is a 3MF scene rather than one concatenated STL because a slicer treats each <object> / <build><item>
     as a separate body: OrcaSlicer and PrusaSlicer can then move, copy and arrange the parts individually.
@@ -668,7 +664,10 @@ def proto_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2
     if plain:                                             # said, not hidden: a folded panel without its grooves does not fold
         lines.append(f"this build cannot cut solids (no manifold3d, as in the browser): the parts were exported WITHOUT their {' and '.join(sorted(plain))}. "
                      "Printed folded panels need the grooves to fold: export them from the installed app")
-    return _readme(out_dir, lines + _tag_note(tagged["tag"], tagged["over"], font, lost) + _settings_note(written), files)
+    if plates is not None:                                 # the job itself, printed: the key goes with its plates (not a prototype's: it
+        f = out_dir / f"{design_name(plan)} assembly-key.txt"   # gives the rods at full size)
+        f.write_text(key_text(plan), encoding="utf-8"); files.append(f)
+    return write_readme(plan, out_dir, files, lines + _tag_note(tagged["tag"], tagged["over"], font, lost) + _settings_note(written), scale)
 
 
 # ---------------------------------------------------------------- fit test: the job's joints on a small stand-in, at offsets around its own
@@ -726,7 +725,7 @@ def fit_set(plan, out_dir, scale=1.0, labels="groove", font=5.0, min_thick=1.2, 
              f"wider than the material as printed (the print slot offset you set, {tags[steps]}, in the middle), every part engraved with its "
              "value. Print them and put each together: the loosest that slides on without forcing and still holds is the print slot offset to "
              "set (Prototyping). It says nothing about the real material at 1:1 — that is the cut-file fit test (Downloads)."]
-    return _readme(out_dir, lines + _tag_note(tagged["tag"], tagged["over"], font) + _settings_note(written), files)
+    return write_readme(plan, out_dir, files, lines + _tag_note(tagged["tag"], tagged["over"], font) + _settings_note(written), scale)
 
 
 def fit_sheets(plan, out_dir, fmts=("svg", "dxf"), labels=True, step=0.1, steps=2):
@@ -743,12 +742,12 @@ def fit_sheets(plan, out_dir, fmts=("svg", "dxf"), labels=True, step=0.1, steps=
         for sl in vp["slices"]:
             for pc in sl["pieces"]:
                 pc["label"] = tag                              # as short as the name it replaces: the label box was nested for that
-        files += export(vp, out_dir / f"fit_{tag}", fmts, labels)
+        files += export(vp, out_dir / f"fit_{tag}", fmts, labels, readme=False)
     lines = [f"Fit test for the {plan['mode']} job as cut files at 1:1, for the real machine and material: {len(tags)} small assemblies with "
              f"its joints, at slot offsets {', '.join(tags)} mm (the job's own, {tags[steps]}, in the middle), a folder of sheets each, every "
              "part labelled with its offset. Cut them and put each together: the loosest that slides on without forcing and still holds is "
              "the slot offset to set (Fit → slot offset)."]
-    return _readme(out_dir, lines, files)
+    return write_readme(plan, out_dir, files, lines)
 
 
 def main(argv=None):

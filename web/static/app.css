@@ -127,6 +127,7 @@ details.msg>summary{cursor:pointer}details.msg>summary span{opacity:.75}details.
 .sheet svg g.SCORE{stroke:#f0e442}
 .sheet svg g.GUIDE{stroke:#009e73}   /* the next layer's outline on a stacked slice: the file's orange would read as INNER here */
 .sheet svg g.LABEL{stroke:#cc79a7;fill:none}
+.sheet svg g.FRAME{stroke:#999999;fill:none}   /* the sheet's edge and title, which no machine runs: grey, told apart by where it is */
 /* A 0.15 mm line on a 600 mm sheet drawn 500 px wide is an eighth of a pixel — which is the other half of why the
    outlines could only be found by hovering them. non-scaling-stroke measures the width in pixels instead, so the
    cut lines stay a clean hairline at any zoom without the file carrying a width no machine wants. */
