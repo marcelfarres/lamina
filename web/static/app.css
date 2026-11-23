@@ -71,6 +71,7 @@ button.small{padding:3px 8px;border:1px solid var(--line);background:var(--panel
 .modes button.on,.kinds button[aria-pressed=true]{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset;background:#22304d}.modes button.on span::before,.kinds button[aria-pressed=true] span::before{content:'✓ '}
 /* what you make with: four cards like the techniques', the chosen one ticked and outlined (never by colour alone) */
 #kind{display:block;margin:0 0 4px}#kind>h2{margin-bottom:8px}#kind>.f{margin:8px 0 4px}#kind>.hint{margin:0}
+#kind>#kind_why{color:var(--ink);margin-top:4px}#kind_why:empty{display:none}   /* why the choice moved by itself */
 .kinds{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.kinds b{display:block;font-size:16px;font-weight:400;line-height:1.3}.kinds button[aria-pressed=true]{font-weight:700}.kinds button:disabled{opacity:.4;cursor:default}
 .desc{color:var(--muted);font-size:12px;margin:0 0 10px}
 .view{display:flex;flex-direction:column;min-height:0;min-width:0}

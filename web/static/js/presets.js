@@ -37,7 +37,17 @@ export const kindOfMachine=k=>({printer:'printer',router:'router'})[machineKind(
 // another technique's `connect` stays in the state)
 export const hasStandoff=()=>!!ST.mode?.params.some(p=>p.name==='connect'&&p.choices.includes('standoff'));
 export const kindOf=()=>state.printed?'printer':hasStandoff()&&state.connect==='standoff'?'mix':kindOfMachine(state.machine);
-export function syncKind(){const k=kindOf();for(const b of $$('#kind [data-kind]'))b.setAttribute('aria-pressed',b.dataset.kind===k);$('#kind [data-kind="mix"]').disabled=!hasStandoff()}
+// The choice follows the settings both ways (Marcel, 2026-11-23: "this option needs to change automatically, or an
+// informative pop up"): a setting that prints part of a cut job, or stops doing so, moves the pressed choice, and the
+// line under the block says why — no dialog. A click on the block says nothing: the person made that change
+let shown=null, from=null, clicked=false;
+export const kindClicked=()=>{clicked=true};
+function why(k){const name=$(`#kind [data-kind="${k}"] span`)?.textContent||k, m=state.material;
+  return `Now ${name}: `+(k==='printer'?`${m} is printed, not cut.`:k==='mix'?'the standoffs between the layers are printed (connect with: standoff).'
+    :from==='mix'?`nothing is printed, the layers are joined with ${state.connect==='none'?'nothing':state.connect}.`:`${m} is cut, not printed.`)}
+export function syncKind(){const k=kindOf();for(const b of $$('#kind [data-kind]'))b.setAttribute('aria-pressed',b.dataset.kind===k);$('#kind [data-kind="mix"]').disabled=!hasStandoff();
+  if(shown&&k!==shown)from=clicked?null:shown; else if(clicked)from=null;
+  $('#kind_why').textContent=from?why(k):''; shown=k; clicked=false}
 export const sameSheet=(a,b)=>a&&b&&Math.abs(a[0]-b[0])<0.01&&Math.abs(a[1]-b[1])<0.01;
 export function applyMachine(k){const x=machineOf(k);if(!x)return;
   if(state.tool_d>0&&state.gap===2*state.tool_d)state.gap=ST.mode.common.find(p=>p.name==='gap').default;   // the gap a bit set goes with the bit
