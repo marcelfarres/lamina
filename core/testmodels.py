@@ -170,24 +170,38 @@ def fold_lamp(rings=3, around=5, height=120.0):
     return trimesh.Trimesh(v / 3, faces, process=False)   # the export scales every model × 3
 
 
-def paper_lamp(n=3, height=300.0):
-    """A lamp for folded card with paper windows: three regular dodecahedra stacked face to face, each turned a tenth of
-    a turn against the one below so the pentagons they share match; the shared pentagons go, so it is one closed
-    surface of 32 regular pentagons. Every pentagon is three triangles in one plane: one flat piece, one window, and
-    every paper the same pentagon. 300 mm tall as exported."""
+def paper_lamp(edge=40.0):
+    """A lamp for folded card with paper windows, the five-leg lantern: twelve regular dodecahedra (edge 40 mm) joined
+    face to face. A raised hub, five legs of two cells each splaying down to five feet on the table, one cell on top.
+    Every pentagon two cells share goes, so it is one closed surface of 122 regular pentagons and one bulb in the hub
+    lights every cell. Every pentagon is three triangles in one plane: one flat piece, one window, and every paper the
+    same pentagon. About 400 mm across and 260 mm tall as exported; the hub's bottom pentagon, 80 mm above the table,
+    is the one the preset opens for the bulb's cable."""
     ico = trimesh.creation.icosahedron()
     d = trimesh.Trimesh(ico.triangles_center, process=False).convex_hull      # its dual: the dodecahedron
     d.apply_transform(trimesh.geometry.align_vectors(d.facets_normal[0], [0, 0, 1]))   # standing on a pentagon
-    d.apply_translation(-d.bounds.mean(0))
-    h = d.extents[2]
-    v = np.vstack([trimesh.transformations.transform_points(d.vertices, trimesh.transformations.rotation_matrix(k * np.pi / 5, [0, 0, 1]))
-                   + [0, 0, k * h] for k in range(n)])
-    m = trimesh.Trimesh(v, np.vstack([d.faces + k * len(d.vertices) for k in range(n)]), process=False)
+    n = d.facets_normal; up = np.argmax((n[:, 2] > 0.1) & (n[:, 2] < 0.9))
+    d.apply_transform(trimesh.transformations.rotation_matrix(-np.arctan2(n[up, 1], n[up, 0]), [0, 0, 1]))   # an upper face toward +x
+    # the pentagons by number: 0 the top, 1-5 the upper ring and 6-10 the lower ring (turning left from +x), 11 the bottom
+    n = d.facets_normal
+    order = np.lexsort((np.round(np.degrees(np.arctan2(n[:, 1], n[:, 0])), 3) % 360, -np.round(n[:, 2], 3)))
+    pent = np.empty(len(d.faces), int)
+    for k, f in enumerate(order):
+        pent[d.facets[f]] = k
+    # (cell, pentagon): a new cell, that cell mirrored through that pentagon, so the two share the whole pentagon.
+    # The hub's five lower faces carry the legs; each leg goes on through the face opposite, down to its foot
+    steps = [(0, 6 + j) for j in range(5)] + [(1 + j, 1 + (j + 3) % 5) for j in range(5)] + [(0, 0)]
+    cells = [(d.vertices - d.vertices.mean(0)) * edge / d.edges_unique_length[0]]
+    for parent, f in steps:
+        v = cells[parent]; a, b, c = v[d.faces[pent == f][0]]; nrm = np.cross(b - a, c - a); nrm /= np.linalg.norm(nrm)
+        cells.append(v - 2 * np.outer((v - a) @ nrm, nrm))
+    m = trimesh.Trimesh(np.vstack(cells), np.vstack([d.faces + k * len(d.vertices) for k in range(len(cells))]), process=False)
     m.merge_vertices(digits_vertex=6)
-    z, up = m.triangles_center[:, 2], np.abs(m.face_normals[:, 2]) > 0.999
-    m.update_faces(~(up & np.any([np.isclose(z, (k - 0.5) * h, atol=1e-6) for k in range(1, n)], axis=0)))   # the shared pentagons are inside
+    key = np.array([sorted(set(m.faces[k * len(d.faces) + np.flatnonzero(pent == p)].ravel())) for k in range(len(cells)) for p in range(12)])
+    _, inv, cnt = np.unique(key, axis=0, return_inverse=True, return_counts=True)   # a pentagon is its five corners
+    m.update_faces((cnt[inv.ravel()] == 1)[np.arange(len(cells)).repeat(len(d.faces)) * 12 + np.tile(pent, len(cells))])   # shared by two cells: inside
     m.remove_unreferenced_vertices(); trimesh.repair.fix_normals(m)
-    m.apply_translation(-m.bounds.mean(0)); m.apply_scale(height / m.extents[2])
+    m.apply_translation([*-m.bounds.mean(0)[:2], -m.bounds[0, 2]])            # on the table, z = 0
     return trimesh.Trimesh(m.vertices / 3, m.faces)       # the export scales every model × 3
 
 
@@ -288,7 +302,7 @@ MODELS = {
     "fold_lamp": fold_lamp,
     "fold_box": fold_box,
     "fold_lantern": lambda: fold_lamp(6, 6).apply_scale(3.5),      # the lamp shade at 420 mm, for sheet: every face a part of its own
-    # a lamp of folded card, its windows closed with paper: three dodecahedra, one window per pentagon
+    # a lamp of folded card, its windows closed with paper: twelve dodecahedra, one window per pentagon
     "paper_lamp": paper_lamp,
     # for the plaque
     "droplet": droplet,

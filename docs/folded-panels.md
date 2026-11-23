@@ -48,7 +48,7 @@ Greedy spanning tree with a priority per edge:
    one whose faces meet along a line where they share no edge (the bracket's base, cut by a boolean: laid whole, two
    of its faces lay edge to edge in the net, bug 072). Without windows the faces are laid one by one as before: on
    the lion head, with 20 flat pairs, laying them whole gave other panels and 4 warnings. On the
-   `paper_lamp` example (three dodecahedra, 32 pentagons) the panels used to cut 6 to 20 pentagons in two, depending
+   three-dodecahedra lamp (32 pentagons) the panels used to cut 6 to 20 pentagons in two, depending
    on the strategy and the tab room; now none, and it takes 5 panels instead of 10.
 4. Repeat until nothing can be attached; start the next panel.
 5. `auto` runs flat, strip, area and two randomised flat orders, and keeps the fewest panels / most compact result.
@@ -335,9 +335,14 @@ between them. The side of a box is two triangles and gets one square window. Bef
 A flat piece is not cut by a seam the program chooses (see Unfolding); one cut by a seam the user chose is two
 pieces and gets two windows. Its outline is drawn through its rim corners (`outline`), not as a union of its
 triangles: laid out one by one they meet only to rounding, and a union left pentagons in pieces.
-The example `paper_lamp` is three regular dodecahedra stacked face to face (32 pentagons, 300 mm tall) in 1 mm card
-with `window` 0.7, `windows are` paper, tab joints and the bottom pentagon removed for the bulb: 5 panels, 31
-windows and 31 papers, all the same regular pentagon, so any paper fits any window.
+The example `paper_lamp` is the five-leg lantern: twelve regular dodecahedra (40 mm edge) joined face to face, a raised
+hub, five legs of two cells down to five feet, one cell on top (122 pentagons, about 400 mm across and 260 mm tall),
+in 1 mm card with `window` 0.7, `windows are` paper and tab joints. The pentagons two cells share are open, so one
+bulb in the hub lights every cell; the hub's bottom pentagon, 80 mm above the table, is removed for the cable, and
+the Light tab's first bulb (over the middle of the foot, half the height up) is in the hub. 25 panels on 4 card
+sheets, 121 windows and 121 papers on 2 paper sheets, all the same regular pentagon, so any paper fits any window.
+It stands on its five feet and tips only past 64°. Before 0.4.0 it was three dodecahedra stacked (31 windows), and
+first the pear, which looked crooked.
 
 ### Panes: windows closed with paper
 `window_fill` = `paper` closes each window with a pane, so the light shines through it. `paper_t` is its thickness.

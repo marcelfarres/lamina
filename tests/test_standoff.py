@@ -215,3 +215,22 @@ def test_touching_layers_get_a_plain_printed_pin_and_other_connectors_no_standof
         assert gap == 0 and np.isclose(standoff_mesh(plan, gap, ends).extents[2], ends[0][0] + ends[1][0])
     for connect in ("dowel", "tab", "none"):
         assert build(EXAMPLES / "cube.stl", "stacked", {**touching, "connect": connect})["standoffs"] is None
+
+
+def test_the_step_file_holds_every_standoff():
+    """The export review (2026-11-22, finding 20): the shade's STEP had its 15 layers and none of its 42 standoffs,
+    which the STL has. Each standoff is now a solid of its own in it, named by its size and the layers it joins
+    (S1 Z-3/Z-4), closed (every edge walked once each way), standing where the STL has it."""
+    import re
+    from core.solid import solid_bytes
+    plan = build(EXAMPLES / "egg.stl", "stacked", JOB)
+    items = plan["standoffs"]["items"]
+    text = solid_bytes(plan, None, "step").decode()
+    names = re.findall(r"MANIFOLD_SOLID_BREP\('([^']*)'", text)
+    want = sorted(f"{tag} {e['lo']}/{e['hi']}" for tag, *_, its in standoff_kinds(plan) for e in its)
+    assert len(items) >= 4 and sorted(n for n in names if n.startswith("S")) == want
+    assert len(names) == len(want) + sum(len(sl["pieces"]) for sl in plan["slices"])
+    walked = re.findall(r"ORIENTED_EDGE\('',\*,\*,(#\d+),\.([TF])\.\)", text)
+    assert sorted(walked) == sorted((e, d) for e in re.findall(r"(#\d+)=EDGE_CURVE", text) for d in "TF")
+    pts = np.array([[float(x) for x in m.split(",")] for m in re.findall(r"CARTESIAN_POINT\('',\(([^)]*)\)\)", text)])
+    assert np.allclose([pts.min(0), pts.max(0)], assembled(plan).bounds, atol=1e-3)

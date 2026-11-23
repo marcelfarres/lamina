@@ -146,13 +146,14 @@ def tab_area_in_windows(plan):
 
 
 def test_the_paper_lamp_has_one_window_and_one_paper_shape_per_pentagon():
-    """Three dodecahedra, 32 pentagons less the one at the bottom, opened for the bulb: every strategy keeps each
-    pentagon whole (no seam across a flat side), so 31 windows and 31 papers, all the same pentagon."""
+    """The five-leg lantern: twelve dodecahedra, 122 pentagons less the hub's bottom one, opened for the bulb's cable.
+    Every strategy keeps each pentagon whole (no seam across a flat side), so 121 windows and 121 papers, all the same
+    pentagon, and every part lies on its sheet."""
     for strategy in ("auto", "flat", "strip", "area"):
         plan = lamp(strategy=strategy)
         papers_ = [s for s in plan["slices"] if s["label"].startswith("W-")]
         assert plan["counts"]["errors"] == plan["counts"]["warnings"] == 0, strategy
-        assert holes(plan) == 31 and len(papers_) == 31 and plan["faces3d"]["removed"] == 3, strategy
+        assert holes(plan) == 121 and len(papers_) == 121 and plan["faces3d"]["removed"] == 3, strategy
         assert len({round(s["pieces"][0]["area"], 1) for s in papers_}) == 1, strategy
 
 
@@ -163,3 +164,23 @@ def test_no_glue_tab_reaches_into_a_window():
                  cube(joint="tab", window_fill="paper"), cube(joint="multitab", window_fill="paper")):
         assert plan["counts"]["errors"] == 0
         assert tab_area_in_windows(plan) < 0.5
+
+
+def test_the_lamps_bulb_sits_in_the_hub_and_its_cable_drops_out_of_the_open_pentagon():
+    """The Light tab's first bulb stands over the middle of the model's foot, half the model's height up (light.js
+    `fresh`): on the lantern that is inside the hub, the raised cell the five legs hang from, right over the pentagon the
+    preset opens, so the cable drops straight out of the lamp."""
+    import json
+    import numpy as np
+    import trimesh
+    from shapely.geometry import Point
+    from shapely.ops import unary_union
+    m = trimesh.load(EXAMPLES / "paper_lamp.stl")
+    opened = np.array(json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))["paper_lamp"]["params"]["removed"])
+    hole = unary_union([Polygon(t[:, :2]) for t in opened]).buffer(1e-6)
+    z = opened[:, :, 2].mean(); edge = hole.exterior.length / 5
+    bulb = np.array([*m.bounds.mean(0)[:2], m.bounds[0][2] + m.extents[2] / 2])
+    hub = np.array([*hole.centroid.coords[0], z + 1.1135 * edge])           # the hub's centre: its inradius over its bottom pentagon
+    assert np.allclose(opened[:, :, 2], z) and z > 50                       # the opening is a level pentagon, raised off the table
+    assert hole.contains(Point(bulb[:2])) and bulb[2] > z                   # the bulb is right over the opening
+    assert np.linalg.norm(bulb - hub) < 1.1135 * edge                        # … and inside the hub

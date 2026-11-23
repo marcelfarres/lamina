@@ -729,18 +729,19 @@ def job_stl(client: str, job: str, part: str = ""):
 
 
 @app.get("/api/job/{client}/{job}/step")
-def job_step(client: str, job: str, part: str = ""):
-    """The same model as true solids for CAD: flat faces, no triangles (see core.step)."""
-    return _solid_file(client, job, part, "step")
+def job_step(client: str, job: str, part: str = "", body: int = 0):
+    """The same model as true solids for CAD: flat faces, no triangles (see core.step). `body` 1: the whole model
+    fused into one solid (core.solid.one_body) instead of a solid per part."""
+    return _solid_file(client, job, part, "step", bool(body))
 
 
-def _solid_file(client, job, part, fmt):
+def _solid_file(client, job, part, fmt, body=False):
     _, plan = _plan(client, job)
     try:
-        data = solid_bytes(plan, part or None, fmt)
+        data = solid_bytes(plan, part or None, fmt, body)
     except LookupError:                                       # a label of the plan, or nothing: it names the file too
         raise HTTPException(404, "no such part") from None
-    name = f"{design_name(plan)}_{plan['mode']}_{part or 'assembled'}.{fmt}"
+    name = f"{design_name(plan)}_{plan['mode']}_{part or ('onebody' if body else 'assembled')}.{fmt}"
     return Response(data, media_type=f"model/{fmt}", headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
