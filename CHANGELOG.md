@@ -82,10 +82,10 @@ Printed panels now join without glue.
 
   ![The tool column at the left of the 3D view](web/static/news/0.4.0-tools.jpg)
 
-- **A short Export tab.** Download buttons first. The rest opens with a click. A printed stack's print set holds
-  its dowel pins, each named on a tag. *STEP: one body*: the model as one solid. STEP holds standoffs too.
+- **A short Export tab.** It names each machine and gives it one main file. A fit test only where a joint needs
+  one. Print sets hold the dowel pins. *STEP: one body*: one solid. STEP holds standoffs.
 
-  ![The Export tab, with the download buttons first](web/static/news/0.4.0-export.jpg)
+  ![The Export tab: each machine named, with one main file each](web/static/news/0.4.0-export.jpg)
 
 - **A tidy top bar, a tour.** The links, *what's new* and *clear my data* are in the *help* menu, with *Tour of
   the page*. Technique buttons are cards with a drawing. What's new can point at each new control.

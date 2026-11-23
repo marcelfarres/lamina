@@ -264,6 +264,10 @@ class Plaque(Stacked):
     hidden_common = ("notch_ratio", "notch_factor", "notch_angle", "tilt", "roll")
 
     @staticmethod
+    def fit_test(p):
+        return True                     # its slices' teeth go through plate slots, whatever `connect` holds
+
+    @staticmethod
     def fit(p):
         return {}, 0.0                                  # a plaque's fit test changes no settings
 
