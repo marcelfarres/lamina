@@ -14,6 +14,11 @@ long the cut takes and what it costs, a printed guide to build from, and a secti
 
   ![Holding bridges set to 2, and a plaque part on the sheet with its two uncut stretches ringed](web/static/news/0.4.1-bridges.jpg)
 
+### Fixed
+
+- **Shared project files open safely.** A project file from someone else could run its own code in the page through
+  its unit, material, connector or light settings. Lamina now shows these settings only as text or numbers.
+
 ## 0.4.0
 
 This release makes Lamina easier for a new user: help on every setting, clearer names, a tour of the page, and one
