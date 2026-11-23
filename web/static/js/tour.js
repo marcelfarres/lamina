@@ -17,7 +17,7 @@ const library=async()=>{await showLibrary();return hideLibrary};
 export const NEW={'0.4.0':[
   {note:'Your projects in a library.', target:'#library .lbbar', open:library},
   {note:'An easier lamp, and a lantern.', target:'#libexamples .card[data-example="fold_lantern"]', open:library},
-  {note:'A tidy top bar, and a tour.', target:'details.menu:has(#helpbtn) .pop',
+  {note:'A tidy top bar, a tour.', target:'details.menu:has(#helpbtn) .pop',
     open:()=>{const d=$('details.menu:has(#helpbtn)');d.open=true;return()=>{d.open=false}}},
   {note:'Band lattice.', target:'#modes button[data-m="bands"]', open:tab('technique')},
   {note:'Settings that are easy to read.', target:'#level', open:()=>{tab('technique')();   // the other of basic / all, pressed
