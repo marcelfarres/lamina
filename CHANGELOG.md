@@ -74,7 +74,7 @@ layers. New too: the band lattice, a library for your projects, masks, paper lan
   ![The Technique tab: full names, folding sections, the search box and the basic / all switch](web/static/news/0.4.0-settings.jpg)
 
 - **Choose your machine first.** At the top of *Sheet & fit*, pick laser, router, 3D printer, or laser + 3D printer.
-  Lamina puts the settings that machine does not need behind one click.
+  Printed standoffs switch it for you. Settings that machine does not need wait behind one click.
 
   ![What you make with, at the top of Sheet & fit: four choices and the machine under them](web/static/news/0.4.0-machine.jpg)
 

@@ -132,6 +132,26 @@ def test_laser_and_printer_together_only_where_layers_stack(page):
     assert page.is_enabled(mix)
 
 
+def test_the_choice_follows_a_setting_that_prints_part_of_the_job(page):
+    """Marcel, 2026-11-23: a laser job whose layers go onto printed standoffs becomes laser + 3D printer by itself, and
+    laser again when they go; the line under the choice says why, with no dialog; one undo takes the change back; a
+    click on the choice itself needs no line."""
+    use(page, "egg", "stacked")
+    why = lambda: page.text_content("#kind_why")                         # noqa: E731
+    pressed = lambda: page.evaluate("() => [...document.querySelectorAll('#kind [aria-pressed=true]')].map(b => b.dataset.kind)")   # noqa: E731
+    set_fields(page, [("p_connect", "standoff")]); settle(page)
+    assert pressed() == ["mix"] and why().startswith("Now Laser + 3D printer:") and "standoffs" in why(), why()
+    assert not state(page)["printed"] and plan(page)["params"]["connect"] == "standoff"
+    set_fields(page, [("p_connect", "dowel")]); settle(page)
+    assert pressed() == ["laser"] and why().startswith("Now Laser: nothing is printed") and "dowel" in why(), why()
+    page.click("#undo"); settle(page)
+    assert pressed() == ["mix"] and state(page)["connect"] == "standoff" and "standoffs" in why(), "one undo takes it back"
+    assert not page.locator("dialog[open]").count()
+    page.click('nav button[data-t="sheet"]')
+    kind(page, "laser")
+    assert pressed() == ["laser"] and why() == "", "a click on the choice needs no line"
+
+
 def test_a_machine_that_cannot_cut_the_material_brings_one_it_can(page):
     """A fiber laser cuts metal: picked on a cardboard job, it brings steel with it rather than a job it cannot cut."""
     page.click('nav button[data-t="sheet"]')

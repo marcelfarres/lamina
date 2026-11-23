@@ -594,7 +594,8 @@ sheets are always the same plan.
 - **Model**: quarter-turn buttons and three angles to re-orient it, scale or target size, and Modify Form: shrinkwrap,
   hollow, thicken, round (drops features thinner than a radius) and smooth (Taubin passes for pointy vertices).
 - **Material, machine, sheet**: Sheet & fit starts with **What you make with**: laser, router, 3D printer, or laser +
-  3D printer (stacked layers on printed standoffs). The choice sets the machine with its values and bed, and a material
+  3D printer (stacked layers on printed standoffs: picking standoffs switches to it, and back, with a line saying why).
+  The choice sets the machine with its values and bed, and a material
   it can make; a setting that machine has no use for waits under its section's **+ more** line. 21 materials — paper,
   card, cardboard, greyboard, plywood, MDF, basswood, balsa, acrylic, polypropylene, foam board, EVA foam, steel, stainless steel, aluminium, brass, copper, leather, fabric, and
   PLA and PETG to 3D-print the parts at full size (whole layers for thicknesses, print beds for sheets: picking one, or

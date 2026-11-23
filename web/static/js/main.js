@@ -7,7 +7,7 @@ import {deselect, pivot3, rnd, hit, highlight, pick} from './edit3d.js';
 import {fmtLen, DU, applyUnit} from './units.js';
 import {step, undos, redos} from './history.js';
 import {showNews, whatsNew, phoneNotice, news} from './news.js';
-import {matOf, matThicks, machineOf, kind, applyMachine, gapForBit, shs, sameSheet, userMachines, syncPresetSelects, userMaterials, dens, fam, renderPresets, PKEYS, kindOfMachine, hasStandoff} from './presets.js';
+import {matOf, matThicks, machineOf, kind, applyMachine, gapForBit, shs, sameSheet, userMachines, syncPresetSelects, userMaterials, dens, fam, renderPresets, PKEYS, kindOfMachine, hasStandoff, kindClicked} from './presets.js';
 import {setMode, renderFields, schedule, resetTab, showTab, memo, MODEL_BOUND, allParams, sizeAxes, findRows} from './form.js';
 import {spcXY} from './spacing.js';
 import {slice, oops, popup, LOCAL_DOC} from './slice.js';
@@ -54,7 +54,7 @@ function useMachine(k){const x=machineOf(k);if(!x)return;applyMachine(k);
 // this kind had on this visit (with its material, thickness and sheet), else the kind's own; laser + 3D printer is a
 // laser or router job on printed standoffs. One slice after it, so one step of undo
 const last={};
-function setKind(k){const from=kindOfMachine(state.machine),g=k==='mix'?(from==='router'?'router':'laser'):k;
+function setKind(k){kindClicked();const from=kindOfMachine(state.machine),g=k==='mix'?(from==='router'?'router':'laser'):k;
   if(from!==g){last[from]={machine:state.machine,material:state.material,thickness:state.thickness,sheet:[...state.sheet]};
     const back=machineOf(last[g]?.machine)?last[g]:null; if(back)Object.assign(state,structuredClone(back));
     useMachine(back?.machine||{laser:'co2',router:'router',printer:'fdm'}[g])}
