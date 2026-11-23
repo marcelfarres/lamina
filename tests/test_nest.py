@@ -377,3 +377,48 @@ def test_two_turns_of_a_part_never_drop_the_same_kept_union():
     with ThreadPoolExecutor(8) as pool:                    # eight new shapes at once
         spots = list(pool.map(lambda i: ask(sh, rect(40 + i, 12)), range(8)))
     assert all(xy is not None for xy in spots) and len(sh.nfp) <= 16
+
+
+def _strip_part(label="P-1", length=620.0, width=30.0, turn=30.0):
+    """A long strip of card turned `turn` degrees in its own frame: at its tightest angle (the minimum rectangle) it is
+    longer than a 600 mm sheet, upright it fits."""
+    from types import SimpleNamespace
+    from shapely import affinity
+    from shapely.geometry import box
+    from core.geometry import as_multi
+    from core.model import Piece
+    g = as_multi(affinity.rotate(box(0, 0, length, width), turn, origin=(0, 0)))
+    sl = SimpleNamespace(label=label, lines=[], marks=[], warnings=[], errors=[], facets=None, thickness=1, cover=None, stock="")
+    pc = Piece(label, g, sl); sl.pieces = [pc]
+    return sl, pc
+
+
+@pytest.mark.parametrize("many", [0, 10_000], ids=["rect_path", "polygon_path"])
+def test_a_part_that_fits_only_upright_is_nested_upright_on_the_sheet(monkeypatch, many):
+    """Bug 073: a slanted card panel 632 x 176 mm at its tightest angle fits a 600 x 400 sheet upright (547 x 356); the
+    nester tried only the tightest angle and its quarter turns, and laid it past the sheet's edge with no error."""
+    from core.split import fits_rotated
+    monkeypatch.setattr(nest, "MANY", many)
+    sl, pc = _strip_part()
+    assert fits_rotated(pc.geom, (600, 400), 5)
+    nest.nest([pc], (600, 400), 3, 5)
+    x0, y0, x1, y1 = pc.placed.bounds
+    assert x0 >= -0.01 and y0 >= -0.01 and x1 <= 600.01 and y1 <= 400.01, pc.placed.bounds
+
+
+def test_a_part_laid_past_the_sheet_edge_is_an_error():
+    """The plan never ships a cut file with a part off its sheet in silence: a part that fits the sheet but lies past its
+    edge is an error (bug 073); a part too big for any sheet keeps its own error only (_oversize)."""
+    from shapely import affinity
+    from core.plan import _past_the_edge
+    p = {"sheet": [600, 400], "sheet_margin": 5, "grain": False, "one_sheet": False}
+    sl, pc = _strip_part()
+    t = affinity.rotate(pc.geom, -30, origin=(0, 0)); b = t.bounds                # laid at its tightest angle, where it does not fit
+    pc.placed, pc.place = affinity.translate(t, 5 - b[0], 5 - b[1]), (0, 5, 5, -30)
+    assert pc.placed.bounds[2] > 600 and _past_the_edge([sl], p) == 1 and "past the edge of sheet 1" in sl.errors[0]
+    big, bp = _strip_part(length=900, turn=0)
+    bp.placed, bp.place = affinity.translate(bp.geom, 5, 5), (0, 5, 5, 0)
+    assert _past_the_edge([big], p) == 0 and not big.errors                 # too big for any sheet: _oversize says so
+    ok, op = _strip_part()
+    nest.nest([op], (600, 400), 3, 5)
+    assert _past_the_edge([ok], p) == 0 and not ok.errors

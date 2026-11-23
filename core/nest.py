@@ -114,6 +114,22 @@ def _oversize(pc, rot0, sheet_i, margin):
     return Placed(pc, sheet_i, rot0, dx, dy, as_multi(_move(pc.kerfed, rot0, dx, dy)), at=(margin, margin))
 
 
+def fit_angle(g, job):
+    """The angle the nester turns a part to before it tries its quarter turns: its minimum-rectangle angle, the tightest,
+    when the part fits the sheet that way; else the first whole degree at which its box does (bug 073: a long, slanted
+    card panel 632 x 176 mm at its minimum-rectangle angle fits a 600 x 400 sheet upright, 547 x 356, and was placed
+    past the sheet's edge at the angle that did not fit, with no error). A part that fits at no angle keeps the
+    minimum-rectangle angle: it is too big for the sheet, and that is said elsewhere (plan._oversize)."""
+    W, H = job.sheet[0] - 2 * job.margin - 2 * TOL, job.sheet[1] - 2 * job.margin - 2 * TOL   # the nester grows every part by TOL
+
+    def fits(a):
+        x0, y0, x1, y1 = affinity.rotate(g, a, origin=(0, 0)).bounds
+        w, h = x1 - x0, y1 - y0
+        return (w <= W and h <= H) or (h <= W and w <= H)
+    r0 = min_rect_angle(g)
+    return r0 if fits(r0) else next((float(a) for a in range(180) if fits(a)), r0)
+
+
 def _rect_nest(prepared, job):
     """Rectangle packing of the parts' minimum bounding boxes — the path for many pieces. Above `MANY` parts the
     polygon nesting is far slower (quadratic in the part count) and, measured on 200 and 400 identical crescents with
@@ -204,7 +220,7 @@ def _nest(pieces, job):
             if fit_on_part(pc.kerfed, pc.parent.cover, w, h, keep, label_angles(pc.kerfed), room=min(2.0, 0.3 * job.font * 0.65)) is None:
                 x0, y0, x1, y1 = pc.kerfed.bounds; cx = (x0 + x1) / 2
                 pc.nest_shape = as_multi(unary_union([pc.kerfed, box(cx - w / 2, y1 + 1.0, cx + w / 2, y1 + 1.0 + h)]))
-        prepared.append((pc, 0.0 if job.grain else min_rect_angle(pc.nest_shape)))
+        prepared.append((pc, 0.0 if job.grain else fit_angle(pc.nest_shape, job)))
     placed = _rect_nest(prepared, job) if len(prepared) > MANY else _poly_nest(prepared, job)
     count = _count
     if len(prepared) <= MANY and count(placed) > 1:
