@@ -87,8 +87,8 @@ inside to see it as a lamp.
 
   ![The Export tab, with the download buttons first](web/static/news/0.4.0-export.jpg)
 
-- **A tidy top bar.** The links, *what's new* and *clear my data* are in the *help* menu. The technique buttons are
-  cards with a drawing.
+- **A tidy top bar, and a tour.** The links, *what's new* and *clear my data* are in the *help* menu, with *Tour of
+  the page*. Technique buttons are cards with a drawing. What's new can point at each new control.
 
   ![The help menu open, and the technique cards](web/static/news/0.4.0-cards.jpg)
 
@@ -126,8 +126,8 @@ inside to see it as a lamp.
 
 - **Puzzle tabs on tall split parts.** A part split across its height now gets puzzle tabs, as one split across its
   width does, and every piece still fits the sheet.
-- **Cleaner seams in stiff sheet.** A small panel is no longer cut too small at a seam, and no specks are left
-  beside it.
+- **Cleaner seams and router slots.** A small panel is no longer cut too small at a seam, and no specks are left
+  beside it. On a router, the bit reaches every slot corner, and parts lie twice the bit apart.
 - **Zip projects open at their size.** A project file from a download zip was read as one from an older
   version.
 - **Every dowel is cut.** Where a layer narrows, two dowels could land on each other and both were left out with

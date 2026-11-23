@@ -16,7 +16,7 @@ from .stacked import Stacked
 from ..model import Slice
 from ..geometry import as_lines, as_multi, frame, frame_xy, rot_about, to_local, to_world
 from ..labels import mark_box, mark_rot
-from ..notch import interlock
+from ..notch import interlock, relief
 from ..plate import SHAPES, plate_shape
 
 BIG = 1e5
@@ -599,14 +599,11 @@ class Plaque(Stacked):
                     hw, ht = (w + so) / 2, (sl.thickness + so) / 2
                     edge = [(c - hw, -plate_t / 2), (c + hw, -plate_t / 2)]
                     slot = Polygon([*across(sl.M, Mp, edge, -ht), *across(sl.M, Mp, edge[::-1], ht)])
-                    r = p["tool_d"] / 2
-                    if r > 0 and p["relief"] != "square":
-                        # A round bit leaves the slot's four corners round and the square tooth stops short of them:
-                        # the same relief as every other slot, a bit-wide circle through each corner — dogbone on
-                        # the diagonal, a T-bone along the slot or across it.
-                        along, over = {"dogbone": (-r / math.sqrt(2), r / math.sqrt(2)), "tbone_h": (-r, 0.0)}.get(p["relief"], (0.0, r))
-                        slot = unary_union([slot, *[Point(*across(sl.M, Mp, [(c + sx * (hw + along), -plate_t / 2)], sz * (ht + over))[0]).buffer(r, 16)
-                                                    for sx in (1, -1) for sz in (1, -1)]])
+                    # A round bit leaves the slot's four corners round and the square tooth stops short of them: the
+                    # same relief as every other slot, in (along the slice, across it) with the slot in -sx, -sz
+                    rcs = [relief(np.array([c + sx * hw, sz * ht]), np.array([-sx, 0.0]), np.array([0.0, -sz]), p) for sx in (1, -1) for sz in (1, -1)]
+                    if rcs[0]:
+                        slot = unary_union([slot, *[Point(*across(sl.M, Mp, [(u, -plate_t / 2)], v)[0]).buffer(R, 16) for (u, v), R in rcs]])
                     out.append((box(c - w / 2, -plate_t, c + w / 2, 0.02), slot, tuple(to_world(sl.M, [(c, -plate_t / 2)])[0])))
         return out
 

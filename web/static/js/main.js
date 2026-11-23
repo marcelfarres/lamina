@@ -7,7 +7,7 @@ import {deselect, pivot3, rnd, hit, highlight, pick} from './edit3d.js';
 import {fmtLen, DU, applyUnit} from './units.js';
 import {step, undos, redos} from './history.js';
 import {showNews, whatsNew, phoneNotice, news} from './news.js';
-import {matOf, matThicks, machineOf, kind, applyMachine, shs, sameSheet, userMachines, syncPresetSelects, userMaterials, dens, fam, renderPresets, PKEYS} from './presets.js';
+import {matOf, matThicks, machineOf, kind, applyMachine, gapForBit, shs, sameSheet, userMachines, syncPresetSelects, userMaterials, dens, fam, renderPresets, PKEYS} from './presets.js';
 import {setMode, renderFields, schedule, resetTab, showTab, memo, MODEL_BOUND, allParams, sizeAxes, findRows} from './form.js';
 import {spcXY} from './spacing.js';
 import {slice, oops, popup, LOCAL_DOC} from './slice.js';
@@ -125,7 +125,7 @@ async function init(){
     setMode(pr.mode,false);for(const k of Object.keys(memo))delete memo[k];Object.assign(state,{rotate:[0,0,0],size:[0,0,0],scale:1,round:0,thicken:0,shrinkwrap:0,smooth:0,hollow:0},structuredClone(pr.params));   // the gap between slices is the technique's own default (setMode): a plaque's is 3 mm, and a forced 0 made its slices touch
     if(pr.params.material)$('#material').onchange({target:{value:pr.params.material}});
     const m=state.material||'cardboard', next=pr.params.machine||(machineOf(was)?.cuts.includes(kind(m))?was:matOf(m).machine);
-    if(next===was)Object.assign(state,fit); else applyMachine(next);
+    if(next===was){Object.assign(state,fit);gapForBit()} else applyMachine(next);
     clearTimeout(ST.timer);ST.timer=null;renderFields()};
   // the file box lets go of the upload too: left holding it, choosing that same file again fires no change and loads nothing
   // every way into an example comes here (the library page's Examples, which "pick an example…" opens)

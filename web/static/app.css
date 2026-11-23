@@ -179,3 +179,14 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
 #newsdlg code{background:var(--panel2);border-radius:3px;padding:0 4px;font:12px ui-monospace,monospace}
 #helpdlg{max-height:82vh;overflow:auto}#helpdlg h4{margin:18px 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 #helpdlg ol,#helpdlg ul{margin:4px 0;padding-left:20px}#helpdlg li{margin:3px 0}#helpdlg kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;font:12px ui-monospace,monospace}
+/* the guided tour (js/tour.js). The ring's shadow dims the page round the part it shows, so the part is the bright
+   one, with an outline; the bubble points at it with an arrow. No colour carries any of it. */
+#tourring{position:fixed;z-index:45;pointer-events:none;border-radius:8px;outline:3px solid #fff;box-shadow:0 0 0 4px #000,0 0 0 9999px #000a}#tourring[hidden]{display:none}
+#tourdlg{position:fixed;z-index:70;margin:0;inset:auto;width:min(340px,calc(100vw - 32px));padding:12px 14px 10px;border-color:#fff6;box-shadow:0 10px 30px #000c;font-size:13px;overflow:visible}
+#tourdlg h4{margin:0 0 4px;font-size:14px}#tourdlg .ov{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px}#tourdlg .tx p{margin:0 0 6px}
+#tourdlg .row{margin-top:8px;align-items:center;gap:8px}#tourdlg .row .n{flex:1;color:var(--muted);font-size:12px}#tourdlg button{padding:5px 11px;font-size:12px}
+#tourdlg button.skip{background:none;border:0;color:var(--muted);text-decoration:underline;padding:5px 2px}
+#tourdlg::before{content:'';position:absolute;width:14px;height:14px;background:var(--panel);border:1px solid #fff6;transform:rotate(45deg)}#tourdlg[data-side=inside]::before{display:none}
+#tourdlg[data-side=below]::before{top:-8px;left:var(--a);border-right:0;border-bottom:0}#tourdlg[data-side=above]::before{bottom:-8px;left:var(--a);border-left:0;border-top:0}
+#tourdlg[data-side=right]::before{left:-8px;top:var(--a);border-top:0;border-right:0}#tourdlg[data-side=left]::before{right:-8px;top:var(--a);border-bottom:0;border-left:0}
+#news_tour{display:flex;gap:10px;align-items:center;margin:4px 0 12px}#news_tour[hidden]{display:none}#news_tour button{white-space:nowrap}
