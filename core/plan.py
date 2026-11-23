@@ -204,6 +204,7 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     kerf = p["kerf"] if p["compensate"] else 0.0       # off by default: many machines compensate their own kerf
     tag = label_tag(p, model_path)                     # the model's name, engraved before every label: nested with room for it
     n_sheets = nest(pieces, p["sheet"], p["gap"], p["sheet_margin"], kerf, p["labels"], p["font"], tag, p["label_place"], p["grain"], p["printed"])
+    _past_the_edge(slices, p)
     if p["tool_d"] > 0 and (close := _closer_than(pieces, p["tool_d"])):   # a bit cuts its own width round each part
         d, a, b = close[0]
         ctx.warnings.append(f"{len(close)} pair(s) of parts lie closer on the sheet than the {p['tool_d']:g} mm bit (closest: {a} "
@@ -336,6 +337,23 @@ def _oversize(slices, p, sheet0, mesh, ctx):
     ctx.errors.append(f"{len(over)} part(s) are bigger than the {sheet0[0]:g} × {sheet0[1]:g} mm sheet: "
                       f"set `size` to about {fit_txt} mm ({f:.0%} of this model)"
                       + (", or use a bigger sheet" if p["one_sheet"] else ", use a bigger sheet, or turn on `one_sheet`"))
+
+
+def _past_the_edge(slices, p):
+    """Every part that fits the sheet is on it once nested: one laid past the sheet's edge is an error, never a silent
+    overhang in the cut file (bug 073: a card panel laid at an angle where it did not fit, 0 errors). A part too big for
+    any sheet has its error already (_oversize). Runs before the errors are counted. Returns how many it added."""
+    W, H = p["sheet"]; added = 0
+    for sl in slices:
+        for pc in sl.pieces:
+            x0, y0, x1, y1 = pc.placed.bounds
+            past = x0 < -0.01 or y0 < -0.01 or x1 > W + 0.01 or (y1 > H + 0.01 and not p["one_sheet"])   # one long sheet grows to fit
+            if past and fits_rotated(pc.geom, p["sheet"], p["sheet_margin"], p["grain"]):
+                sl.errors.append(f"{pc.label} is laid past the edge of sheet {pc.place[0] + 1} (to {max(x1, W):.0f} × {max(y1, H):.0f} mm on "
+                                 f"{W:g} × {H:g}), though it fits the sheet turned: the cut file would run off the sheet. Please report it; "
+                                 "a slightly bigger sheet or another face size lays it out again")
+                added += 1
+    return added
 
 
 def _slice_json(sl):

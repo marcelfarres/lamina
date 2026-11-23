@@ -6,7 +6,8 @@ goes to its lowest, then leftmost, vertex: it slides into concavities and holes,
 corners of bounding boxes. Deepnest computes the Minkowski sum with Clipper; here each outline is cut into convex
 pieces (constrained Delaunay triangles merged while they stay convex) and the sum is the union of the hulls of the
 piece pairs, which shapely does (core/nofit.py). Parts are placed one by one, largest first, each tried at its
-minimum-rectangle angle plus quarter turns (with `grain`, as it stands or upside down); labels afterwards, in free
+minimum-rectangle angle plus quarter turns, or, when the part does not lie on the sheet at
+that angle, at one where it does (fit_angle) (with `grain`, as it stands or upside down); labels afterwards, in free
 space next to each part, with a leader line.
 
 Not taken from Deepnest: its genetic algorithm over the part order and rotations (minutes of search for a few
@@ -114,6 +115,22 @@ def _oversize(pc, rot0, sheet_i, margin):
     return Placed(pc, sheet_i, rot0, dx, dy, as_multi(_move(pc.kerfed, rot0, dx, dy)), at=(margin, margin))
 
 
+def fit_angle(g, job):
+    """The angle the nester turns a part to before it tries its quarter turns: its minimum-rectangle angle, the tightest,
+    or that plus a quarter turn, whichever lies on the sheet as it is; else the first whole degree at which its box does
+    (bug 073: a long, slanted card panel, 632 x 176 mm at its tightest angle, fits a 600 x 400 sheet upright, 547 x 356,
+    and was placed past the sheet's edge at the angle that did not fit, with no error). A part with no room left for the
+    gap lands at this angle at the margin (_oversize), so it is one at which the part lies on the sheet. A part that fits
+    at no angle keeps its tightest one: it is too big for the sheet, and plan._oversize says so."""
+    W, H = job.sheet[0] - 2 * job.margin, job.sheet[1] - 2 * job.margin
+
+    def lies(a):
+        x0, y0, x1, y1 = affinity.rotate(g, a, origin=(0, 0)).bounds
+        return x1 - x0 <= W + 1e-9 and y1 - y0 <= H + 1e-9
+    r0 = min_rect_angle(g)
+    return next((a for a in (r0, r0 + 90) if lies(a)), next((float(a) for a in range(180) if lies(a)), r0))
+
+
 def _rect_nest(prepared, job):
     """Rectangle packing of the parts' minimum bounding boxes — the path for many pieces. Above `MANY` parts the
     polygon nesting is far slower (quadratic in the part count) and, measured on 200 and 400 identical crescents with
@@ -204,7 +221,7 @@ def _nest(pieces, job):
             if fit_on_part(pc.kerfed, pc.parent.cover, w, h, keep, label_angles(pc.kerfed), room=min(2.0, 0.3 * job.font * 0.65)) is None:
                 x0, y0, x1, y1 = pc.kerfed.bounds; cx = (x0 + x1) / 2
                 pc.nest_shape = as_multi(unary_union([pc.kerfed, box(cx - w / 2, y1 + 1.0, cx + w / 2, y1 + 1.0 + h)]))
-        prepared.append((pc, 0.0 if job.grain else min_rect_angle(pc.nest_shape)))
+        prepared.append((pc, 0.0 if job.grain else fit_angle(pc.nest_shape, job)))
     placed = _rect_nest(prepared, job) if len(prepared) > MANY else _poly_nest(prepared, job)
     count = _count
     if len(prepared) <= MANY and count(placed) > 1:
