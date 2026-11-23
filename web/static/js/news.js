@@ -1,5 +1,6 @@
 import {$, ls, lsSet} from './util.js';
 import {popup} from './slice.js';
+import {NEW, start} from './tour.js';
 
 // What's new. CHANGELOG.md is the one copy — the server serves it and the published build copies it beside the
 // page, so the same relative path works either way, and its first `## x.y.z` heading *is* the version: nothing to
@@ -34,10 +35,19 @@ export async function news(){
   }
   return NEWS;
 }
+// The tour of what is new in these versions (tour.js NEW): each step says its own entry, the sentences under its bold
+// title up to its picture. A step whose entry is not in the notes is left out (and fails tests/ui/test_tour.py)
+const entry=(body,note)=>{const e=body.replace(/\r\n?/g,'\n').split(/^- /m).find(p=>p.startsWith(`**${note}**`));
+  return e&&md2html(e.slice(note.length+4).split(/\n\s*\n/)[0])};
+export const tourOf=vs=>vs.flatMap(s=>(NEW[s.v]||[]).map(r=>({...r,title:r.note.replace(/\.$/,''),over:`What is new in ${s.v}`,text:entry(s.body,r.note)}))).filter(s=>s.text);
 export async function showNews(n){                              // the n newest versions (the header button: all of them)
   const vs=(await news()).slice(0,n); if(!vs.length)return;
   $('#news_title').textContent=vs.length>1?'What’s new':`What’s new in ${vs[0].v}`;
   $('#news_body').innerHTML=vs.map(s=>(vs.length>1?`<h5>Version ${s.v}</h5>`:'')+md2html(s.body)).join('');
+  // under the title, not beside OK: the notes are long, and a button at their foot was off the screen
+  const steps=tourOf(vs); $('#news_tour').hidden=!steps.length;
+  $('#news_tour span').textContent=`${steps.length} steps: it opens each tab or tool, points at what is new, and puts it back`;
+  $('#news_tour button').onclick=()=>{$('#newsdlg').close();start(steps,{skip:'end the tour'})};
   if(!$('#newsdlg').open)$('#newsdlg').showModal();
   $('#newsdlg').scrollTop=0;                             // focus lands on OK, which would otherwise open it at the end
 }

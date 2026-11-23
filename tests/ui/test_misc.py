@@ -50,6 +50,7 @@ def test_what_is_new_shows_itself_once_when_the_version_changes(page, server):
     # fix must not hide the release it fixed
     reload_with(versions[2])
     assert page.locator("#newsdlg[open]").count(), "a new version did not announce itself"
+    assert page.locator("#news_tour:not([hidden])").count(), "no button to the tour of what is new under the title"
     assert heads() == versions[:2] and len(page.text_content("#news_body")) > 200, heads()
     page.click("#news_go")
 
