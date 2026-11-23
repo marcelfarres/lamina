@@ -2,6 +2,13 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.4.1
+
+### Fixed
+
+- **Shared project files open safely.** A project file from someone else could run its own code in the page through
+  its unit, material, connector or light settings. Lamina now shows these settings only as text or numbers.
+
 ## 0.4.0
 
 This release makes Lamina easier for a new user: help on every setting, clearer names, a tour of the page, and one
