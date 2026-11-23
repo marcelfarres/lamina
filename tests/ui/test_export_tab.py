@@ -63,7 +63,9 @@ def test_a_printed_job_shows_its_print_set_and_no_cut_file(page):
     use(page, "vase")
     stock(page, material="PETG")
     assert page.evaluate("() => window.__t.state().printed")
-    assert page.text_content("#fit_title") == "1 · Fit test — print this first" and page.is_visible("#fit_what_print")
+    assert page.text_content("#fit_title") == "1 · Fit test — print this first"
+    page.click("#fit_info > summary")                                       # what the fit test is: the printing words
+    assert page.is_visible("#fit_what_print") and not page.is_visible("#fit_what")
     links = page.evaluate(SHOWN_LINKS)
     assert any("/fit?" in h for h in links) and not any("/fitcut" in h or "/export?" in h for h in links), links
     assert "dowel pins" in page.inner_text("#pr_go a")
