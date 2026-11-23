@@ -87,7 +87,7 @@ inside to see it as a lamp.
 
   ![The Export tab, with the download buttons first](web/static/news/0.4.0-export.jpg)
 
-- **A tidy top bar, and a tour.** The links, *what's new* and *clear my data* are in the *help* menu, with *Tour of
+- **A tidy top bar, a tour.** The links, *what's new* and *clear my data* are in the *help* menu, with *Tour of
   the page*. Technique buttons are cards with a drawing. What's new can point at each new control.
 
   ![The help menu open, and the technique cards](web/static/news/0.4.0-cards.jpg)
