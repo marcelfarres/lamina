@@ -123,6 +123,14 @@ def swap_in(write, dest, waits=(0, 0.05, 0.1, 0.2, 0.4, 0.8)):
         tmp.unlink(missing_ok=True)
 
 
+def _closer_than(pieces, d):
+    """Pairs of parts on one sheet less than `d` apart as laid, (distance, label, label), closest first."""
+    geoms = [pc.placed for pc in pieces]
+    a, b = shapely.STRtree(geoms).query(geoms, predicate="dwithin", distance=d - 1e-6)
+    return sorted((geoms[i].distance(geoms[j]), pieces[i].label, pieces[j].label)
+                  for i, j in zip(a, b) if i < j and pieces[i].place[0] == pieces[j].place[0])
+
+
 def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     mode = MODES[mode_name]()                       # its own instance: a technique may keep this build's state on itself
     p = coerce_params(mode, raw_params)
@@ -188,10 +196,6 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
         else:
             sl.pieces = islands(sl) if sl.facets is None else [Piece(sl.label, sl.profile, sl, sl.lines, sl.marks)]   # a folded net stays whole
     _oversize(slices, p, sheet0, mesh, ctx)
-    # counted once the parts are cut: splitting a slice, cutting a ring into pieces and a piece too big for the sheet
-    # add their own warnings and errors, which the count taken at the check left out (bug 052: "0 warnings" above them)
-    n_err = sum(len(s.errors) for s in slices) + len(ctx.errors) + len(dropped)
-    n_warn = sum(len(s.warnings) for s in slices) + len(ctx.warnings)
     pieces = [pc for sl in slices for pc in sl.pieces]
     if p["orient_mark"]:                               # the same two directions on every part: which way is up, which face is the front
         for pc in pieces:                               # placed after the dowel and seam marks, in the room they leave
@@ -200,6 +204,15 @@ def build(model_path, mode_name, raw_params, out=None, mesh_out=None):
     kerf = p["kerf"] if p["compensate"] else 0.0       # off by default: many machines compensate their own kerf
     tag = label_tag(p, model_path)                     # the model's name, engraved before every label: nested with room for it
     n_sheets = nest(pieces, p["sheet"], p["gap"], p["sheet_margin"], kerf, p["labels"], p["font"], tag, p["label_place"], p["grain"], p["printed"])
+    if p["tool_d"] > 0 and (close := _closer_than(pieces, p["tool_d"])):   # a bit cuts its own width round each part
+        d, a, b = close[0]
+        ctx.warnings.append(f"{len(close)} pair(s) of parts lie closer on the sheet than the {p['tool_d']:g} mm bit (closest: {a} "
+                            f"and {b}, {d:.2f} mm): the bit that cuts round one cuts into the other. Set the gap between parts "
+                            f"to {2 * p['tool_d']:g} mm, twice the bit, as the router machines do")
+    # counted once the parts are cut and laid: splitting a slice, cutting a ring into pieces, a piece too big for the
+    # sheet and parts too close for the bit add their own, which the count taken at the check left out (bug 052)
+    n_err = sum(len(s.errors) for s in slices) + len(ctx.errors) + len(dropped)
+    n_warn = sum(len(s.warnings) for s in slices) + len(ctx.warnings)
     if crowded := [pc.label for pc in pieces if pc.crowded]:
         notes.append(f"no free spot beside {len(crowded)} part(s) for their labels ({', '.join(crowded[:6])}{'…' if len(crowded) > 6 else ''}): "
                      "they sit on the part, overrunning it where it is small — a smaller font, a bigger gap or sheet, or `label_model` off gives them room")

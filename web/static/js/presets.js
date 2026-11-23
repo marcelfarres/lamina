@@ -26,7 +26,10 @@ export const machineOf=k=>MACHINES[k]||userMachines()[k];
 const machinesFor=m=>[...Object.keys(MACHINES),...Object.keys(userMachines())].filter(k=>machineOf(k).cuts.includes(m));
 export const sameSheet=(a,b)=>a&&b&&Math.abs(a[0]-b[0])<0.01&&Math.abs(a[1]-b[1])<0.01;
 export function applyMachine(k){const x=machineOf(k);if(!x)return;state.machine=k;state.kerf=x.kerf;state.slot_offset=x.slot;state.relief=x.relief;state.tool_d=x.tool;
-  if(x.beds.length===1)state.sheet=[...x.beds[0][1]]}    // a machine by name has one bed, and that is the sheet
+  gapForBit();if(x.beds.length===1)state.sheet=[...x.beds[0][1]]}    // a machine by name has one bed, and that is the sheet
+// a bit cuts its own width round each part: parts closer than that are cut into by their neighbour's path. Twice the
+// bit leaves room for both paths and a holding tab; the plan warns below one bit
+export const gapForBit=()=>{if(state.tool_d>0)state.gap=Math.max(state.gap??0,2*state.tool_d)};
 export function syncPresetSelects(){
   const m=state.material||(state.material='cardboard'); if(!machineOf(state.machine)?.cuts.includes(kind(m)))state.machine=matOf(m).machine;
   // the 3D look follows the material however it changed (an example, a project, undo): cardboard, the default, shows

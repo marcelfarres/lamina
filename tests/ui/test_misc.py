@@ -115,6 +115,18 @@ def test_an_example_keeps_the_machine_s_values(page):
     assert st() == ["bambu_h2c", 0.2, 0.2]
 
 
+def test_a_router_lays_the_parts_two_bits_apart(page):
+    """A bit cuts its own width round each part: a router sets the gap between parts to twice its bit, the Sheet tab's
+    reset keeps that, and the plan is laid with it. The 3 mm laser gap left 3.18 mm between parts for a 3.175 mm bit."""
+    gap = lambda: page.evaluate("() => [window.__t.state().gap, window.__t.plan().params.gap]")   # noqa: E731
+    use(page, "torus")
+    page.click('nav button[data-t="sheet"]')
+    page.select_option("#material", "plywood"); settle(page)
+    page.select_option("#machine", "shapeoko"); settle(page)
+    assert gap() == [6.35, 6.35]
+    page.click('button.reset[data-reset="sheet"]'); settle(page)
+    assert page.evaluate("() => window.__t.state().machine") == "shapeoko" and gap() == [6.35, 6.35]
+
 def test_the_notes_keep_their_lists_from_a_windows_checkout(page, server):
     """A Windows checkout serves CHANGELOG.md with CRLF line endings: a blank line is then \r\n\r\n, and the dialog
     showed a whole version as one paragraph with its bullets inline (reported). Served that way, every bullet of the
