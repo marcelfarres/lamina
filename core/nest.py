@@ -6,7 +6,8 @@ goes to its lowest, then leftmost, vertex: it slides into concavities and holes,
 corners of bounding boxes. Deepnest computes the Minkowski sum with Clipper; here each outline is cut into convex
 pieces (constrained Delaunay triangles merged while they stay convex) and the sum is the union of the hulls of the
 piece pairs, which shapely does (core/nofit.py). Parts are placed one by one, largest first, each tried at its
-minimum-rectangle angle plus quarter turns (with `grain`, as it stands or upside down); labels afterwards, in free
+minimum-rectangle angle plus quarter turns, or, when the part does not lie on the sheet at
+that angle, at one where it does (fit_angle) (with `grain`, as it stands or upside down); labels afterwards, in free
 space next to each part, with a leader line.
 
 Not taken from Deepnest: its genetic algorithm over the part order and rotations (minutes of search for a few

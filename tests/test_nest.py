@@ -426,8 +426,10 @@ def test_a_part_laid_past_the_sheet_edge_is_an_error():
 
 def test_the_crown_ring_lays_every_part_on_its_sheet():
     """The model that showed bug 073: twelve dodecahedra in a ring (tests/data/crown_ring.stl, one of the paper-lamp
-    options), folded card with paper windows on 600 x 400 sheets. P-2 (632 x 176 mm at its tightest angle) ran to x 637
-    and P-4 to x 615, with 0 errors. Now every part lies on its sheet, and the plan has no error."""
+    options), folded card with paper windows on 600 x 400 sheets. On release/0.4.0 e65831b P-2 (632 x 176 mm at its
+    tightest angle) ran to x 637 and P-4 to x 615, with 0 errors. Every part lies on its sheet now, with no error. (On
+    ed749bd the panels come out otherwise and no part runs off even with the old angle: the strip tests above are the
+    ones that fail without the fix.)"""
     data = pathlib.Path(__file__).resolve().parent / "data"
     plan = build(data / "crown_ring.stl", "folded", {"material": "card", "thickness": 1, "facet": 0, "joint": "tab", "window": 0.7,
                                                       "window_fill": "paper", "autofix": "off"})
