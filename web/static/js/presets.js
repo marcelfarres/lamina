@@ -1,6 +1,6 @@
 import {state, ST} from './state.js';
 import {MATERIALS, SHEETS, IN, MACHINES} from './catalog.js';
-import {ls, $, esc} from './util.js';
+import {ls, $, $$, esc} from './util.js';
 import {DU, DUNIT} from './units.js';
 import {applyLook} from './scene.js';
 
@@ -29,9 +29,19 @@ export const machineOf=k=>MACHINES[k]||userMachines()[k];
 export function machineKind(k){const b=MACHINES[k]?k:userMachines()[k]?.base,m=MACHINES[b]||{};
   return m.cuts?.some(c=>MATERIALS[c]?.family==='print')?['⬢','3D PRINTER','printer']:m.tool>0?['⚙','CNC ROUTER','router']:b==='hand'?['✎','BY HAND','hand']
     :b==='plasma'?['✂','PLASMA CUTTER','plasma']:m.kerf===0?['✂','KNIFE CUTTER','knife']:['✂','LASER','laser']}
-const machinesFor=m=>[...Object.keys(MACHINES),...Object.keys(userMachines())].filter(k=>machineOf(k).cuts.includes(m));
+// What you make with, as the block at the top of Sheet & fit names it (#kind). A knife, plasma or by hand count as a
+// laser, as the tour's laser path says. Derived, never stored: undo, project files, presets and examples carry what it
+// is made of — `printed`, a stacked job's standoffs, the machine
+export const kindOfMachine=k=>({printer:'printer',router:'router'})[machineKind(k)[2]]||'laser';
+// a technique whose layers can stand on printed standoffs: the fourth choice, laser + 3D printer (read from the schema:
+// another technique's `connect` stays in the state)
+export const hasStandoff=()=>!!ST.mode?.params.some(p=>p.name==='connect'&&p.choices.includes('standoff'));
+export const kindOf=()=>state.printed?'printer':hasStandoff()&&state.connect==='standoff'?'mix':kindOfMachine(state.machine);
+export function syncKind(){const k=kindOf();for(const b of $$('#kind [data-kind]'))b.setAttribute('aria-pressed',b.dataset.kind===k);$('#kind [data-kind="mix"]').disabled=!hasStandoff()}
 export const sameSheet=(a,b)=>a&&b&&Math.abs(a[0]-b[0])<0.01&&Math.abs(a[1]-b[1])<0.01;
-export function applyMachine(k){const x=machineOf(k);if(!x)return;state.machine=k;state.kerf=x.kerf;state.slot_offset=x.slot;state.relief=x.relief;state.tool_d=x.tool;
+export function applyMachine(k){const x=machineOf(k);if(!x)return;
+  if(state.tool_d>0&&state.gap===2*state.tool_d)state.gap=ST.mode.common.find(p=>p.name==='gap').default;   // the gap a bit set goes with the bit
+  state.machine=k;state.kerf=x.kerf;state.slot_offset=x.slot;state.relief=x.relief;state.tool_d=x.tool;
   gapForBit();if(x.beds.length===1)state.sheet=[...x.beds[0][1]]}    // a machine by name has one bed, and that is the sheet
 // a bit cuts its own width round each part: parts closer than that are cut into by their neighbour's path. Twice the
 // bit leaves room for both paths and a holding tab; the plan warns below one bit
@@ -47,7 +57,9 @@ export function syncPresetSelects(){
   $('#material').innerHTML=names.map(n=>`<option value="${esc(n)}" ${n===m?'selected':''}>${esc(n)}</option>`).join('');
   // the density box shows the stored g/cm³ in the unit on show and is never read back, so switching units cannot drift it
   $('#density').value=+(dens()*DU()).toPrecision(4); $('#density').previousElementSibling.textContent=`density (${DUNIT()})`;
-  $('#machine').innerHTML=machinesFor(kind(m)).map(k=>`<option value="${esc(k)}" ${k===state.machine?'selected':''}>${esc(machineOf(k).name)}</option>`).join('');
+  // the machines of the kind in use, yours among them by the built-in they were made from
+  const g=kindOfMachine(state.machine), ks=[...Object.keys(MACHINES),...Object.keys(userMachines())].filter(k=>kindOfMachine(k)===g);
+  $('#machine').innerHTML=ks.map(k=>`<option value="${esc(k)}" ${k===state.machine?'selected':''}>${esc(machineOf(k).name)}</option>`).join('');
   $('#thicklist').innerHTML='<option value="">— pick —</option>'+matThicks(m).map(e=>`<option value="${e[0]}" ${Math.abs(e[0]-state.thickness)<1e-6?'selected':''}>${thickLabel(e)}</option>`).join('');
   $('#sheetpreset').innerHTML='<option value="">— pick —</option>'+shs().map(([n,s],i)=>`<option value="${i}" ${sameSheet(s,state.sheet)?'selected':''}>${n}</option>`).join('');
 }

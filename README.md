@@ -517,7 +517,7 @@ does not slip through. It carries the most signal for stacked and folded work; d
 - **Calibration bar** (`scale_check`): every export carries a calibration bar, 10 cm or 4 in following the units, to cut first and
   measure before committing to the whole set.
 - **Kerf compensation is off by default**: many machines compensate their own kerf, and compensating twice ruins
-  the fit. Turn it on under Machine & cut compensation when yours does not.
+  the fit. Turn it on under Cut compensation (Sheet & fit) when yours does not.
 - **Solids**: STL of the assembled model or one part, the same as **STEP** for CAD (every part and standoff a body
   with flat faces, no triangles: Fusion, FreeCAD, Onshape) or as **STEP: one body**, the whole model fused into one
   solid (every part, standoff and dowel joined where they touch, grown by 0.02 mm so they do; not in the browser
@@ -593,10 +593,12 @@ sheets are always the same plan.
   turn. A layer nothing joins is never deleted — the Checks tab says what would hold it.
 - **Model**: quarter-turn buttons and three angles to re-orient it, scale or target size, and Modify Form: shrinkwrap,
   hollow, thicken, round (drops features thinner than a radius) and smooth (Taubin passes for pointy vertices).
-- **Material, machine, sheet**: 21 materials — paper, card, cardboard, greyboard, plywood, MDF, basswood, balsa,
-  acrylic, polypropylene, foam board, EVA foam, steel, stainless steel, aluminium, brass, copper, leather, fabric, and
-  PLA and PETG to 3D-print the parts at full size (whole layers for thicknesses, print beds for sheets: picking one
-  ticks **3D printed**, the page counts plates and the Export tab offers one 3MF per plate instead of cut files; a
+- **Material, machine, sheet**: Sheet & fit starts with **What you make with**: laser, router, 3D printer, or laser +
+  3D printer (stacked layers on printed standoffs). The choice sets the machine with its values and bed, and a material
+  it can make; a setting that machine has no use for waits under its section's **+ more** line. 21 materials — paper,
+  card, cardboard, greyboard, plywood, MDF, basswood, balsa, acrylic, polypropylene, foam board, EVA foam, steel, stainless steel, aluminium, brass, copper, leather, fabric, and
+  PLA and PETG to 3D-print the parts at full size (whole layers for thicknesses, print beds for sheets: picking one, or
+  3D printer, turns on **3D printed**, the page counts plates and the Export tab offers one 3MF per plate instead of cut files; a
   stacked job's dowels come as printed pins in `pins-1.3mf`, each `pin_fit` thinner than the dowel and named on a tag). The
   material sets its stock thicknesses (sheet steel by Manufacturers' Standard Gauge and stainless by its own gauge
   table, copper by ounces per square foot, chipboard by points, plate, plywood, acrylic and model wood by fraction of

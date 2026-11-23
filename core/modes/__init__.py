@@ -108,8 +108,8 @@ COMMON: list[Param] = [
     P("thickness", "number", 1.5, "Material thickness (mm). Paper 0.3 mm, card 1 mm, cardboard 3 mm, steel 1–2 mm, plywood 3–6 mm", 0.05, 100, 0.05, group="sheet", unit="mm"),
     P("sheet", "vec2", [600, 400], "Sheet size width, height (mm)", 10, 5000, 1, group="sheet", unit="mm", label="sheet size"),
     P("printed", "bool", False, "3D printed, not cut: each sheet is one build plate (the sheet size is the printer's bed), "
-      "and the print set on the Export tab comes out as one 3MF per plate at full size instead of cut files. Picking PLA "
-      "or PETG ticks it", group="sheet", label="3D printed"),
+      "and the print set on the Export tab comes out as one 3MF per plate at full size instead of cut files. Set by "
+      "choosing 3D printer under What you make with (Sheet & fit), or PLA or PETG as the material", group="sheet", label="3D printed"),
     P("scale_check", "bool", True, "Add a calibration bar to every export — 10 cm, or 4 in when the units are inches — to cut first and measure before committing to the whole set", group="sheet", label="calibration bar"),
     P("sheet_margin", "number", 5, "Keep-out from the sheet edge (mm)", 0, 100, 0.5, group="sheet", unit="mm", label="sheet edge margin", section="Layout — how the parts sit on the sheet"),
     P("gap", "number", 3, "Gap between parts on the sheet (mm)", 0, 50, 0.5, group="sheet", unit="mm", label="gap between parts"),

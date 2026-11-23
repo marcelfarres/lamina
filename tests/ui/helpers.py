@@ -68,8 +68,9 @@ def sweep_values(schema):
     close enough that no slice takes a minute. Returns [(input id, value), …] and {name: expected in the plan}."""
     ids, want = [], {}
     for p in schema:
-        if p["type"] not in TYPED or p["group"] == "hidden" or p["name"] == "units":
-            continue                                 # units changes how every other box reads: its own test below
+        if p["type"] not in TYPED or p["group"] == "hidden" or p["name"] in ("units", "printed"):
+            continue                                 # units changes how every other box reads: its own test below; printed
+                                                     # has no box, What you make with sets it (test_machine_choice)
         name, d = p["name"], p["default"]
         if p["type"] == "bool":
             v = not d

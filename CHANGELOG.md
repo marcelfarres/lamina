@@ -73,8 +73,10 @@ layers. New too: the band lattice, a library for your projects, masks, paper lan
 
   ![The Technique tab: full names, folding sections, the search box and the basic / all switch](web/static/news/0.4.0-settings.jpg)
 
-- **Choose your machine first.** At the top of *Sheet & fit*, pick the machine that makes the piece: laser, router
-  or 3D printer. Lamina then hides the settings that machine does not need.
+- **Choose your machine first.** At the top of *Sheet & fit*, pick laser, router, 3D printer, or laser + 3D printer.
+  Lamina puts the settings that machine does not need behind one click.
+
+  ![What you make with, at the top of Sheet & fit: four choices and the machine under them](web/static/news/0.4.0-machine.jpg)
 
 - **The spacing graph, under its tick.** Start the curve from a shape, add or move points with buttons, and see
   every slice under the curve.

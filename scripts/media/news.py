@@ -291,6 +291,12 @@ def n040_settings(app):                     # one ring round the search box and 
     app.shot("0.4.0-settings", (0, 40, 470, 760), [((f[0], f[1], f[2], lv[3]), "find a setting, basic / all")])
 
 
+def n040_machine(app):                      # the four choices and the machine under them, at the top of Sheet & fit
+    app.example("vase", "stacked")
+    app.tab("sheet")
+    app.shot("0.4.0-machine", (0, 40, 470, app.box("#kind")[3] + 110), [("#kind", "what you make with")])
+
+
 def n040_spacing(app):
     app.example("vase", "stacked")          # the vase opens with vary the spacing on
     app.level("basic")

@@ -116,11 +116,16 @@ def test_on_his_own_work_the_tour_only_points(page):
 
 
 def test_every_machine_has_a_path_and_every_path_an_example(page):
-    r = page.evaluate(f"""async () => {{ const M = {PATHS}, C = await import(new URL('static/js/catalog.js', document.baseURI));
-        return {{to: Object.fromEntries(Object.keys(C.MACHINES).map(k => [k, M.pathOf(k)])),
+    """Each choice of What you make with is a path, every built-in machine falls under one of them, and each path's
+    example exists."""
+    r = page.evaluate(f"""async () => {{ const M = {PATHS}, C = await import(new URL('static/js/catalog.js', document.baseURI)),
+        P = await import(new URL('static/js/presets.js', document.baseURI));
+        return {{to: Object.fromEntries(Object.keys(C.MACHINES).map(k => [k, P.kindOfMachine(k)])), paths: Object.keys(M.PATHS),
+                 kinds: [...document.querySelectorAll('#kind [data-kind]')].map(b => b.dataset.kind),
                  examples: Object.values(M.PATHS).map(p => p.example), have: await (await fetch('api/examples')).json()}} }}""")
+    assert r["paths"] == r["kinds"], r
     assert set(r["to"].values()) == {"laser", "router", "printer"}, r["to"]
-    assert r["to"]["co2"] == "laser" and r["to"]["router"] == "router", r["to"]
+    assert (r["to"]["co2"], r["to"]["router"], r["to"]["bambu_h2c"], r["to"]["knife"]) == ("laser", "router", "printer", "laser"), r["to"]
     assert not [e for e in r["examples"] if e not in r["have"]], r
 
 
