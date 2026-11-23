@@ -19,7 +19,9 @@ import {foldUp, seamsFolded, sameEnds} from './seams.js';
 // a click on one puts it back.
 // Three looks, never colour alone: selected = hatched, removed = a dashed outline, the user's seam = a thick line.
 // As in seams.js, nothing here reaches into another module before initFaces().
-const hatched=new THREE.ShaderMaterial({transparent:true,side:THREE.DoubleSide,depthWrite:false,   // stripes in screen pixels, the same on every face
+// stripes in screen pixels, the same on every face; the 3D view hatches a paper part's window with it too (scene.js:
+// it is made here, where it is used at load, and scene.js only draws with it: the two modules import each other)
+export const hatched=new THREE.ShaderMaterial({transparent:true,side:THREE.DoubleSide,depthWrite:false,
   vertexShader:'void main(){gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
   fragmentShader:'void main(){gl_FragColor=vec4(0.94,0.89,0.26,mod(gl_FragCoord.x+gl_FragCoord.y,10.0)<4.0?0.95:0.3);}'});
 const geo=()=>new THREE.BufferGeometry();

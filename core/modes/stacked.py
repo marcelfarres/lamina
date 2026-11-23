@@ -80,8 +80,9 @@ class Stacked(Mode):
         Param("shoulder", "number", 2.0, "How much wider than its pin the standoff's body is, all round (mm): the ledge a layer rests on. "
               "A wider shoulder needs more room in each layer", 0.5, 20, 0.5,
               unit="mm", show_if=("connect", "standoff"), label="standoff shoulder"),
-        Param("pin_fit", "number", 0.1, "The standoff's pins are printed this much thinner than the dowel diameter (mm). Pins too tight: "
-              "raise it. Too loose: lower it, below 0 for a press fit", -1, 1, 0.05, unit="mm", show_if=("connect", "standoff"), label="standoff pin fit"),
+        Param("pin_fit", "number", 0.1, "Printed pins are this much thinner than the dowel diameter (mm): a standoff's pins, and the dowel "
+              "pins a printed (PLA, PETG) job prints with its layers. Pins too tight: raise it. Too loose: lower it, below 0 for a "
+              "press fit", -1, 1, 0.05, unit="mm", show_if=("connect", ["dowel", "standoff"]), label="pin fit"),
         Param("standoff_hinge", "number", 0.4, "A standoff prints as two halves, flat side down, touching along one edge. They are joined along that "
               "edge over this height (mm): two print layers. Fold the halves together about it. Breaks when folded: raise it. Too "
               "stiff to close: lower it",

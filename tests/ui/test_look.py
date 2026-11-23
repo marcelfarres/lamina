@@ -2,7 +2,7 @@
 two-family technique (a radial job's ring slices, an interlocked job's Y slices) carries a stripe pattern the first
 does not, under every look, the band lattice's third family stripes the other way, and a part with errors carries a
 net of dark lines on top of its red. The library's picture of the model does not change with the lamp."""
-from .helpers import ON_PART, ROOT, example, settle, state, use
+from .helpers import ON_PART, ROOT, example, plan, set_fields, settle, state, use
 
 KINDS = """() => window.__t.parts().filter(m => m.userData.group !== 'B').map(m => ({group: m.userData.group,
   bad: m.userData.bad, striped: !!m.material.map, net: m.children.some(c => c.material?.wireframe)}))"""
@@ -67,6 +67,23 @@ def test_the_band_lattice_tells_its_three_families_apart_by_pattern(page):
     luma = [page.evaluate(LUMA, g) for g in "XZ"]                               # under cardboard, the last look
     assert abs(luma[0] - luma[1]) >= 40, luma
     page.select_option("#look", "group")
+
+
+def test_the_band_sphere_shows_three_families_and_the_checks_tab_names_a_band_that_cannot_slide_in(page):
+    """Marcel's interface test, step 3: the sphere example on the Band lattice card. Sliced, the 3D view holds its three
+    ring families, told apart by pattern, and nothing is an error. With the bands that cannot slide in whole left
+    uncut, the Checks tab names each one as an error, and a click on one selects that band."""
+    use(page, "sphere", "bands")
+    assert all(kinds(page, group=g) for g in "XYZ") and plan(page)["counts"]["errors"] == 0
+    assert not any(k["striped"] for k in kinds(page, group="X")) and all(k["striped"] for k in kinds(page, group="Y") + kinds(page, group="Z"))
+    page.click('nav button[data-t="checks"]')
+    assert "cannot slide in" not in page.inner_text("#report")
+    set_fields(page, [("p_band_cuts", False)]); settle(page)
+    stuck = page.locator("#report .msg.err[data-s]", has_text="cannot slide in whole")
+    assert stuck.count() and all(t.startswith("✖ ERROR") for t in stuck.all_inner_texts())
+    label = stuck.first.get_attribute("data-s")
+    stuck.first.click()
+    assert page.is_visible("#sel") and label in page.inner_text("#sel b")
 
 
 LAMP = "on => { const b = document.querySelector('#lamp'); b.checked = on; b.dispatchEvent(new Event('change')) }"

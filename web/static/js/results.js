@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {state, ST} from './state.js';
 import {$$, $, status, esc, CLIENT} from './util.js';
-import {highlight} from './edit3d.js';
+import {highlight, showPane} from './edit3d.js';
 import {fmtLen, fmtMass, fmtVol, fmtArea, DU, DUNIT, inU, inUnit, toMM} from './units.js';
 import {act} from './history.js';
 import {dens} from './presets.js';
@@ -22,7 +22,7 @@ export function renderSheets(svgs){
   for(const p of $$('#sheets path[data-label]'))if(bad.has(p.dataset.label))p.setAttribute('stroke','#ff5555');
   $('#sheets').onclick=e=>{const a=e.target.closest('a[data-open]');if(a){const s=$$('#sheets svg')[+a.dataset.open].cloneNode(true);s.querySelector('g.seams')?.remove();window.open(URL.createObjectURL(new Blob([s.outerHTML],{type:'image/svg+xml'})));return}
     const edge=e.target.closest('line.hit');if(edge)return toggleSeam(+edge.dataset.k);   // choosing seams: an edge of the net
-    const p=e.target.closest('path[data-label]');if(!p)return;const lab=pieceToSlice()[p.dataset.label],m=parts.children.find(c=>c.userData.slice===lab);if(m)highlight(m)};
+    const p=e.target.closest('path[data-label]');if(!p)return;const lab=pieceToSlice()[p.dataset.label],m=parts.children.find(c=>c.userData.slice===lab);if(m)highlight(m);else showPane(lab)};
   if(ST.selected)hlSheet(ST.selected);
   sheetSeams();
 }
@@ -77,7 +77,7 @@ export function renderDownloads(){ // the labels checkbox applies to every cut f
   // a printed job has nothing to cut: the plates are under Print, and the cut files and their fit test step aside
   for(const el of $$('.cutonly,.protoonly'))el.hidden=state.printed;
   $('#pr_title').textContent=state.printed?'Print plates':'Prototyping (3D print)'; if(state.printed)$('#pr_fold').open=true;   // a printed job: the plates are the files
-  $('#pr_go').textContent=state.printed?`download print plates (plate-1.3mf … plate-${ST.plan.sheets}.3mf, one per bed, + one STL per part)`
+  $('#pr_go').textContent=state.printed?`download print plates (plate-1.3mf … plate-${ST.plan.sheets}.3mf, one per bed, + one STL per part${ST.plan.rods?.length?' + pins-1.3mf, the dowel pins':''})`
     :'download prototype set (plate.3mf for OrcaSlicer + one STL per part)';
   // every file says what it is for: eight buttons in a row left the reader to know which program wants which format
   const rows=r=>r.map(([t,u,use])=>`<div class="r"><a href="${u}">${t}</a>${use?`<details class="info"><summary>what is it for?</summary><span class="hint">${use}</span></details>`:''}</div>`).join('');
@@ -128,7 +128,7 @@ export function renderReport(){
   for(const el of $$('.fix'))el.onclick=e=>{e.stopPropagation();applyFix(JSON.parse(el.dataset.fix))};
   for(const box of [$('#msgs'),$('#report')])box.onclick=e=>{   // clicking a message selects the part it is about, in 3D and on the sheet
     if(e.target.closest('.fix'))return; const d=e.target.closest('.msg[data-s]'); if(!d)return;
-    const m=parts.children.find(c=>c.userData.slice===d.dataset.s); if(m){highlight(m);ST.fitted=true}};
+    const m=parts.children.find(c=>c.userData.slice===d.dataset.s); if(m){highlight(m);ST.fitted=true}else showPane(d.dataset.s)};
   renderDownloads();
   // the link itself does the download (a navigation on the server, a blob from the worker in the browser build)
   const prq=()=>new URLSearchParams({scale:state.printed?1:$('#pr_scale').value||1,size:state.printed?0:lenMM('#pr_size'),labels:$('#pr_labels').value,font:state.printed?state.font:lenMM('#pr_font',5),min_thick:lenMM('#pr_min',1.2),offset:state.printed?state.slot_offset:lenMM('#pr_offset',0.2)});
@@ -148,6 +148,6 @@ export function renderReport(){
   $('#parts').innerHTML=`<table><tr><th>part</th><th>qty</th><th>group</th><th>t (${ST.unit})</th><th>size (${ST.unit})</th><th>engages</th><th class="k" data-tip="The other pieces cut from this part's file. ⇄ = its mirror image: cut it from the same file and turn it over (only when mirror ok is on)">same part</th><th>status</th></tr>${kinds.map(([s,pc,ls,fl])=>{
     const ss=ls.map(l=>sliceOf[l]||s), e=ss.reduce((n,x)=>n+x.errors.length,0), w=ss.reduce((n,x)=>n+x.warnings.length,0), also=ls.slice(1).map(l=>fl.includes(l)?l+'⇄':l);
     return `<tr class="${e?'bad':''}" data-s="${s.label}"><td>${pc.label}${s.note?' '+s.note:''}</td><td>${ls.length}</td><td>${s.group}</td><td>${inU(s.thickness)}</td><td>${size(pc)}</td><td>${[...new Set(s.engages)].join(', ')}</td><td title="${also.join(', ')}">${also.slice(0,3).join(', ')}${also.length>3?` +${also.length-3}`:''}</td><td>${e?'✗ '+e:w?'⚠ '+w:'✓'}</td></tr>`}).join('')}</table>`;
-  $('#parts').onclick=e=>{const tr=e.target.closest('tr[data-s]');if(!tr)return;const m=parts.children.find(c=>c.userData.slice===tr.dataset.s);if(m)highlight(m)};
+  $('#parts').onclick=e=>{const tr=e.target.closest('tr[data-s]');if(!tr)return;const m=parts.children.find(c=>c.userData.slice===tr.dataset.s);if(m)highlight(m);else showPane(tr.dataset.s)};
 }
 

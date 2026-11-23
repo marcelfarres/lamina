@@ -374,6 +374,48 @@ def test_every_part_of_a_printed_plate_has_a_number_on_it_or_on_a_tag(tmp_path):
     assert all(n in readme for n in tagged) and "snap the tag off" in readme and "no free room" not in readme
 
 
+def test_a_printed_stacked_job_prints_one_pin_per_dowel(tmp_path):
+    """Marcel, 2026-11-22: "Yes, add pins to the export". A printed stacked job's print set had its layers and no
+    dowels (print-lab drew the pins of prints 9 and 10 with a script of its own). Its pins now come on beds of their
+    own, pins-1.3mf …: one per dowel, named as the assembly key and the marks by its holes name it, on a tag; its
+    section the dowel's less the pin fit, its length the key's less PIN_END. With random placement every dowel is one
+    pair of holes; aligned, a straight dowel through several layers is one long pin."""
+    from shapely.geometry import MultiPoint
+    from core.export import rods_of
+    from core.solid import CHIP_H, LETTER_H, PIN_END, pin_files
+    bed, job = [256, 256], {"printed": True, "size": [0, 0, 60], "thickness": 4, "connect": "dowel", "dowel_d": 3,
+                            "dowel_shape": "square", "n_points": 2, "pin_fit": 0.2, "autofix": "off"}
+    plan = build(EXAMPLES / "egg.stl", "stacked", {**job, "sheet": bed, "placement": "random"})
+    pairs, rods, margin = [r[5] for r in plan["rods"]], rods_of(plan), plan["params"]["sheet_margin"]
+    assert len(pairs) >= 10 and len(set(pairs)) == len(pairs) == len(rods)  # random: every dowel one pair of holes
+    files = proto_set(plan, tmp_path)
+    pins = {}
+    for f in (f for f in files if f.name.startswith("pins-")):
+        scene = trimesh.load(f)
+        for name in scene.graph.nodes_geometry:
+            M, g = scene.graph[name]; m = scene.geometry[g].copy(); m.apply_transform(M)
+            lo, hi = m.bounds
+            assert m.body_count == 1 and lo[:2].min() >= margin - 1e-6 and (hi[:2] <= np.array(bed) - margin + 1e-6).all(), (name, lo, hi)
+            kind, h = _number(m)
+            assert kind == "tag" and h >= 4 - 0.05, (name, kind, h)           # its name on a tag, 4 mm letters
+            top = m.vertices[m.vertices[:, 2] > CHIP_H + LETTER_H + 0.01]      # above the tag: the pin's top face
+            r = MultiPoint(top[:, :2]).minimum_rotated_rectangle.exterior.coords
+            pins[name] = sorted(np.hypot(*np.subtract(r[i + 1], r[i])) for i in (0, 1)), top[:, 2].max()
+    assert sorted(pins) == sorted(rods)                                        # one pin per dowel, each named as the key
+    for name, ((wide, long), z) in pins.items():
+        assert abs(wide - 2.8) < 1e-3 and abs(z - 2.8) < 1e-6, (name, wide, z)   # 3 mm dowel less 0.2 fit, both ways
+        assert abs(long - (rods[name]["length"] - PIN_END)) < 1e-3, (name, long, rods[name]["length"])
+    readme = (tmp_path / "README.txt").read_text(encoding="utf-8")
+    assert "pins-N.3mf" in readme
+    for f in (f for f in files if f.name.startswith("pins-")):                # their print settings, as every 3MF has them:
+        assert {s.get("layer_height") for s in _print_settings(f).values()} == {"0.2"}   # 2.8 mm on the bed is 0.2 + 13 layers
+        assert f"{f.name} carries the print settings" in readme
+    aligned = build(EXAMPLES / "egg.stl", "stacked", {**job, "sheet": bed, "placement": "aligned"})
+    straight = rods_of(aligned)
+    assert len(straight) < len(aligned["rods"])                                # dowels through several layers
+    assert sum(len(trimesh.load(f).geometry) for f in pin_files(aligned, tmp_path)) == len(straight)
+
+
 def test_every_seam_number_of_a_printed_panel_is_on_the_print_and_readable(tmp_path):
     """Bug 064: a printed folded panel's seam numbers were not on the print at all (marks at 0.6 of the font, too thin
     for a nozzle; on a glue tab, which prints as the hinge skin only). Now each is cut into the panel 5 mm tall, its
@@ -413,7 +455,9 @@ def test_every_seam_number_of_a_printed_panel_is_on_the_print_and_readable(tmp_p
 def test_a_seam_number_that_reads_as_another_upside_down_has_a_dot(tmp_path):
     """A seam number 6 turned along its edge reads as 9 (Marcel, 2026-11-22: "Add a dot after 6 and 9", as Pepakura
     does). Every number that turned reads as another gets a dot after it, on the laser sheet and on the print; the
-    rest stay plain. Measured on the exported sheet: the dot is one more stroke in the number's engraving."""
+    rest stay plain. Measured on the exported sheet: the laser's dot is 1 mm across, filled
+    with rings a kerf apart (Marcel: "A bigger dot on the laser": the font's '.' was a 0.3 mm point), less on a
+    short edge whose number was made smaller."""
     from core.font import strokes
     from core.labels import seam_text
     assert [seam_text(j) for j in (6, 9, 16, 91, 68, 18, 106)] == ["6.", "9.", "16.", "91.", "68.", "18.", "106."]
@@ -429,8 +473,12 @@ def test_a_seam_number_that_reads_as_another_upside_down_has_a_dot(tmp_path):
     sheets = list(tmp_path.glob(f"{design_name(plan)} sheet*.svg"))
     paths = [p for s in sheets for p in etree.parse(str(s)).xpath('//svg:path[@data-text="6." or @data-text="9."]', namespaces=SVG_NS)]
     assert paths
+    across = []
     for p in paths:
-        assert p.get("d").count("M") == len(strokes(p.get("data-text")[0], 3.0)) + 1, p.get("data-text")
+        subs = [np.array(re.findall(r"-?\d+\.\d+", s), float).reshape(-1, 2) for s in p.get("d").split("M")[1:]]
+        dot = np.vstack(subs[len(strokes(p.get("data-text")[0], 3.0)):])   # after the digit's strokes: the dot's rings
+        across.append(max(np.ptp(dot @ [np.cos(a), np.sin(a)]) for a in np.linspace(0, np.pi, 9)))
+    assert all(0.6 < a < 1.05 for a in across) and max(across) > 0.95, across
 
 
 def test_a_printed_job_comes_out_as_one_plate_per_bed(tmp_path):

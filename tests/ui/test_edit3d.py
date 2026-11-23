@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-from .helpers import settle, plan, set_fields, still, ON_PART, state, use
+from .helpers import EDGE_ON_MODEL, settle, plan, set_fields, still, ON_PART, state, use
 
 
 @pytest.mark.timeout(900)
@@ -311,11 +311,7 @@ def test_a_seam_is_chosen_on_the_model_or_on_a_sheet_and_shows_on_both(page):
     views; a seam of the user's is marked on the model and on both panel edges it lies on; a click on it gives it back;
     a drag along an edge paints a seam, and turns nothing: in this tool the right button turns the view."""
     # the middle of an edge of one kind: on the model (facing the camera, nearest the middle of the view) and on a sheet
-    on_model = """kind => { const cam = __t.camera, V3 = cam.position.constructor, r = __t.canvas().getBoundingClientRect(); let best = null;
-      for (const e of __t.plan().edges3d) { if (e[1] !== kind) continue; const mid = new V3(...e[2]).add(new V3(...e[3])).multiplyScalar(.5), to = mid.clone().sub(cam.position);
-        if (new V3(...e[4]).dot(to) > -0.5 * to.length()) continue; const q = mid.clone().project(cam), x = r.left + (q.x + 1) / 2 * r.width, y = r.top + (1 - q.y) / 2 * r.height;
-        const d = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2)); if (!best || d < best.d) best = {k: e[0], x, y, d} }
-      return best }"""
+    on_model = EDGE_ON_MODEL
     on_sheet = """kind => { const K = new Map(__t.plan().edges3d.map(e => [e[0], e[1]]));
       const l = [...document.querySelectorAll('#sheets line.hit')].find(l => K.get(+l.dataset.k) === kind); l.scrollIntoView({block: 'center'});
       const b = l.getBoundingClientRect(); return {k: +l.dataset.k, x: b.left + b.width / 2, y: b.top + b.height / 2} }"""
@@ -479,3 +475,31 @@ def test_selected_faces_are_merged_into_one_flat_face_and_unmerged(page):
     back = page.evaluate(seen); assert back["groups"] == back["flat"] == 0, back
     page.click("#undo"); wait(); assert page.evaluate(seen)["groups"] == 1
     page.keyboard.press("Escape")
+
+
+def test_a_paper_part_and_its_window_select_each_other(page):
+    """Asked for (review of paper lamps): no number on the frame says where a paper goes, so the 3D view does. A click
+    on a paper part on the sheet selects its panel and hatches its window there; a click on a window's paper in the 3D
+    view selects its paper part."""
+    marked = "() => __t.parts().flatMap(m => m.userData.pane ? m.userData.pane.geometry.groups.filter(g => g.materialIndex === 1).map(() => m.userData.slice) : [])"
+    use(page, "paper_lamp")
+    page.click('nav button[data-t="technique"]')
+    w = page.evaluate("() => __t.plan().slices.find(s => s.label.startsWith('W-')).label")
+    page.evaluate("l => [...document.querySelectorAll('#sheets path[data-label]')].find(e => e.dataset.label.startsWith(l)).dispatchEvent(new MouseEvent('click', {bubbles: true}))", w)
+    on = page.evaluate(marked)
+    assert len(on) == 1 and on[0].startswith("P-") and f"selected {w}" in page.text_content("#status")
+    assert page.evaluate("() => window.__t.state && document.querySelectorAll('#sheets path.hl').length") >= 1
+    # the other way: the middle of the nearest window that faces the camera, clicked in the 3D view
+    page.evaluate("() => document.getElementById('v3d').scrollIntoView()"); page.click("#fit"); still(page)
+    xy = page.evaluate("""async () => { const THREE = await import('three'), cam = __t.camera, r = __t.canvas().getBoundingClientRect(); let best = null;
+      for (const m of __t.parts()) { const p = m.userData.pane; if (!p) continue; const pos = p.geometry.attributes.position; p.updateMatrixWorld();
+        p.userData.ranges.forEach(([o, n], j) => { const c = new THREE.Vector3(), a = new THREE.Vector3(), b = new THREE.Vector3(), d = new THREE.Vector3(), nrm = new THREE.Vector3();
+          for (let i = o; i < o + n; i++) c.add(a.fromBufferAttribute(pos, i)); c.divideScalar(n).applyMatrix4(p.matrixWorld);
+          a.fromBufferAttribute(pos, o).applyMatrix4(p.matrixWorld); b.fromBufferAttribute(pos, o + 1).applyMatrix4(p.matrixWorld); d.fromBufferAttribute(pos, o + 2).applyMatrix4(p.matrixWorld);
+          nrm.crossVectors(b.clone().sub(a), d.clone().sub(a)).normalize(); const face = Math.abs(nrm.dot(cam.position.clone().sub(c).normalize()));
+          const dist = c.distanceTo(cam.position); if (face > 0.7 && (!best || dist < best.dist)) { const s = c.clone().project(cam); best = {face, dist, label: p.userData.labels[j], x: r.left + (s.x + 1) / 2 * r.width, y: r.top + (1 - s.y) / 2 * r.height} } }) }
+      return best }""")
+    page.mouse.click(xy["x"], xy["y"]); page.wait_for_timeout(300)
+    assert xy["label"] and f"selected {xy['label']}" in page.text_content("#status"), (xy, page.text_content("#status"))
+    assert len(page.evaluate(marked)) == 1
+    page.keyboard.press("Escape"); page.mouse.click(5, 5)

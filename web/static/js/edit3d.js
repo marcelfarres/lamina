@@ -5,7 +5,7 @@ import {$, $$, status} from './util.js';
 import {bounds, show, UNIT, toMM, inU, fmtLen, niceStep} from './units.js';
 import {renderFields} from './form.js';
 import {slice} from './slice.js';
-import {renderer, ray, camera, gizmo, guides, parts, rings, mat4, V3, cubeHit, controls, placeRod, ghost, applyExplode, viewFrom} from './scene.js';
+import {renderer, ray, camera, gizmo, guides, parts, rings, mat4, V3, cubeHit, controls, placeRod, ghost, applyExplode, viewFrom, markPane} from './scene.js';
 import {hlSheet} from './results.js';
 import {seamClick, setSeamMode} from './seams.js';
 import {faceClick, setFaceMode} from './faces.js';
@@ -91,7 +91,7 @@ export function drawGizmo(m){
   ST.dirty=true;
 }
 const slicePlan=l=>ST.plan.slices.find(x=>x.label===l)||(ST.plan.bounds3d||[]).find(x=>x.label===l);
-export function highlight(m){for(const c of parts.children)c.material.emissive.set(c.userData.slice===m.userData.slice?0x664400:0x000000);ST.selected=m.userData.slice;drawGizmo(m);ST.dirty=true;
+export function highlight(m){markPane(null);for(const c of parts.children)c.material.emissive.set(c.userData.slice===m.userData.slice?0x664400:0x000000);ST.selected=m.userData.slice;drawGizmo(m);ST.dirty=true;
   const g=k=>state[k]?.[ST.selected], synthetic='JPB'.includes(m.userData.group), bound=m.userData.group==='B', ext=Math.max(...ST.plan.bbox), s=ST.plan.slices.find(x=>x.label===ST.selected);
   // the same show / bounds as the form, so a slice's thickness reads and steps exactly like the thickness field
   const row=(k,lab,v,p,u)=>{const b=bounds(p);return `<div class="row"><span>${lab}</span><input type="range" id="r_${k}" min="${b.min}" max="${b.max}" step="${b.step}" value="${show(p,v)}"><input type="number" id="n_${k}" step="${b.step}" value="${show(p,v)}"><span class="hint" style="grid-column:2/4">${u}</span></div>`};
@@ -120,7 +120,24 @@ function preview(k,v){ // live feedback while sliding, before the re-slice
 function commit(k,v){setEdit(k,k==='offset'||k==='thick'||k==='wall'||k==='cut_shift'?toMM(v):v,k==='thick'?state.thickness:k==='wall'?state.ring_wall:0)}
 // ring slices: a slice can have its own wall, set here like its thickness (stacked with `ring_slices` on, and the band lattice)
 const walled=()=>ST.mode.params.some(p=>p.name==='wall')&&(state.ring_slices||!ST.mode.params.some(p=>p.name==='ring_slices'))
-export function deselect(){ST.selected=null;$('#sel').hidden=true;gizmo.clear();for(const c of parts.children)c.material.emissive.set(0);hlSheet(null);ST.dirty=true}
+// A paper part (W-7-3) is no part of the 3D view: it is shown where it goes, its window hatched on its panel, the panel lit as a
+// selected part is but with no arrows or rings to move it (moving the panel is not what was asked)
+export function showPane(label){const m=parts.children.find(c=>c.userData.pane?.userData.labels.includes(label));if(!m)return;
+  deselect();m.material.emissive.set(0x664400);markPane(label);hlSheet(label);turnTo(m.userData.pane,label);status(`${$('#status').textContent.replace(/ · selected.*$/,'')} · selected ${label}: the paper for the window hatched on ${m.userData.slice}, glued on the inside of its frame`)}
+// The view turns round to a window that faces away from it, so the hatched one is seen (the camera keeps its distance)
+function turnTo(p,label){const j=p.userData.labels.indexOf(label),[o,n]=p.userData.ranges[j],pos=p.geometry.attributes.position,c=new THREE.Vector3(),q=new THREE.Vector3();
+  p.updateMatrixWorld();for(let i=o;i<o+n;i++)c.add(q.fromBufferAttribute(pos,i).applyMatrix4(p.matrixWorld));c.divideScalar(n);
+  const a=new THREE.Vector3().fromBufferAttribute(pos,o).applyMatrix4(p.matrixWorld),b=new THREE.Vector3().fromBufferAttribute(pos,o+1).applyMatrix4(p.matrixWorld),
+    nrm=new THREE.Vector3().fromBufferAttribute(pos,o+2).applyMatrix4(p.matrixWorld).sub(a).cross(b.sub(a)).normalize();
+  if(nrm.dot(c.clone().sub(controls.target))<0)nrm.negate();   // out of the model
+  if(nrm.dot(camera.position.clone().sub(c).normalize())<0.5)viewFrom(nrm.toArray())}
+// The paper part whose pane the last ray (hit) meets before it meets a part `h`, or null. The panes take no hit of their
+// own (a drag, the seam and the face tools go through them to the panel): only a plain click asks here.
+function paneAt(h){let best=null;
+  for(const m of parts.children){const p=m.userData.pane;if(!p||!m.visible)continue;const hs=[];THREE.Mesh.prototype.raycast.call(p,ray,hs);
+    for(const x of hs)if(x.distance<(h?h.distance:Infinity)&&(!best||x.distance<best.d)){const v=3*x.faceIndex,j=p.userData.ranges.findIndex(([o,n])=>v>=o&&v<o+n);best={d:x.distance,l:p.userData.labels[j]}}}
+  return best?.l||null}
+export function deselect(){markPane(null);ST.selected=null;$('#sel').hidden=true;gizmo.clear();for(const c of parts.children)c.material.emissive.set(0);hlSheet(null);ST.dirty=true}
 // stored as given: rounding here to 0.01 mm turned 1/16 in (1.5875 mm) into 1.59 mm; toPrecision(12) only drops float noise
 function setEdit(k,v,neutral=0){state[k]=state[k]||{};if(Math.abs(v-neutral)>1e-9)state[k][ST.selected]=+v.toPrecision(12);else delete state[k][ST.selected];
   keepPivot(); syncEdits(); slice()}
@@ -330,5 +347,6 @@ renderer.domElement.addEventListener('pointerup',ev=>{const k=keys(ev);
       if(list.length>1||lineParam()==='branches'){state[lineParam()]=dropLine(i);renderFields();slice()}
       else status('the last axis stays — alt-click the model to add another first');}return}
   if(h&&h.object.userData.cp!==undefined){if(k.altKey){const list=curveList();if(list.length>2){list.splice(h.object.userData.cp,1);state.curve=list;renderFields();slice()}}return}   // alt-click a dot: remove it (a curve keeps two)
+  const pa=k.altKey?null:paneAt(h);if(pa){showPane(pa);return}   // a click on a window's paper: its paper part
   if(h&&k.altKey)togglePoint(h,k.shiftKey);else if(h)highlight(h.object);else deselect()});
 

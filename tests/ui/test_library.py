@@ -1361,6 +1361,20 @@ def test_export_buttons_download(page):
     assert d.value.suggested_filename == "lamina-library.zip"
 
 
+def test_the_cow_saved_bumped_and_saved_again_is_one_card_of_two_revisions_and_export_all_holds_both(page):
+    """Marcel's interface test, step 2, the way he clicks it: the cow example opened, saved, version ▾ → +0.1, saved
+    again. The library has one card for the cow that says 2 revisions, and export all downloads a zip with both."""
+    example(page, "cow"); name(page, "")
+    page.click("#psave2"); assert said(page, "saved cow v1.0") == "saved cow v1.0"
+    bump(page); settle(page)
+    page.click("#psave2"); assert said(page, "saved cow v1.1") == "saved cow v1.1"
+    library(page)
+    assert cards(page) == ["cow"] and card(page, "cow").locator(".more").inner_text() == "2 revisions ▾"
+    with page.expect_download() as d:
+        page.click("#libexportall")
+    assert sorted(zipfile.ZipFile(d.value.path()).namelist()) == ["cow_v1.0.lamina.json", "cow_v1.1.lamina.json"]
+
+
 def test_drop_files_on_the_library(page):
     library(page)
     prevented = page.evaluate("""t => { const dt = new DataTransfer(); dt.items.add(new File([t], 'egg_v1.0.lamina.json'));
