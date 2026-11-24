@@ -134,6 +134,7 @@ def test_the_solid_downloads_of_a_job(api):
     kerf = api.get(f"/api/job/{MINE}/{job}/kerftest", params={"fmt": "svg,dxf"})
     assert called(kerf).endswith("_kerf-test_svg-dxf.zip") and sum(n.endswith((".svg", ".dxf")) for n in names(kerf)) == 2
     assert any(n.startswith("Push each square into the hole with the same value") for n in section(kerf, "NOTES"))
+    assert not any("m to cut" in line for line in section(cut, "LAYERS"))   # the job's estimate is not the fit test's
     # the job printed at its own size: its print set is the plates, with the assembly key, as the sheets zip has it
     printed = api.post("/api/slice", data={"client": MINE, **CUBE, "params": '{"distribution":"count","count":3,"autofix":"off","printed":true}'}).json()["job"]
     plates = api.get(f"/api/job/{MINE}/{printed}/proto", params={"scale": 1})

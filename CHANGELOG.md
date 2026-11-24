@@ -25,6 +25,11 @@ met first in 0.4.0.
 
   ![The kerf test row in Export step 1, and the sheet it cuts: seven squares and a plate with their holes](web/static/news/0.4.1-kerf-test.jpg)
 
+- **Cut length, time and cost.** The Export tab shows the length to cut, score and engrave, the pierces, and a machine
+  time and cost from the speeds and sheet price you type in. They stay in your browser.
+
+  ![The Export tab with the new tiles ringed and a cut speed, an engrave speed and a price typed in](web/static/news/0.4.1-estimates.jpg)
+
 ### Fixed
 
 - **Shared project files open safely.** A project file from someone else could run its own code in the page through

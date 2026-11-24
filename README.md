@@ -519,6 +519,11 @@ does not slip through. It carries the most signal for stacked and folded work; d
   material's density, and gives the sheet area to buy — m², or ft² in inches, on whole sheets with their offcuts —
   with the area that becomes parts and the share of the stock used. Every material on the list has a typical density
   you can correct, and a material of your own (+ beside the material) keeps the density you give it.
+- **Estimates**: under the weight, the Export tab gives the length to cut, to score and to engrave, the pierces, an
+  approximate machine time and a cost. The lengths are measured on the lines of the cut files. You type a cut speed,
+  an engrave speed and a price per sheet; the page keeps them in the browser, and the tiles change as you type. The
+  time leaves out pierces and the travel between lines, so the real time is longer. The README.txt in the zip gives the
+  lengths and the pierces.
 - **Calibration bar** (`scale_check`): every export carries a calibration bar, 10 cm or 4 in following the units, to cut first and
   measure before committing to the whole set.
 - **Kerf compensation is off by default**: many machines compensate their own kerf, and compensating twice ruins

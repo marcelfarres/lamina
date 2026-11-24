@@ -70,7 +70,37 @@ export function renderWeight(){if(!ST.plan)return;const d=dens(),g=d/1000,by=new
     +(by.size>1?[...by].sort((a,b)=>a[0]-b[0]).map(([t,b])=>{const n=sheetsOf.get(+t.toFixed(6))||0;
       return `<div class="hint">${fmtLen(t)} stock: ${b.n} part(s) · ${fmtMass(b.v*g)}${state.printed?'':` · ${n} sheet(s), ${fmtArea(n*area0)}`}</div>`}).join(''):'')   // a plate holds every thickness
     +`<div class="hint">at ${+(d*DU()).toPrecision(4)} ${DUNIT()}, set with the material on Sheet &amp; fit</div>`;
+  renderEstimates();
 }
+// What the cut takes: the lengths come from the server, measured on the very paths the cut files draw (core.export.measure);
+// the speeds and the price are typed here, kept in this browser (not in the job), and the tiles follow the typing with no
+// slice. Time is the cutting at the cut speed (score included) and the engraving at the engrave speed: pierces and travel
+// are not in it, so it is a lower bound, never part of the cut. Speeds are stored in mm/s whatever the page shows.
+const EST='lamina.estimates';
+const estGet=()=>{try{return JSON.parse(localStorage.getItem(EST))||{}}catch(e){return {}}};
+const estSet=o=>{try{localStorage.setItem(EST,JSON.stringify(o))}catch(e){}};
+const fmtRun=mm=>ST.unit==='in'?(mm<304.8?`${+(mm/25.4).toPrecision(3)} in`:`${+(mm/304.8).toPrecision(3)} ft`):(mm<1000?`${+mm.toPrecision(3)} mm`:`${+(mm/1000).toPrecision(3)} m`);
+const fmtTime=s=>s<90?`${Math.round(s)} s`:s<5400?`${Math.round(s/60)} min`:`${+(s/3600).toPrecision(3)} h`;
+const speedIn=v=>ST.unit==='in'?+(v/25.4).toPrecision(4):v;       // mm/s → the number shown
+function estimateTiles(){const t=ST.estimate?.total,o=estGet();if(!t)return '';
+  const time=o.cut>0&&(o.engrave>0||!t.engrave)?(t.cut+t.score)/o.cut+(t.engrave?t.engrave/o.engrave:0):null;
+  const k=(tip,v,l)=>`<div class="k" data-tip="${tip}"><b>${v}</b>${l}</div>`;
+  return k('The length the machine cuts through: every outline and every hole, measured on the lines of the cut files',fmtRun(t.cut),'to cut')
+    +k('How many times the cutter pierces the sheet: once for each cut line, a closed ring or one stretch of an outline split by holding bridges',t.pierces,'pierces')
+    +(t.score?k('The length scored, not cut through: the fold lines',fmtRun(t.score),'to score'):'')
+    +k('The length engraved: labels, numbers, arrows, guide lines and leader lines. Labels off in the options take them out',fmtRun(t.engrave),'to engrave')
+    +k('Cutting and scoring at the cut speed, plus engraving at the engrave speed. Pierces and travel between lines are not in it: the real time is longer. Never part of the cut files',time==null?'set a speed':'≈ '+fmtTime(time),'machine time')
+    +k('Sheets × the price of one sheet. A sheet used in part counts whole',o.price>0?+(ST.plan.sheets*o.price).toFixed(2):'set a price',`${ST.plan.sheets} ${SH()}(s) × price`)}
+function renderEstimates(){const el=$('#estimates');if(state.printed||!ST.estimate){el.innerHTML='';return}
+  const o=estGet(),u=ST.unit==='in'?'in/s':'mm/s',f=(id,tip,l,v,un)=>`<label data-tip="${tip}">${l} <input id="${id}" type="number" min="0" step="any" value="${v>0?v:''}"> ${un}</label>`;
+  el.innerHTML=`<h3>Estimates</h3><div class="stats" id="est_tiles">${estimateTiles()}</div>
+    <div class="hint">An estimate and a lower bound: pierces and travel are not in the time, and none of it is part of the cut files</div>
+    <div class="est-in">${f('est_cut','How fast the machine cuts and scores. Your machine or its material table says; it is not part of the job','cut speed',speedIn(o.cut),u)}
+    ${f('est_engrave','How fast the machine engraves','engrave speed',speedIn(o.engrave),u)}
+    ${f('est_price','What one sheet costs you, as a plain number with no currency','price per sheet',o.price,'')}</div>
+    <div class="hint">remembered in this browser, not part of the job</div>`}
+$('#estimates').addEventListener('input',e=>{const id=e.target.id,v=+e.target.value;if(!/^est_/.test(id))return;
+  const mm=id==='est_price'?v:ST.unit==='in'?v*25.4:v;estSet({...estGet(),[id.slice(4)]:mm>0?mm:0});$('#est_tiles').innerHTML=estimateTiles()});
 // What the job is, by machine, before any button: which machine makes what, from which stock, and in which order. A
 // cut job has a line per stock it is nested on (a paper lamp's panes on paper, its panels on card). Names are escaped:
 // a machine or a material can be one of yours
