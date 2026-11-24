@@ -2,6 +2,15 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.4.1
+
+### Added
+
+- **Find your kerf first.** Export step 1 has a *kerf test*: seven squares and their holes, each drawn for one
+  kerf. Cut it from a scrap; the square that fits its hole snug names your kerf.
+
+  ![The kerf test row in Export step 1, and the sheet it cuts: seven squares and a plate with their holes](web/static/news/0.4.1-kerf-test.jpg)
+
 ## 0.4.0
 
 This release makes Lamina easier for a new user: help on every setting, clearer names, a tour of the page, and one
