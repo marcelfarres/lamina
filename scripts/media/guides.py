@@ -47,7 +47,8 @@ def stepper(app, slug):
         app.p.mouse.move(WINDOW["width"] - 5, 45)   # off every control: left on the last click, it opened that row's help
         app.p.wait_for_timeout(400)
         boxes = [app.box(m) if isinstance(m, str) else m for m, *_ in marks]
-        bottom = max(app.box("#stats")[3], *(b[3] for b in boxes)) + 6
+        bottom = min(WINDOW["height"], max(app.box("#stats")[3], *(b[3] + (50 if below else 0)   # room for a label under
+                                                                     for b, (_m, _l, *below) in zip(boxes, marks))) + 6)
         top = max(0, min(min(b[1] for b in boxes) - 60, bottom - WINDOW["height"] // 2))
         img = app.grab((0, top, WINDOW["width"], bottom), [(m, "" if below else label) for m, label, *below in marks])
         oy = max(0, top - 12)                       # grab's crop starts 12 px over the area
@@ -88,9 +89,10 @@ def sheet(app, step, thickness=None):       # the machine under it, the material
     step((row("sheet", "thickness"), "thickness"))
 
 
-def checks(app, step):                      # the counts under the 3D view, and a warning's fix buttons if there is one
-    fix = app.p.locator(WARN_FIX).count()
-    step(("#stats", "errors and warnings"), *([(WARN_FIX, "a warning and its fixes")] if fix else []))
+def checks(app, step):     # the counts under the 3D view, with the first warning and its fix buttons if there is one:
+    s = app.box("#stats")  # one ring round both, so the label sits over the 3D view and hides none of the counts
+    w = app.box(WARN_FIX) if app.p.locator(WARN_FIX).count() else s
+    step(((min(s[0], w[0]), s[1], max(s[2], w[2]), max(s[3], w[3])), "errors and warnings" + (", and their fixes" if w is not s else "")))
 
 
 def fit_and_cut(app, step):                 # the fit test first, its answer on Sheet & fit, then the sheets
@@ -166,6 +168,8 @@ def papercraft(app, step):                  # the cow the link opens: low-poly, 
 def print_flat_parts(app, step):            # the cow the link opens, printed: its panels print flat and fold up
     opened(app, step)
     kind(app, step, "printer", "3D printer")
+    app.p.select_option("#machine", "bambu_x1")   # a named printer sets its bed (256 mm); on the generic 180 mm
+    app.idle()                                    # plate two cow panels were laid past its edge (reported as a bug)
     step(("#kind .f:has(#machine)", "machine", "below"))
     step((".f:has(#material)", "material"))
     app.tab("technique")
@@ -193,7 +197,7 @@ def model_to_laser_cut(app, step):          # the overview, on the bracket the l
 def fusion_alternative(app, step):          # moving a project over, on the bunny the link opens in Stacked Slices
     opened(app, step)
     app.tab("technique")
-    step(("#modes button[data-m=stacked]", "the same name"))
+    step(("#modes button[data-m=stacked]", "the same name", "below"))   # above, it covered two other technique names
     app.tab("sheet")
     step((".f:has(#material)", "material"))
     step((row("sheet", "thickness"), "thickness"))
