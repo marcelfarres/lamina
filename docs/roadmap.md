@@ -110,6 +110,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | DXF with unit choice | ✅ |
 | SVG (extra) | ✅ |
 | Assembly key (extra) | ✅ `assembly-key.txt` beside the cut files: what this technique's labels mean, then every part with its centre, what it slots onto and the order the 3D view builds them in; a tickbox leaves it out of the zip |
+| Assembly guide (extra) | ✅ Export tab, Build it: *assembly guide (printable)* builds in the page one card per build step, six to an A4 page: a 3D picture of the model as built so far (earlier parts grey with edge lines, the new part framed and numbered, striped where they hide it), the engraving (the code in puzzle mode), sheet, thickness, what it goes onto (for stacked, the layer below) and its cut outline with its size; opens in a new tab with a Print button and a link to save it as one HTML file (`web/static/js/guide.js`) |
 | Puzzle mode (extra) | ✅ `label_style=code`: parts are engraved with a two-letter code that says nothing about where they go and the per-piece files are named after it, so the key is the only way back — seeded by the job, so a re-slice engraves the same codes |
 | Assembly video (extra) | ✅ the steps slider played and recorded off the 3D canvas (`MediaRecorder`, the browser's own) as .webm — made in the page, nothing uploaded and nothing rendered twice |
 
@@ -190,7 +191,7 @@ What makes more models buildable comes first; polish and speed after.
      dowels at the bulges farthest apart, or a smaller dowel for that layer alone, would be the next step.
 
 Left out of the four features above, deliberately: the instructions are a text file (`assembly-key.txt`) with the
-build order as a column, not a numbered page per step; the 3D-printed prototype still engraves real labels in puzzle
+build order as a column (the printable assembly guide of 0.4.1 adds a numbered card per step with a 3D picture); the 3D-printed prototype still engraves real labels in puzzle
 mode (that path is `core/solid.py`, not the cut files); every fan of a multi-axis radial job shares one `count`,
 which is what makes neighbouring fans meet plane for plane; and axes on no single plane get no spine, because no
 flat sheet passes through all of them (the job says so and names the fix). A lobe *between* two side-by-side

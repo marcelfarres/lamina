@@ -30,6 +30,11 @@ met first in 0.4.0.
 
   ![The Export tab with the new tiles ringed and a cut speed, an engrave speed and a price typed in](web/static/news/0.4.1-estimates.jpg)
 
+- **A printable assembly guide.** *Assembly guide* on the Export tab opens a card for each build step: a 3D picture
+  with the new part framed, its sheet, what it goes onto and its outline.
+
+  ![The Build it step with the assembly guide row ringed, beside the guide's first two cards](web/static/news/0.4.1-guide.jpg)
+
 ### Fixed
 
 - **Shared project files open safely.** A project file from someone else could run its own code in the page through

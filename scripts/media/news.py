@@ -640,6 +640,26 @@ def n041_estimates(app):                    # the new tiles and the three fields
     app.shot("0.4.1-estimates", (0, t[1] - 90, side[2], e[3] + 10), [(room(t), "cut, time and cost"), (room(i), "")])
 
 
+def n041_guide(app):                        # Build it on the Export tab with the new row ringed, beside the guide it opens
+    app.example("vase", "stacked")
+    app.tab("export")
+    app.p.locator("#x_build").evaluate("e => e.scrollIntoView({block: 'center'})")
+    app.p.wait_for_timeout(300)
+    x0, y0, x1, y1 = app.box("#x_build")
+    row = app.grab((0, y0 - 20, app.box("aside")[2], y1 + 10), [("#guide_go", "")])   # no label: over or under the ring it would hide a row
+    with app.p.expect_popup() as pop:
+        app.p.click("#guide_go")
+    tab = pop.value
+    tab.set_viewport_size({"width": 794, "height": 1123})              # A4 at 96 dpi, as it prints
+    tab.wait_for_selector(".card img", timeout=180_000)
+    c0, c1 = (tab.locator(".card").nth(i).bounding_box() for i in (0, 1))   # the guide's first row: cards 1 and 2
+    cards = Image.open(io.BytesIO(tab.screenshot(clip={"x": c0["x"] - 6, "y": c0["y"] - 6, "width": c1["x"] + c1["width"] - c0["x"] + 12,
+                                                          "height": c0["height"] + 12}))).convert("RGB")
+    tab.close()
+    cards = cards.resize((round(cards.width * row.height / cards.height), row.height), Image.LANCZOS)
+    save("0.4.1-guide", side_by_side(row, cards))
+
+
 def picture_name(f):                        # n040_stacked_joins -> 0.4.0-stacked-joins
     v, slug = f.__name__.split("_", 1)
     return f"{v[1]}.{v[2]}.{v[3]}-{slug.replace('_', '-')}"
