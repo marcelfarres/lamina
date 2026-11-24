@@ -15,6 +15,11 @@ met first in 0.4.0.
 
   ![Holding bridges set to 2, and a plaque part on the sheet with its two uncut stretches ringed](web/static/news/0.4.1-bridges.jpg)
 
+- **Cut the 3D view open.** The *section* control, next to *explode*, takes a plane square to x, y or z through
+  the model and removes what lies beyond it. 0 is off. It changes the view only, never the cut.
+
+  ![The vase cut in half across y, with the section control in the bar](web/static/news/0.4.1-section.jpg)
+
 ### Fixed
 
 - **Shared project files open safely.** A project file from someone else could run its own code in the page through

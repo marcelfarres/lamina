@@ -588,7 +588,7 @@ sheets are always the same plan.
   clicking a part on the sheet selects it in 3D, and clicking a warning does the same. Alt-click adds or removes a
   dowel (stacked), a curve control point (curve) or a radial axis; shift+alt-click a hoof, hand or tail tip adds a
   curve branch out to it. `explode` and `steps` sliders animate the
-  assembly; `look` previews the material.
+  assembly; `section` (x / y / z, 0 = off) cuts the model open with a plane to see inside, in the view only; `look` previews the material.
 - **Dowels in a stack** (`placement`): **aligned** puts the same points straight through every layer, one rod each;
   alt-click a layer to add one there, alt-click it to remove it, or type exact x, y under `dowels` — that is how you
   move one. **random** picks new points for every pair of layers, spread as far apart as the pair allows; they
