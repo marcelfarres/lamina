@@ -247,7 +247,7 @@ window.laminaFeedback?.({bug:async withModel=>{
   sheets:ls('slicer_sheets',[]).filter(s=>!s[2]||s[2]===fam()).map(([n,s])=>[n,s]),units:state.units},null,1)})});
 
 // test and capture hook (tests/ui, scripts/media/capture.mjs)
-window.__t={spcXY,seams:seamsNow,faces:facesNow,lamp:()=>renderer.shadowMap.enabled,project:()=>projectObj(false),sizeAxes:()=>sizeAxes(),target:()=>controls.target,banner:()=>banner.visible?banner.userData.text:'',parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>ST.plan,job:()=>ST.job,
+window.__t={spcXY,seams:seamsNow,faces:facesNow,lamp:()=>renderer.shadowMap.enabled,project:()=>projectObj(false),sizeAxes:()=>sizeAxes(),target:()=>controls.target,banner:()=>banner.visible?banner.userData.text:'',parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>ST.plan,estimate:()=>ST.estimate,job:()=>ST.job,
   fold:s=>{$('#fold').value=s;applyFold();renderer.render(scene,camera)},
   idle:()=>!ST.timer&&!ST.busy,   // no change waiting out its debounce, no slice running: what a test or a capture waits for
   ghost:()=>ghost.children,ghostUrl:()=>ghostUrl,pivot:()=>pivot3&&rnd(pivot3),

@@ -4,7 +4,7 @@ Every request carries a client id — a random secret the browser tab keeps — 
 under working-files/jobs/<client>/, so several people can use one server without seeing each other's work.
 
 POST /api/slice        multipart: client, mode, params=<json>, and one of  model=<file> | example=<name> | job=<id> (re-slice the same model)
-                       → {job, plan (with 3D facets + sheet placement), sheets: [svg…], model: url of the processed mesh (STL)}
+                       → {job, plan (with 3D facets + sheet placement), sheets: [svg…], estimate: {total, sheets} (cut/score/engrave mm, pierces), model: url of the processed mesh (STL)}
 GET  /api/modes        mode schemas (drive the form)
 GET  /api/examples     bundled test models
 GET  /api/project      {version}: the project file layout this server writes (and the page saves)
@@ -36,7 +36,8 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from core import progress as build_progress
 from core.plan import build, MODES, swap_in
 from core.mesh import CAD_SUFFIXES
-from core.export import design_name, export, key_text, svg_doc, items_for_sheet, sheet_title
+from core.export import design_name, export, key_text, measure_sheets, svg_doc, items_for_sheet, sheet_title
+from core.calibrate import kerf_test
 from core.solid import fit_plan, fit_set, fit_sheets, proto_plan, proto_set, solid_bytes, standoff_files
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -542,7 +543,9 @@ def slice_model(client: str = Form(...), mode: str = Form(...), params: str = Fo
     W, H = plan["sheet"]
     p = plan["params"]
     t1 = time.time()
-    sheets = [svg_doc(items_for_sheet(plan, si), W, H, p["labels"], True, p["font"], p["units"], sheet_title(plan, si)) for si in range(plan["sheets"])]
+    items = [items_for_sheet(plan, si) for si in range(plan["sheets"])]   # drawn and measured from the same items
+    sheets = [svg_doc(its, W, H, p["labels"], True, p["font"], p["units"], sheet_title(plan, si)) for si, its in enumerate(items)]
+    estimate = measure_sheets(plan, items, p["labels"])
     plan["timing"]["drawing the sheets"] = round(time.time() - t1, 3)
     took = round(time.time() - t0, 2)
     # the session belongs to the client, not to the server: what this tab sliced last, so its refresh resumes it
@@ -553,7 +556,7 @@ def slice_model(client: str = Form(...), mode: str = Form(...), params: str = Fo
     swap_in(lambda tmp: tmp.write_text(text), cd / "session.json")
     _log_timing(mode, mpath, plan, took, prm)
     ghost = f"/jobs/{client}/{job}/model.stl?v={int((jd / 'model.stl').stat().st_mtime_ns // 1_000_000)}"  # new URL whenever the processed model changed
-    return {"job": job, "plan": plan, "sheets": sheets, "model": ghost, "took": took}
+    return {"job": job, "plan": plan, "sheets": sheets, "model": ghost, "took": took, "estimate": estimate}
 
 
 @app.get("/api/session")
@@ -725,6 +728,15 @@ def job_fitcut(client: str, job: str, fmt: str = "svg,dxf", labels: int = 1, ste
     return _zip(client, jd, plan, lambda tmp: fit_sheets(plan, tmp, fmts, bool(labels), step), f"{design_name(plan)}_{plan['mode']}_cut-fit-test_{'-'.join(fmts)}.zip")
 
 
+@app.get("/api/job/{client}/{job}/kerftest")
+def job_kerftest(client: str, job: str, fmt: str = "svg,dxf", labels: int = 1, units: str = ""):
+    """The kerf test (core.calibrate): seven squares and their holes, each pair drawn for one kerf around the job's, to cut
+    from a scrap first. The square that fits its hole snug gives the kerf to type in. Zipped with a README."""
+    jd, plan = _plan(client, job)
+    plan, fmts = with_units(plan, units), _fmts(fmt)
+    return _zip(client, jd, plan, lambda tmp: kerf_test(plan, tmp, fmts, bool(labels)), f"{design_name(plan)}_kerf-test_{'-'.join(fmts)}.zip")
+
+
 @app.get("/api/job/{client}/{job}/key")
 def job_key(client: str, job: str, units: str = ""):
     """The assembly key on its own (the same text as in the sheets zip): the Export tab's Build it step."""
@@ -794,7 +806,7 @@ def _solid_file(client, job, part, fmt, body=False):
 
 # The downloads by the name the page asks for (/api/job/{client}/{job}/<name>): the browser build binds a query to these
 # signatures (web/browser.py), so a download's parameters are written once, here, and nowhere else.
-JOB_ROUTES = {"export": job_export, "stl": job_stl, "step": job_step, "source": job_source, "proto": job_proto, "fit": job_fit, "fitcut": job_fitcut,
+JOB_ROUTES = {"export": job_export, "stl": job_stl, "step": job_step, "source": job_source, "proto": job_proto, "fit": job_fit, "fitcut": job_fitcut, "kerftest": job_kerftest,
               "key": job_key, "standoffs": job_standoffs, "contents": job_contents}
 
 

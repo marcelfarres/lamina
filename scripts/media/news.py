@@ -610,6 +610,56 @@ def n041_section(app):                      # the vase cut in half across y, the
     app.p.evaluate("() => { const s = document.querySelector('#section'); s.value = 0; s.dispatchEvent(new Event('input', {bubbles: true})) }")
 
 
+def n041_kerf_test(app):                    # the new row in Export step 1, over the sheet it cuts (drawn by core.calibrate)
+    sys.path.insert(0, str(ROOT))
+    from core.calibrate import kerf_items
+    from core.export import svg_doc
+    app.example("vase", "stacked")
+    app.tab("export")
+    row = app.grab("#x_fit", [("#kerf_go a", "")])   # no label: above the ring it hides the fit test's row, and the row says "kerf test"
+    items, w, h = kerf_items({"params": {"kerf": 0.15, "units": "mm", "font": 4.0}})
+    sheet = app.p.context.browser.new_page(viewport={"width": 1400, "height": 800})   # its own context: the app page's context takes no second page
+    sheet.set_content(f'<body style="margin:0;background:#fff">{svg_doc(items, w, h, True, True, 4.0, "mm", "", 5.0).split("?>", 1)[-1]}</body>')
+    sheet.evaluate("() => { const s = document.querySelector('svg'); s.setAttribute('width', '1380px'); s.removeAttribute('height') }")
+    cut = Image.open(io.BytesIO(sheet.locator("svg").screenshot())).convert("RGB")
+    sheet.close()
+    save("0.4.1-kerf-test", above(row, cut))
+
+
+def n041_estimates(app):                    # the new tiles and the three fields under them, with speeds and a price typed in
+    app.example("vase", "stacked")
+    app.tab("export")
+    for box, v in (("#est_cut", "20"), ("#est_engrave", "150"), ("#est_price", "12")):
+        app.p.fill(box, v)
+    app.p.locator("#estimates").evaluate("e => e.scrollIntoView({block: 'center'})")
+    app.p.wait_for_timeout(300)
+    t, e, side = app.box("#est_tiles"), app.box("#estimates"), app.box("aside")
+    i = app.box("#estimates .est-in")
+    room = lambda b: (b[0] - 6, b[1], b[2], b[3])   # the text starts at the box's edge, and the ring's edge is drawn inwards
+    # the fields ringed without a label: the page's own line under them says they stay in the browser
+    app.shot("0.4.1-estimates", (0, t[1] - 90, side[2], e[3] + 10), [(room(t), "cut, time and cost"), (room(i), "")])
+
+
+def n041_guide(app):                        # Build it on the Export tab with the new row ringed, beside the guide it opens
+    app.example("vase", "stacked")
+    app.tab("export")
+    app.p.locator("#x_build").evaluate("e => e.scrollIntoView({block: 'center'})")
+    app.p.wait_for_timeout(300)
+    x0, y0, x1, y1 = app.box("#x_build")
+    row = app.grab((0, y0 - 20, app.box("aside")[2], y1 + 10), [("#guide_go", "")])   # no label: over or under the ring it would hide a row
+    with app.p.expect_popup() as pop:
+        app.p.click("#guide_go")
+    tab = pop.value
+    tab.set_viewport_size({"width": 794, "height": 1123})              # A4 at 96 dpi, as it prints
+    tab.wait_for_selector(".card img", timeout=180_000)
+    c0, c1 = (tab.locator(".card").nth(i).bounding_box() for i in (0, 1))   # the guide's first row: cards 1 and 2
+    cards = Image.open(io.BytesIO(tab.screenshot(clip={"x": c0["x"] - 6, "y": c0["y"] - 6, "width": c1["x"] + c1["width"] - c0["x"] + 12,
+                                                          "height": c0["height"] + 12}))).convert("RGB")
+    tab.close()
+    cards = cards.resize((round(cards.width * row.height / cards.height), row.height), Image.LANCZOS)
+    save("0.4.1-guide", side_by_side(row, cards))
+
+
 def picture_name(f):                        # n040_stacked_joins -> 0.4.0-stacked-joins
     v, slug = f.__name__.split("_", 1)
     return f"{v[1]}.{v[2]}.{v[3]}-{slug.replace('_', '-')}"

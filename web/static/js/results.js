@@ -8,6 +8,7 @@ import {dens, machineOf, machineKind} from './presets.js';
 import {renderFields, lenMM, showTab} from './form.js';
 import {slice} from './slice.js';
 import {parts} from './scene.js';
+import {openGuide} from './guide.js';
 import {sheetSeams, toggleSeam} from './seams.js';
 
 // ---------------------------------------------------------------- sheets + report
@@ -70,7 +71,37 @@ export function renderWeight(){if(!ST.plan)return;const d=dens(),g=d/1000,by=new
     +(by.size>1?[...by].sort((a,b)=>a[0]-b[0]).map(([t,b])=>{const n=sheetsOf.get(+t.toFixed(6))||0;
       return `<div class="hint">${fmtLen(t)} stock: ${b.n} part(s) · ${fmtMass(b.v*g)}${state.printed?'':` · ${n} sheet(s), ${fmtArea(n*area0)}`}</div>`}).join(''):'')   // a plate holds every thickness
     +`<div class="hint">at ${+(d*DU()).toPrecision(4)} ${DUNIT()}, set with the material on Sheet &amp; fit</div>`;
+  renderEstimates();
 }
+// What the cut takes: the lengths come from the server, measured on the very paths the cut files draw (core.export.measure);
+// the speeds and the price are typed here, kept in this browser (not in the job), and the tiles follow the typing with no
+// slice. Time is the cutting at the cut speed (score included) and the engraving at the engrave speed: pierces and travel
+// are not in it, so it is a lower bound, never part of the cut. Speeds are stored in mm/s whatever the page shows.
+const EST='lamina.estimates';
+const estGet=()=>{try{return JSON.parse(localStorage.getItem(EST))||{}}catch(e){return {}}};
+const estSet=o=>{try{localStorage.setItem(EST,JSON.stringify(o))}catch(e){}};
+const fmtRun=mm=>ST.unit==='in'?(mm<304.8?`${+(mm/25.4).toPrecision(3)} in`:`${+(mm/304.8).toPrecision(3)} ft`):(mm<1000?`${+mm.toPrecision(3)} mm`:`${+(mm/1000).toPrecision(3)} m`);
+const fmtTime=s=>s<90?`${Math.round(s)} s`:s<5400?`${Math.round(s/60)} min`:`${+(s/3600).toPrecision(3)} h`;
+const speedIn=v=>ST.unit==='in'?+(v/25.4).toPrecision(4):v;       // mm/s → the number shown
+function estimateTiles(){const t=ST.estimate?.total,o=estGet();if(!t)return '';
+  const time=o.cut>0&&(o.engrave>0||!t.engrave)?(t.cut+t.score)/o.cut+(t.engrave?t.engrave/o.engrave:0):null;
+  const k=(tip,v,l)=>`<div class="k" data-tip="${tip}"><b>${v}</b>${l}</div>`;
+  return k('The length the machine cuts through: every outline and every hole, measured on the lines of the cut files',fmtRun(t.cut),'to cut')
+    +k('How many times the cutter pierces the sheet: once for each cut line, a closed ring or one stretch of an outline split by holding bridges',t.pierces,'pierces')
+    +(t.score?k('The length scored, not cut through: the fold lines',fmtRun(t.score),'to score'):'')
+    +k('The length engraved: labels, numbers, arrows, guide lines and leader lines. Labels off in the options take them out',fmtRun(t.engrave),'to engrave')
+    +k('Cutting and scoring at the cut speed, plus engraving at the engrave speed. Pierces and travel between lines are not in it: the real time is longer. Never part of the cut files',time==null?'set a speed':'≈ '+fmtTime(time),'machine time')
+    +k('Sheets × the price of one sheet. A sheet used in part counts whole',o.price>0?+(ST.plan.sheets*o.price).toFixed(2):'set a price',`${ST.plan.sheets} ${SH()}(s) × price`)}
+function renderEstimates(){const el=$('#estimates');if(state.printed||!ST.estimate){el.innerHTML='';return}
+  const o=estGet(),u=ST.unit==='in'?'in/s':'mm/s',f=(id,tip,l,v,un)=>`<label data-tip="${tip}">${l} <input id="${id}" type="number" min="0" step="any" value="${v>0?v:''}"> ${un}</label>`;
+  el.innerHTML=`<h3>Estimates</h3><div class="stats" id="est_tiles">${estimateTiles()}</div>
+    <div class="hint">An estimate and a lower bound: pierces and travel are not in the time, and none of it is part of the cut files</div>
+    <div class="est-in">${f('est_cut','How fast the machine cuts and scores. Your machine or its material table says; it is not part of the job','cut speed',speedIn(o.cut),u)}
+    ${f('est_engrave','How fast the machine engraves','engrave speed',speedIn(o.engrave),u)}
+    ${f('est_price','What one sheet costs you, as a plain number with no currency','price per sheet',o.price,'')}</div>
+    <div class="hint">remembered in this browser, not part of the job</div>`}
+$('#estimates').addEventListener('input',e=>{const id=e.target.id,v=+e.target.value;if(!/^est_/.test(id))return;
+  const mm=id==='est_price'?v:ST.unit==='in'?v*25.4:v;estSet({...estGet(),[id.slice(4)]:mm>0?mm:0});$('#est_tiles').innerHTML=estimateTiles()});
 // What the job is, by machine, before any button: which machine makes what, from which stock, and in which order. A
 // cut job has a line per stock it is nested on (a paper lamp's panes on paper, its panels on card). Names are escaped:
 // a machine or a material can be one of yours
@@ -117,6 +148,7 @@ export function renderDownloads(){ // the labels checkbox applies to every cut f
   // a printed job has nothing to cut, and a job with no joint the offset sizes has no fit test: their steps step aside
   for(const el of $$('.cutonly,.protoonly'))el.hidden=printed;
   for(const el of $$('.fitonly'))el.hidden=!fit;
+  const kt=!printed&&!(state.tool_d>0);   // the kerf test, beside the fit test: for a cutter that burns its kerf (a router's CAM offsets its bit)
   $('#fit_what_print').hidden=!printed;
   const slot=$(printed?'#print_opts':'#pr_slot'); if($('#pr_shared').parentNode!==slot)slot.append($('#pr_shared'));   // one set of print controls: under the print set on a printed job (moved only when it changes place: a moved box loses the focus)
   $('#slicer_fold').hidden=!printed; $('#slicer_sum').textContent=`what the slicer must have: ${state.material}, 0.4 mm nozzle, first layer ${fmtLen(0.2)}`;   // core.solid.FIRST
@@ -140,12 +172,16 @@ export function renderDownloads(){ // the labels checkbox applies to every cut f
       ST.mode.name==='folded'?'on Folded Panels this file may not open as a valid solid in CAD. If it does not, take STEP: parts':'']]),
     ['plan.json',`jobs/${CLIENT}/${ST.job}/plan.json`,'everything Lamina worked out, for scripts and other tools']];
   // 1 · the fit test, one per machine: the cut one at 1:1 on the real stock, and a mix's standoffs to try in its holes
+  const kerfRow=[`${ico} kerf test to cut · 7 squares in 7 holes (SVG + DXF)`,`${b}/kerftest?fmt=svg,dxf&labels=${L}${U}`,
+    'Seven squares and a plate with seven square holes, each pair drawn for one kerf around yours. Cut them from a scrap with the job\'s settings: '
+    +'the square that fits its own hole snug, without play and without force, carries your kerf. Type it in Sheet & fit → kerf.','kerf_go'];
   if(fit){$('#fit_title').textContent=num(`Fit test — ${mix?'cut and print':printed?'print':'cut'} this first`);
     $('#fit_opts>summary').textContent=printed?'options: joint step':'options: joint step, PDF';
     const holes=ST.mode.name==='stacked'&&p.params.connect!=='tab'?'hole sizes':'slot offsets';
     $('#dlfit').innerHTML=printed?rows([['print fit test · 5 small joints (.zip)',`${b}/fit?${fq}`,'','fit_go']])
       :rows([[`${ico} fit test to cut · 5 ${holes} (SVG + DXF)`,`${b}/fitcut?fmt=svg,dxf&labels=${L}&step=${step}${U}`],
-             ...(mix?[[`⬢ fit test to print · ${c?.fit_standoffs?pl(c.fit_standoffs,'standoff'):'the standoffs'} (3MF)`,`${b}/standoffs?fit=1`]]:[])]);
+             ...(mix?[[`⬢ fit test to print · ${c?.fit_standoffs?pl(c.fit_standoffs,'standoff'):'the standoffs'} (3MF)`,`${b}/standoffs?fit=1`]]:[]),
+             ...(kt?[kerfRow]:[])]);
     $('#dlfit_other').innerHTML=printed?'':rows([['fit test PDF',`${b}/fitcut?fmt=pdf&labels=${L}&step=${step}${U}`]])}
   // 2 · the files: one main button per machine, the other formats and the options folded under it
   $('#dl_title').textContent=num(printed?'The print files':'The files, by machine');
@@ -163,6 +199,7 @@ export function renderDownloads(){ // the labels checkbox applies to every cut f
     ...(fit?[['print fit test (.zip) · 5 print slot offsets around yours',`${b}/fit?${fq}`,'','fit_go']]:[])]);
   $('#more').innerHTML=rows(more);
 }
+$('#guide_go').onclick=e=>{e.preventDefault();openGuide(e.currentTarget)};
 export function renderReport(){
   const c=ST.plan.counts,p=ST.plan;
   // identical pieces are one part in several copies — the plan decided which, so the table and the cut files agree
@@ -202,7 +239,7 @@ export function renderReport(){
   $('#pr_scale').oninput=$('#pr_labels').onchange=renderDownloads; $('#x_labels').onchange=$('#x_key').onchange=$('#x_grouped').onchange=renderDownloads;
   // Which formats people actually take away — the strongest signal of what machines they run. The link's own
   // query string already names them, so nothing extra has to be tracked to know it.
-  $('section[data-tab="export"]').onclick=e=>{const a=e.target.closest('.dl a');if(!a||a.id==='vid_go')return;
+  $('section[data-tab="export"]').onclick=e=>{const a=e.target.closest('.dl a');if(!a||a.id==='vid_go'||a.id==='guide_go')return;
     const href=a.getAttribute('href')||'', path=href.split('?')[0].split('/').pop(), q=new URLSearchParams(href.split('?')[1]||'');
     const named={proto:'proto-3mf',fit:'fit-3mf'}[path]; if(named)return ST.countUse('export',named);   // the names these two were always counted under
     const fmts=(q.get('fmt')?q.get('fmt').split(','):[path.replace('.','-')]).map(f=>/fitcut/.test(href)?'fit-'+f:f);

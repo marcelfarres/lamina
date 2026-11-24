@@ -494,6 +494,7 @@ does not slip through. It carries the most signal for stacked and folded work; d
   you give up — and the key is the only way back. Leave it out of the zip and the puzzle stays a puzzle.
 - **An assembly video**: the steps slider played and recorded off the 3D view as a `.webm`, made in the page itself —
   nothing uploaded, nothing rendered twice.
+- **An assembly guide**: *assembly guide (printable)* on the Export tab opens one card per build step in a new tab, six to an A4 page: a 3D picture of the model as built so far with the new part framed and numbered (striped where built parts hide it), what is engraved on it, its sheet and thickness, what it goes onto, and its cut outline. Print it or save it as one HTML file; it is made in the page.
 - **Cut files**: SVG (opens directly in LightBurn, the Glowforge app and xTool Creative Space) and DXF in mm / cm /
   in, multi-page PDF, EPS per sheet, or one file per piece, each with or without the red label layer (one switch for
   every file). Layers follow Slicer's Cut Layout: OUTER blue, INNER green (slots, holes), SCORE yellow (folds: solid mountain, dashed valley, seen from the face up on the cutter; dotted perforate), GUIDE orange (stacked: the
@@ -519,6 +520,11 @@ does not slip through. It carries the most signal for stacked and folded work; d
   material's density, and gives the sheet area to buy — m², or ft² in inches, on whole sheets with their offcuts —
   with the area that becomes parts and the share of the stock used. Every material on the list has a typical density
   you can correct, and a material of your own (+ beside the material) keeps the density you give it.
+- **Estimates**: under the weight, the Export tab gives the length to cut, to score and to engrave, the pierces, an
+  approximate machine time and a cost. The lengths are measured on the lines of the cut files. You type a cut speed,
+  an engrave speed and a price per sheet; the page keeps them in the browser, and the tiles change as you type. The
+  time leaves out pierces and the travel between lines, so the real time is longer. The README.txt in the zip gives the
+  lengths and the pierces.
 - **Calibration bar** (`scale_check`): every export carries a calibration bar, 10 cm or 4 in following the units, to cut first and
   measure before committing to the whole set.
 - **Kerf compensation is off by default**: many machines compensate their own kerf, and compensating twice ruins
@@ -543,6 +549,10 @@ does not slip through. It carries the most signal for stacked and folded work; d
   fit test** (Downloads) is at 1:1 for the real machine and predicts the model's fit; the **print fit test**
   (Prototyping) dials in the print's own **print slot offset**, in printed millimetres whatever the scale, which the
   prototype set uses in place of the job's.
+- **Kerf test** (Export tab, step 1, for a laser, plasma or knife; `core/calibrate.py`): seven squares and a plate
+  with seven square holes, each pair drawn for one kerf around the job's (0.05 mm steps for a laser, 0.25 for a
+  plasma). The square grows by half the kerf and its hole shrinks by half, as Lamina compensates a part, so cut with
+  the true kerf that pair comes out exactly to size and fits snug. Its value is the kerf to type in.
 - **Every zip carries the project file** (`….lamina.json`): technique, every parameter and the uploaded model
   itself, so a printed part or a cut file found later leads back to what made it. Take it out of the zip, and
   **import files…** on the library page reads it back.

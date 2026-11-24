@@ -189,7 +189,7 @@
       <div id="g-light"></div>
     </section>
     <section data-tab="checks"><h2>Physical checks <button class="small reset" data-reset="checks">reset tab</button></h2><div id="g-checks"></div><h2>Report</h2><div id="report"></div></section>
-    <section data-tab="export"><h2>Weight</h2><div id="weight"></div>
+    <section data-tab="export"><h2>Weight</h2><div id="weight"></div><div id="estimates"></div>
       <!-- What the job is, by machine, before any button: which machine makes what, from what stock, in which order.
            Then the steps in the order they happen, numbered by renderDownloads: a job with no joint the slot offset sizes
            has no fit test, and each machine gets one main button; the rest is folded. The tour points at #machines,
@@ -215,7 +215,7 @@
       <div class="dl rows" id="dl_print"></div></div>
       <div class="step" id="x_build"><h2 id="build_title"></h2>
       <details class="info"><summary>how to build it</summary><p class="hint">The assembly key says where every part goes, and the steps slider over the 3D view shows the order. Record it to keep beside you as you build.</p></details>
-      <div class="dl rows"><div class="r" id="key_go"></div><div class="r"><a href="#" id="vid_go">record the assembly video (webm)</a></div></div></div>
+      <div class="dl rows"><div class="r" id="key_go"></div><div class="r"><a href="#" id="guide_go" data-tip="A printable assembly guide, opened in a new tab: one card for each build step with a 3D picture of the model as built so far, the new part framed and numbered, what is engraved on it, its sheet and thickness, what it goes onto and its cut outline. Print it on A4, or save it as one HTML file">assembly guide (printable) · a 3D picture for every step</a></div><div class="r"><a href="#" id="vid_go">record the assembly video (webm)</a></div></div></div>
       <!-- Here, not on the Model tab: the people who just downloaded the cut files are the ones about to make it. -->
       <p class="hint" style="margin:10px 0 4px">Once it is cut and built, please
         <a data-feedback="made" href="https://github.com/marcelfarres/lamina/issues/new?template=made.yml" target="_blank" rel="noopener">send me a photo</a>

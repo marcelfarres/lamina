@@ -78,6 +78,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Live update, dark UI, tooltips, tabs | ✅ | settings in folding sections with full names, a search box over the tabs, a mark on every changed setting, help that opens under a setting |
 | Material / machine / stock-sheet presets | ✅ | 21 materials: thickness by gauge (steel's and stainless's own tables), ounce, point or fraction with mm and inch, sheet sizes per material, a density for the weight, and only the machines that can cut it; kerf / slot / relief per machine (CO2 laser, fiber laser, plasma, router, knife, by hand, 3D printer, and machines by name). PLA and PETG print the parts at full size: whole-layer thicknesses, print beds as sheets, 0.2 mm slot clearance |
 | Weight | ✅ | Export tab: the parts as cut (net of holes and slots, each at its own thickness, a line per stock), the sheets, the dowels and the assembled total, in g/kg or oz/lb |
+| Estimates | ✅ | Export tab: length to cut, score and engrave and the pierces, measured on the lines the cut files draw; machine time (cut and score at the cut speed, engraving at the engrave speed; no pierces or travel, so a lower bound) and cost (sheets × price) from speeds and a price typed in and kept in the browser; also in the zip's README.txt |
 | 3D-printed parts at full size (extra) | ✅ | PLA / PETG, or 3D printer under What you make with, set **3D printed**: sheets are print beds, the page counts plates, the Export tab gives one 3MF per plate with the print's own slot offset |
 | Holding bridges | ✅ | `bridges` per part, `bridge_width`: uncut stretches keep each part in the sheet; placed on straight edges away from corners and off every joint (notches and protrusions narrower than the joints, fold ends), found from the outline's shape since the plan keeps no joint positions; the gap is width + kerf. Placement after LaserSlicer's bridges.ts (GPL-3.0) |
 | One-sheet strip | ✅ | `one_sheet`: everything on one sheet as wide as the stock and as long as it needs |
@@ -87,6 +88,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Identical pieces counted once | ✅ | the plan decides which pieces are the same part (same outline, any quarter turn, same stock): the Parts table lists each once with a quantity and its twins, the per-piece export writes one file named part, material, thickness, quantity (`Z-1 plywood x4`), quantity last and `x1` included, plus `cut-list.txt` with each part's width × height |
 | Mirror images counted once | ✅ | `mirror_ok` (off by default): a part and its mirror image share one file, cut twice and one turned over — only for stock that is the same both sides; the cut list and the table (⇄) name the ones to turn over |
 | Undo / redo | ✅ | Ctrl+Z / Ctrl+Y (or the ↶ ↷ buttons): one step per change that reaches the slicer, technique included; the model itself is not on the stack |
+| Kerf test | ✅ | Export step 1: seven squares in seven square holes, each pair compensated for one kerf around the job's (0.05 mm steps for a laser, 0.25 for a plasma, never below 0); the snug pair names the kerf (`core/calibrate.py`, `/kerftest`). Not for a router, whose CAM program offsets the bit. The dowel-hole sizes are the fit test's own on a stacked job |
 | Scale-check bar | ✅ | 10 cm or 4 in bar on the first sheet with room and as its own piece file, to cut and measure first |
 | Kerf compensation toggle | ✅ | `compensate`, off by default: machines that compensate their own kerf must not be compensated twice |
 | Solid output (STL of assembled model / single part) | ✅ | pure trimesh |
@@ -108,6 +110,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | DXF with unit choice | ✅ |
 | SVG (extra) | ✅ |
 | Assembly key (extra) | ✅ `assembly-key.txt` beside the cut files: what this technique's labels mean, then every part with its centre, what it slots onto and the order the 3D view builds them in; a tickbox leaves it out of the zip |
+| Assembly guide (extra) | ✅ Export tab, Build it: *assembly guide (printable)* builds in the page one card per build step, six to an A4 page: a 3D picture of the model as built so far (earlier parts grey with edge lines, the new part framed and numbered, striped where they hide it), the engraving (the code in puzzle mode), sheet, thickness, what it goes onto (for stacked, the layer below) and its cut outline with its size; opens in a new tab with a Print button and a link to save it as one HTML file (`web/static/js/guide.js`) |
 | Puzzle mode (extra) | ✅ `label_style=code`: parts are engraved with a two-letter code that says nothing about where they go and the per-piece files are named after it, so the key is the only way back — seeded by the job, so a re-slice engraves the same codes |
 | Assembly video (extra) | ✅ the steps slider played and recorded off the 3D canvas (`MediaRecorder`, the browser's own) as .webm — made in the page, nothing uploaded and nothing rendered twice |
 
@@ -188,7 +191,7 @@ What makes more models buildable comes first; polish and speed after.
      dowels at the bulges farthest apart, or a smaller dowel for that layer alone, would be the next step.
 
 Left out of the four features above, deliberately: the instructions are a text file (`assembly-key.txt`) with the
-build order as a column, not a numbered page per step; the 3D-printed prototype still engraves real labels in puzzle
+build order as a column (the printable assembly guide of 0.4.1 adds a numbered card per step with a 3D picture); the 3D-printed prototype still engraves real labels in puzzle
 mode (that path is `core/solid.py`, not the cut files); every fan of a multi-axis radial job shares one `count`,
 which is what makes neighbouring fans meet plane for plane; and axes on no single plane get no spine, because no
 flat sheet passes through all of them (the job says so and names the fix). A lobe *between* two side-by-side

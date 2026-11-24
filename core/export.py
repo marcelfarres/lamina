@@ -211,6 +211,32 @@ def texts(items, font):
             yield it.label, glyphs(it.label, it.size or font, x, y, rot), it.leader
 
 
+def _length(pts, closed=False):
+    pts = list(pts) + ([pts[0]] if closed else [])
+    return sum(math.dist(a, b) for a, b in zip(pts, pts[1:]))
+
+
+def measure(items, labels=True, font=4.0):
+    """What the machine travels on `items`, in mm, measured on the lines the files draw (strokes, texts): the cut
+    through (OUTER + INNER), the score (SCORE), the engraving (GUIDE, and with `labels` the arrows, every text's strokes
+    and the leader lines), and the pierces: one per cut path, so an outline split in open stretches counts each."""
+    cut = score = engrave = 0.0; pierces = 0
+    for layer, pts, closed, _, _ in strokes(items):
+        n = _length(pts, closed)
+        if layer in ("OUTER", "INNER"): cut += n; pierces += 1
+        elif layer == "SCORE": score += n
+        elif layer == "GUIDE" or labels: engrave += n
+    for _, sts, leader in texts(items, font) if labels else ():
+        engrave += sum(_length(st) for st in sts) + (_length(leader) if leader else 0.0)
+    return {"cut": round(cut, 1), "score": round(score, 1), "engrave": round(engrave, 1), "pierces": pierces}
+
+
+def measure_sheets(plan, sheets, labels=True):
+    """`measure` of each sheet's items (`sheets`: one items list per sheet) and their sum: {"total": {...}, "sheets": [{...}]}"""
+    per = [measure(its, labels, plan["params"].get("font", 4.0)) for its in sheets]
+    return {"total": {k: round(sum(m[k] for m in per), 1) if k != "pierces" else sum(m[k] for m in per) for k in ("cut", "score", "engrave", "pierces")}, "sheets": per}
+
+
 # ------------------------------------------------------------------ SVG
 def sheet_thickness(plan, si):
     """The stock this sheet is cut from: nesting keeps one thickness per sheet."""
@@ -503,7 +529,7 @@ def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, bor
     font = font or plan["params"].get("font", 4.0); units = units or plan["params"].get("units", "mm")
     names = plan.get("codes") or {}                 # puzzle mode: engraved codes instead of positions
     design = design_name(plan)                      # before every file name: two designs' files never mix
-    written = []
+    written, estimate = [], None
 
     def size_of(it):
         """Width × height of a piece's cut outline as it lies in its file, in the export's units."""
@@ -553,6 +579,7 @@ def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, bor
                   [x for x in fmts if x != "pdf"], sheet_title(plan, si) if labels else "")
         if "pdf" in fmts:                           # one multi-page PDF for all sheets
             f = out_dir / f"{design} sheets.pdf"; pdf_doc(f, pages, labels, border, font); written.append(f)
+        estimate = measure_sheets(plan, [its for its, _, _ in pages], labels)["total"]   # measured on what was just drawn
     if key:
         f = out_dir / f"{design} assembly-key.txt"; f.write_text(key_text(plan), encoding="utf-8"); written.append(f)
     if plan.get("standoffs"):                       # the printed connectors travel with the cut files
@@ -560,7 +587,7 @@ def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, bor
         written += standoff_files(plan, out_dir, design)
     if readme:                                      # what is in the folder and how to cut it (core.readme)
         from .readme import write_readme
-        written = write_readme(plan, out_dir, written)
+        written = write_readme(plan, out_dir, written, estimate=estimate)
     return written
 
 
