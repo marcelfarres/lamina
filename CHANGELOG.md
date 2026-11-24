@@ -43,6 +43,8 @@ met first in 0.4.0.
   fingers between slots. Cardboard now takes fingers as thin as the sheet, as plywood does.
 - **The fold-groove message is a note.** In the published version, the folded print examples opened with a warning:
   that version cannot cut fold grooves into print files. It now shows as a note, so they open clean.
+- **Printed panels stay on the plate.** A folded panel printed on a plate just bigger than itself could show the
+  error "laid past the edge". Every panel that fits now lies on its plate. Its number tags use the free room.
 
 ## 0.4.0
 
