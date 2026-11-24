@@ -2,6 +2,14 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.4.1
+
+### Added
+
+- **A printable assembly guide.** *Assembly guide* on the Export tab opens a card for each build step: a 3D picture with the new part framed, its sheet, what it goes onto and its outline.
+
+  ![The Export tab with the assembly guide row ringed](web/static/news/0.4.1-guide.jpg)
+
 ## 0.4.0
 
 This release makes Lamina easier for a new user: help on every setting, clearer names, a tour of the page, and one

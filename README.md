@@ -494,6 +494,7 @@ does not slip through. It carries the most signal for stacked and folded work; d
   you give up — and the key is the only way back. Leave it out of the zip and the puzzle stays a puzzle.
 - **An assembly video**: the steps slider played and recorded off the 3D view as a `.webm`, made in the page itself —
   nothing uploaded, nothing rendered twice.
+- **An assembly guide**: *assembly guide (printable)* on the Export tab opens one card per build step in a new tab, six to an A4 page: a 3D picture of the model as built so far with the new part framed and numbered, what is engraved on it, its sheet and thickness, what it goes onto, and its cut outline. Print it or save it as one HTML file; it is made in the page.
 - **Cut files**: SVG (opens directly in LightBurn, the Glowforge app and xTool Creative Space) and DXF in mm / cm /
   in, multi-page PDF, EPS per sheet, or one file per piece, each with or without the red label layer (one switch for
   every file). Layers follow Slicer's Cut Layout: OUTER blue, INNER green (slots, holes), SCORE yellow (folds: solid mountain, dashed valley, seen from the face up on the cutter; dotted perforate), GUIDE orange (stacked: the

@@ -229,7 +229,7 @@ function mergeGeos(geos){   // uv too: the extrusion's own, in mm, for the ring 
 // it): a model's ghost lands before its plan, while ST.plan is still the last model's, so the ghost alone is seen from
 // the standard side
 const EYE=new THREE.Vector3(.7,-1,.6);   // where the standard view looks from, before it is scaled to the model
-function fitPose(){const P=parts.children.length, b=new THREE.Box3().setFromObject(P?parts:ghost);if(b.isEmpty())return null;const c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3()).length();
+export function fitPose(){const P=parts.children.length, b=new THREE.Box3().setFromObject(P?parts:ghost);if(b.isEmpty())return null;const c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3()).length();
   const dir=EYE.clone(), back=P&&ST.plan?.mode==='plaque'&&ST.plan.params.back;
   if(back){const k='xyz'.indexOf(back[1]);dir.setComponent(k,(back[0]==='-'?1:-1)*Math.abs(dir.getComponent(k)))}
   return {c,s,eye:c.clone().add(dir.normalize().multiplyScalar(s*1.5))}}

@@ -8,6 +8,7 @@ import {dens, machineOf, machineKind} from './presets.js';
 import {renderFields, lenMM, showTab} from './form.js';
 import {slice} from './slice.js';
 import {parts} from './scene.js';
+import {openGuide} from './guide.js';
 import {sheetSeams, toggleSeam} from './seams.js';
 
 // ---------------------------------------------------------------- sheets + report
@@ -163,6 +164,7 @@ export function renderDownloads(){ // the labels checkbox applies to every cut f
     ...(fit?[['print fit test (.zip) · 5 print slot offsets around yours',`${b}/fit?${fq}`,'','fit_go']]:[])]);
   $('#more').innerHTML=rows(more);
 }
+$('#guide_go').onclick=e=>{e.preventDefault();openGuide(e.currentTarget)};
 export function renderReport(){
   const c=ST.plan.counts,p=ST.plan;
   // identical pieces are one part in several copies — the plan decided which, so the table and the cut files agree
@@ -200,7 +202,7 @@ export function renderReport(){
   $('#pr_scale').oninput=$('#pr_labels').onchange=renderDownloads; $('#x_labels').onchange=$('#x_key').onchange=$('#x_grouped').onchange=renderDownloads;
   // Which formats people actually take away — the strongest signal of what machines they run. The link's own
   // query string already names them, so nothing extra has to be tracked to know it.
-  $('section[data-tab="export"]').onclick=e=>{const a=e.target.closest('.dl a');if(!a||a.id==='vid_go')return;
+  $('section[data-tab="export"]').onclick=e=>{const a=e.target.closest('.dl a');if(!a||a.id==='vid_go'||a.id==='guide_go')return;
     const href=a.getAttribute('href')||'', path=href.split('?')[0].split('/').pop(), q=new URLSearchParams(href.split('?')[1]||'');
     const named={proto:'proto-3mf',fit:'fit-3mf'}[path]; if(named)return ST.countUse('export',named);   // the names these two were always counted under
     const fmts=(q.get('fmt')?q.get('fmt').split(','):[path.replace('.','-')]).map(f=>/fitcut/.test(href)?'fit-'+f:f);

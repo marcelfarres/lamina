@@ -575,6 +575,16 @@ def n040_library(app):
     app.p.click("#libclose")
 
 
+# ---- 0.4.1 -----------------------------------------------------------------------------------------------------
+
+
+def n041_guide(app):                        # Build it on the Export tab, the new row ringed
+    app.example("vase", "stacked")
+    app.tab("export")
+    row = "#guide_go"
+    app.shot("0.4.1-guide", (0, app.box("#x_build")[1] - 40, 470, app.box("#x_build")[3] + 20), [(row, "printable guide, a picture per step")])
+
+
 def picture_name(f):                        # n040_stacked_joins -> 0.4.0-stacked-joins
     v, slug = f.__name__.split("_", 1)
     return f"{v[1]}.{v[2]}.{v[3]}-{slug.replace('_', '-')}"
