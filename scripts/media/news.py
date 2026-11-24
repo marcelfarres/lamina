@@ -602,14 +602,17 @@ def n041_bridges(app):                      # the setting, beside one part of th
 
 
 def n041_estimates(app):                    # the new tiles and the three fields under them, with speeds and a price typed in
-    app.example("bunny", "stacked")
+    app.example("vase", "stacked")
     app.tab("export")
     for box, v in (("#est_cut", "20"), ("#est_engrave", "150"), ("#est_price", "12")):
         app.p.fill(box, v)
     app.p.locator("#estimates").evaluate("e => e.scrollIntoView({block: 'center'})")
     app.p.wait_for_timeout(300)
-    t, e = app.box("#est_tiles"), app.box("#estimates")
-    app.shot("0.4.1-estimates", (0, t[1] - 90, 470, e[3] + 10), [("#est_tiles", "cut, time and cost"), ("#estimates .est-in", "typed in, kept in the browser")])
+    t, e, side = app.box("#est_tiles"), app.box("#estimates"), app.box("aside")
+    i = app.box("#estimates .est-in")
+    room = lambda b: (b[0] - 6, b[1], b[2], b[3])   # the text starts at the box's edge, and the ring's edge is drawn inwards
+    # the fields ringed without a label: the page's own line under them says they stay in the browser
+    app.shot("0.4.1-estimates", (0, t[1] - 90, side[2], e[3] + 10), [(room(t), "cut, time and cost"), (room(i), "")])
 
 
 def picture_name(f):                        # n040_stacked_joins -> 0.4.0-stacked-joins
