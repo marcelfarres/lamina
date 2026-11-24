@@ -333,10 +333,11 @@ def test_fingers_between_slots_thinner_than_the_material_are_a_warning(ball):
     assert not finger(apart)
 
 
-@pytest.mark.parametrize("material, warns", [("plywood", False), ("acrylic", True), ("cardboard", True)])
+@pytest.mark.parametrize("material, warns", [("plywood", False), ("cardboard", False), ("acrylic", True), ("greyboard", True)])
 def test_the_material_sets_the_thinnest_finger(ball, material, warns):
-    """14 ribs leave 4.1 mm fingers in the 3 mm spine: plywood takes that, brittle acrylic wants 1.5 × the sheet
-    (4.5 mm) and soft cardboard 2 × (6 mm) — the material picked on the Sheet tab decides."""
+    """14 ribs leave 4.1 mm fingers in the 3 mm spine: plywood and cardboard take that (1 × the sheet; cardboard since
+    bug 079), brittle acrylic wants 1.5 × (4.5 mm) and soft greyboard 2 × (6 mm) — the material picked on the Sheet tab
+    decides."""
     plan = build(ball, "plaque", {**BASE, "layout": "crossed", "nx": 14, "ny": 1, "sink": 50, "plate": "circle", "first": "y",
                                   "material_kind": material})
     w = [e for e in by_group(plan, "Y")[0]["warnings"] if "finger" in e]

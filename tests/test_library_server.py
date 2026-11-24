@@ -185,7 +185,8 @@ def test_a_write_that_stops_half_way_leaves_the_old_file(api, lib):
 BAD = ["../x.lamina.json", "..\\x.lamina.json", "a/b.lamina.json", "a\\b.lamina.json", ".hidden.lamina.json",
        ".lamina.json", "x.json", "x.lamina.json.tmp", "/x.lamina.json", "C:\\x.lamina.json", "C:x.lamina.json",
        "x:y.lamina.json", "x\x00.lamina.json", "x\n.lamina.json", "a..b.lamina.json", "x.lamina.json/..",
-       "sub/../x.lamina.json"]
+       "sub/../x.lamina.json",
+       "!" * 20_000]                                                          # a long crafted name: refused at once, nothing backtracks
 
 
 @pytest.mark.parametrize("name", BAD)
@@ -248,6 +249,18 @@ def test_a_folder_the_server_cannot_write_says_so(api, lib, monkeypatch):
     r = api.put(URL, content="{}")
     assert r.status_code == 503 and r.json()["detail"] == problem and projects(lib) == []
     assert api.get("/api/library").json()["problem"] == problem           # listed still, with what is wrong
+
+
+def test_the_page_is_told_the_reason_never_a_path(api, lib, monkeypatch):
+    """An OS error is told in the system's own words; one without them (made with a message only) names its kind, never
+    its text, which can be a path on the server."""
+    def refused(*a, **k):
+        raise OSError(str(lib / ".x.probe"))
+    monkeypatch.setattr(webapp.tempfile, "mkstemp", refused)
+    problem = api.get("/api/project").json()["library"]["problem"]
+    assert problem.startswith("The server cannot write to its library folder projects (OSError).") and str(lib) not in problem
+    r = api.put(URL, content="{}")
+    assert r.status_code == 503 and r.json()["detail"] == problem
 
 
 def test_a_read_only_folder_names_the_mount(api, lib, monkeypatch):

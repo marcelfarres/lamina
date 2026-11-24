@@ -21,6 +21,7 @@ import shapely
 from ezdxf import units as dxfunits
 from shapely import affinity
 from shapely.geometry import MultiPolygon, Polygon, box
+from .bridges import hold
 from .font import bold_dot, strokes as glyphs
 from .geometry import as_multi, poly_coords
 from .labels import label_box, label_rect, mark_rot, mark_size
@@ -56,6 +57,7 @@ class Item:
         # the marks turn with their part: on the sheet by its placement, so a dowel number stays beside its hole and a
         # seam number on its seam however the part was nested; in the part's own frame (kerfed) not at all
         self.rot = (pc.get("place") or [0, 0, 0, 0])[3] if rings_key == "placed" else 0.0
+        self.open = {}                           # ring index -> the open stretches it is cut as, between its holding bridges
 
 
 def items_for_sheet(plan, si):
@@ -63,7 +65,7 @@ def items_for_sheet(plan, si):
     items = [Item(pc, "placed", sl.get("note", ""), names, plan.get("label_tag", ""))
              for sl in plan["slices"] for pc in sl["pieces"] if pc["place"][0] == si]
     coupon = scale_check_item(plan, si)
-    return items + [coupon] if coupon else items
+    return hold(items + [coupon] if coupon else items, plan["params"], sheet_thickness(plan, si))
 
 
 # ------------------------------------------------------------------ scale check: a bar to cut first and measure
@@ -184,10 +186,12 @@ def line_layer(style):
 
 def strokes(items):
     """Every line of the drawing, item by item, as (layer, points, closed, dash style, part key): the cut rings
-    (closed, solid), then the fold and guide lines. A style DASH does not know — "guide" — draws solid."""
+    (closed, solid; a ring with holding bridges as its open stretches between them), then the fold and guide lines.
+    A style DASH does not know — "guide" — draws solid."""
     for it in items:
-        for layer, ring in it.rings:
-            yield layer, ring, True, "solid", it.key
+        for i, (layer, ring) in enumerate(it.rings):
+            for pts in it.open.get(i, [ring]):
+                yield layer, pts, pts is ring, "solid", it.key
         for style, pts in it.scores:
             yield line_layer(style), pts, False, style if style in DASH else "solid", it.key
 
@@ -313,7 +317,7 @@ def svg_doc(items, width, height, labels, border=False, font=4.0, units="mm", ti
     def layer_group(layer, on):
         body = [f'<g class="{layer}" fill="none" stroke="{COLORS[layer]}" stroke-width="0.15">']
         for _, pts, closed, style, key in on:
-            tag = f' data-label="{html.escape(key, quote=True)}"' if closed else ""
+            tag = f' data-label="{html.escape(key, quote=True)}"' if layer in ("OUTER", "INNER") else ""   # a cut, bridged or not: the sheet view picks parts by it
             dash = f' stroke-dasharray="{",".join(f"{v:g}" for v in DASH[style][0])}"' if DASH[style][0] else ""
             body.append(f'<path{tag} d="{d_of(pts, closed)}"{dash}/>')
         return body + ["</g>"]
@@ -546,7 +550,7 @@ def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, bor
         if plan["params"].get("scale_check", True):
             cpc, cnote, _, _ = scale_check_piece(plan)
             stem = "scale-check" + mat_tag(plan) + " x1"
-            it, w, h = item_for_piece(cpc, cnote); write(stem, [it], w, h, False)
+            it, w, h = item_for_piece(cpc, cnote); write(stem, hold([it], plan["params"], sheet_thickness(plan, 0)), w, h, False)
             rows.append((f"{design} {stem}", 1, size_of(it), cnote))
         thick = {pc["label"]: sl["thickness"] for sl in plan["slices"] for pc in sl["pieces"]}
         stock = {pc["label"]: sl.get("stock", "") for sl in plan["slices"] for pc in sl["pieces"]}
@@ -557,7 +561,7 @@ def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, bor
             # the drawing carries the count and how many of them are turned over; the cut list names which ones
             it, w, h = item_for_piece(pc, " ".join(x for x in ([f"×{n}"] if n > 1 else []) + [f"({len(flips)} turned over)" if flips else "", note] if x), names=names,
                                       tag=plan.get("label_tag", ""), font=font)
-            write(stem, [it], w, h, False)
+            write(stem, hold([it], plan["params"], t), w, h, False)
             also = "also " + ", ".join(names.get(l, l) for l in same[1:]) if n > 1 else note
             rows.append((f"{design} {stem}", n, size_of(it), "; ".join(x for x in [also, "turn over " + ", ".join(names.get(l, l) for l in flips) if flips else ""] if x)))
         # one row per file: how many to cut, and each part's width × height as it lies in its file (what to check

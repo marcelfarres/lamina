@@ -80,6 +80,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Weight | ✅ | Export tab: the parts as cut (net of holes and slots, each at its own thickness, a line per stock), the sheets, the dowels and the assembled total, in g/kg or oz/lb |
 | Estimates | ✅ | Export tab: length to cut, score and engrave and the pierces, measured on the lines the cut files draw; machine time (cut and score at the cut speed, engraving at the engrave speed; no pierces or travel, so a lower bound) and cost (sheets × price) from speeds and a price typed in and kept in the browser; also in the zip's README.txt |
 | 3D-printed parts at full size (extra) | ✅ | PLA / PETG, or 3D printer under What you make with, set **3D printed**: sheets are print beds, the page counts plates, the Export tab gives one 3MF per plate with the print's own slot offset |
+| Holding bridges | ✅ | `bridges` per part, `bridge_width`: uncut stretches keep each part in the sheet; placed on straight edges away from corners and off every joint (notches and protrusions narrower than the joints, fold ends), found from the outline's shape since the plan keeps no joint positions; the gap is width + kerf. Placement after LaserSlicer's bridges.ts (GPL-3.0) |
 | One-sheet strip | ✅ | `one_sheet`: everything on one sheet as wide as the stock and as long as it needs |
 | View cube | ✅ | click a face of the cube in the 3D view for a flat view |
 | Session kept by the server | ✅ | refresh, a new tab or another browser resumes the last slice |

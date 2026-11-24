@@ -575,6 +575,32 @@ def n040_library(app):
     app.p.click("#libclose")
 
 
+# ---- 0.4.1 -----------------------------------------------------------------------------------------------------
+
+
+def n041_bridges(app):                      # the setting, beside one part of the real sheet preview zoomed so its gaps show
+    app.example("bonsai")
+    app.tab("sheet")
+    app.set("bridges", 2)
+    app.p.locator(".f[data-p=bridges]").scroll_into_view_if_needed()
+    x0, y0, x1, y1 = app.box(".f[data-p=bridges]")
+    setting = app.grab((x0, y0 - 44, x1, y1), [(".f[data-p=bridges]", "")])   # the section's line above it says what they are for
+    # the preview's own SVG, its viewBox narrowed to one small part (the paths are already flipped to screen y), and
+    # each gap's middle where the page puts it: between the end of one open stretch and the start of the next
+    gaps = app.p.evaluate("""label => {
+      const g = document.querySelector(`#sheets g.piece[data-label="${label}"]`), svg = g.ownerSVGElement, b = g.getBBox(), m = 3;
+      svg.setAttribute('viewBox', `${b.x - m} ${b.y - m} ${b.width + 2 * m} ${b.height + 2 * m}`);
+      svg.style.cssText = 'position:fixed;left:520px;top:70px;width:600px;height:auto;z-index:99;background:#141517';
+      const at = (p, l) => { const q = p.getPointAtLength(l), c = p.getScreenCTM(); return [q.x * c.a + q.y * c.c + c.e, q.x * c.b + q.y * c.d + c.f] };
+      const ps = [...g.querySelectorAll('g.OUTER path')];
+      return ps.map((p, i) => { const a = at(p, p.getTotalLength()), z = at(ps[(i + 1) % ps.length], 0); return [(a[0] + z[0]) / 2, (a[1] + z[1]) / 2] });
+    }""", "X-19-3")
+    app.p.wait_for_timeout(300)
+    marks = [((x - 14, y - 14, x + 14, y + 14), "a bridge" if i == 0 else "") for i, (x, y) in enumerate(gaps)]
+    part = app.grab("#sheets svg[style*=fixed]", marks)
+    save("0.4.1-bridges", side_by_side(setting, part))
+
+
 def n041_estimates(app):                    # the new tiles and the three fields under them, with speeds and a price typed in
     app.example("bunny", "stacked")
     app.tab("export")

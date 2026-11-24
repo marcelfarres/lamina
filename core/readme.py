@@ -92,9 +92,17 @@ def write_readme(plan, out_dir, files, notes=(), scale=1.0, estimate=None) -> li
         else:
             out.append("  Not compensated: each line is the part's exact size. Set the kerf offset in your laser program"
                        + (f" ({p['kerf']:g} mm on this job)" if p.get("kerf", 0) > 0 else "") + ", or tick compensate in Lamina and export again.")
+    bridges = int(p.get("bridges", 0) or 0) if cut and not p.get("printed") else 0
+    if bridges:
+        out += ["", "HOLDING BRIDGES",
+                f"  Each part's outline is cut with up to {bridges} short gaps, {p.get('bridge_width', 0.5):g} mm of material left in each,"
+                " so the part stays in the sheet while the rest is cut.",
+                "  Snap each part out by hand afterwards and sand the stub off. No bridge is on a slot, a tab or the end of a fold."]
     hand = []
     if cut and p.get("tool_d", 0) > 0:
         hand += ["Cut OUTER outside the line and INNER inside the line: a profile toolpath with the bit's offset.",
+                 "OUTER is cut open at the holding bridges. Most CAM programs want closed outlines for a profile toolpath: if yours"
+                 " does, set holding bridges to 0 in Lamina, export again and add tabs in the CAM program." if bridges else
                  "Add holding tabs to OUTER in your CAM program, so the parts stay in the sheet.",
                  "LABEL and GUIDE need a V-bit or a small engraving bit. If you have none, leave them out: the assembly key names each part."]
     if cut and (rods := rods_of(plan)) and not p.get("printed"):
