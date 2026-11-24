@@ -58,7 +58,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Folded: score vs cut, yellow fold lines | ✅ | SCORE layer: solid mountain, dashed valley, dotted perforate |
 | Folded: the material folds (extra) | ✅ | fold lines, and tabs or strips bending over a seam, in a sheet thicker than its material folds at are an error; one click cuts every face alone, joined by ribs |
 | 3D Slices | ✅ | stacked with `surface=outer` (outline follows the surface through the slice) + pegs |
-| Assembly Steps: play / scrub | ✅ | `steps` slider in the 3D view; `explode` slider |
+| Assembly Steps: play / scrub | ✅ | `steps` slider in the 3D view; `explode` slider; `section` slider (x / y / z plane, view only) |
 | Assembly Steps: material look (cardboard, plywood, plastic) | ✅ | `look` select in the 3D view: by family, cardboard, paper, plywood, steel, brass, copper, plastic, foam |
 | Reference sheets beside the 3D view, zoom | ✅ | cut sheets live under the 3D view; click one to open it full size |
 

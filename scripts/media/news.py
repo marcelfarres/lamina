@@ -577,7 +577,6 @@ def n040_library(app):
 
 # ---- 0.4.1 -----------------------------------------------------------------------------------------------------
 
-
 def n041_bridges(app):                      # the setting, beside one part of the real sheet preview zoomed so its gaps show
     app.example("bonsai")
     app.tab("sheet")
@@ -599,6 +598,16 @@ def n041_bridges(app):                      # the setting, beside one part of th
     marks = [((x - 14, y - 14, x + 14, y + 14), "a bridge" if i == 0 else "") for i, (x, y) in enumerate(gaps)]
     part = app.grab("#sheets svg[style*=fixed]", marks)
     save("0.4.1-bridges", side_by_side(setting, part))
+
+
+def n041_section(app):                      # the vase cut in half across y, the control that does it ringed in the bar
+    app.example("vase", "stacked")
+    app.view(30, 18, 1.0)
+    app.p.select_option("#section_axis", "y")
+    app.p.evaluate("() => { const s = document.querySelector('#section'); s.value = 50; s.dispatchEvent(new Event('input', {bubbles: true})) }")
+    app.p.wait_for_timeout(600)
+    app.shot("0.4.1-section", VIEW, [("#sectionl", "section")])
+    app.p.evaluate("() => { const s = document.querySelector('#section'); s.value = 0; s.dispatchEvent(new Event('input', {bubbles: true})) }")
 
 
 def picture_name(f):                        # n040_stacked_joins -> 0.4.0-stacked-joins
