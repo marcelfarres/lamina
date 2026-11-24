@@ -23,8 +23,9 @@ LEVERAGE_WARN = 1.5    # placement aims for 0.8 (geometry.LEVERAGE_OK); past thi
 # aside or trimmed with a knife in a soft sheet, sanded or filed in a hard one; the thinnest finger of material between
 # two slots, as a share of the sheet's thickness). Up to 8 mm: the tube example's far walls (9 and 14 mm in the way)
 # block in every material. A material not listed takes the plywood figures, which were the only ones before.
-# ponytail: rules of thumb like folded's SQUISH and FOLDS, to be corrected by what gets built.
-FIT = {"paper": (8, 2), "card": (8, 2), "fabric": (8, 2), "cardboard": (8, 2), "EVA foam": (8, 2), "foam board": (8, 2),
+# ponytail: rules of thumb like folded's SQUISH and FOLDS, to be corrected by what gets built. Cardboard's finger is
+# 1 × the sheet, as plywood (Marcel, bug 079): at 2 × the radial and curve examples warned on every ring they open with.
+FIT = {"paper": (8, 2), "card": (8, 2), "fabric": (8, 2), "cardboard": (8, 1), "EVA foam": (8, 2), "foam board": (8, 2),
        "greyboard": (8, 2), "balsa": (8, 2), "leather": (8, 1), "polypropylene": (8, 1),
        "plywood": (6, 1), "PETG": (6, 1), "basswood": (6, 1.5), "mdf": (4, 1.5), "PLA": (4, 1.5), "acrylic": (3, 1.5),
        "steel": (2, 0.5), "stainless steel": (2, 0.5), "aluminium": (2, 0.5), "brass": (2, 0.5), "copper": (2, 0.5)}

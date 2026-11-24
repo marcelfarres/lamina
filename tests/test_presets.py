@@ -15,6 +15,18 @@ PRESETS = {k: v for k, v in json.loads((EXAMPLES / "presets.json").read_text(enc
 STILL_WARNS = {"bunny"}
 
 
+def opened(name):
+    """The example as a fresh page opens it: 3 mm cardboard (unless the preset names a material), the machine's kerf and
+    slot offset, the preset. The material sets the limits the checks use (bug 079: without it, the thinnest finger was
+    checked as plywood's). Returns the plan, its errors and its warnings, each part's own counted as the page counts them.
+    tests/browser_env.py runs the same without the compiled extras."""
+    pr = PRESETS[name]
+    plan = build(EXAMPLES / f"{name}.stl", pr["mode"], {"kerf": 0.15, "slot_offset": 0.1, "thickness": 3, "material": "cardboard", **pr["params"]})
+    errs = plan["errors"] + [f"{sl['label']}: {e}" for sl in plan["slices"] for e in sl["errors"]]
+    warns = plan["warnings"] + [f"{sl['label']}: {w}" for sl in plan["slices"] for w in sl["warnings"]]
+    return plan, errs, warns
+
+
 def test_every_example_has_a_preset():
     assert set(PRESETS) == {p.stem for p in EXAMPLES.glob("*.stl")}
 
@@ -26,12 +38,7 @@ def test_every_example_has_a_preview():
 
 @pytest.mark.parametrize("name", sorted(PRESETS))
 def test_preset_slices_without_an_error(name):
-    pr = PRESETS[name]
-    # what the UI sends: 3 mm cardboard, the machine's kerf and slot offset
-    plan = build(EXAMPLES / f"{name}.stl", pr["mode"], {"kerf": 0.15, "slot_offset": 0.1, "thickness": 3, **pr["params"]})
-    # the counts the page shows: each part's messages and the plan's own (a connector the technique left out)
-    errs = plan["errors"] + [f"{sl['label']}: {e}" for sl in plan["slices"] for e in sl["errors"]]
+    plan, errs, warns = opened(name)
     assert not plan["counts"]["errors"], errs[:3]
     assert plan["coverage"] > 0.8
-    warns = plan["warnings"] + [f"{sl['label']}: {w}" for sl in plan["slices"] for w in sl["warnings"]]
     assert bool(plan["counts"]["warnings"]) == (name in STILL_WARNS), warns[:3] or f"{name} opens without a warning now: take it off STILL_WARNS"
