@@ -218,8 +218,15 @@ def project():
 # ---------------------------------------------------------------- the library kept by this server (LAMINA_LIBRARY)
 # What the page's serverStore (web/static/js/store.js) calls: the same list, read, write, remove and conditional remove
 # the browser's own store answers. The folder is flat, one <name>_v<rev>.lamina.json per revision, as a linked folder.
-# What library.js's legal() leaves in a file name, with the ending every project file has; lib_path checks where it leads
-LIB_FILE = re.compile(r'[^\\/:*?"<>|\x00-\x1f]+\.lamina\.json')
+# What library.js's legal() leaves in a file name; lib_path checks the ending every project file has and where it leads.
+# One class and no ending in the pattern: nothing to backtrack over, however long the name
+LIB_FILE = re.compile(r'[^\\/:*?"<>|\x00-\x1f]+')
+
+
+def os_reason(e: OSError) -> str:
+    """What the page is told of an OS error: the system's own words (Permission denied, No space left on device), never
+    the exception's text, which can carry a path on the server."""
+    return e.strerror or type(e).__name__
 
 
 def library_cap() -> int:
@@ -245,7 +252,7 @@ def library_problem() -> str:
         fix = ("It is mounted read-only: remove :ro from its volume line." if e.errno == errno.EROFS
                else f"On the host, give the folder to user {uid}: sudo chown -R {uid} /path/to/the/folder" if uid is not None
                else "Check that it exists and that the user who started Lamina may write to it.")
-        return f"The server cannot write to its library folder {LIBRARY.name} ({e.strerror or e}). {fix}"
+        return f"The server cannot write to its library folder {LIBRARY.name} ({os_reason(e)}). {fix}"
 
 
 def sweep_library():
@@ -297,7 +304,7 @@ def lib_path(file: str) -> pathlib.Path:
     """The library's file for a name the page sent: the library's own kind of name (no separator, no dot first, no
     `..`, the project ending), no link (the listing does not show one), then where it leads, resolved: straight inside
     the folder."""
-    ok = LIB_FILE.fullmatch(file) and not file.startswith(".") and ".." not in file and not (LIBRARY / file).is_symlink()
+    ok = file.endswith(".lamina.json") and LIB_FILE.fullmatch(file) and not file.startswith(".") and ".." not in file and not (LIBRARY / file).is_symlink()
     p = (LIBRARY / file).resolve() if ok else None
     if p is None or p.parent != LIBRARY:
         raise HTTPException(400, f"{file!r} is not the name of a project file in the library")
@@ -353,7 +360,7 @@ def library_list():
                         st = e.stat(follow_symlinks=False)
                         files.append({"file": e.name, "size": st.st_size, "mtime": mtime_ms(st)})
     except OSError as err:
-        raise HTTPException(503, library_problem() or f"The server cannot read its library folder {LIBRARY.name} ({err.strerror or err}).") from None
+        raise HTTPException(503, library_problem() or f"The server cannot read its library folder {LIBRARY.name} ({os_reason(err)}).") from None
     return {"name": LIBRARY.name, "problem": library_problem(), "files": sorted(files, key=lambda f: f["file"])}
 
 
@@ -367,7 +374,7 @@ def library_read(file: str):
     except FileNotFoundError:
         raise HTTPException(404, f"{file} is not in the library") from None
     except OSError as e:
-        raise HTTPException(503, f"{file} could not be read in {LIBRARY.name} ({e.strerror or e}).") from None
+        raise HTTPException(503, f"{file} could not be read in {LIBRARY.name} ({os_reason(e)}).") from None
 
     def chunks():
         with f:
@@ -414,7 +421,7 @@ async def library_write(file: str, request: Request, expect: Literal["absent"] |
     try:
         fd, tmp = await run_in_threadpool(tempfile.mkstemp, dir=LIBRARY, prefix=".", suffix=".tmp")
     except OSError as e:
-        raise HTTPException(503, library_problem() or f"{file} could not be written in {LIBRARY.name} ({e.strerror or e}).") from None
+        raise HTTPException(503, library_problem() or f"{file} could not be written in {LIBRARY.name} ({os_reason(e)}).") from None
     try:
         with os.fdopen(fd, "wb") as f:
             n = 0
@@ -426,7 +433,7 @@ async def library_write(file: str, request: Request, expect: Literal["absent"] |
             await run_in_threadpool(_settle, f, tmp)
         return await run_in_threadpool(_swap_in, tmp, p, file, check, want)
     except OSError as e:
-        raise HTTPException(503, library_problem() or f"{file} could not be written in {LIBRARY.name} ({e.strerror or e}).") from None
+        raise HTTPException(503, library_problem() or f"{file} could not be written in {LIBRARY.name} ({os_reason(e)}).") from None
     finally:
         with contextlib.suppress(OSError):                   # swapped in, it is gone already
             os.unlink(tmp)
@@ -448,7 +455,7 @@ def library_remove(file: str, size: int | None = None, mtime: int | None = None)
                     return {"removed": False}
             p.unlink(missing_ok=True)
     except OSError as e:
-        raise HTTPException(503, library_problem() or f"{file} could not be deleted in {LIBRARY.name} ({e.strerror or e}).") from None
+        raise HTTPException(503, library_problem() or f"{file} could not be deleted in {LIBRARY.name} ({os_reason(e)}).") from None
     return {"removed": True}
 
 

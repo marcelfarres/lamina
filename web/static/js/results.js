@@ -179,18 +179,20 @@ export function renderReport(){
    <div class="k" data-tip="How much of the model the parts represent: sample points inside the model that lie within a slice spacing of some part. Below 90 % parts of the model (legs, ears) have no geometry — add slices or change the axis"><b style="color:${p.coverage<0.9?'var(--warn)':'var(--ok)'}">${(p.coverage*100).toFixed(0)}%</b>model covered</div>
    <div><b>${(p.material_area_mm2/1e4).toFixed(1)}</b>dm² material</div><div><b>${p.bbox.map(v=>+(+inU(v)).toPrecision(3)).join(' × ')}</b>model ${ST.unit}</div>
    <div><b style="color:${c.errors?'var(--err)':'var(--ok)'}">${c.errors?'✖':'✓'} ${c.errors}</b>errors</div><div><b style="color:${c.warnings?'var(--warn)':'var(--ok)'}">${c.warnings?'⚠':'✓'} ${c.warnings}</b>warnings</div></div>`;   // a sign with each count: the colour is not the only thing that tells good from bad
-  // the planner writes in mm; each message and fix is shown in the unit on show, and matched to its fixes on the raw text
-  const fixBtns=(s,e)=>{const f=(s.fixes||[]).find(x=>x.error===e);return f?'<br>'+f.options.map((o,i)=>`<span class="fix" data-fix='${JSON.stringify(o.set).replace(/'/g,'&#39;')}' title="${inUnit(o.note||'')}">${inUnit(o.title)}</span>`).join(''):''};
+  // the planner writes in mm; each message and fix is shown in the unit on show, and matched to its fixes on the raw text.
+  // Its texts repeat what a project file says (a material's name), and a project file can be somebody else's: text, never markup
+  const txt=s=>esc(inUnit(s));
+  const fixBtns=(s,e)=>{const f=(s.fixes||[]).find(x=>x.error===e);return f?'<br>'+f.options.map((o,i)=>`<span class="fix" data-fix='${esc(JSON.stringify(o.set))}' title="${txt(o.note)}">${txt(o.title)}</span>`).join(''):''};
   // every message says what it is in a sign and a word, not by its colour alone; several notes fold into one line that
   // names them, so they do not push the sheets down (the Checks tab shows them open)
-  const ERR='<b>✖ ERROR</b> · ', WARN='<b>⚠ WARNING</b> · ', short=n=>esc(inUnit(n).replace(/<[^>]+>/g,'').split(' — ')[0].slice(0,48));
-  const notes=p.notes.length>1?[`<details class="msg note"><summary>ⓘ <b>${p.notes.length} notes</b> on how this was sliced · <span>${p.notes.map(short).join(' · ')}</span></summary>${p.notes.map(n=>`<div>${inUnit(n)}</div>`).join('')}</details>`]
-    :p.notes.map(n=>`<div class="msg note">ⓘ ${inUnit(n)}</div>`);
-  const msgs=[...notes,...p.errors.map(e=>`<div class="msg err">${ERR}${inUnit(e)}${fixBtns({fixes:p.fixes||[]},e)}</div>`),
-    ...(p.warnings||[]).map(w=>`<div class="msg warn">${WARN}${inUnit(w)}</div>`),   // of the whole plan: what was asked for and left out
-    ...p.dropped.flatMap(s=>s.errors.map(e=>`<div class="msg err">${ERR}${s.label}: ${inUnit(e)}</div>`)),
-    ...p.slices.flatMap(s=>[...s.errors.map(e=>`<div class="msg err" data-s="${s.label}" title="click to select this part">${ERR}${s.label}: ${inUnit(e)}${fixBtns(s,e)}</div>`),
-                            ...s.warnings.map(w=>`<div class="msg warn" data-s="${s.label}" title="click to select this part">${WARN}${s.label}: ${inUnit(w)}${fixBtns(s,w)}</div>`)])];
+  const ERR='<b>✖ ERROR</b> · ', WARN='<b>⚠ WARNING</b> · ', short=n=>esc(inUnit(n).split(' — ')[0].slice(0,48));
+  const notes=p.notes.length>1?[`<details class="msg note"><summary>ⓘ <b>${p.notes.length} notes</b> on how this was sliced · <span>${p.notes.map(short).join(' · ')}</span></summary>${p.notes.map(n=>`<div>${txt(n)}</div>`).join('')}</details>`]
+    :p.notes.map(n=>`<div class="msg note">ⓘ ${txt(n)}</div>`);
+  const msgs=[...notes,...p.errors.map(e=>`<div class="msg err">${ERR}${txt(e)}${fixBtns({fixes:p.fixes||[]},e)}</div>`),
+    ...(p.warnings||[]).map(w=>`<div class="msg warn">${WARN}${txt(w)}</div>`),   // of the whole plan: what was asked for and left out
+    ...p.dropped.flatMap(s=>s.errors.map(e=>`<div class="msg err">${ERR}${esc(s.label)}: ${txt(e)}</div>`)),
+    ...p.slices.flatMap(s=>[...s.errors.map(e=>`<div class="msg err" data-s="${esc(s.label)}" title="click to select this part">${ERR}${esc(s.label)}: ${txt(e)}${fixBtns(s,e)}</div>`),
+                            ...s.warnings.map(w=>`<div class="msg warn" data-s="${esc(s.label)}" title="click to select this part">${WARN}${esc(s.label)}: ${txt(w)}${fixBtns(s,w)}</div>`)])];
   const html=msgs.length?msgs.slice(0,40).join('')+(msgs.length>40?`<div class="msg note">… ${msgs.length-40} more</div>`:''):'<div class="msg ok">✓ All physical checks passed.</div>';
   $('#msgs').innerHTML=html; $('#report').innerHTML=html; $('#report details')?.setAttribute('open','');
   for(const el of $$('.fix'))el.onclick=e=>{e.stopPropagation();applyFix(JSON.parse(el.dataset.fix))};
@@ -213,8 +215,8 @@ export function renderReport(){
   // one row per different part: its own size, how many to cut, and which pieces come off it
   const size=pc=>[pc.bbox[2]-pc.bbox[0],pc.bbox[3]-pc.bbox[1]].map(inU).join('×');
   $('#parts').innerHTML=`<table><tr><th>part</th><th>qty</th><th>group</th><th>t (${ST.unit})</th><th>size (${ST.unit})</th><th>engages</th><th class="k" data-tip="The other pieces cut from this part's file. ⇄ = its mirror image: cut it from the same file and turn it over (only when mirror ok is on)">same part</th><th>status</th></tr>${kinds.map(([s,pc,ls,fl])=>{
-    const ss=ls.map(l=>sliceOf[l]||s), e=ss.reduce((n,x)=>n+x.errors.length,0), w=ss.reduce((n,x)=>n+x.warnings.length,0), also=ls.slice(1).map(l=>fl.includes(l)?l+'⇄':l);
-    return `<tr class="${e?'bad':''}" data-s="${s.label}"><td>${pc.label}${s.note?' '+s.note:''}</td><td>${ls.length}</td><td>${s.group}</td><td>${inU(s.thickness)}</td><td>${size(pc)}</td><td>${[...new Set(s.engages)].join(', ')}</td><td title="${also.join(', ')}">${also.slice(0,3).join(', ')}${also.length>3?` +${also.length-3}`:''}</td><td>${e?'✗ '+e:w?'⚠ '+w:'✓'}</td></tr>`}).join('')}</table>`;
+    const ss=ls.map(l=>sliceOf[l]||s), e=ss.reduce((n,x)=>n+x.errors.length,0), w=ss.reduce((n,x)=>n+x.warnings.length,0), also=ls.slice(1).map(l=>esc(fl.includes(l)?l+'⇄':l));
+    return `<tr class="${e?'bad':''}" data-s="${esc(s.label)}"><td>${esc(pc.label)}${s.note?' '+esc(s.note):''}</td><td>${ls.length}</td><td>${esc(s.group)}</td><td>${inU(s.thickness)}</td><td>${size(pc)}</td><td>${esc([...new Set(s.engages)].join(', '))}</td><td title="${also.join(', ')}">${also.slice(0,3).join(', ')}${also.length>3?` +${also.length-3}`:''}</td><td>${e?'✗ '+e:w?'⚠ '+w:'✓'}</td></tr>`}).join('')}</table>`;
   $('#parts').onclick=e=>{const tr=e.target.closest('tr[data-s]');if(!tr)return;const m=parts.children.find(c=>c.userData.slice===tr.dataset.s);if(m)highlight(m);else showPane(tr.dataset.s)};
 }
 

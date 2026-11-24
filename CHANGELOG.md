@@ -4,12 +4,30 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ## 0.4.1
 
+This release helps at the machine: bridges that keep parts in the sheet, a kerf test to cut first, how long the cut
+takes and what it costs, a printed guide to build from, and a section view of the model. It also fixes what new users
+met first in 0.4.0.
+
 ### Added
+
+- **Parts stay in the sheet.** Set *holding bridges* on Sheet & fit: each part keeps a few short uncut stretches,
+  never on a slot, tab or fold, and snaps out by hand after the cut.
+
+  ![Holding bridges set to 2, and a plaque part on the sheet with its two uncut stretches ringed](web/static/news/0.4.1-bridges.jpg)
 
 - **Find your kerf first.** Export step 1 has a *kerf test*: seven squares and their holes, each drawn for one
   kerf. Cut it from a scrap; the square that fits its hole snug names your kerf.
 
   ![The kerf test row in Export step 1, and the sheet it cuts: seven squares and a plate with their holes](web/static/news/0.4.1-kerf-test.jpg)
+
+### Fixed
+
+- **Shared project files open safely.** A project file from someone else could run its own code in the page through
+  its unit, material, connector or light settings. Lamina now shows these settings only as text or numbers.
+- **Examples open clean on cardboard.** In 0.4.0 the blob and six more examples opened with a warning about thin
+  fingers between slots. Cardboard now takes fingers as thin as the sheet, as plywood does.
+- **The fold-groove message is a note.** In the published version, the folded print examples opened with a warning:
+  that version cannot cut fold grooves into print files. It now shows as a note, so they open clean.
 
 ## 0.4.0
 

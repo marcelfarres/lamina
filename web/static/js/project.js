@@ -40,14 +40,14 @@ export const projName=proj=>`${nameOf(proj)}_v${proj.rev}.lamina.json`;
 export async function openProjectText(text,label){
   ST.saved=null; const s=JSON.parse(text); Object.assign(memo,s.memo||{}); setMode(s.mode||'interlocked',false);
   for(const k of ['light','lights','room','light_video'])delete state[k];   // the lights and the room are the file's, or none
-  Object.assign(state,s.state||{}); ST.unit=s.unit||state.units||'mm';
+  Object.assign(state,s.state||{});
   if((s.version||0)<4&&(state.size||[]).some(Boolean))state.size=sizeToModel(state.size);   // before 0.3.2 size was along the view's axes
   state.project=nameOf(s); state.rev=revOf(s); syncProject();
   ST.job=null; ST.pendingFile=null; ST.srcFile=null; ST.fitted=false; deselect(); $('#file').value='';   // as an example does: the upload box lets go
   if(s.model?.b64){const bin=atob(s.model.b64),u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);ST.pendingFile=new File([u8],s.model.name)}
   else if(s.example)ST.example=s.example;
   else if(s.missing_model)status(`this project was saved without its model — the settings are here, upload ${s.missing_model} again`,'err');
-  ST.fresh='opened project '+label; applyUnit(); slice();
+  ST.fresh='opened project '+label; applyUnit(s.unit||state.units); slice();
 }
 export function syncProject(){$('#pname').value=state.project||'';$('#prev').textContent=state.rev||'1.0'}
 // `taken`: the project's revisions in the library, so a bump from an old one lands on a free number, not onto a newer one

@@ -10,7 +10,7 @@ import zipfile
 
 import pytest
 
-from .helpers import ROOT, example, menu, set_fields, settle, still
+from .helpers import ROOT, example, menu, set_fields, settle, still, use
 
 
 def wipe(page):
@@ -677,6 +677,58 @@ def test_a_name_with_html_is_shown_as_text(page):
     library(page)
     assert page.evaluate("window.pwned") is None
     assert page.locator("#libyours .card").first.inner_text().count("<img src=x") == 1
+
+
+EVIL = "<img src=x onerror=window.pwned=1>"
+
+
+@contextlib.contextmanager
+def shared(page, **change):
+    """The project on the page as somebody else's file: `change` set in it (`state` merged into its settings), put in the
+    library and opened from it, the way an imported file or one in the server's folder opens; the project as it was is
+    opened again after, so nothing of it (a material no tab resets) is left for the next test."""
+    p = json.loads(page.evaluate("async () => JSON.stringify(await window.__t.project())")); was = json.dumps(p)
+    p["state"].update(change.pop("state", {})); p.update(change)
+    page.evaluate("delete window.pwned"); put(page, "shared_v1.0.lamina.json", json.dumps(p))
+    page.evaluate("__t.lib.openRevision('shared_v1.0.lamina.json')"); settle(page); page.wait_for_timeout(500)   # an <img>'s onerror runs once it is drawn
+    try:
+        yield
+    finally:
+        put(page, "was_v1.0.lamina.json", was); page.evaluate("__t.lib.openRevision('was_v1.0.lamina.json')"); settle(page)
+
+
+def test_a_shared_projects_unit_is_one_of_three(page):
+    """The unit is written into the page as markup (every length's label, the Parts table, the Light tab): one the page
+    does not know is mm, never the file's text."""
+    with shared(page, unit=EVIL, state={"units": EVIL}):
+        assert page.evaluate("window.pwned") is None
+        assert page.input_value("#unit") == "mm" and "(mm)" in page.text_content("#g-sheet")
+
+
+def test_a_shared_projects_material_is_text_in_the_report(page):
+    """The finger warning names the material, as the file names it (a material the page does not know keeps its name)."""
+    use(page, "sphere", "plaque")
+    with shared(page, state={"layout": "crossed", "nx": 20, "ny": 1, "sink": 50, "plate": "circle", "first": "y",
+                             "size": [100, 100, 100], "autofix": "off", "material": EVIL}):
+        assert page.evaluate("window.pwned") is None
+        assert f"thinner than {EVIL} can take" in page.text_content("#msgs")
+
+
+def test_a_shared_projects_connector_is_text_in_the_parts_table(page):
+    """The Parts table lists what each layer engages: for a dowel hole, the `connect` setting as the file says it."""
+    use(page, "cone", "stacked")
+    with shared(page, state={"connect": EVIL}):
+        assert page.evaluate("window.pwned") is None
+        assert EVIL in page.text_content("#parts")
+
+
+def test_a_shared_projects_lights_are_numbers_in_the_light_tab(page):
+    """A light's cone, brightness and the room's size go into the Light tab's sliders and list as numbers."""
+    spot = {"on": True, "like": "own", "kind": "spot", "angle": '"><img src=x onerror=window.pwned=1>', "soft": 30, "size": 6,
+            "lm": EVIL, "color": "#ffcf9e", "pos": [0, 0, 20], "aim": "up"}
+    with shared(page, state={"lights": [spot], "room": {"size": '"><img src=x onerror=window.pwned=1>'}}):
+        page.click('nav button[data-t="light"]')
+        assert page.evaluate("window.pwned") is None and page.locator(".lrow").count() == 1
 
 
 def test_placeholder_and_unreadable_cards(page):
