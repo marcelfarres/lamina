@@ -4,7 +4,7 @@ Every request carries a client id — a random secret the browser tab keeps — 
 under working-files/jobs/<client>/, so several people can use one server without seeing each other's work.
 
 POST /api/slice        multipart: client, mode, params=<json>, and one of  model=<file> | example=<name> | job=<id> (re-slice the same model)
-                       → {job, plan (with 3D facets + sheet placement), sheets: [svg…], model: url of the processed mesh (STL)}
+                       → {job, plan (with 3D facets + sheet placement), sheets: [svg…], estimate: {total, sheets} (cut/score/engrave mm, pierces), model: url of the processed mesh (STL)}
 GET  /api/modes        mode schemas (drive the form)
 GET  /api/examples     bundled test models
 GET  /api/project      {version}: the project file layout this server writes (and the page saves)
@@ -36,7 +36,7 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from core import progress as build_progress
 from core.plan import build, MODES, swap_in
 from core.mesh import CAD_SUFFIXES
-from core.export import design_name, export, key_text, svg_doc, items_for_sheet, sheet_title
+from core.export import design_name, export, key_text, measure_sheets, svg_doc, items_for_sheet, sheet_title
 from core.solid import fit_plan, fit_set, fit_sheets, proto_plan, proto_set, solid_bytes, standoff_files
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -535,7 +535,9 @@ def slice_model(client: str = Form(...), mode: str = Form(...), params: str = Fo
     W, H = plan["sheet"]
     p = plan["params"]
     t1 = time.time()
-    sheets = [svg_doc(items_for_sheet(plan, si), W, H, p["labels"], True, p["font"], p["units"], sheet_title(plan, si)) for si in range(plan["sheets"])]
+    items = [items_for_sheet(plan, si) for si in range(plan["sheets"])]   # drawn and measured from the same items
+    sheets = [svg_doc(its, W, H, p["labels"], True, p["font"], p["units"], sheet_title(plan, si)) for si, its in enumerate(items)]
+    estimate = measure_sheets(plan, items, p["labels"])
     plan["timing"]["drawing the sheets"] = round(time.time() - t1, 3)
     took = round(time.time() - t0, 2)
     # the session belongs to the client, not to the server: what this tab sliced last, so its refresh resumes it
@@ -546,7 +548,7 @@ def slice_model(client: str = Form(...), mode: str = Form(...), params: str = Fo
     swap_in(lambda tmp: tmp.write_text(text), cd / "session.json")
     _log_timing(mode, mpath, plan, took, prm)
     ghost = f"/jobs/{client}/{job}/model.stl?v={int((jd / 'model.stl').stat().st_mtime_ns // 1_000_000)}"  # new URL whenever the processed model changed
-    return {"job": job, "plan": plan, "sheets": sheets, "model": ghost, "took": took}
+    return {"job": job, "plan": plan, "sheets": sheets, "model": ghost, "took": took, "estimate": estimate}
 
 
 @app.get("/api/session")

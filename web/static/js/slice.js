@@ -28,7 +28,7 @@ export async function slice(){
     // the server was updated under an open tab: this page is the old one, so fetch it again (once — never a loop)
     if(r.status===422&&!sessionStorage.reloaded){sessionStorage.reloaded=1;return location.reload()}
     if(!r.ok)throw new Error(typeof j.detail==='string'?j.detail:j.detail?JSON.stringify(j.detail):r.statusText);   // a 422 details itself as objects
-    if(ST.pendingFile)ST.srcFile=ST.pendingFile; ST.pendingFile=null; ST.job=j.job; ST.plan=j.plan; const t1=Date.now();
+    if(ST.pendingFile)ST.srcFile=ST.pendingFile; ST.pendingFile=null; ST.job=j.job; ST.plan=j.plan; ST.estimate=j.estimate; const t1=Date.now();
     render3D(j.model); renderSheets(j.sheets); renderReport(); syncSizeHints(); renderSpacing();
     status(`ready · ${j.took} s · ${ST.plan.counts.parts} parts · ${ST.plan.sheets} ${SH()}(s) · ${ST.plan.counts.errors} errors`,ST.plan.counts.errors?'err':'');
     act(`sliced in ${j.took} s: ${ST.plan.counts.parts} parts, ${ST.plan.counts.errors} errors, ${ST.plan.counts.warnings} warnings`);

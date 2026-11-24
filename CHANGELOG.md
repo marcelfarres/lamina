@@ -2,6 +2,15 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.4.1
+
+### Added
+
+- **Cut length, time and cost.** The Export tab shows the length to cut, score and engrave, the pierces, and a machine
+  time and cost from the speeds and sheet price you type in. They stay in your browser.
+
+  ![The Export tab with the new tiles ringed and a cut speed, an engrave speed and a price typed in](web/static/news/0.4.1-estimates.jpg)
+
 ## 0.4.0
 
 This release makes Lamina easier for a new user: help on every setting, clearer names, a tour of the page, and one

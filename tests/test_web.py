@@ -131,6 +131,7 @@ def test_the_solid_downloads_of_a_job(api):
     cut = api.get(f"/api/job/{MINE}/{job}/fitcut", params={"fmt": "svg", "step": 0.1})
     assert "README.txt" in names(cut) and {n.split("/")[0] for n in names(cut) if "/" in n} == {"fit_-0.20", "fit_-0.10", "fit_0.00", "fit_0.10", "fit_0.20"}
     assert called(cut).endswith("_cut-fit-test_svg.zip") and "LAYERS" in zipfile.ZipFile(io.BytesIO(cut.content)).read("README.txt").decode()
+    assert not any("m to cut" in line for line in section(cut, "LAYERS"))   # the job's estimate is not the fit test's
     # the job printed at its own size: its print set is the plates, with the assembly key, as the sheets zip has it
     printed = api.post("/api/slice", data={"client": MINE, **CUBE, "params": '{"distribution":"count","count":3,"autofix":"off","printed":true}'}).json()["job"]
     plates = api.get(f"/api/job/{MINE}/{printed}/proto", params={"scale": 1})

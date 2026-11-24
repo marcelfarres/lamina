@@ -575,6 +575,17 @@ def n040_library(app):
     app.p.click("#libclose")
 
 
+def n041_estimates(app):                    # the new tiles and the three fields under them, with speeds and a price typed in
+    app.example("bunny", "stacked")
+    app.tab("export")
+    for box, v in (("#est_cut", "20"), ("#est_engrave", "150"), ("#est_price", "12")):
+        app.p.fill(box, v)
+    app.p.locator("#estimates").evaluate("e => e.scrollIntoView({block: 'center'})")
+    app.p.wait_for_timeout(300)
+    t, e = app.box("#est_tiles"), app.box("#estimates")
+    app.shot("0.4.1-estimates", (0, t[1] - 90, 470, e[3] + 10), [("#est_tiles", "cut, time and cost"), ("#estimates .est-in", "typed in, kept in the browser")])
+
+
 def picture_name(f):                        # n040_stacked_joins -> 0.4.0-stacked-joins
     v, slug = f.__name__.split("_", 1)
     return f"{v[1]}.{v[2]}.{v[3]}-{slug.replace('_', '-')}"

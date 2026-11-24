@@ -54,10 +54,11 @@ def _layers(plan):
     return [k for k in ORDER if k in has or (k == "INNER" and any(len(r) > 1 for pc in pcs for r in pc["kerfed"]))]
 
 
-def write_readme(plan, out_dir, files, notes=(), scale=1.0) -> list:
+def write_readme(plan, out_dir, files, notes=(), scale=1.0, estimate=None) -> list:
     """README.txt in `out_dir` for the zip that holds `files` (paths under out_dir): it is added to `files`, which is
     returned. `notes`: what the zip's writer has to say (the fit test's use, a print's settings and tags, a re-plan).
-    `scale` is the print's when it is not the job's own size (a prototype)."""
+    `scale` is the print's when it is not the job's own size (a prototype). `estimate`: core.export.measure's totals
+    of the sheets in this zip, when they are the job's (a fit test's or a kerf test's zip has none)."""
     out_dir = pathlib.Path(out_dir); p = plan["params"]
     names = [f.relative_to(out_dir).as_posix() for f in files]
     cut = [n for n in names if pathlib.Path(n).suffix in CUT]
@@ -80,6 +81,9 @@ def write_readme(plan, out_dir, files, notes=(), scale=1.0) -> list:
         out += ["", "LAYERS", "  Each layer has its own colour. Run them in this order, top to bottom. The files list them in this order too.",
                 "  If your program runs the layers in another order, set this order in its layer list."]
         out += [f"  {k:<6} {LAYERS[k][0]:<7} {COLORS[k]}  {LAYERS[k][1]}" for k in _layers(plan)]
+        if estimate:
+            m = estimate
+            out.append(f"  About {m['cut'] / 1000:.1f} m to cut, {m['score'] / 1000:.1f} m to score, {m['engrave'] / 1000:.1f} m to engrave, {m['pierces']} pierces.")
         out += ["", "KERF"]
         if p.get("compensate") and p.get("kerf", 0) > 0:
             out.append(f"  Compensated for a kerf of {p['kerf']:g} mm: each line is half of it outside the part. Cut on the line, with no offset.")
