@@ -197,3 +197,31 @@ def test_the_site_slices_in_the_browser(site):
         n = len(json.loads((ROOT / "docs" / "gallery.json").read_text(encoding="utf-8")))
         page.wait_for_function(f"() => document.querySelectorAll('#gallery figure').length === {n}")
         assert not errors, errors
+
+
+def test_every_guide_link_lands_where_it_says():
+    """Each guide (docs/<slug>/index.html) in the built _site: every href, src and poster is a file there, every
+    #anchor is an id on its page, and every link into the app names a real technique: the app opens on it, so a
+    guide's link opens the technique the guide is about (tests/ui/test_misc.py checks the opening)."""
+    from core.modes import load_all
+    techniques, site = set(load_all()), ROOT / "_site"
+    guides = sorted(p.parent.name for p in (ROOT / "docs").glob("*/index.html"))
+    assert len(guides) >= 6, guides
+    bad = []
+    for g in guides:
+        page = site / g / "index.html"
+        for ref in re.findall(r'(?:href|src|poster)="([^"]+)"', page.read_text(encoding="utf-8")):
+            if re.match(r"[a-z]+:", ref):                    # https:, mailto: — another site's, not this build's
+                continue
+            path, _, frag = ref.partition("#")
+            target = (page.parent / path).resolve() if path else page
+            if target.is_dir():
+                target /= "index.html"
+            if not target.is_file():
+                bad.append(f"{g}: {ref} is not in _site")
+            elif target == site / "app" / "index.html":
+                if frag not in techniques:
+                    bad.append(f"{g}: {ref} opens the app on no technique of {sorted(techniques)}")
+            elif frag and f'id="{frag}"' not in target.read_text(encoding="utf-8"):
+                bad.append(f"{g}: {ref} has no id=\"{frag}\" there")
+    assert not bad, "\n".join(bad)

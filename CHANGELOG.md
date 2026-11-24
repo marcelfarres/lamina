@@ -45,6 +45,10 @@ met first in 0.4.0.
   that version cannot cut fold grooves into print files. It now shows as a note, so they open clean.
 - **Printed panels stay on the plate.** A folded panel printed on a plate just bigger than itself could show the
   error "laid past the edge". Every panel that fits now lies on its plate. Its number tags use the free room.
+- **Guides with a picture per step.** The six guides on the site show the app at every step, with the control to
+  use ringed. Their links open Lamina on the guide's own technique.
+
+  ![A step of the stacked slices guide: its words, and under them the app with the Laser button ringed](web/static/news/0.4.1-guides.jpg)
 
 ## 0.4.0
 

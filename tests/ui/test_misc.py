@@ -500,3 +500,25 @@ def test_a_paper_pane_is_a_sheet_of_its_own_that_folds_and_glows(page):
     set_fields(page, [("fold", 0)]); page.wait_for_timeout(300)
     flat = page.evaluate(seen); assert flat["n"] == on["n"] and flat["high"] < on["high"] / 3, (flat, on)   # flat with their panels
     assert not errs, errs
+
+
+@pytest.mark.timeout(600)                                   # two new tabs, each starts the app and slices its example
+def test_a_link_to_a_technique_opens_it_on_its_own_example(page, server):
+    """The site's guides link to app/index.html#stacked and the like. A new tab opens that technique on its first
+    example in presets.json; bands has no example of its own and opens on the default one, switched to bands. A tab
+    that has a session resumes it, whatever the link says. Until 0.4.1 the example's preset overwrote the link: every
+    guide opened on Radial Slices."""
+    from .conftest import new_page
+    opened = lambda pg: (pg.eval_on_selector("#modes button.on", "b => b.dataset.m"), pg.evaluate("__t.project().then(p => p.example)"))
+    pg = new_page(page.context.browser, server, "/#stacked")
+    try:
+        assert opened(pg) == ("stacked", "bunny")
+        pg.goto(server + "/#plaque"); pg.reload(); settle(pg)      # the same tab: its session, not the link
+        assert opened(pg) == ("stacked", "bunny")
+    finally:
+        pg.close()
+    pg = new_page(page.context.browser, server, "/#bands")
+    try:
+        assert opened(pg) == ("bands", "blob")
+    finally:
+        pg.close()
