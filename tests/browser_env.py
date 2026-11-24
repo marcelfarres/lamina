@@ -1,16 +1,25 @@
 """The pipeline the way the browser build has to run it: without the compiled extras Pyodide cannot ship (rtree,
 fast-simplification, manifold3d, earcut, embree). Every technique, both example kinds, every download, an upload —
 each must answer 200. Run by tests/test_browser.py in a fresh interpreter, so the blocks are in place before trimesh
-loads:   python tests/browser_env.py <jobs dir>"""
+loads:   python tests/browser_env.py <jobs dir>
+         python tests/browser_env.py presets            every example as a fresh page opens it"""
 import sys
 for name in ("rtree", "fast_simplification", "manifold3d", "mapbox_earcut", "embreex", "triangle"):
     sys.modules[name] = None                            # import → ImportError, as in Pyodide
 
 import io, json, pathlib, zipfile
+from concurrent.futures import ProcessPoolExecutor
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+sys.path[:0] = [str(ROOT), str(ROOT / "tests")]
 from web import app as A, browser                       # noqa: E402
+from test_presets import PRESETS, STILL_WARNS, opened   # noqa: E402
+
+FOLD_NOTE = "cannot cut the fold grooves"                # the hinged folded examples: what this build cannot make is a note
+HINGED = {"fold_box", "fold_lamp", "fold_test"}
+# Unfolded without fast-simplification, lion_head's net differs by platform (69 parts on Windows, 70 in Pyodide, both
+# clean; 2 tab warnings on Linux) where natively it is 41: open in the 0.4.1 backlog, its warnings not pinned here
+FALLBACK_DIFFERS = {"lion_head"}
 
 MINE = "0" * 32
 
@@ -56,5 +65,22 @@ def main(jobs):
     print("ok")
 
 
+def _opened(name):
+    plan, errs, warns = opened(name)
+    return errs, warns, plan["notes"]
+
+
+def presets():
+    """Every example as a fresh page opens it (test_presets.opened) opens here as it does with the extras: no error and
+    no warning but STILL_WARNS' (bug 079: the browser build is the first page most people see)."""
+    names = sorted(PRESETS)
+    with ProcessPoolExecutor(4) as ex:                  # the blocks above are in every worker: forked, or this file re-run
+        for name, (errs, warns, notes) in zip(names, ex.map(_opened, names)):
+            print(f"{name:13s} {len(errs)} errors {len(warns)} warnings", flush=True)
+            assert not errs and (name in FALLBACK_DIFFERS or bool(warns) == (name in STILL_WARNS)), (name, errs[:3], warns[:3])
+            assert any(FOLD_NOTE in n for n in notes) == (name in HINGED), (name, notes)
+    print("ok")
+
+
 if __name__ == "__main__":
-    main(sys.argv[1])
+    presets() if sys.argv[1] == "presets" else main(sys.argv[1])
