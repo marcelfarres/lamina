@@ -49,6 +49,8 @@ def test_the_site_slices_in_the_browser(site):
             return status
 
         sliced("first load")                                 # the runtime download happens here
+        # the first page most people see opens clean, its slices' own warnings counted as the page counts them (bug 079)
+        assert page.evaluate("__t.plan().counts.warnings") == 0, page.evaluate("__t.plan().slices.flatMap(s => s.warnings)")
         # the examples live in the library, each with its picture, served from the site like the rest of the page
         assert page.request.get(site + "/app/static/examples/blob.webp").status == 200
         page.click("#exopen")

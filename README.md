@@ -500,6 +500,11 @@ does not slip through. It carries the most signal for stacked and folded work; d
   next layer's outline engraved on the slice under it, when `next_outline` is on), LABEL red (labels, leaders, seam numbers, sheet border). In the SVG each part is one group holding its own cuts, lines and labels, so it can be moved as a unit in a vector editor; a switch under Export turns that off, for software that wants one group per colour for the whole sheet. The zip is named `<project or model>_v<revision>_<technique>_…`, and so is every file
   in it: they all start with the design, `egg_v1.0 sheet1 plywood.svg`, so the cut files of two designs unzipped
   into one folder never collide or mix.
+- **Holding bridges** (`bridges`, `bridge_width`): a few short stretches of each outline left uncut, so a part stays
+  in the sheet while the rest is cut and is snapped out by hand afterwards. They sit on straight edges, spread evenly,
+  and never on a slot, a tab, a tooth or the end of a fold: the outline's shape shows where those are
+  (`core/bridges.py`). The gap in the cut is the width plus the kerf, so the material left is the width asked for.
+  Off by default.
 - **Identical pieces once**: in per-piece mode a shape that occurs several times is exported one time, with the
   quantity last in the file name and on the label. A per-piece file is named design, part, material, thickness,
   quantity, in that order and separated by spaces, and it always ends in its quantity, `x1` included
