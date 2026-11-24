@@ -607,9 +607,9 @@ def n041_kerf_test(app):                    # the new row in Export step 1, over
     from core.export import svg_doc
     app.example("vase", "stacked")
     app.tab("export")
-    row = app.grab("#x_fit", [("#kerf_go a", "kerf test")])
+    row = app.grab("#x_fit", [("#kerf_go a", "")])   # no label: above the ring it hides the fit test's row, and the row says "kerf test"
     items, w, h = kerf_items({"params": {"kerf": 0.15, "units": "mm", "font": 4.0}})
-    sheet = app.p.context.new_page(viewport={"width": 1400, "height": 800})
+    sheet = app.p.context.browser.new_page(viewport={"width": 1400, "height": 800})   # its own context: the app page's context takes no second page
     sheet.set_content(f'<body style="margin:0;background:#fff">{svg_doc(items, w, h, True, True, 4.0, "mm", "", 5.0).split("?>", 1)[-1]}</body>')
     sheet.evaluate("() => { const s = document.querySelector('svg'); s.setAttribute('width', '1380px'); s.removeAttribute('height') }")
     cut = Image.open(io.BytesIO(sheet.locator("svg").screenshot())).convert("RGB")
