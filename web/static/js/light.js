@@ -175,13 +175,13 @@ export function applyLight(){const on=!!state.light, tool=ST.tool==='light', tab
   ST.dirty=true}
 
 // ---- the Light tab, in the rows the other tabs are made of
-const sl=(k,v,lo,hi,step=1)=>`<span class="sl"><input type="range" id="lt_${k}_r" value="${v}" min="${lo}" max="${hi}" step="${step}" data-for="lt_${k}"><input type="number" id="lt_${k}" value="${v}" min="${lo}" max="${hi}" step="${step}" data-l="${k}"></span>`;
+const sl=(k,v,lo,hi,step=1)=>(v=+v,`<span class="sl"><input type="range" id="lt_${k}_r" value="${v}" min="${lo}" max="${hi}" step="${step}" data-for="lt_${k}"><input type="number" id="lt_${k}" value="${v}" min="${lo}" max="${hi}" step="${step}" data-l="${k}"></span>`);   // +v: a project file's setting is written as a number, never as its text
 const pick=(k,opts,v)=>`<select data-l="${k}">${Object.entries(opts).map(([x,t])=>`<option value="${esc(x)}" ${x===v?'selected':''}>${esc(t)}</option>`).join('')}</select>`;
 const row=(k,label,tip,inp,cls='')=>`<div class="f ${cls}" data-p="light_${k}"><span class="k" data-tip="${esc(tip)}">${label}</span>${inp}</div>`;
 const MORE='<button class="more" hidden></button></div>';   // the foot every group of settings has (form.js counts on it)
 const rows=L=>{const u=ST.unit;return L.map((x,i)=>`<div class="lrow${i===sel?' sel':''}${x.on?'':' off'}" data-li="${i}">
       <input type="checkbox" data-on="${i}" ${x.on?'checked':''} title="this light on or off" aria-label="light ${i+1} on"><span class="ln" style="border-color:${MARK[i]}">${i+1}</span>
-      <span>${x.kind==='spot'?'Spot':'Bulb'}<small>${x.like in LIKE&&x.like!=='own'?esc(LIKE[x.like][0]):x.kind==='spot'?`${x.angle}° cone`:`${inU(x.size)} ${u} across`}${x.kind==='spot'?` · ${AIM[x.aim]}`:''} · ${x.lm} lm${x.on?'':' · off'}</small></span>
+      <span>${x.kind==='spot'?'Spot':'Bulb'}<small>${x.like in LIKE&&x.like!=='own'?esc(LIKE[x.like][0]):x.kind==='spot'?`${+x.angle}° cone`:`${inU(x.size)} ${u} across`}${x.kind==='spot'?` · ${AIM[x.aim]}`:''} · ${+x.lm} lm${x.on?'':' · off'}</small></span>
       <span><button class="small" data-act="copy" data-i="${i}" title="a copy of this light" ${L.length<MAX?'':'disabled'}>⧉</button><button class="small" data-act="del" data-i="${i}" title="remove this light">✕</button></span></div>`).join('')};   // the list: drawn again on its own while a slider moves, so a row says what its light is now
 function renderTab(){const Rm=roomOf(), L=list(), on=!!state.light, u=ST.unit, lim=box?Math.ceil(inU(box.r*2)):300, st=inU(1)<1?.01:1; sel=Math.max(0,Math.min(sel,L.length-1)); shown=key();
   const l=L[sel], spot=l?.kind==='spot';
