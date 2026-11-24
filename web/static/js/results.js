@@ -117,6 +117,7 @@ export function renderDownloads(){ // the labels checkbox applies to every cut f
   // a printed job has nothing to cut, and a job with no joint the offset sizes has no fit test: their steps step aside
   for(const el of $$('.cutonly,.protoonly'))el.hidden=printed;
   for(const el of $$('.fitonly'))el.hidden=!fit;
+  const kt=!printed&&!(state.tool_d>0);   // the kerf test, beside the fit test: for a cutter that burns its kerf (a router's CAM offsets its bit)
   $('#fit_what_print').hidden=!printed;
   const slot=$(printed?'#print_opts':'#pr_slot'); if($('#pr_shared').parentNode!==slot)slot.append($('#pr_shared'));   // one set of print controls: under the print set on a printed job (moved only when it changes place: a moved box loses the focus)
   $('#slicer_fold').hidden=!printed; $('#slicer_sum').textContent=`what the slicer must have: ${state.material}, 0.4 mm nozzle, first layer ${fmtLen(0.2)}`;   // core.solid.FIRST
@@ -140,12 +141,16 @@ export function renderDownloads(){ // the labels checkbox applies to every cut f
       ST.mode.name==='folded'?'on Folded Panels this file may not open as a valid solid in CAD. If it does not, take STEP: parts':'']]),
     ['plan.json',`jobs/${CLIENT}/${ST.job}/plan.json`,'everything Lamina worked out, for scripts and other tools']];
   // 1 · the fit test, one per machine: the cut one at 1:1 on the real stock, and a mix's standoffs to try in its holes
+  const kerfRow=[`${ico} kerf test to cut · 7 squares in 7 holes (SVG + DXF)`,`${b}/kerftest?fmt=svg,dxf&labels=${L}${U}`,
+    'Seven squares and a plate with seven square holes, each pair drawn for one kerf around yours. Cut them from a scrap with the job\'s settings: '
+    +'the square that fits its own hole snug, without play and without force, carries your kerf. Type it in Sheet & fit → kerf.','kerf_go'];
   if(fit){$('#fit_title').textContent=num(`Fit test — ${mix?'cut and print':printed?'print':'cut'} this first`);
     $('#fit_opts>summary').textContent=printed?'options: joint step':'options: joint step, PDF';
     const holes=ST.mode.name==='stacked'&&p.params.connect!=='tab'?'hole sizes':'slot offsets';
     $('#dlfit').innerHTML=printed?rows([['print fit test · 5 small joints (.zip)',`${b}/fit?${fq}`,'','fit_go']])
       :rows([[`${ico} fit test to cut · 5 ${holes} (SVG + DXF)`,`${b}/fitcut?fmt=svg,dxf&labels=${L}&step=${step}${U}`],
-             ...(mix?[[`⬢ fit test to print · ${c?.fit_standoffs?pl(c.fit_standoffs,'standoff'):'the standoffs'} (3MF)`,`${b}/standoffs?fit=1`]]:[])]);
+             ...(mix?[[`⬢ fit test to print · ${c?.fit_standoffs?pl(c.fit_standoffs,'standoff'):'the standoffs'} (3MF)`,`${b}/standoffs?fit=1`]]:[]),
+             ...(kt?[kerfRow]:[])]);
     $('#dlfit_other').innerHTML=printed?'':rows([['fit test PDF',`${b}/fitcut?fmt=pdf&labels=${L}&step=${step}${U}`]])}
   // 2 · the files: one main button per machine, the other formats and the options folded under it
   $('#dl_title').textContent=num(printed?'The print files':'The files, by machine');

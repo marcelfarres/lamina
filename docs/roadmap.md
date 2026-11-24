@@ -87,6 +87,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started. Reference of the original: 
 | Identical pieces counted once | ✅ | the plan decides which pieces are the same part (same outline, any quarter turn, same stock): the Parts table lists each once with a quantity and its twins, the per-piece export writes one file named part, material, thickness, quantity (`Z-1 plywood x4`), quantity last and `x1` included, plus `cut-list.txt` with each part's width × height |
 | Mirror images counted once | ✅ | `mirror_ok` (off by default): a part and its mirror image share one file, cut twice and one turned over — only for stock that is the same both sides; the cut list and the table (⇄) name the ones to turn over |
 | Undo / redo | ✅ | Ctrl+Z / Ctrl+Y (or the ↶ ↷ buttons): one step per change that reaches the slicer, technique included; the model itself is not on the stack |
+| Kerf test | ✅ | Export step 1: seven squares in seven square holes, each pair compensated for one kerf around the job's (0.05 mm steps for a laser, 0.25 for a plasma, never below 0); the snug pair names the kerf (`core/calibrate.py`, `/kerftest`). Not for a router, whose CAM program offsets the bit. The dowel-hole sizes are the fit test's own on a stacked job |
 | Scale-check bar | ✅ | 10 cm or 4 in bar on the first sheet with room and as its own piece file, to cut and measure first |
 | Kerf compensation toggle | ✅ | `compensate`, off by default: machines that compensate their own kerf must not be compensated twice |
 | Solid output (STL of assembled model / single part) | ✅ | pure trimesh |

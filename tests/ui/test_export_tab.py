@@ -36,6 +36,8 @@ def test_a_laser_job_names_its_machine_and_stock_and_has_one_main_file(page):
     assert f"Also {rods} dowel rods" in said and f"{rods} dowel(s)" in page.inner_text("#weight")   # one count on the tab
     assert [page.text_content(h) for h in ("#fit_title", "#dl_title", "#build_title")] == \
         ["1 · Fit test — cut this first", "2 · The files, by machine", "3 · Build it"]
+    kerf = page.locator("#kerf_go a")                                     # the kerf test, next to the fit test
+    assert kerf.inner_text().startswith("✂ kerf test to cut · 7 squares") and "/kerftest?fmt=svg,dxf" in kerf.get_attribute("href")
     main = page.locator("#x_files a.main")
     assert main.count() == 1 and main.get_attribute("data-machine") == "laser"
     assert main.inner_text() == "✂ LASER · sheets SVG + DXF (.zip)" and "/export?fmt=svg,dxf" in main.get_attribute("href")
@@ -52,6 +54,7 @@ def test_a_router_job_names_the_router_and_its_bit(page):
     assert "⚙ CNC ROUTER · Shapeoko 4 XXL (CNC), plywood 6 mm" in said and "bit 3.175 mm" in said
     assert page.get_attribute("#x_files a.main", "data-machine") == "router"
     assert page.inner_text("#x_files a.main").startswith("⚙ CNC ROUTER · sheets") and page.inner_text("#dlfit a").startswith("⚙ fit test to cut")
+    assert page.locator("#kerf_go").count() == 0                         # its CAM program offsets the bit: no kerf to find
 
 
 def test_a_printed_job_shows_its_print_set_and_no_cut_file(page, server):

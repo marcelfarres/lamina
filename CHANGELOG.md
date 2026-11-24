@@ -20,6 +20,11 @@ met first in 0.4.0.
 
   ![The vase cut in half across y, with the section control in the bar](web/static/news/0.4.1-section.jpg)
 
+- **Find your kerf first.** Export step 1 has a *kerf test*: seven squares and their holes, each drawn for one
+  kerf. Cut it from a scrap; the square that fits its hole snug names your kerf.
+
+  ![The kerf test row in Export step 1, and the sheet it cuts: seven squares and a plate with their holes](web/static/news/0.4.1-kerf-test.jpg)
+
 ### Fixed
 
 - **Shared project files open safely.** A project file from someone else could run its own code in the page through

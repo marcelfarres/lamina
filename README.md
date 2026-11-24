@@ -543,6 +543,10 @@ does not slip through. It carries the most signal for stacked and folded work; d
   fit test** (Downloads) is at 1:1 for the real machine and predicts the model's fit; the **print fit test**
   (Prototyping) dials in the print's own **print slot offset**, in printed millimetres whatever the scale, which the
   prototype set uses in place of the job's.
+- **Kerf test** (Export tab, step 1, for a laser, plasma or knife; `core/calibrate.py`): seven squares and a plate
+  with seven square holes, each pair drawn for one kerf around the job's (0.05 mm steps for a laser, 0.25 for a
+  plasma). The square grows by half the kerf and its hole shrinks by half, as Lamina compensates a part, so cut with
+  the true kerf that pair comes out exactly to size and fits snug. Its value is the kerf to type in.
 - **Every zip carries the project file** (`….lamina.json`): technique, every parameter and the uploaded model
   itself, so a printed part or a cut file found later leads back to what made it. Take it out of the zip, and
   **import files…** on the library page reads it back.

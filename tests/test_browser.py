@@ -92,6 +92,8 @@ def test_every_download_reaches_its_endpoint_with_the_values_the_page_sent(jobs,
     assert not any(n.endswith("assembly-key.txt") for n in names("fmt=svg&key=0"))
     status, _, body = browser.handle("GET", f"api/job/{MINE}/{job}/fitcut", "fmt=svg&labels=1&step=0.1", None)
     assert status == 200 and any(n.endswith(".svg") for n in zipfile.ZipFile(io.BytesIO(body)).namelist())
+    status, _, body = browser.handle("GET", f"api/job/{MINE}/{job}/kerftest", "fmt=dxf&labels=1", None)
+    assert status == 200 and any(n.endswith("kerf-test.dxf") for n in zipfile.ZipFile(io.BytesIO(body)).namelist())
     seen = {}
 
     def spy(name):                                   # the endpoint's own signature, an answer that records what arrived

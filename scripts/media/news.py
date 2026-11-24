@@ -610,6 +610,22 @@ def n041_section(app):                      # the vase cut in half across y, the
     app.p.evaluate("() => { const s = document.querySelector('#section'); s.value = 0; s.dispatchEvent(new Event('input', {bubbles: true})) }")
 
 
+def n041_kerf_test(app):                    # the new row in Export step 1, over the sheet it cuts (drawn by core.calibrate)
+    sys.path.insert(0, str(ROOT))
+    from core.calibrate import kerf_items
+    from core.export import svg_doc
+    app.example("vase", "stacked")
+    app.tab("export")
+    row = app.grab("#x_fit", [("#kerf_go a", "")])   # no label: above the ring it hides the fit test's row, and the row says "kerf test"
+    items, w, h = kerf_items({"params": {"kerf": 0.15, "units": "mm", "font": 4.0}})
+    sheet = app.p.context.browser.new_page(viewport={"width": 1400, "height": 800})   # its own context: the app page's context takes no second page
+    sheet.set_content(f'<body style="margin:0;background:#fff">{svg_doc(items, w, h, True, True, 4.0, "mm", "", 5.0).split("?>", 1)[-1]}</body>')
+    sheet.evaluate("() => { const s = document.querySelector('svg'); s.setAttribute('width', '1380px'); s.removeAttribute('height') }")
+    cut = Image.open(io.BytesIO(sheet.locator("svg").screenshot())).convert("RGB")
+    sheet.close()
+    save("0.4.1-kerf-test", above(row, cut))
+
+
 def picture_name(f):                        # n040_stacked_joins -> 0.4.0-stacked-joins
     v, slug = f.__name__.split("_", 1)
     return f"{v[1]}.{v[2]}.{v[3]}-{slug.replace('_', '-')}"
