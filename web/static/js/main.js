@@ -175,7 +175,12 @@ async function init(){
     if(!sess.alive&&sess.job)status('the uploaded model of the last session is gone — upload it again or pick an example','err');
     // the library revision the session came from: unreadable, it stays null and the page shows unsaved changes (the safe side)
     try{ST.saved=JSON.parse(sessionStorage.lamina_saved||'null')}catch(e){ST.saved=null}}
-  else{setMode(location.hash.slice(1)||'interlocked',false);applyMachine(matOf(state.material).machine);applyPreset()}   // a fresh start gets the machine's compensation and the example's preset (the #technique in the URL is the app's own mirror of its state, not a request)
+  // a fresh start gets the machine's compensation and the example's preset. A #technique in the URL (the site's guides
+  // link to app/index.html#stacked) opens that technique on its first example in presets.json; one with no example of
+  // its own (bands) gets the default example, switched to it. A tab with a session resumes it above, whatever the URL says
+  else{const asked=ST.MODES.find(m=>m.name===location.hash.slice(1))?.name, own=asked&&Object.keys(PRESETS).find(k=>PRESETS[k].mode===asked&&ex.includes(k));
+    if(own)ST.example=own;
+    setMode(asked||'interlocked',false);applyMachine(matOf(state.material).machine);applyPreset();if(asked&&ST.mode.name!==asked)setMode(asked)}
   ST.fresh=sess.mode?'page reloaded, last session resumed':'page opened on example '+ST.example; applyUnit();
   if(!sess.mode)lib.baseline();   // a fresh start is an example as it opened; it also replaces a mirror left by a cleared session
   slice().then(async()=>{if(await first)offer()}); lib.listed();
