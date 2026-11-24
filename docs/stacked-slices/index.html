@@ -31,7 +31,7 @@
     <a href="../papercraft/">Papercraft</a>
     <a href="../3d-print-flat-parts/">3D print flat parts</a>
   </nav>
-  <a class="btn" href="../app/index.html">Try it in your browser</a>
+  <a class="btn" href="../app/index.html#stacked">Try it in your browser</a>
 </div></header>
 <main class="wrap">
   <h1>How to make a stacked slice sculpture from a 3D model</h1>
@@ -53,46 +53,82 @@
   </ul>
 
   <h2>Steps</h2>
+  <p>The pictures show the horse from the video above. Each picture shows the app at that step. An orange ring with
+  a label marks the control to use.</p>
   <ol class="steps">
-    <li>Open <a href="../app/index.html">Lamina in your browser</a> and load the model.</li>
-    <li>Turn the model so the layers go across the view you want people to see. Each layer is a whole section, so
-    pick the direction where every section holds together. On the horse above, each layer is a side view. Layered up
-    its height, the body would sit over the slanted hind legs with nothing to hold it.</li>
-    <li>Set the size of the finished piece.</li>
-    <li>Pick <b>Stacked slices</b>. Choose the axis, then the spacing or the number of slices.</li>
-    <li>Pick the material and type the thickness you measured. More, thinner layers give a smoother shape, and
-    more to cut.</li>
-    <li>Choose how the layers hold together: glue face to face, dowel rods, flat pegs cut from the same sheet,
-    spacers that keep a gap between the layers, or <a href="../3d-print-flat-parts/">3D-printed standoffs</a>. Dowel
-    holes can be round, square, hexagonal, cross-shaped or slots.</li>
-    <li>Read the Checks tab. It names each part that floats or is too thin to cut, and offers a fix.</li>
-    <li>Export the SVG or DXF and cut the sheets.</li>
-    <li>Put the layers on the dowels in order, dry, before any glue. Then glue them.</li>
-  </ol>
-  <figure>
+    <li>Open <a href="../app/index.html#stacked">Lamina on Stacked Slices</a>. It opens on the <b>Model</b> tab, with
+    the bunny example cut in layers.
+    <img src="../media/guides/stacked-slices-1.jpg" width="900" height="622" loading="lazy" alt="Lamina as the link opens it: the Model tab, and the bunny example in stacked layers in the 3D view"></li>
+    <li>In <b>upload</b>, choose your model file.
+    <img src="../media/guides/stacked-slices-2.jpg" width="900" height="622" loading="lazy" alt="The upload row at the top of the Model tab, ringed"></li>
+    <li>In <b>model size (mm)</b>, type the height of the finished piece in the <b>z</b> box. The <b>x</b> and
+    <b>y</b> boxes follow.
+    <img src="../media/guides/stacked-slices-3.jpg" width="900" height="622" loading="lazy" alt="The model size row with 260 in the z box, ringed, and the horse in layers in the 3D view"></li>
+    <li>On the <b>Technique</b> tab, set <b>axis</b> to the direction the layers stack. <b>z</b> stacks them up the
+    height. <b>x</b> or <b>y</b> gives side profiles. Pick the direction where each layer holds together. Stacked up
+    its height, the horse's body would sit on its thin hind legs.
+    <img src="../media/guides/stacked-slices-4.jpg" width="900" height="622" loading="lazy" alt="The axis row set to y, ringed, on the Technique tab with Stacked Slices on"></li>
+    <li>In <b>distribution</b>, keep <b>distance</b> to put the layers face to face, one sheet thick each. Pick
+    <b>count</b> to set the number of layers yourself.
+    <img src="../media/guides/stacked-slices-5.jpg" width="900" height="622" loading="lazy" alt="The distribution row set to distance, ringed"></li>
+    <li>In <b>connect with</b>, pick how the layers hold together:
+    <ul>
+      <li><b>none</b>: glue them face to face.</li>
+      <li><b>dowel</b>: rods through the layers.</li>
+      <li><b>tab</b>: flat pegs cut from the sheet.</li>
+      <li><b>standoff (3D printed)</b>: <a href="../3d-print-flat-parts/">printed posts</a> between the layers.</li>
+    </ul>
+    <img src="../media/guides/stacked-slices-6.jpg" width="900" height="622" loading="lazy" alt="The connect with row set to dowel, ringed, in the Joining group"></li>
+    <li>In <b>dowel diameter (mm)</b>, type the diameter of your dowel rods. On the horse, 4 mm rods left one
+    small piece without a dowel, and the count under the 3D view showed 1 error. 2 mm rods hold every piece.
+    <img src="../media/guides/stacked-slices-7.jpg" width="900" height="622" loading="lazy" alt="The dowel diameter row set to 2, ringed"></li>
+    <li>On the <b>Sheet &amp; fit</b> tab, under <b>What you make with</b>, click <b>Laser</b>. For thick sheets,
+    click <b>Router</b>.
+    <img src="../media/guides/stacked-slices-8.jpg" width="900" height="622" loading="lazy" alt="The Laser button under What you make with, ringed"></li>
+    <li>In <b>machine</b>, pick your machine. It sets the kerf and the bed size of that machine.
+    <img src="../media/guides/stacked-slices-9.jpg" width="900" height="622" loading="lazy" alt="The machine row set to CO2 laser, ringed"></li>
+    <li>In <b>material</b>, pick your material.
+    <img src="../media/guides/stacked-slices-10.jpg" width="900" height="622" loading="lazy" alt="The material row set to cardboard, ringed"></li>
+    <li>In <b>thickness (mm)</b>, type the thickness you measured with the calipers. Thinner layers give a smoother
+    shape, and more parts to cut.
+    <img src="../media/guides/stacked-slices-11.jpg" width="900" height="622" loading="lazy" alt="The thickness row set to 3, ringed"></li>
+    <li>Read the <b>errors</b> and <b>warnings</b> under the 3D view. Correct every error before you cut. Each
+    warning names a part and its problem, and the buttons under the warning fix it.
+    <img src="../media/guides/stacked-slices-12.jpg" width="900" height="622" loading="lazy" alt="The counts under the 3D view, ringed: 0 errors and some warnings, with the list of warnings and their fix buttons under them"></li>
+    <li>On the <b>Export</b> tab, click <b>fit test to cut</b>. Cut it from the same sheet as the parts.
+    <img src="../media/guides/stacked-slices-13.jpg" width="900" height="622" loading="lazy" alt="The fit test to cut button, ringed, under 1 · Fit test, cut this first"></li>
+    <li>Push a dowel into each of the five holes of the fit test. On the <b>Sheet &amp; fit</b> tab, type the number
+    of the loosest hole that still holds into <b>slot offset (fit)</b>.
+    <img src="../media/guides/stacked-slices-14.jpg" width="900" height="622" loading="lazy" alt="The slot offset (fit) row on the Sheet and fit tab, ringed"></li>
+    <li>On the <b>Export</b> tab, click <b>Laser · sheets SVG + DXF (.zip)</b> and cut the sheets. The .zip also
+    holds the assembly key and a README.
+    <img src="../media/guides/stacked-slices-15.jpg" width="900" height="622" loading="lazy" alt="The Laser sheets SVG and DXF button, ringed, under 2 · The files, by machine"></li>
+    <li>Put the layers on the dowels in order, dry, before you use glue. Then glue them.
     <img src="../media/labels.jpg" width="2000" height="1292" loading="lazy" alt="A cut sheet close up: part names in a single-stroke font, a number beside every dowel hole, two small arrows at the middle of each part">
-    <figcaption>Every part has its name, and every dowel hole has a number. Dowel 3a joins Z-3 to Z-4. Two arrows show
-    which way is up and which face is the front.</figcaption>
-  </figure>
+    Every part has its name, and every dowel hole has a number. Dowel 3a joins Z-3 to Z-4. Two arrows show which way
+    is up and which face is the front.</li>
+  </ol>
 
   <h2>Options that help</h2>
   <ul>
-    <li><b>Ring slices.</b> Each layer keeps only a wall of the width you give, and the middle is cut away. The stack
+    <li><b>ring slices.</b> Each layer keeps only a wall of the width you give, and the middle is cut away. The stack
     is a shell and uses about a quarter of the material.</li>
-    <li><b>Hidden dowels</b> (<code>hide_dowels</code>). A dowel joins two layers. It goes only where the layer below
-    them and the layer above them cover its hole, so no hole shows on the steps. The first and the last layer still show theirs.</li>
-    <li><b>Marks out of sight</b> (<code>hide_marks</code>, on by default). Labels, numbers and arrows go only where
-    the layer glued on top covers them. The top layer stays clean.</li>
-    <li><b>The next layer's outline</b> (<code>next_outline</code>), engraved on each slice as a line to glue by.</li>
-    <li><b>The old 3D Slices.</b> Set the outline to <b>outer</b> and sand each step down to the shape.</li>
-    <li><b>Pieces that fit your sheet.</b> A ring longer than the <b>max piece length</b> is cut into pieces joined by
-    puzzle tabs.</li>
-    <li><b>Light between the layers.</b> With a gap and a small LED inside, the light comes out between the layers.
-    The Light tab shows it before you cut.</li>
+    <li><b>hide dowels.</b> A dowel joins two layers. It goes only where the layer below them and the layer above
+    them cover its hole. No hole then shows on the steps. The first and the last layer still show theirs.</li>
+    <li><b>hide engravings</b> (on at the start). Labels, numbers and arrows go only where the layer glued on top
+    covers them. The top layer stays clean.</li>
+    <li><b>next layer outline.</b> Each layer gets the outline of the next layer engraved on it, as a line to glue
+    by.</li>
+    <li><b>The old 3D Slices.</b> Set <b>slice outline</b> to <b>outer</b> and sand each step down to the shape.
+    Click <b>all</b> at the top of the settings to see this row.</li>
+    <li><b>max piece length.</b> A ring longer than this length is cut into pieces joined by puzzle tabs, so each
+    piece fits your sheet.</li>
+    <li><b>Light between the layers.</b> Set a <b>gap between layers (mm)</b> and put a small LED inside. The light
+    comes out between the layers, and the <b>Light</b> tab shows it before you cut.</li>
   </ul>
   <figure>
     <img src="../media/hide_dowels.jpg" width="1760" height="616" loading="lazy" alt="One layer of a stacked sphere from above, with hide dowels off and on: two holes on the open step, then all four under the layer glued on top">
-    <figcaption>Hidden dowels, off and on: with the setting on, every hole sits under the next layer.</figcaption>
+    <figcaption>hide dowels, off and on: with the setting on, every hole sits under the next layer.</figcaption>
   </figure>
 
   <h2>Made with stacked slices</h2>
@@ -105,7 +141,7 @@
   <p class="sub">More in the <a href="../#made">gallery</a>. For slices that slot together instead, see
   <a href="../interlocking-slices/">interlocking slices</a>.</p>
   <div class="cta">
-    <a class="btn" href="../app/index.html">Open Lamina in your browser</a>
+    <a class="btn" href="../app/index.html#stacked">Open Lamina on Stacked Slices</a>
     <a class="btn ghost" href="../#techniques">All seven techniques</a>
   </div>
 </main>

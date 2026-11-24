@@ -2,6 +2,17 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.4.1
+
+This release fixes problems found after 0.4.0.
+
+### Fixed
+
+- **Guides with a picture per step.** The six guides on the site show the app at every step, with the control to
+  use ringed. Their links open Lamina on the guide's own technique.
+
+  ![A step of the stacked slices guide: its words, and under them the app with the Laser button ringed](web/static/news/0.4.1-guides.jpg)
+
 ## 0.4.0
 
 This release makes Lamina easier for a new user: help on every setting, clearer names, a tour of the page, and one

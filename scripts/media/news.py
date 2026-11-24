@@ -138,16 +138,16 @@ def above(*imgs):                           # pictures one over another, each ma
     return out
 
 
-def save(name, img):
+def save(name, img, out=OUT):              # out: scripts/media/guides.py saves into docs/media/guides
     if img.width > W:
         img = img.resize((W, round(img.height * W / img.width)), Image.LANCZOS)
-    OUT.mkdir(exist_ok=True)
+    out.mkdir(exist_ok=True)
     for q in (85, 78, 70, 62, 55):
         buf = io.BytesIO()
         img.save(buf, "JPEG", quality=q, optimize=True)
         if buf.tell() < KB * 1024:
             break
-    (OUT / f"{name}.jpg").write_bytes(buf.getvalue())
+    (out / f"{name}.jpg").write_bytes(buf.getvalue())
     print(f"{name}.jpg  {img.width}x{img.height}  {buf.tell() // 1024} KB")
 
 
