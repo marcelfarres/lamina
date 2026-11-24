@@ -19,7 +19,7 @@ function pictures(){
     helpers=[rings,gizmo,guides,banner,axes,ghost], helperWas=helpers.map(o=>o.visible),
     all=parts.children, was=all.map(m=>m.visible), pos=all.map(m=>m.position.clone()), glow=all.map(m=>m.material.emissive.getHex()),
     look=P.map(m=>[m.material.color.getHex(),m.material.map]), pane=P.map(m=>m.userData.pane?.visible),
-    size=renderer.getSize(new THREE.Vector2()), pr=renderer.getPixelRatio(), out=[], lines=[];
+    size=renderer.getSize(new THREE.Vector2()), pr=renderer.getPixelRatio(), out=[], lines=[], xray=new THREE.Mesh();
   try{
     if(lit){state.light=false;ST.light()}
     fold.value=1; applyFold();                                      // a folded job is shown folded: the guide has the parts' steps only
@@ -31,13 +31,22 @@ function pictures(){
     const frames=P.map(m=>{const c=corners(new THREE.Box3().setFromObject(m)),xs=c.map(v=>(v.x+1)/2*W),ys=c.map(v=>(1-v.y)/2*H);return [Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)]});
     for(const m of P){const l=new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry,25),new THREE.LineBasicMaterial({color:0x444444}));m.add(l);lines.push(l)}
     renderer.setPixelRatio(1); renderer.setSize(W,H,false);
+    // where parts built before hide the new one (the back of a ring, inside a lattice), it shows through them as blue
+    // stripes in screen pixels (a pattern, not only a colour, as faces.js hatches): drawn again only where something is
+    // nearer (GreaterDepth), so a part in sight is unchanged; the offset towards the camera keeps its own faces, drawn
+    // twice, from speckling it
+    xray.material=new THREE.ShaderMaterial({transparent:true,depthWrite:false,depthFunc:THREE.GreaterDepth,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-8,
+      vertexShader:'void main(){gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
+      fragmentShader:'void main(){gl_FragColor=vec4(0.0,0.447,0.698,mod(gl_FragCoord.x+gl_FragCoord.y,8.0)<3.0?0.9:0.25);}'});   // BLUE
     P.forEach((_,k)=>{
+      xray.geometry=P[k].geometry; P[k].add(xray);
       P.forEach((m,j)=>{const now=j===k; m.visible=j<=k;
         m.material.color.setHex(now?look[j][0]:PALE); m.material.map=now?look[j][1]:null; m.material.needsUpdate=true;
         lines[j].visible=!now; if(m.userData.pane)m.userData.pane.visible=now});
       scene.background=new THREE.Color(0xffffff); renderer.shadowMap.needsUpdate=true; renderer.render(scene,cam);   // the light resets the background: set it just before each render
-      out.push({img:renderer.domElement.toDataURL('image/jpeg',.82),box:frames[k]})});
+      out.push({img:renderer.domElement.toDataURL('image/jpeg',.82),box:frames[k]}); xray.removeFromParent()});
   }finally{
+    xray.removeFromParent(); xray.material.dispose();
     for(const l of lines){l.parent.remove(l);l.geometry.dispose();l.material.dispose()}
     P.forEach((m,j)=>{m.material.color.setHex(look[j][0]);m.material.map=look[j][1];m.material.needsUpdate=true;if(m.userData.pane)m.userData.pane.visible=pane[j]});
     fold.value=fv; applyFold(); helpers.forEach((o,i)=>o.visible=helperWas[i]); all.forEach((m,i)=>{m.visible=was[i];m.position.copy(pos[i]);m.material.emissive.setHex(glow[i])});
@@ -99,11 +108,11 @@ function card(s){
 export function guideHtml(){
   const shots=pictures(), steps=stepsOf(shots), n=steps.length, P=ST.plan, pages=Math.ceil(n/PER_PAGE),
     title=state.project||P.params.model_name||'Lamina', tech=ST.mode?.label||ST.mode?.title||ST.mode?.name||'', unit=state.printed?'plate':'sheet';
-  const sw=(fill,dash)=>`<svg width="34" height="22"><rect x="1" y="1" width="32" height="20" fill="${fill}" stroke="#111" stroke-width="1.5" stroke-dasharray="${dash}"/></svg>`;
+  const sw=(fill,dash)=>`<svg width="26" height="14"><rect x="1" y="1" width="24" height="12" fill="${fill}" stroke="#111" stroke-width="1.5" stroke-dasharray="${dash}"/></svg>`;
   const head=`<div class="head"><div><h1>Assembly guide: ${esc(title)}</h1><div class="sub">${esc(tech)} · ${n} parts · ${P.sheets} ${unit}(s)</div>`
     +`<div class="facts"><b>Project</b><span>${esc(title)}</span><b>Technique</b><span>${esc(tech)}</span><b>Parts</b><span>${n} (steps 1 to ${n})</span><b>${state.printed?'Plates':'Sheets'}</b><span>${P.sheets}</span></div></div>`
     +`<div class="how"><b>How to read this</b><ol><li>Build in step order, 1 to ${n}.</li><li>The picture shows the model as built so far: grey is done, the framed part goes in now.</li><li>Find the part by its engraving; the small drawing is its outline.</li></ol>`
-    +`<div class="leg"><span>${sw('#d2d2d2','0')} already built (grey, edge lines)</span><span><svg width="34" height="22"><rect x="1" y="1" width="32" height="20" fill="#b58f4e" stroke="${BLUE}" stroke-width="3" stroke-dasharray="6 3"/></svg> added in this step (dashed frame, numbered arrow)</span></div></div></div>`;
+    +`<div class="leg"><span>${sw('#d2d2d2','0')} already built (grey, edge lines)</span><span><svg width="26" height="14"><rect x="1" y="1" width="24" height="12" fill="#b58f4e" stroke="${BLUE}" stroke-width="2.5" stroke-dasharray="5 2"/></svg> added in this step (dashed frame, numbered arrow)</span><span><svg width="26" height="14"><defs><pattern id="hid" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2" height="5" fill="${BLUE}"/></pattern></defs><rect x="1" y="1" width="24" height="12" fill="#d2d2d2" stroke="#111" stroke-width="1.5"/><rect x="1" y="1" width="24" height="12" fill="url(#hid)"/></svg> its part hidden behind built ones (stripes)</span></div></div></div>`;
   const body=Array.from({length:pages},(_,p)=>`<div class="page">${p?'':head}<div class="grid">${steps.slice(p*PER_PAGE,(p+1)*PER_PAGE).map(card).join('')}</div>`
     +`<div class="foot"><span>Lamina · assembly guide · ${esc(title)}</span><span>page ${p+1} / ${pages}</span></div></div>`).join('');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Assembly guide: ${esc(title)}</title><style>${CSS}</style></head><body>`
