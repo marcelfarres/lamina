@@ -50,14 +50,7 @@ onmessage = async e => {
       r.destroy();
       return {status, headers, body};
     };
-    let out;
-    try { out = attempt() } catch (err) {
-      // GEOS's "orientationIndex encountered NaN/Inf" is this build's heap under pressure, not the model (the same
-      // request on the same model goes through the next time): collect, and once more
-      if (!/orientationIndex encountered NaN/.test(String(err))) throw err;
-      py.runPython('import gc; gc.collect()');
-      out = attempt();
-    }
+    const out = attempt();   // GEOS's NaN failure is tried once more in browser.handle, which sees a failed slice's 500
     if (m.method !== 'GET') py.FS.syncfs(false, () => {});
     postMessage(out);
     // A plan is a graph with back-references — every piece names its slice, every slice holds its pieces — so it
