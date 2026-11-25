@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ribs along a curve: an animal or a hull from a 3D model | Lamina</title>
+<meta name="description" content="How to make a rib sculpture from a 3D model: ribs square to a curve, like the frames of a hull, locked by a spine. See what the number of ribs, the spines and the thickness change. Free, in your browser.">
+<link rel="canonical" href="https://marcelfarres.github.io/lamina/curve-ribs/">
+<link rel="icon" href="../favicon.svg">
+<link rel="stylesheet" href="../guide.css">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://marcelfarres.github.io/lamina/curve-ribs/">
+<meta property="og:title" content="How to make a rib sculpture along a curve">
+<meta property="og:description" content="How to make a rib sculpture from a 3D model: ribs square to a curve, like the frames of a hull, locked by a spine. See what the number of ribs, the spines and the thickness change. Free, in your browser.">
+<meta property="og:image" content="https://marcelfarres.github.io/lamina/media/curve_poster.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"How to make a rib sculpture along a curve",
+"image":"https://marcelfarres.github.io/lamina/media/curve_poster.jpg","dateModified":"2026-11-25",
+"about":{"@type":"SoftwareApplication","name":"Lamina","url":"https://marcelfarres.github.io/lamina/","applicationCategory":"DesignApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}}
+</script>
+</head>
+<body>
+<header><div class="wrap">
+  <a class="home" href="../"><img src="../favicon.svg" alt="" width="24" height="24" style="border:0;background:none">Lamina</a>
+  <nav aria-label="Guides">
+    <a href="../3d-model-to-laser-cut/">Start here</a>
+    <b>Machines</b>
+    <a href="../laser-cnc-or-3d-printer/">Laser, router or printer</a>
+    <a href="../3d-print-flat-parts/">3D printing</a>
+    <b>Techniques</b>
+    <a href="../stacked-slices/">Stacked</a>
+    <a href="../interlocking-slices/">Interlocking</a>
+    <a href="../papercraft/">Folded</a>
+    <a href="../radial-slices/">Radial</a>
+    <a href="../curve-ribs/" aria-current="page">Curve</a>
+    <a href="../plaque/">Plaque</a>
+    <a href="../band-lattice/">Bands</a>
+  </nav>
+  <a class="btn" href="../app/index.html#curve/horse">Try it in your browser</a>
+</div></header>
+<main class="wrap">
+  <h1>How to make a rib sculpture along a curve</h1>
+  <p class="lead">Ribs stand square to a curve that follows the model, like the frames of a hull or the vertebrae of an animal. A spine in the plane of the curve locks them together. A leg, a tail or a head takes a branch of its own. This guide uses Lamina, a free laser slicer that runs in your browser.</p>
+  <figure>
+    <video src="../media/curve.mp4" poster="../media/curve_poster.jpg" width="1100" height="824" muted loop playsinline controls preload="none"
+           aria-label="A horse in ribs along a curve through its back, with a branch down each leg, turning"></video>
+    <figcaption>The horse of this guide: ribs along its back, and a branch down each leg and up the neck.</figcaption>
+  </figure>
+
+  <ul class="map">
+    <li><b>1. Start here</b>The steps every job has: your model, its size, the checks, the files.
+    <a href="../3d-model-to-laser-cut/">Open</a></li>
+    <li><b>2. Your machine</b>Laser, router or 3D printer, the material and its thickness.
+    <a href="../laser-cnc-or-3d-printer/">Open</a></li>
+    <li class="here"><b>3. Your technique: this page</b>The settings of Curve (ribs), and what each one changes.</li>
+  </ul>
+
+  <h2>Which shapes work</h2>
+  <p>Long shapes that bend: animals, hulls, hooks. The ribs turn with the bend of the model and do not stay parallel. For a shape that does not bend, <a href="../interlocking-slices/">interlocking slices</a> are simpler.</p>
+
+  <h2>Set the technique</h2>
+  <p>Every picture on this page shows one model: the horse that the link opens. An orange ring with a label marks
+  the control to use. To use your own model, upload it on the <b>Model</b> tab:
+  <a href="../3d-model-to-laser-cut/">Start here</a> shows how.</p>
+  <ol class="steps">
+    <li>Open <a href="../app/index.html#curve/horse">Lamina on Curve (ribs)</a>. It opens with the horse cut in ribs. The orange line with blue dots is the curve. Click the <b>Technique</b> tab.
+    <img src="../media/guides/curve-ribs-1.jpg" width="900" height="479" loading="lazy" alt="Lamina with the horse in Curve (ribs), the Technique tab ringed"></li>
+    <li>Set <b>curve plane</b> to the plane that contains the curve. The first letter is the direction along the model, and the second is up. To change the curve, alt-click on the model in the 3D view: this adds or removes a point.
+    <img src="../media/guides/curve-ribs-2.jpg" width="900" height="331" loading="lazy" alt="The curve plane row, ringed"></li>
+    <li>In <b>count</b>, type the number of ribs.
+    <img src="../media/guides/curve-ribs-3.jpg" width="900" height="331" loading="lazy" alt="The count row, ringed"></li>
+    <li>In <b>spines</b>, type the number of spine slices that lock the ribs. At 0 there are ribs only, and you glue or wire them yourself.
+    <img src="../media/guides/curve-ribs-4.jpg" width="900" height="331" loading="lazy" alt="The spines row, ringed"></li>
+    <li>Read the <b>errors</b> and <b>warnings</b> under the 3D view after each change. The buttons under a message fix it.
+    <img src="../media/guides/curve-ribs-5.jpg" width="900" height="331" loading="lazy" alt="The counts under the 3D view with the errors and warnings, ringed"></li>
+  </ol>
+
+  <h2>What each setting changes</h2>
+  <p>Each picture shows the same horse from the same side, with one setting changed. The label at the bottom gives
+  the counts that Lamina shows under the 3D view.</p>
+
+  <div class="setting">
+    <h3>count</h3>
+    <p>The number of ribs along the curve. More ribs show more of the surface.</p>
+    <p class="also">More ribs are more parts. On this horse, 10 ribs make 37 parts and 20 make 65 parts. With 30, there are 95 parts on 2 sheets and 1 error: one part cannot slide into its slot.</p>
+    <figure><img src="../media/guides/curve-ribs-count.jpg" width="900" height="326" loading="lazy" alt="The horse three times: 10 ribs with 37 parts and 0 errors, 20 ribs with 65 parts and 0 errors, 30 ribs with 95 parts on 2 sheets and 1 error"></figure>
+  </div>
+
+  <div class="setting">
+    <h3>spines</h3>
+    <p>The slices in the plane of the curve that the ribs slot onto.</p>
+    <p class="also">With 0 or 1, this horse has 65 parts. With 2, it has 70 parts.</p>
+    <figure><img src="../media/guides/curve-ribs-spines.jpg" width="900" height="326" loading="lazy" alt="The horse three times: 0 spines with 65 parts, 1 spine with 65 parts, 2 spines with 70 parts, each with 0 errors"></figure>
+  </div>
+
+  <div class="setting">
+    <h3>thickness (on the Sheet &amp; fit tab)</h3>
+    <p>The thickness of your sheet. Every slot is cut as wide as this number.</p>
+    <p class="also">The number of parts stays, 65 on this horse. The ribs and the slots are thicker.</p>
+    <figure><img src="../media/guides/curve-ribs-thickness.jpg" width="900" height="490" loading="lazy" alt="The horse twice: thickness 3 and thickness 6, 65 parts each, with thicker ribs"></figure>
+  </div>
+
+  <h3>More settings</h3>
+  <div class="table"><table>
+    <tr><th>Setting</th><th>What it does</th><th>It changes</th></tr>
+    <tr><td>distribution</td><td><b>count</b>: a number of ribs. <b>distance</b>: one rib every so many mm of the curve.</td><td>With <b>distance</b>, a longer model gets more ribs.</td></tr>
+    <tr><td>vary the spacing</td><td>You draw the distance between ribs along the curve.</td><td>More ribs where the shape changes fast, fewer where it does not.</td></tr>
+    <tr><td>curve points</td><td>The points of the curve, as numbers.</td><td>The same curve that you change with alt-click in the 3D view.</td></tr>
+  </table></div>
+
+  <h2>Then: the machine, the checks and the files</h2>
+  <p>These steps are the same for every technique, so they have their own pages.</p>
+  <ol class="steps" start="6">
+    <li>On the <b>Sheet &amp; fit</b> tab, choose your machine, your material and its thickness:
+    <a href="../laser-cnc-or-3d-printer/">Laser, router or 3D printer</a>.</li>
+    <li>Correct every error, cut the fit test, and download the files:
+    <a href="../3d-model-to-laser-cut/#steps">Start here</a>, steps 10 to 13.</li>
+    <li>Slide the ribs onto the spine. To see the order, drag <b>steps</b> over the 3D view.
+    <img src="../media/guides/curve-ribs-6.jpg" width="900" height="447" loading="lazy" alt="The steps slider over the 3D view, half way, with half of the horse's ribs in place"></li>
+  </ol>
+
+  <div class="cta">
+    <a class="btn" href="../app/index.html#curve/horse">Open Lamina on Curve (ribs)</a>
+    <a class="btn ghost" href="../#techniques">All seven techniques</a>
+  </div>
+</main>
+<footer><div class="wrap">
+  <nav aria-label="All guides">
+    <a href="../">Lamina home</a>
+    <a href="../3d-model-to-laser-cut/">Start here</a>
+    <a href="../laser-cnc-or-3d-printer/">Laser, router or printer</a>
+    <a href="../3d-print-flat-parts/">3D printing</a>
+    <a href="../stacked-slices/">Stacked slices</a>
+    <a href="../interlocking-slices/">Interlocking slices</a>
+    <a href="../papercraft/">Folded panels and papercraft</a>
+    <a href="../radial-slices/">Radial slices</a>
+    <a href="../curve-ribs/">Curve ribs</a>
+    <a href="../plaque/">Plaque</a>
+    <a href="../band-lattice/">Band lattice</a>
+    <a href="../slicer-for-fusion-360-alternative/">Compared with Slicer for Fusion 360</a>
+  </nav>
+  Lamina is free software under the AGPL-3.0 ·
+  <a href="https://github.com/marcelfarres/lamina">GitHub</a> ·
+  <a href="https://www.reddit.com/r/Lamina3D">r/Lamina3D</a> ·
+  <a href="https://discord.gg/N66bCQxmt3">Discord</a>
+</div></footer>
+</body>
+</html>
