@@ -40,6 +40,32 @@ def test_an_upload_arrives_as_bytes(jobs):
     assert status == 200 and json.loads(body)["plan"]["counts"]["parts"] == 3
 
 
+def test_the_engines_nan_failure_is_tried_once_more(jobs, monkeypatch):
+    """The browser's GEOS now and then fails on finite outlines with "orientationIndex encountered NaN/Inf", at a
+    different step each run (bugs/038; bunny on plaque in PR #34's site run). After a collection the same request goes
+    through. A failed slice comes back from its endpoint as a 500 answer, not as an exception, so the retry is here
+    where both are seen: the worker's own retry only saw exceptions and never ran for a slice."""
+    from shapely.errors import GEOSException
+    build, calls = webapp.build, []
+
+    def engine(fails, real=build):
+        def flaky(*a, **k):
+            calls.append(1)
+            if len(calls) <= fails:
+                raise GEOSException("IllegalArgumentException: CGAlgorithmsDD::orientationIndex encountered NaN/Inf numbers")
+            return real(*a, **k)
+        return flaky
+    form = [["client", MINE], ["mode", "stacked"], ["params", PARAMS], ["example", "cube"]]
+    monkeypatch.setattr(webapp, "build", engine(1))
+    status, _, body = browser.handle("POST", "api/slice", "", form)
+    assert (status, len(calls)) == (200, 2), body[-200:]
+    calls.clear(); monkeypatch.setattr(webapp, "build", engine(9))     # once only: failing again, that is the answer
+    status, _, body = browser.handle("POST", "api/slice", "", form)
+    assert (status, len(calls)) == (500, 2) and b"orientationIndex" in body
+    calls.clear(); monkeypatch.setattr(webapp, "modes", engine(1, webapp.modes))   # an endpoint that lets it out raw
+    assert browser.handle("GET", "api/modes", "", None)[0] == 200 and len(calls) == 2
+
+
 def test_solids_extrude_without_a_triangulation_engine(jobs, monkeypatch):
     """The browser has no earcut / triangle: the caps come from shapely's constrained Delaunay instead, same solid."""
     import trimesh

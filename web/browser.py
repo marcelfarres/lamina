@@ -2,10 +2,15 @@
 this) and it calls the very endpoint functions web/app.py serves — one code path whoever runs it. No ASGI, no
 threads: a request is a plain function call whose answer is (status, headers, body)."""
 from __future__ import annotations
-import inspect, io, json, mimetypes, urllib.parse
+import gc, inspect, io, json, mimetypes, urllib.parse
 from fastapi import HTTPException, UploadFile
 from fastapi.responses import Response
+from shapely.errors import GEOSException
 from web import app as A
+
+# This build's GEOS now and then fails on finite outlines with this, at a different step each run: its heap under
+# pressure, not the model (bugs/038). After a collection the same request goes through.
+ENGINE_NAN = "orientationIndex encountered NaN"
 
 
 def call(endpoint, q: dict, **path):
@@ -16,6 +21,20 @@ def call(endpoint, q: dict, **path):
 
 
 def handle(method: str, path: str, query: str, form) -> tuple[int, dict, bytes]:
+    """The request's answer, tried once more after a collection when the engine failed with ENGINE_NAN. A failed slice
+    comes back as a 500 answer (slice_model turns every error into one) and an export lets it out raw: both count."""
+    try:
+        out = _answer(method, path, query, form)
+        if out[0] != 500 or ENGINE_NAN.encode() not in out[2]:
+            return out
+    except GEOSException as e:
+        if ENGINE_NAN not in str(e):
+            raise
+    gc.collect()
+    return _answer(method, path, query, form)
+
+
+def _answer(method: str, path: str, query: str, form) -> tuple[int, dict, bytes]:
     q = dict(urllib.parse.parse_qsl(query)); f = {}; upload = None
     for item in form or []:
         if len(item) == 3:                                   # ["model", file name, bytes]
