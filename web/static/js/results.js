@@ -188,7 +188,7 @@ export function renderDownloads(){ // the labels checkbox applies to every cut f
   $('#dl').innerHTML=printed?rows([[`print set (.zip)${c?.print_set?` · ${setNames(c.print_set)}`:''}`,`${b}/proto?${pq}`,'A 3MF per plate for the slicer, every part with the settings it needs, one STL per part, and README.txt: read it first.','pr_go','',MK]],true)
     :rows([[`${ico} ${KIND} · sheets SVG + DXF (.zip)`,`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&grouped=${G}${U}`,`An SVG and a DXF for each sheet${K?', the assembly key':''} and README.txt: read it first. Laser software opens the SVGs (LightBurn, xTool Creative Space, Glowforge), CAM the DXFs (Fusion, VCarve, SheetCAM).`,'','',MK]],true);
   $('#dl_other').innerHTML=printed?'':rows([
-    ['sheets PDF (one page per sheet)',`${b}/export?fmt=pdf&labels=${L}&key=${K}${U}`,'print it at 100 % to cut by hand or check the sizes; Glowforge and LightBurn open it too'],
+    ['sheets PDF (one page per sheet)',`${b}/export?fmt=pdf&labels=${L}&key=${K}&grouped=${G}${U}`,'print it at 100 % to cut by hand or check the sizes; Glowforge and LightBurn open it too'],
     ['sheets EPS',`${b}/export?fmt=eps&labels=${L}&key=${K}${U}`,'for CorelDRAW, Illustrator and laser drivers that ask for EPS'],
     ['one file per piece SVG + DXF',`${b}/export?fmt=svg,dxf&labels=${L}&key=${K}&per_piece=1&grouped=${G}${U}`,'every part on its own, not nested: to nest them yourself (Deepnest, your laser software) or cut them one at a time']]);
   $('#dl_print').innerHTML=mix?rows([[`⬢ 3D PRINTER · ${nso} standoffs (3MF)`,`${b}/standoffs`,'One 3MF for the slicer, every standoff an object of its own, named by its size (S1, S2 …). The note in the sheets zip says which size goes where.','dl_standoffs','','printer']],true):'';
