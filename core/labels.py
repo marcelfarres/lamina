@@ -1,6 +1,7 @@
 """Labels and marks: the room an engraved text takes, where it fits on a part, and where every part's label goes
 on its sheet — on the part, or beside it with a leader line."""
 from __future__ import annotations
+import functools
 import math
 import shapely
 import shapely.affinity
@@ -47,7 +48,15 @@ def label_box(text, font):
 def mark_box(x, y, text, font, rot=0.0):
     """The room a small engraved mark (a seam or dowel number, at 0.6 of the font) takes, centred on (x, y) and turned
     `rot` degrees — the mark's own turn in its part's frame; a mark on a nested part is turned by the placement too."""
+    # boxed once and kept, by the numbers' own bits (0.0 and -0.0 are two keys): a slice's marks are boxed again for
+    # every new mark placed on it (core/modes/connectors.py), tens of thousands of boxes on a stacked model
+    return _mark_box(float(x).hex(), float(y).hex(), text, float(font).hex(), float(rot).hex())
+
+
+@functools.lru_cache(maxsize=4096)
+def _mark_box(x, y, text, font, rot):
     from .font import width
+    x, y, font, rot = map(float.fromhex, (x, y, font, rot))
     s = font * 0.6
     b = box(x - (width(text, s) + 0.6) / 2, y - s * 0.7, x + (width(text, s) + 0.6) / 2, y + s * 0.7)
     return shapely.affinity.rotate(b, rot, origin=(x, y)) if rot else b
@@ -73,11 +82,20 @@ def fit_block(region, w, h, angles=(0, 90)):
     region is laid flat along it and eroded by the block — the region overlapped with itself moved by each corner and
     each edge middle of the block, a quick stand-in for the exact erosion — and the roomiest spot of what is left
     (the centre of its largest inscribed circle) is checked exactly."""
-    region = as_multi(region)
+    return _fit_block(as_multi(region), {}, w, h, angles)
+
+
+def _fit_block(region, laid, w, h, angles):
+    """fit_block on a MultiPolygon, its turns kept in `laid` ({angle: (turned region, its bounds)}) for the next size."""
     if region.is_empty:
         return None
     for ang in angles:
-        R = shapely.affinity.rotate(region, -ang, origin=(0, 0)) if ang else region
+        if ang not in laid:
+            R = shapely.affinity.rotate(region, -ang, origin=(0, 0)) if ang else region
+            laid[ang] = R, R.bounds
+        R, (x0, y0, x1, y1) = laid[ang]
+        if x1 - x0 < w - 1e-6 or y1 - y0 < h - 1e-6:
+            continue        # narrower or lower than the block this way: by the third overlap below it comes out empty
         E = R
         for dx, dy in ((w / 2, h / 2), (-w / 2, h / 2), (w / 2, -h / 2), (-w / 2, -h / 2), (w / 2, 0), (-w / 2, 0), (0, h / 2), (0, -h / 2)):
             E = robust(lambda a, b: a.intersection(b), E, shapely.affinity.translate(R, dx, dy))
@@ -95,18 +113,28 @@ def fit_block(region, w, h, angles=(0, 90)):
 
 
 def fit_on_part(region, cover, w, h, marks=(), angles=(0, 90), room=0.0):
-    return robust(lambda r: _fit_on_part(r, cover, w, h, marks, angles, room), region, default=None)
-
-
-def _fit_on_part(region, cover, w, h, marks=(), angles=(0, 90), room=0.0):
     """Where a w × h label fits whole on a part's material with `room` to spare all round — only inside `cover` when
     the part has one (a stacked layer: under the layer glued on top, which hides it) — clear of its holes and of the
     marks and arrows (boxes) already engraved on it, at the first of `angles` that holds it. None when it fits
     nowhere: a label crammed against the edge of a small part is better off beside it."""
-    region = as_multi(region if cover is None else region.intersection(cover))
-    if marks:
-        region = robust(lambda a, b: as_multi(a.difference(b)), region, unary_union([m.buffer(0.5) for m in marks]), default=region)
-    return fit_block(region, w + 2 * room, h + 2 * room, angles)
+    return _fitter(region, cover, marks, angles)(w, h, room)
+
+
+def _fitter(region, cover, marks=(), angles=(0, 90)):
+    """fit_on_part on one part for label after label, as fit(w, h, room): what may carry a label (the material inside
+    the cover, clear of the marks) and its turns are worked out for the first and kept for the rest — place_labels
+    tries up to six sizes on a part. Kept apart for the region as given and for the precision-snapped copy robust()
+    tries when the geometry engine throws on it, and only once whole, so a size fails or retries as it did alone."""
+    kept = {}
+    def fit(r, w, h):
+        k = r is region
+        if k not in kept:
+            on = as_multi(r if cover is None else r.intersection(cover))
+            if marks:
+                on = robust(lambda a, b: as_multi(a.difference(b)), on, unary_union([m.buffer(0.5) for m in marks]), default=on)
+            kept[k] = on, {}
+        return _fit_block(*kept[k], w, h, angles)
+    return lambda w, h, room=0.0: robust(lambda r: fit(r, w + 2 * room, h + 2 * room), region, default=None)
 
 
 def widest_spot(region):
@@ -192,9 +220,10 @@ def place_labels(sh, font, tag="", place="part"):
         forms = [(size, False) for size in sizes[:2]] + ([(size, True) for size in sizes[:2]] if tag else []) + [(sizes[2], False)] + ([(sizes[2], True)] if tag else [])
         spot = None
         if place != "beside":                                       # on the part
+            fit = _fitter(pc.placed, pc.placed_cover, keep, angles)
             for size, short in forms:                             # down to two thirds of the font: a peg's name along the peg
                 w, h = label_box(text(pc, short), size)
-                spot = fit_on_part(pc.placed, pc.placed_cover, w, h, keep, angles, room=0.0 if place == "on" else min(2.0, 0.3 * size))
+                spot = fit(w, h, room=0.0 if place == "on" else min(2.0, 0.3 * size))
                 if spot:
                     break
         if spot is None and place == "on":                           # the widest spot of what may be engraved
