@@ -19,6 +19,7 @@ TAG_FONT = 4.0      # mm, the least a tag's letters are: bold strokes 0.64 mm, w
 TAG_PAD = 1.0       # mm of chip round the letters
 TAG_CLEAR = 1.5     # mm from a tag to every part but its own: its line is that long at least, and PETG does not fuse across it
 PRINT_MARK = 5.0    # mm, a seam number on a printed panel: bold strokes 1.0 mm wide (0.75 at 4 mm), two lines of a 0.4 mm nozzle
+COARSE = 0.05       # mm: the label fit's erosion runs on the outline thinned to this (Douglas-Peucker), a few hundred points for 2400; the exact check stays on the true outline, so a label never crosses an edge, but may sit a little off the roomiest spot. More mm = faster, labels move more
 TURNED = str.maketrans("69", "96")   # 0, 1 and 8 turned upside down are themselves, in the stroke font and in Arial Bold
 
 
@@ -86,19 +87,23 @@ def fit_block(region, w, h, angles=(0, 90)):
 
 
 def _fit_block(region, laid, w, h, angles):
-    """fit_block on a MultiPolygon, its turns kept in `laid` ({angle: (turned region, its bounds)}) for the next size."""
+    """fit_block on a MultiPolygon, its turns kept in `laid` ({angle: (turned region, its bounds, its coarse copy)}) for the next size."""
     if region.is_empty:
         return None
     for ang in angles:
         if ang not in laid:
             R = shapely.affinity.rotate(region, -ang, origin=(0, 0)) if ang else region
-            laid[ang] = R, R.bounds
-        R, (x0, y0, x1, y1) = laid[ang]
+            # Douglas-Peucker, not the topology-preserving simplifier (it fails in the browser build's GEOS); a shape that
+            # comes out invalid or empty keeps its full outline: slower, never wrong
+            C = R.simplify(COARSE, preserve_topology=False)
+            C = as_multi(C) if C.is_valid and not C.is_empty else R
+            laid[ang] = R, R.bounds, C
+        R, (x0, y0, x1, y1), C = laid[ang]
         if x1 - x0 < w - 1e-6 or y1 - y0 < h - 1e-6:
             continue        # narrower or lower than the block this way: by the third overlap below it comes out empty
-        E = R
+        E = C
         for dx, dy in ((w / 2, h / 2), (-w / 2, h / 2), (w / 2, -h / 2), (-w / 2, -h / 2), (w / 2, 0), (-w / 2, 0), (0, h / 2), (0, -h / 2)):
-            E = robust(lambda a, b: a.intersection(b), E, shapely.affinity.translate(R, dx, dy))
+            E = robust(lambda a, b: a.intersection(b), E, shapely.affinity.translate(C, dx, dy))
             if E is None or E.is_empty:
                 break
         if E is None:
