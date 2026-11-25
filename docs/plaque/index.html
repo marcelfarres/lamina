@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wall plaque from a 3D model: slices on a back plate | Lamina</title>
+<meta name="description" content="How to make a wall plaque from a 3D model: slices that stand on a back plate, held by teeth in slots. See what the plate shape, the layout and the gap change. Free, in your browser.">
+<link rel="canonical" href="https://marcelfarres.github.io/lamina/plaque/">
+<link rel="icon" href="../favicon.svg">
+<link rel="stylesheet" href="../guide.css">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://marcelfarres.github.io/lamina/plaque/">
+<meta property="og:title" content="How to make a wall plaque from a 3D model">
+<meta property="og:description" content="How to make a wall plaque from a 3D model: slices that stand on a back plate, held by teeth in slots. See what the plate shape, the layout and the gap change. Free, in your browser.">
+<meta property="og:image" content="https://marcelfarres.github.io/lamina/media/plaque_poster.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"How to make a wall plaque from a 3D model",
+"image":"https://marcelfarres.github.io/lamina/media/plaque_poster.jpg","dateModified":"2026-11-25",
+"about":{"@type":"SoftwareApplication","name":"Lamina","url":"https://marcelfarres.github.io/lamina/","applicationCategory":"DesignApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}}
+</script>
+</head>
+<body>
+<header><div class="wrap">
+  <a class="home" href="../"><img src="../favicon.svg" alt="" width="24" height="24" style="border:0;background:none">Lamina</a>
+  <nav aria-label="Guides">
+    <a href="../3d-model-to-laser-cut/">Start here</a>
+    <b>Machines</b>
+    <a href="../laser-cnc-or-3d-printer/">Laser, router or printer</a>
+    <a href="../3d-print-flat-parts/">3D printing</a>
+    <b>Techniques</b>
+    <a href="../stacked-slices/">Stacked</a>
+    <a href="../interlocking-slices/">Interlocking</a>
+    <a href="../papercraft/">Folded</a>
+    <a href="../radial-slices/">Radial</a>
+    <a href="../curve-ribs/">Curve</a>
+    <a href="../plaque/" aria-current="page">Plaque</a>
+    <a href="../band-lattice/">Bands</a>
+  </nav>
+  <a class="btn" href="../app/index.html#plaque/bonsai">Try it in your browser</a>
+</div></header>
+<main class="wrap">
+  <h1>How to make a wall plaque from a 3D model</h1>
+  <p class="lead">The model is cut off at a flat back plate. Its slices stand on edge on the plate, and each slice has teeth that go through slots in the plate. The result hangs on a wall. This guide uses Lamina, a free laser slicer that runs in your browser.</p>
+  <figure>
+    <video src="../media/plaque.mp4" poster="../media/plaque_poster.jpg" width="1100" height="824" muted loop playsinline controls preload="none"
+           aria-label="A bonsai as a plaque, its slices standing on a back plate, turning; then with a circle plate and a silhouette plate"></video>
+    <figcaption>The bonsai of this guide, as slices on a back plate.</figcaption>
+  </figure>
+
+  <ul class="map">
+    <li><b>1. Start here</b>The steps every job has: your model, its size, the checks, the files.
+    <a href="../3d-model-to-laser-cut/">Open</a></li>
+    <li><b>2. Your machine</b>Laser, router or 3D printer, the material and its thickness.
+    <a href="../laser-cnc-or-3d-printer/">Open</a></li>
+    <li class="here"><b>3. Your technique: this page</b>The settings of Plaque, and what each one changes.</li>
+  </ul>
+
+  <h2>Which shapes work</h2>
+  <p>Reliefs, and models with one good side. What is behind the plate is left out. For the same model as a free-standing pile of layers, see <a href="../stacked-slices/">stacked slices</a>.</p>
+
+  <h2>Set the technique</h2>
+  <p>Every picture on this page shows one model: the bonsai that the link opens. An orange ring with a label marks
+  the control to use. To use your own model, upload it on the <b>Model</b> tab:
+  <a href="../3d-model-to-laser-cut/">Start here</a> shows how.</p>
+  <ol class="steps">
+    <li>Open <a href="../app/index.html#plaque/bonsai">Lamina on Plaque</a>. It opens with the bonsai as a plaque. Click the <b>Technique</b> tab.
+    <img src="../media/guides/plaque-1.jpg" width="900" height="479" loading="lazy" alt="Lamina with the bonsai in Plaque, the Technique tab ringed"></li>
+    <li>Set <b>back of the model</b> to the side that goes against the plate. The model sticks out of the plate the other way.
+    <img src="../media/guides/plaque-2.jpg" width="900" height="331" loading="lazy" alt="The back of the model row, ringed"></li>
+    <li>In <b>plate shape</b>, pick the outline of the plate.
+    <img src="../media/guides/plaque-3.jpg" width="900" height="331" loading="lazy" alt="The plate shape row, ringed"></li>
+    <li>In <b>layout</b>, pick how the slices stand on the plate: side by side, as a fan, or as two families that cross.
+    <img src="../media/guides/plaque-4.jpg" width="900" height="331" loading="lazy" alt="The layout row, ringed"></li>
+    <li>In <b>gap between layers (mm)</b>, type the space between two slices.
+    <img src="../media/guides/plaque-5.jpg" width="900" height="331" loading="lazy" alt="The gap between layers row, ringed"></li>
+    <li>Read the <b>errors</b> and <b>warnings</b> under the 3D view after each change. The buttons under a message fix it.
+    <img src="../media/guides/plaque-6.jpg" width="900" height="331" loading="lazy" alt="The counts under the 3D view with the errors and warnings, ringed"></li>
+  </ol>
+
+  <h2>What each setting changes</h2>
+  <p>Each picture shows the same bonsai from the same side, with one setting changed. The label at the bottom gives
+  the counts that Lamina shows under the 3D view.</p>
+
+  <div class="setting">
+    <h3>plate shape</h3>
+    <p>The outline of the back plate. <b>silhouette</b> is the shadow of the model on the plate, made larger by the <b>plate margin</b>.</p>
+    <p class="also">It changes the plate only. The slices stay the same: 90 parts with each shape on this bonsai.</p>
+    <figure><img src="../media/guides/plaque-plate.jpg" width="900" height="367" loading="lazy" alt="The bonsai three times: a rounded plate, a circle plate and a silhouette plate, 90 parts each with 0 errors"></figure>
+  </div>
+
+  <div class="setting">
+    <h3>layout</h3>
+    <p>How the slices stand on the plate. <b>parallel</b>: side by side. <b>radial</b>: a fan of half-slices round a centre. <b>crossed</b>: two families at right angles, slotted into each other.</p>
+    <p class="also">It changes the look and the number of parts: 90 parts parallel, 31 parts radial, and 36 parts crossed on this bonsai. Each layout shows its own settings under it.</p>
+    <figure><img src="../media/guides/plaque-layout.jpg" width="900" height="367" loading="lazy" alt="The bonsai three times: layout parallel with 90 parts, layout radial with 31 parts, layout crossed with 36 parts, each with 0 errors"></figure>
+  </div>
+
+  <div class="setting">
+    <h3>gap between layers</h3>
+    <p>The empty space between two slices that stand side by side.</p>
+    <p class="also">A larger gap gives fewer slices, and more of the plate shows between them: 90 parts at 3 mm, 42 parts at 10 mm.</p>
+    <figure><img src="../media/guides/plaque-gap.jpg" width="900" height="552" loading="lazy" alt="The bonsai twice: gap 3 with 90 parts, gap 10 with 42 parts and the plate showing between the slices"></figure>
+  </div>
+
+  <h3>More settings</h3>
+  <div class="table"><table>
+    <tr><th>Setting</th><th>What it does</th><th>It changes</th></tr>
+    <tr><td>plate margin</td><td>How far the plate reaches past the model all round.</td><td>The size of the plate.</td></tr>
+    <tr><td>plate thickness</td><td>The thickness of the plate's material.</td><td>It is also the length of the teeth: they end flush with the back of the plate. At 0, the plate is the same material as the slices.</td></tr>
+    <tr><td>floating pieces</td><td><b>join</b>: a piece of a slice that does not reach the plate hangs from the slice beside it. <b>keep</b>: nothing is left out.</td><td>With <b>join</b>, a piece that no neighbour can hold is left out, and the notes list it.</td></tr>
+    <tr><td>into the plate first</td><td>With <b>crossed</b>: the family that goes into the plate first.</td><td>The other family drops onto it one slice at a time. Put the family with fewer slices first.</td></tr>
+    <tr><td>plate file</td><td>With <b>file</b> as the plate shape: your own outline from an SVG or DXF file.</td><td>Closed shapes inside the outline are cut out of the plate, for a hanging hole or an ornament.</td></tr>
+  </table></div>
+
+  <h2>Then: the machine, the checks and the files</h2>
+  <p>These steps are the same for every technique, so they have their own pages.</p>
+  <ol class="steps" start="7">
+    <li>On the <b>Sheet &amp; fit</b> tab, choose your machine, your material and its thickness:
+    <a href="../laser-cnc-or-3d-printer/">Laser, router or 3D printer</a>.</li>
+    <li>Correct every error, cut the fit test, and download the files:
+    <a href="../3d-model-to-laser-cut/#steps">Start here</a>, steps 10 to 13.</li>
+    <li>Push the teeth of each slice through its slots in the plate. The teeth end flush with the back.</li>
+  </ol>
+
+  <div class="cta">
+    <a class="btn" href="../app/index.html#plaque/bonsai">Open Lamina on Plaque</a>
+    <a class="btn ghost" href="../#techniques">All seven techniques</a>
+  </div>
+</main>
+<footer><div class="wrap">
+  <nav aria-label="All guides">
+    <a href="../">Lamina home</a>
+    <a href="../3d-model-to-laser-cut/">Start here</a>
+    <a href="../laser-cnc-or-3d-printer/">Laser, router or printer</a>
+    <a href="../3d-print-flat-parts/">3D printing</a>
+    <a href="../stacked-slices/">Stacked slices</a>
+    <a href="../interlocking-slices/">Interlocking slices</a>
+    <a href="../papercraft/">Folded panels and papercraft</a>
+    <a href="../radial-slices/">Radial slices</a>
+    <a href="../curve-ribs/">Curve ribs</a>
+    <a href="../plaque/">Plaque</a>
+    <a href="../band-lattice/">Band lattice</a>
+    <a href="../slicer-for-fusion-360-alternative/">Compared with Slicer for Fusion 360</a>
+  </nav>
+  Lamina is free software under the AGPL-3.0 ·
+  <a href="https://github.com/marcelfarres/lamina">GitHub</a> ·
+  <a href="https://www.reddit.com/r/Lamina3D">r/Lamina3D</a> ·
+  <a href="https://discord.gg/N66bCQxmt3">Discord</a>
+</div></footer>
+</body>
+</html>

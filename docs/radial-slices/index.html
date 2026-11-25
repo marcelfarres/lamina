@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Radial slices: a head, a vase or a lamp from a 3D model | Lamina</title>
+<meta name="description" content="How to make a radial slice sculpture from a 3D model: half-slices round an axis, held by rings. See what the number of planes, the number of rings and the thickness change. Free, in your browser.">
+<link rel="canonical" href="https://marcelfarres.github.io/lamina/radial-slices/">
+<link rel="icon" href="../favicon.svg">
+<link rel="stylesheet" href="../guide.css">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://marcelfarres.github.io/lamina/radial-slices/">
+<meta property="og:title" content="How to make a radial slice sculpture">
+<meta property="og:description" content="How to make a radial slice sculpture from a 3D model: half-slices round an axis, held by rings. See what the number of planes, the number of rings and the thickness change. Free, in your browser.">
+<meta property="og:image" content="https://marcelfarres.github.io/lamina/media/radial_poster.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"How to make a radial slice sculpture",
+"image":"https://marcelfarres.github.io/lamina/media/radial_poster.jpg","dateModified":"2026-11-25",
+"about":{"@type":"SoftwareApplication","name":"Lamina","url":"https://marcelfarres.github.io/lamina/","applicationCategory":"DesignApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}}
+</script>
+</head>
+<body>
+<header><div class="wrap">
+  <a class="home" href="../"><img src="../favicon.svg" alt="" width="24" height="24" style="border:0;background:none">Lamina</a>
+  <nav aria-label="Guides">
+    <a href="../3d-model-to-laser-cut/">Start here</a>
+    <b>Machines</b>
+    <a href="../laser-cnc-or-3d-printer/">Laser, router or printer</a>
+    <a href="../3d-print-flat-parts/">3D printing</a>
+    <b>Techniques</b>
+    <a href="../stacked-slices/">Stacked</a>
+    <a href="../interlocking-slices/">Interlocking</a>
+    <a href="../papercraft/">Folded</a>
+    <a href="../radial-slices/" aria-current="page">Radial</a>
+    <a href="../curve-ribs/">Curve</a>
+    <a href="../plaque/">Plaque</a>
+    <a href="../band-lattice/">Bands</a>
+  </nav>
+  <a class="btn" href="../app/index.html#radial/head_igea">Try it in your browser</a>
+</div></header>
+<main class="wrap">
+  <h1>How to make a radial slice sculpture</h1>
+  <p class="lead">Half-slices stand round an axis, like the segments of an orange, and flat rings hold them in place. It suits round shapes: heads, vases, lamps and fruit. This guide uses Lamina, a free laser slicer that runs in your browser.</p>
+  <figure>
+    <video src="../media/radial.mp4" poster="../media/radial_poster.jpg" width="1100" height="824" muted loop playsinline controls preload="none"
+           aria-label="A head in radial half-slices held by rings, turning"></video>
+    <figcaption>The head of this guide: half-slices round its axis, held by rings.</figcaption>
+  </figure>
+
+  <ul class="map">
+    <li><b>1. Start here</b>The steps every job has: your model, its size, the checks, the files.
+    <a href="../3d-model-to-laser-cut/">Open</a></li>
+    <li><b>2. Your machine</b>Laser, router or 3D printer, the material and its thickness.
+    <a href="../laser-cnc-or-3d-printer/">Open</a></li>
+    <li class="here"><b>3. Your technique: this page</b>The settings of Radial Slices, and what each one changes.</li>
+  </ul>
+
+  <h2>Which shapes work</h2>
+  <p>Shapes that go round one axis. A shape with two lobes, such as a snowman or a dumbbell, takes one axis for each lobe, and Lamina joins the lobes with a spine. For a shape with ears or arms on the same lines, use <a href="../stacked-slices/">stacked slices</a>.</p>
+
+  <h2>Set the technique</h2>
+  <p>Every picture on this page shows one model: the head that the link opens. An orange ring with a label marks
+  the control to use. To use your own model, upload it on the <b>Model</b> tab:
+  <a href="../3d-model-to-laser-cut/">Start here</a> shows how.</p>
+  <ol class="steps">
+    <li>Open <a href="../app/index.html#radial/head_igea">Lamina on Radial Slices</a>. It opens with the head cut in half-slices and rings. Click the <b>Technique</b> tab.
+    <img src="../media/guides/radial-slices-1.jpg" width="900" height="479" loading="lazy" alt="Lamina with the head in Radial Slices, the Technique tab ringed"></li>
+    <li>Set <b>axis</b> to the line the half-slices stand round. For a head or a vase, that is the height: <b>z</b>.
+    <img src="../media/guides/radial-slices-2.jpg" width="900" height="331" loading="lazy" alt="The axis row set to z, ringed"></li>
+    <li>In <b>planes per axis</b>, type the number of planes through the axis. Each plane gives two half-slices.
+    <img src="../media/guides/radial-slices-3.jpg" width="900" height="331" loading="lazy" alt="The planes per axis row, ringed"></li>
+    <li>In <b>number of rings</b>, type how many rings hold the half-slices.
+    <img src="../media/guides/radial-slices-4.jpg" width="900" height="331" loading="lazy" alt="The number of rings row, ringed"></li>
+    <li>Read the <b>errors</b> and <b>warnings</b> under the 3D view after each change. The buttons under a message fix it.
+    <img src="../media/guides/radial-slices-5.jpg" width="900" height="331" loading="lazy" alt="The counts under the 3D view with the errors and warnings, ringed"></li>
+  </ol>
+
+  <h2>What each setting changes</h2>
+  <p>Each picture shows the same head from the same side, with one setting changed. The label at the bottom gives
+  the counts that Lamina shows under the 3D view.</p>
+
+  <div class="setting">
+    <h3>planes per axis</h3>
+    <p>How many planes go through the axis. More planes show more of the surface.</p>
+    <p class="also">Each plane adds two half-slices. On this head, 6 planes make 18 parts on 2 sheets, 10 make 26 parts, and 14 make 34 parts on 3 sheets.</p>
+    <figure><img src="../media/guides/radial-slices-count.jpg" width="900" height="367" loading="lazy" alt="The head three times: 6 planes per axis with 18 parts on 2 sheets, 10 with 26 parts on 2 sheets, 14 with 34 parts on 3 sheets, each with 0 errors"></figure>
+  </div>
+
+  <div class="setting">
+    <h3>number of rings</h3>
+    <p>How many flat rings hold the half-slices. Each ring has a slot for every half-slice.</p>
+    <p class="also">More rings hold the half-slices in more places and add few parts: 2 rings give 26 parts on this head, 4 give 28, and 6 give 30.</p>
+    <figure><img src="../media/guides/radial-slices-rings.jpg" width="900" height="367" loading="lazy" alt="The head three times: 2 rings with 26 parts, 4 rings with 28 parts, 6 rings with 30 parts, each on 2 sheets with 0 errors"></figure>
+  </div>
+
+  <div class="setting">
+    <h3>thickness (on the Sheet &amp; fit tab)</h3>
+    <p>The thickness of your sheet. Every slot is cut as wide as this number.</p>
+    <p class="also">The number of parts stays, 30 on this head. The half-slices and the rings are thicker.</p>
+    <figure><img src="../media/guides/radial-slices-thickness.jpg" width="900" height="552" loading="lazy" alt="The head twice: thickness 3 and thickness 6, 30 parts each, with thicker half-slices and rings"></figure>
+  </div>
+
+  <h3>More settings</h3>
+  <div class="table"><table>
+    <tr><th>Setting</th><th>What it does</th><th>It changes</th></tr>
+    <tr><td>center hole diameter</td><td>The half-slices stop at this diameter round the axis.</td><td>At 0, Lamina takes the smallest hole that all half-slices fit round. A smaller hole gives a collision error.</td></tr>
+    <tr><td>ring distribution</td><td><b>count</b>: a number of rings. <b>distance</b>: one ring every so many mm.</td><td>With <b>distance</b>, a taller model gets more rings.</td></tr>
+    <tr><td>pole hole diameter</td><td>A hole in the middle of every ring.</td><td>For a pole or a dowel through the model. 0 is no hole.</td></tr>
+    <tr><td>vary the spacing</td><td>You draw the angle between planes round the axis.</td><td>More half-slices where the shape changes fast.</td></tr>
+  </table></div>
+
+  <h2>Then: the machine, the checks and the files</h2>
+  <p>These steps are the same for every technique, so they have their own pages.</p>
+  <ol class="steps" start="6">
+    <li>On the <b>Sheet &amp; fit</b> tab, choose your machine, your material and its thickness:
+    <a href="../laser-cnc-or-3d-printer/">Laser, router or 3D printer</a>.</li>
+    <li>Correct every error, cut the fit test, and download the files:
+    <a href="../3d-model-to-laser-cut/#steps">Start here</a>, steps 10 to 13.</li>
+    <li>Slide the half-slices into the slots of the rings. To see the order, drag <b>steps</b> over the 3D view.
+    <img src="../media/guides/radial-slices-6.jpg" width="900" height="447" loading="lazy" alt="The steps slider over the 3D view, half way, with half of the head's parts in place"></li>
+  </ol>
+
+  <div class="cta">
+    <a class="btn" href="../app/index.html#radial/head_igea">Open Lamina on Radial Slices</a>
+    <a class="btn ghost" href="../#techniques">All seven techniques</a>
+  </div>
+</main>
+<footer><div class="wrap">
+  <nav aria-label="All guides">
+    <a href="../">Lamina home</a>
+    <a href="../3d-model-to-laser-cut/">Start here</a>
+    <a href="../laser-cnc-or-3d-printer/">Laser, router or printer</a>
+    <a href="../3d-print-flat-parts/">3D printing</a>
+    <a href="../stacked-slices/">Stacked slices</a>
+    <a href="../interlocking-slices/">Interlocking slices</a>
+    <a href="../papercraft/">Folded panels and papercraft</a>
+    <a href="../radial-slices/">Radial slices</a>
+    <a href="../curve-ribs/">Curve ribs</a>
+    <a href="../plaque/">Plaque</a>
+    <a href="../band-lattice/">Band lattice</a>
+    <a href="../slicer-for-fusion-360-alternative/">Compared with Slicer for Fusion 360</a>
+  </nav>
+  Lamina is free software under the AGPL-3.0 ·
+  <a href="https://github.com/marcelfarres/lamina">GitHub</a> ·
+  <a href="https://www.reddit.com/r/Lamina3D">r/Lamina3D</a> ·
+  <a href="https://discord.gg/N66bCQxmt3">Discord</a>
+</div></footer>
+</body>
+</html>
