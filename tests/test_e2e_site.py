@@ -7,12 +7,14 @@ file downloads, no uncaught error. This is what gates the deploy in .github/work
 """
 import functools
 import http.server
+import io
 import json
 import os
 import pathlib
 import re
 import threading
 import urllib.parse
+import zipfile
 
 import pytest
 
@@ -74,6 +76,13 @@ def test_the_site_slices_in_the_browser(site):
         with page.expect_download() as dl:
             page.click("#dl a")
         assert dl.value.suggested_filename.endswith(".zip")
+        # the DXF and PDF writers load with the first export, not with Python: each still writes its file
+        href = page.get_attribute("#dl a", "href")
+        for fmt, magic in (("dxf", b"SECTION"), ("pdf", b"%PDF")):
+            raw = page.evaluate("async u => Array.from(new Uint8Array(await (await fetch(u)).arrayBuffer()))", href.replace("fmt=svg,dxf", f"fmt={fmt}"))
+            zf = zipfile.ZipFile(io.BytesIO(bytes(raw)))
+            made = zf.read(next(n for n in zf.namelist() if n.endswith("." + fmt)))
+            assert magic in made[:64] and len(made) > 1000, (fmt, made[:64])
 
         # One change after the upload, so the report has a step of the reporter's own to carry.
         page.click('nav button[data-t="sheet"]')

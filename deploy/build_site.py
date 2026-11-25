@@ -26,12 +26,21 @@ for f in ROOT.glob("examples/*.stl"):
 (ex / "index.json").write_text(json.dumps(sorted(f.stem for f in ex.glob("*.stl"))))
 shutil.copy(ROOT / "examples" / "presets.json", ex)          # what each example opens with
 
-# the packages Pyodide does not ship, at the versions the tests ran; rectpack has no wheel on PyPI, so build one
+# the packages Pyodide does not ship, as wheels beside the page at the versions the tests ran, so that starting up
+# neither resolves nor downloads anything from PyPI. Their own dependencies (numpy, pillow, pyparsing, fonttools,
+# typing-extensions, charset-normalizer) are Pyodide's. rectpack has no wheel on PyPI, so build one; for the others
+# take the pure-Python wheel (ezdxf also has compiled ones, which Pyodide cannot load).
 lock = (ROOT / "uv.lock").read_text(encoding="utf-8")
 ver = lambda n: re.search(rf'^name = "{n}"\nversion = "([^"]+)"', lock, re.M).group(1)
-subprocess.run(["uv", "run", "--no-project", "--with", "pip", "python", "-m", "pip", "wheel", f"rectpack=={ver('rectpack')}", "--no-deps", "-q", "-w", str(py)], check=True)
-reqs = [f"{n}=={ver(n)}" for n in ("trimesh", "ezdxf", "reportlab", "python-multipart")] + [next(py.glob("rectpack-*.whl")).name]
+pip = ["uv", "run", "--no-project", "--with", "pip", "python", "-m", "pip"]
+subprocess.run([*pip, "wheel", f"rectpack=={ver('rectpack')}", "--no-deps", "-q", "-w", str(py)], check=True)
+subprocess.run([*pip, "download", *(f"{n}=={ver(n)}" for n in ("trimesh", "python-multipart", "ezdxf", "reportlab")),
+                "--no-deps", "--only-binary=:all:", "--platform", "any", "--python-version", "3.14", "-q", "-d", str(py)], check=True)
+# at start-up: what the first slice imports. On first use: what only writes DXF and PDF/EPS files (browser-worker.js)
+wheels = lambda *names: [w.name for n in names for w in py.glob(f"{n.replace('-', '_')}-*.whl")]
+reqs = wheels("trimesh", "python-multipart", "rectpack")
 (py / "requirements.txt").write_text("\n".join(reqs) + "\n")
+(py / "export-requirements.txt").write_text("\n".join(wheels("ezdxf", "reportlab")) + "\n")
 
 # Counting visits to the published landing page only — never in the app people self-host, and never in the app at
 # all unless its reader opts in (web/static/index.html asks first and defaults to off).

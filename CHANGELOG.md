@@ -14,6 +14,9 @@ What changed in each release. The GitHub release for a version is this section, 
 
   ![The axis setting in the stacked slices guide: the horse at axis y, z and x, each with its number of parts and sheets](web/static/news/0.4.2-guides.jpg)
 
+- **Lamina in the browser starts sooner.** A first visit waits about ten seconds less before the first slice. The DXF
+  and PDF writers load with your first export, which takes a few seconds longer that one time.
+
 ### Fixed
 
 - **Parts are groups in the PDF too.** With *group parts* ticked, each part in the sheets PDF is one group with its
