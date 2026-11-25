@@ -4,7 +4,7 @@ Every request carries a client id — a random secret the browser tab keeps — 
 under working-files/jobs/<client>/, so several people can use one server without seeing each other's work.
 
 POST /api/slice        multipart: client, mode, params=<json>, and one of  model=<file> | example=<name> | job=<id> (re-slice the same model)
-                       → {job, plan (with 3D facets + sheet placement), sheets: [svg…], model: url of the processed mesh (STL)}
+                       → {job, plan (with 3D facets + sheet placement), sheets: [svg…], estimate: {total, sheets} (cut/score/engrave mm, pierces), model: url of the processed mesh (STL)}
 GET  /api/modes        mode schemas (drive the form)
 GET  /api/examples     bundled test models
 GET  /api/project      {version}: the project file layout this server writes (and the page saves)
@@ -36,7 +36,8 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from core import progress as build_progress
 from core.plan import build, MODES, swap_in
 from core.mesh import CAD_SUFFIXES
-from core.export import design_name, export, key_text, svg_doc, items_for_sheet, sheet_title
+from core.export import design_name, export, key_text, measure_sheets, svg_doc, items_for_sheet, sheet_title
+from core.calibrate import kerf_test
 from core.solid import fit_plan, fit_set, fit_sheets, proto_plan, proto_set, solid_bytes, standoff_files
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -217,8 +218,15 @@ def project():
 # ---------------------------------------------------------------- the library kept by this server (LAMINA_LIBRARY)
 # What the page's serverStore (web/static/js/store.js) calls: the same list, read, write, remove and conditional remove
 # the browser's own store answers. The folder is flat, one <name>_v<rev>.lamina.json per revision, as a linked folder.
-# What library.js's legal() leaves in a file name, with the ending every project file has; lib_path checks where it leads
-LIB_FILE = re.compile(r'[^\\/:*?"<>|\x00-\x1f]+\.lamina\.json')
+# What library.js's legal() leaves in a file name; lib_path checks the ending every project file has and where it leads.
+# One class and no ending in the pattern: nothing to backtrack over, however long the name
+LIB_FILE = re.compile(r'[^\\/:*?"<>|\x00-\x1f]+')
+
+
+def os_reason(e: OSError) -> str:
+    """What the page is told of an OS error: the system's own words (Permission denied, No space left on device), never
+    the exception's text, which can carry a path on the server."""
+    return e.strerror or type(e).__name__
 
 
 def library_cap() -> int:
@@ -244,7 +252,7 @@ def library_problem() -> str:
         fix = ("It is mounted read-only: remove :ro from its volume line." if e.errno == errno.EROFS
                else f"On the host, give the folder to user {uid}: sudo chown -R {uid} /path/to/the/folder" if uid is not None
                else "Check that it exists and that the user who started Lamina may write to it.")
-        return f"The server cannot write to its library folder {LIBRARY.name} ({e.strerror or e}). {fix}"
+        return f"The server cannot write to its library folder {LIBRARY.name} ({os_reason(e)}). {fix}"
 
 
 def sweep_library():
@@ -296,7 +304,7 @@ def lib_path(file: str) -> pathlib.Path:
     """The library's file for a name the page sent: the library's own kind of name (no separator, no dot first, no
     `..`, the project ending), no link (the listing does not show one), then where it leads, resolved: straight inside
     the folder."""
-    ok = LIB_FILE.fullmatch(file) and not file.startswith(".") and ".." not in file and not (LIBRARY / file).is_symlink()
+    ok = file.endswith(".lamina.json") and LIB_FILE.fullmatch(file) and not file.startswith(".") and ".." not in file and not (LIBRARY / file).is_symlink()
     p = (LIBRARY / file).resolve() if ok else None
     if p is None or p.parent != LIBRARY:
         raise HTTPException(400, f"{file!r} is not the name of a project file in the library")
@@ -352,7 +360,7 @@ def library_list():
                         st = e.stat(follow_symlinks=False)
                         files.append({"file": e.name, "size": st.st_size, "mtime": mtime_ms(st)})
     except OSError as err:
-        raise HTTPException(503, library_problem() or f"The server cannot read its library folder {LIBRARY.name} ({err.strerror or err}).") from None
+        raise HTTPException(503, library_problem() or f"The server cannot read its library folder {LIBRARY.name} ({os_reason(err)}).") from None
     return {"name": LIBRARY.name, "problem": library_problem(), "files": sorted(files, key=lambda f: f["file"])}
 
 
@@ -366,7 +374,7 @@ def library_read(file: str):
     except FileNotFoundError:
         raise HTTPException(404, f"{file} is not in the library") from None
     except OSError as e:
-        raise HTTPException(503, f"{file} could not be read in {LIBRARY.name} ({e.strerror or e}).") from None
+        raise HTTPException(503, f"{file} could not be read in {LIBRARY.name} ({os_reason(e)}).") from None
 
     def chunks():
         with f:
@@ -413,7 +421,7 @@ async def library_write(file: str, request: Request, expect: Literal["absent"] |
     try:
         fd, tmp = await run_in_threadpool(tempfile.mkstemp, dir=LIBRARY, prefix=".", suffix=".tmp")
     except OSError as e:
-        raise HTTPException(503, library_problem() or f"{file} could not be written in {LIBRARY.name} ({e.strerror or e}).") from None
+        raise HTTPException(503, library_problem() or f"{file} could not be written in {LIBRARY.name} ({os_reason(e)}).") from None
     try:
         with os.fdopen(fd, "wb") as f:
             n = 0
@@ -425,7 +433,7 @@ async def library_write(file: str, request: Request, expect: Literal["absent"] |
             await run_in_threadpool(_settle, f, tmp)
         return await run_in_threadpool(_swap_in, tmp, p, file, check, want)
     except OSError as e:
-        raise HTTPException(503, library_problem() or f"{file} could not be written in {LIBRARY.name} ({e.strerror or e}).") from None
+        raise HTTPException(503, library_problem() or f"{file} could not be written in {LIBRARY.name} ({os_reason(e)}).") from None
     finally:
         with contextlib.suppress(OSError):                   # swapped in, it is gone already
             os.unlink(tmp)
@@ -447,7 +455,7 @@ def library_remove(file: str, size: int | None = None, mtime: int | None = None)
                     return {"removed": False}
             p.unlink(missing_ok=True)
     except OSError as e:
-        raise HTTPException(503, library_problem() or f"{file} could not be deleted in {LIBRARY.name} ({e.strerror or e}).") from None
+        raise HTTPException(503, library_problem() or f"{file} could not be deleted in {LIBRARY.name} ({os_reason(e)}).") from None
     return {"removed": True}
 
 
@@ -535,7 +543,9 @@ def slice_model(client: str = Form(...), mode: str = Form(...), params: str = Fo
     W, H = plan["sheet"]
     p = plan["params"]
     t1 = time.time()
-    sheets = [svg_doc(items_for_sheet(plan, si), W, H, p["labels"], True, p["font"], p["units"], sheet_title(plan, si)) for si in range(plan["sheets"])]
+    items = [items_for_sheet(plan, si) for si in range(plan["sheets"])]   # drawn and measured from the same items
+    sheets = [svg_doc(its, W, H, p["labels"], True, p["font"], p["units"], sheet_title(plan, si)) for si, its in enumerate(items)]
+    estimate = measure_sheets(plan, items, p["labels"])
     plan["timing"]["drawing the sheets"] = round(time.time() - t1, 3)
     took = round(time.time() - t0, 2)
     # the session belongs to the client, not to the server: what this tab sliced last, so its refresh resumes it
@@ -546,7 +556,7 @@ def slice_model(client: str = Form(...), mode: str = Form(...), params: str = Fo
     swap_in(lambda tmp: tmp.write_text(text), cd / "session.json")
     _log_timing(mode, mpath, plan, took, prm)
     ghost = f"/jobs/{client}/{job}/model.stl?v={int((jd / 'model.stl').stat().st_mtime_ns // 1_000_000)}"  # new URL whenever the processed model changed
-    return {"job": job, "plan": plan, "sheets": sheets, "model": ghost, "took": took}
+    return {"job": job, "plan": plan, "sheets": sheets, "model": ghost, "took": took, "estimate": estimate}
 
 
 @app.get("/api/session")
@@ -718,6 +728,15 @@ def job_fitcut(client: str, job: str, fmt: str = "svg,dxf", labels: int = 1, ste
     return _zip(client, jd, plan, lambda tmp: fit_sheets(plan, tmp, fmts, bool(labels), step), f"{design_name(plan)}_{plan['mode']}_cut-fit-test_{'-'.join(fmts)}.zip")
 
 
+@app.get("/api/job/{client}/{job}/kerftest")
+def job_kerftest(client: str, job: str, fmt: str = "svg,dxf", labels: int = 1, units: str = ""):
+    """The kerf test (core.calibrate): seven squares and their holes, each pair drawn for one kerf around the job's, to cut
+    from a scrap first. The square that fits its hole snug gives the kerf to type in. Zipped with a README."""
+    jd, plan = _plan(client, job)
+    plan, fmts = with_units(plan, units), _fmts(fmt)
+    return _zip(client, jd, plan, lambda tmp: kerf_test(plan, tmp, fmts, bool(labels)), f"{design_name(plan)}_kerf-test_{'-'.join(fmts)}.zip")
+
+
 @app.get("/api/job/{client}/{job}/key")
 def job_key(client: str, job: str, units: str = ""):
     """The assembly key on its own (the same text as in the sheets zip): the Export tab's Build it step."""
@@ -787,7 +806,7 @@ def _solid_file(client, job, part, fmt, body=False):
 
 # The downloads by the name the page asks for (/api/job/{client}/{job}/<name>): the browser build binds a query to these
 # signatures (web/browser.py), so a download's parameters are written once, here, and nowhere else.
-JOB_ROUTES = {"export": job_export, "stl": job_stl, "step": job_step, "source": job_source, "proto": job_proto, "fit": job_fit, "fitcut": job_fitcut,
+JOB_ROUTES = {"export": job_export, "stl": job_stl, "step": job_step, "source": job_source, "proto": job_proto, "fit": job_fit, "fitcut": job_fitcut, "kerftest": job_kerftest,
               "key": job_key, "standoffs": job_standoffs, "contents": job_contents}
 
 

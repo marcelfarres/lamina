@@ -54,10 +54,11 @@ def _layers(plan):
     return [k for k in ORDER if k in has or (k == "INNER" and any(len(r) > 1 for pc in pcs for r in pc["kerfed"]))]
 
 
-def write_readme(plan, out_dir, files, notes=(), scale=1.0) -> list:
+def write_readme(plan, out_dir, files, notes=(), scale=1.0, estimate=None) -> list:
     """README.txt in `out_dir` for the zip that holds `files` (paths under out_dir): it is added to `files`, which is
     returned. `notes`: what the zip's writer has to say (the fit test's use, a print's settings and tags, a re-plan).
-    `scale` is the print's when it is not the job's own size (a prototype)."""
+    `scale` is the print's when it is not the job's own size (a prototype). `estimate`: core.export.measure's totals
+    of the sheets in this zip, when they are the job's (a fit test's or a kerf test's zip has none)."""
     out_dir = pathlib.Path(out_dir); p = plan["params"]
     names = [f.relative_to(out_dir).as_posix() for f in files]
     cut = [n for n in names if pathlib.Path(n).suffix in CUT]
@@ -80,6 +81,9 @@ def write_readme(plan, out_dir, files, notes=(), scale=1.0) -> list:
         out += ["", "LAYERS", "  Each layer has its own colour. Run them in this order, top to bottom. The files list them in this order too.",
                 "  If your program runs the layers in another order, set this order in its layer list."]
         out += [f"  {k:<6} {LAYERS[k][0]:<7} {COLORS[k]}  {LAYERS[k][1]}" for k in _layers(plan)]
+        if estimate:
+            m = estimate
+            out.append(f"  About {m['cut'] / 1000:.1f} m to cut, {m['score'] / 1000:.1f} m to score, {m['engrave'] / 1000:.1f} m to engrave, {m['pierces']} pierces.")
         out += ["", "KERF"]
         if p.get("compensate") and p.get("kerf", 0) > 0:
             out.append(f"  Compensated for a kerf of {p['kerf']:g} mm: each line is half of it outside the part. Cut on the line, with no offset.")
@@ -88,9 +92,17 @@ def write_readme(plan, out_dir, files, notes=(), scale=1.0) -> list:
         else:
             out.append("  Not compensated: each line is the part's exact size. Set the kerf offset in your laser program"
                        + (f" ({p['kerf']:g} mm on this job)" if p.get("kerf", 0) > 0 else "") + ", or tick compensate in Lamina and export again.")
+    bridges = int(p.get("bridges", 0) or 0) if cut and not p.get("printed") else 0
+    if bridges:
+        out += ["", "HOLDING BRIDGES",
+                f"  Each part's outline is cut with up to {bridges} short gaps, {p.get('bridge_width', 0.5):g} mm of material left in each,"
+                " so the part stays in the sheet while the rest is cut.",
+                "  Snap each part out by hand afterwards and sand the stub off. No bridge is on a slot, a tab or the end of a fold."]
     hand = []
     if cut and p.get("tool_d", 0) > 0:
         hand += ["Cut OUTER outside the line and INNER inside the line: a profile toolpath with the bit's offset.",
+                 "OUTER is cut open at the holding bridges. Most CAM programs want closed outlines for a profile toolpath: if yours"
+                 " does, set holding bridges to 0 in Lamina, export again and add tabs in the CAM program." if bridges else
                  "Add holding tabs to OUTER in your CAM program, so the parts stay in the sheet.",
                  "LABEL and GUIDE need a V-bit or a small engraving bit. If you have none, leave them out: the assembly key names each part."]
     if cut and (rods := rods_of(plan)) and not p.get("printed"):

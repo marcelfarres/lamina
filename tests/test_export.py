@@ -900,3 +900,22 @@ def test_job_export_can_switch_part_grouping_off():
     tree = etree.fromstring(svg)
     assert not tree.xpath('//svg:g[@class="piece"]', namespaces=SVG_NS)
     assert len(tree.xpath('//svg:g[@class="OUTER"]', namespaces=SVG_NS)) == 1
+
+
+def test_the_estimate_measures_the_paths_the_files_draw(tmp_path):
+    """measure() against the SVG the same items are drawn into, parsed back: the cut length is the OUTER and INNER
+    paths' summed length, a pierce is one per cut path, and the engraving is there with labels and smaller without."""
+    from core.export import items_for_sheet, measure
+    plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 3, "autofix": "off"})
+    export(plan, tmp_path, fmts=("svg",), labels=True)
+    tree = etree.parse(str(tmp_path / f"{design_name(plan)} sheet1.svg"))
+    cut, pierces = 0.0, 0
+    for d in tree.xpath('//svg:g[@class="OUTER" or @class="INNER"]/svg:path/@d', namespaces=SVG_NS):
+        pts = [tuple(map(float, p.split(","))) for p in re.findall(r"[ML]([-\d.]+,[-\d.]+)", d)]
+        cut += sum(np.hypot(a[0] - b[0], a[1] - b[1]) for a, b in zip(pts, pts[1:] + pts[:1])); pierces += 1   # every path here is closed
+    items = items_for_sheet(plan, 0)
+    on, off = measure(items, True, plan["params"]["font"]), measure(items, False, plan["params"]["font"])
+    assert on["cut"] == round(cut, 1) and on["pierces"] == pierces > 0
+    assert on["engrave"] > off["engrave"] >= 0 and off["cut"] == on["cut"]
+    said = (tmp_path / "README.txt").read_text(encoding="utf-8")       # the zip's README states what was just drawn
+    assert f"About {on['cut'] / 1000:.1f} m to cut" in said and f"{on['pierces']} pierces" in said

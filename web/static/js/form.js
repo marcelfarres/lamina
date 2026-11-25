@@ -113,7 +113,7 @@ $('#tabs').addEventListener('input',e=>{
   if(t.dataset.map){const p=P(t.dataset.map),v={...(state[p.name]||{})};v[t.dataset.k]=fromU(p,+t.value||0);return setVal(p.name,v)}
   if(t.dataset.chip)return;
   const p=allParams().find(p=>'p_'+p.name===t.id); if(!p)return;
-  if(p.name==='units'){ST.unit=t.value;return applyUnit()}   // the Sheet tab's units box is the toolbar's, not a second one
+  if(p.name==='units')return applyUnit(t.value);   // the Sheet tab's units box is the toolbar's, not a second one
   if(p.type==='file'){const f=t.files[0], hint=t.parentElement.querySelector('small'); if(f)f.text().then(x=>{setVal(p.name,x); if(hint)hint.textContent='a file is loaded'}); return}
   if(p.type==='bool')setVal(p.name,t.checked); else if(p.type==='choice'||p.type==='text'||p.type==='color')setVal(p.name,t.value); else setVal(p.name,t.value===''?p.default:fromU(p,+t.value));
   if(t.closest('#g-model'))ST.fitted=false;
@@ -125,7 +125,7 @@ export function resetTab(tab){if(tab==='light')return ST.light('reset');   // th
   if(tab==='technique')for(const p of ST.mode.params)state[p.name]=structuredClone(p.default);
   // the material sets the 3D look when it is picked, so the reset material takes the look back to the page's own
   if(tab==='model')ST.fitted=false; if(tab==='sheet'){applyMachine(state.machine);state.printed=fam()==='print';$('#look').value='group';applyLook()}   // a printed material stays printed
-  ST.unit=state.units||ST.unit; applyUnit(); slice()}   // the Sheet tab holds `units`: the page follows it back to mm
+  applyUnit(state.units||ST.unit); slice()}   // the Sheet tab holds `units`: the page follows it back to mm
 $('#tabs').addEventListener('click',e=>{
   const t=e.target, P=name=>allParams().find(p=>p.name===name);
   if(t.dataset.undo){const p=P(t.dataset.undo);state[p.name]=structuredClone(p.default);if(p.group==='model')ST.fitted=false;renderFields();schedule();return}   // ↺: the default back

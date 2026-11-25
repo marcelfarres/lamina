@@ -13,14 +13,16 @@ const list = await (await fetch(`http://127.0.0.1:${PORT}/json`)).json();
 const page = list.find(t => t.type === "page" && /127\.0\.0\.1:\d+/.test(t.url));
 if (!page) { console.log("no page tab", list.map(t => t.url)); process.exit(1); }
 const ws = new WebSocket(page.webSocketDebuggerUrl);
-let id = 0; const pending = {};
-const send = (method, params = {}) => new Promise(res => { pending[++id] = res; ws.send(JSON.stringify({ id, method, params })); });
-ws.onmessage = ev => { const m = JSON.parse(ev.data); if (m.id && pending[m.id]) { pending[m.id](m.result); delete pending[m.id]; } };
+let id = 0; const pending = new Map();
+const send = (method, params = {}) => new Promise(res => { pending.set(++id, res); ws.send(JSON.stringify({ id, method, params })); });
+ws.onmessage = ev => { const m = JSON.parse(ev.data); const r = pending.get(m.id); if (typeof r === "function") { pending.delete(m.id); r(m.result); } };   // only a reply to one of our own calls resolves
 await new Promise(r => ws.onopen = r);
 // same layout, twice the pixels: the page shows the stills at up to 1100 CSS px on HiDPI screens
 await send("Emulation.setDeviceMetricsOverride", { width: 1574, height: 907, deviceScaleFactor: 2, mobile: false });
 
 const js = async expr => { const r = await send("Runtime.evaluate", { expression: expr, awaitPromise: true, returnByValue: true }); if (r.exceptionDetails) throw new Error(r.exceptionDetails.text + " " + (r.exceptionDetails.exception?.description || "") + "\n" + expr); return r.result.value; };
+// fn runs in the page: every value goes in as an argument, never as code text
+const call = async (fn, ...args) => { const g = await send("Runtime.evaluate", { expression: "globalThis" }); const r = await send("Runtime.callFunctionOn", { objectId: g.result.objectId, functionDeclaration: fn.toString(), arguments: args.map(value => ({ value })), awaitPromise: true, returnByValue: true }); if (r.exceptionDetails) throw new Error(r.exceptionDetails.text + " " + (r.exceptionDetails.exception?.description || "") + "\n" + fn); return r.result.value; };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const until = async (expr, tries = 400) => { for (let i = 0; i < tries; i++) { if (await js(expr)) return true; await sleep(500); } throw new Error("timeout: " + expr); };
 const settle = async () => { await until("window.__t.idle()", 960); await sleep(400); };   // the fine-remeshed head takes ~30 s a slice
@@ -29,15 +31,15 @@ const shot = async name => { await png(name); await project(name); console.log("
 // the scene as a project file (the page's own, as the top bar's "save" writes it into the library, minus the model: it names the bundled example),
 // so a reviewer can open it in the app and see exactly this
 fs.mkdirSync("working-files/review", { recursive: true });
-const project = async name => fs.writeFileSync(`working-files/review/${name}.lamina.json`, await js(`window.__t.project().then(p => JSON.stringify({...p, name: 'Lamina demo ${name}'}))`));
+const project = async name => fs.writeFileSync(`working-files/review/${name}.lamina.json`, await call(n => window.__t.project().then(p => JSON.stringify({...p, name: 'Lamina demo ' + n})), name));
 
 // one parameter by its name: number / range / select / checkbox; a vector sets p_name_0, p_name_1, ...
 // (the form listens for 'input' delegated, the view controls for 'change' — fire both)
 const set = async (name, v) => {
     if (Array.isArray(v)) { for (let i = 0; i < v.length; i++) await set(`${name}_${i}`, v[i]); return; }
-    await js(`(()=>{const s=document.querySelector('#p_${name}')||document.querySelector('#${name}');if(!s)throw new Error('no field ${name}');
-        if(s.type==='checkbox')s.checked=${JSON.stringify(!!v)};else s.value=${JSON.stringify(String(v))};
-        for(const e of ['input','change'])s.dispatchEvent(new Event(e,{bubbles:true}))})()`);
+    await call((name, checked, text) => {const s=document.querySelector('#p_'+name)||document.querySelector('#'+name);if(!s)throw new Error('no field '+name);
+        if(s.type==='checkbox')s.checked=checked;else s.value=text;
+        for(const e of ['input','change'])s.dispatchEvent(new Event(e,{bubbles:true}))}, name, !!v, String(v));
 };
 // every scene starts from the same model preparation, so nothing leaks from the scene before (rotate, size, per-slice fixes)
 const BASE = { rotate: [0, 0, 0], size: [0, 0, 0], round: 0, thicken: 0, shrinkwrap: 0, smooth: 0, thickness: 3, autofix: "add" };
@@ -48,7 +50,7 @@ const params = async p => {
     await settle();
 };
 // what the fix buttons do (grow an outline, move a slice) and the curve's points and branches, applied as the app applies them
-const fix = async set => { await js(`window.__t.applyFix(${JSON.stringify(set)})`); await settle(); };
+const fix = async set => { await call(f => window.__t.applyFix(f), set); await settle(); };
 // whatever warning is left on screen, take the app's own first offer for it (trim the thin spots, grow the outline,
 // move the slice), one at a time, as a user would: the project file then carries those fixes too
 const heal = async (rounds = 12) => {
@@ -64,10 +66,10 @@ const heal = async (rounds = 12) => {
 };
 // the base preparation goes in before the switch: the new mode slices at once with its remembered parameters, and
 // e.g. round 3 + a remembered facet 0 would unfold a remeshed 100k-triangle cube (never finishes)
-const mode = async m => { await params({}); await js(`document.querySelector('#modes button[data-m=${m}]').click()`); await settle(); };
-const example = async e => { await js(`window.__t.openExample('${e}')`); await settle(); };
-const tab = async t => { await js(`document.querySelector('nav button[data-t=${t}]').click()`); await sleep(300); };
-const cam = (az, el, d) => js(`window.__t.cam(${az},${el},${d ?? "null"})`);
+const mode = async m => { await params({}); await call(m => document.querySelector('#modes button[data-m=' + m + ']').click(), m); await settle(); };
+const example = async e => { await call(e => window.__t.openExample(e), e); await settle(); };
+const tab = async t => { await call(t => document.querySelector('nav button[data-t=' + t + ']').click(), t); await sleep(300); };
+const cam = (az, el, d) => call((az, el, d) => window.__t.cam(az, el, d), az, el, d ?? null);
 const fit = async () => { await js("document.querySelector('#fit').click()"); await sleep(300); };
 // fit, then pull the camera in so the model fills the frame, optionally pulling the parts apart a little
 const view = async (az, el, zoom = 1.0, explode = 1) => {
@@ -169,9 +171,9 @@ S.lobes = async () => {       // the plane between two lobes is a part: select i
     await js("window.__t.select('B-1-2')"); await sleep(400);
     await clip("lobes", 46, async i => {
         if (i === 0) return;
-        if (i < 15) { await js(`(()=>{const r=document.querySelector('#r_offset');r.value=${i};r.dispatchEvent(new Event('input'))})()`); }
+        if (i < 15) { await call(v => {const r=document.querySelector('#r_offset');r.value=v;r.dispatchEvent(new Event('input'))}, i); }
         else if (i === 15) { await js("document.querySelector('#r_offset').dispatchEvent(new Event('change'))"); await settle(); }
-        else if (i < 30) { await js(`(()=>{const r=document.querySelector('#r_tilt');r.value=${Math.round((i - 15) * 0.55)};r.dispatchEvent(new Event('input'))})()`); }
+        else if (i < 30) { await call(v => {const r=document.querySelector('#r_tilt');r.value=v;r.dispatchEvent(new Event('input'))}, Math.round((i - 15) * 0.55)); }
         else if (i === 30) { await js("document.querySelector('#r_tilt').dispatchEvent(new Event('change'))"); await settle(); }
         else await sleep(120);
     });
@@ -290,17 +292,17 @@ S.edit = async () => {        // move the slice nearest the camera, so the whole
     await example("egg"); await mode("interlocked"); await tab("technique"); await params({ nx: 5, ny: 4 });
     await view(-55, 20, 0.95); await sleep(200);
     // camera sits on the -y side: the frontmost slice lying in the xz plane is the y-family part nearest the camera
-    const lab = await js(`(()=>{const c=window.__t.camera.position;const ps=window.__t.parts().filter(m=>Math.abs(m.userData.normal.y)>0.9);
-        ps.sort((a,b)=>a.userData.origin.distanceTo(c)-b.userData.origin.distanceTo(c));return ps[0].userData.slice})()`);
-    await js(`window.__t.select('${lab}')`); await sleep(400);
+    const lab = await call(() => {const c=window.__t.camera.position;const ps=window.__t.parts().filter(m=>Math.abs(m.userData.normal.y)>0.9);
+        ps.sort((a,b)=>a.userData.origin.distanceTo(c)-b.userData.origin.distanceTo(c));return ps[0].userData.slice});
+    await call(l => window.__t.select(l), lab); await sleep(400);
     // slide it inward (outward it would leave the egg and be dropped), a little, then tilt it
-    const sign = await js(`(()=>{const m=window.__t.parts().find(p=>p.userData.slice==='${lab}');const c=window.__t.camera.position.clone().sub(m.userData.origin);return -(Math.sign(c.dot(m.userData.normal))||1)})()`);
+    const sign = await call(l => {const m=window.__t.parts().find(p=>p.userData.slice===l);const c=window.__t.camera.position.clone().sub(m.userData.origin);return -(Math.sign(c.dot(m.userData.normal))||1)}, lab);
     console.log("edit clip moves", lab, "inward, sign", sign);
     await clip("edit", 40, async i => {
         if (i === 0) return;
-        if (i < 14) { await js(`(()=>{const r=document.querySelector('#r_offset');r.value=${sign} * ${Math.round(i * 0.7)};r.dispatchEvent(new Event('input'))})()`); }
+        if (i < 14) { await call(v => {const r=document.querySelector('#r_offset');r.value=v;r.dispatchEvent(new Event('input'))}, sign * Math.round(i * 0.7)); }
         else if (i === 14) { await js("document.querySelector('#r_offset').dispatchEvent(new Event('change'))"); await settle(); }
-        else if (i < 28) { await js(`(()=>{const r=document.querySelector('#r_tilt');r.value=${Math.round((i - 14) * 0.55)};r.dispatchEvent(new Event('input'))})()`); }
+        else if (i < 28) { await call(v => {const r=document.querySelector('#r_tilt');r.value=v;r.dispatchEvent(new Event('input'))}, Math.round((i - 14) * 0.55)); }
         else if (i === 28) { await js("document.querySelector('#r_tilt').dispatchEvent(new Event('change'))"); await settle(); }
         else await sleep(120);
     });
@@ -311,9 +313,9 @@ S.edit = async () => {        // move the slice nearest the camera, so the whole
 // starting shape picked (dense at both ends); the middle point dragged down and let go; then "follow the model", which
 // draws the curve from how fast the vase's width changes; a point added and the curve smoothed. The model re-slices
 // after each step. The page says where a point of the graph is on the screen (__t.spcXY)
-const spcPoint = async (t, v) => js(`window.__t.spcXY('spacing_curve', ${t}, ${v})`);
+const spcPoint = async (t, v) => call((t, v) => window.__t.spcXY('spacing_curve', t, v), t, v);
 const mouse = (type, x, y, extra = {}) => send("Input.dispatchMouseEvent", { type, x, y, button: "left", buttons: 1, pointerType: "mouse", ...extra });
-const spcPress = async what => { await js(`document.querySelector('.spc button[${what}]').click()`); await settle(); };
+const spcPress = async what => { await call(w => document.querySelector('.spc button[' + w + ']').click(), what); await settle(); };
 S.spacing = async () => {
     await example("vase"); await mode("stacked"); await tab("technique");
     await params({ distribution: "count", count: 18, connect: "dowel", dowel_d: 4, n_points: 2, spacing_vary: false, spacing_min: 3, spacing_max: 30,
@@ -355,7 +357,7 @@ S.labels = async () => {      // the vase's cut sheet, close: names in the singl
 const LAMP_KEEP = ["material", "printed", "machine", "sheet", "kerf", "thickness", "joint", "strategy", "facet", "window", "edge_labels"];
 S.fold = async () => {        // folded panels, printed: the lamp shade from its flat net to the folded shade and back, orbiting
     // the lamp's preset brings its own stock (PETG, printed, the printer's bed): what was there is put back at the end
-    const was = await js(`JSON.stringify(Object.fromEntries(${JSON.stringify(LAMP_KEEP)}.map(k=>[k,window.__t.state()[k]])))`);
+    const was = await call(keep => Object.fromEntries(keep.map(k=>[k,window.__t.state()[k]])), LAMP_KEEP);
     await example("fold_lamp"); await tab("technique");
     await set("viewmode", "only3d"); await sleep(600);
     const look = () => js("(()=>{const t=window.__t.target();return [t.x,t.y,t.z,window.__t.camera.position.distanceTo(t)]})()");
@@ -369,10 +371,10 @@ S.fold = async () => {        // folded panels, printed: the lamp shade from its
         // 0–14 flat · 15–74 folding up · 75–104 folded, still turning · 105–139 unfolding · 140–149 flat
         const s = i < 15 ? 0 : i < 75 ? ease((i - 15) / 60) : i < 105 ? 1 : i < 140 ? 1 - ease((i - 105) / 35) : 0;
         const [x, y, z, d] = v0.map((a, k) => a + (v1[k] - a) * s), turn = i < 75 ? 0 : (i - 75) * 1.6;
-        await js(`(()=>{window.__t.fold(${s});window.__t.target().set(${x},${y},${z});window.__t.cam(${az0 + (az1 - az0) * s + turn * (s > 0.99 ? 1 : s)},${el0 + (el1 - el0) * s},${d * 0.82})})()`);
+        await call((s, x, y, z, az, el, dist) => {window.__t.fold(s);window.__t.target().set(x,y,z);window.__t.cam(az,el,dist)}, s, x, y, z, az0 + (az1 - az0) * s + turn * (s > 0.99 ? 1 : s), el0 + (el1 - el0) * s, d * 0.82);
     });
     await js("window.__t.fold(1)"); await set("viewmode", "both"); await sleep(400); await project("fold");
-    await js(`Object.assign(window.__t.state(),${was})`); await example("egg");
+    await call(w => Object.assign(window.__t.state(), w), was); await example("egg");
 };
 
 // ring slices: the head's stack as solid slices, then as rings with a wall, a wider wall, and pieces no longer than
@@ -443,7 +445,7 @@ S.bands = async () => {
 // outlines behind it show what went. Real clicks
 // on the 3D view; the page says where a face is on the screen (__t.faces().under)
 // the back of the lion: the largest joined area of faces that face backward; a seam round it keeps the whole front mane
-const LION_BACK = `(() => { const F = window.__t.plan().faces3d, V = F.v, sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const LION_BACK = () => { const F = window.__t.plan().faces3d, V = F.v, sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
   const ny = F.f.map(([a, b, c]) => { const u = sub(V[b], V[a]), w = sub(V[c], V[a]), n = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]]; return n[1] / Math.hypot(...n) });
   const my = F.f.map(f => (V[f[0]][1] + V[f[1]][1] + V[f[2]][1]) / 3), nb = F.f.map(() => []); F.adj.forEach(([a, b]) => { nb[a].push(b); nb[b].push(a) });
   const ok = F.f.map((_, i) => ny[i] > 0.3 && my[i] > 0), seen = new Set(); let best = [];
@@ -451,19 +453,19 @@ const LION_BACK = `(() => { const F = window.__t.plan().faces3d, V = F.v, sub = 
     for (let k = 0; k < part.length; k++) for (const j of nb[part[k]]) if (ok[j] && !seen.has(j)) { seen.add(j); part.push(j) }
     if (part.length > best.length) best = part }
   const back = new Set(best);
-  return {back: [...back], loop: F.adj.filter(([a, b]) => back.has(a) !== back.has(b)).map(([a, b]) => F.f[a].filter(i => F.f[b].includes(i)).map(i => V[i]))} })()`;
+  return {back: [...back], loop: F.adj.filter(([a, b]) => back.has(a) !== back.has(b)).map(([a, b]) => F.f[a].filter(i => F.f[b].includes(i)).map(i => V[i]))} };
 const press = async (x, y) => { await mouse("mousePressed", x, y, { clickCount: 1 }); await mouse("mouseReleased", x, y, { clickCount: 1, buttons: 0 }); };
 S.mask = async () => {
     await example("lion_head"); await tab("technique");    // opens in Folded Panels; the Model tab would draw the rotate rings
     await until("window.__t.plan()?.faces3d"); await settle();
-    await fix({ seams: (await js(LION_BACK)).loop });
+    await fix({ seams: (await call(LION_BACK)).loop });
     await js("document.querySelector('#tools [data-tool=seam]').click()"); await sleep(400);
     await fit(); const d = (await js("window.__t.camera.position.distanceTo(window.__t.target())")) * 0.88;
     let az = 75; await cam(az, 12, d); await sleep(300);
-    const back = () => js(`(()=>{const back=new Set(${LION_BACK}.back),r=window.__t.canvas().getBoundingClientRect(),f=window.__t.faces();let best=null;
+    const back = async () => call(faces => {const back=new Set(faces),r=window.__t.canvas().getBoundingClientRect(),f=window.__t.faces();let best=null;
         for(let x=r.left+80;x<r.right-80;x+=10)for(let y=r.top+100;y<r.bottom-120;y+=10){const u=f.under(x,y);if(u?.face===undefined||!back.has(u.face))continue;
           const dd=Math.hypot(x-r.left-r.width/2,y-r.top-r.height/2);if(!best||dd<best.dd)best={x,y,dd}}
-        return best})()`);
+        return best}, (await call(LION_BACK)).back);
     await clip("mask", 120, async i => {
         // 0–15 the seam loop · 16 select faces, one click · 26 grow · 36 connected · 48 remove · 60–105 turning to the front
         if (i === 16) { await js("document.querySelector('#tools [data-tool=face]').click()"); await sleep(300); const p = await back(); await press(p.x, p.y); await sleep(300); }
@@ -481,15 +483,15 @@ S.mask = async () => {
 
 // ---- the light (js/light.js): the lamp lit, the Light tab's lamps, a light moved, a stack lit from the side, a room
 // a control of the Light tab, set as a user sets it (its rows carry data-l, not the p_ ids `set` looks for)
-const lt = (sel, v) => js(`(()=>{const e=document.querySelector('#g-light ${sel}');if(!e)throw new Error('no light control ${sel}');
-    if(e.type==='checkbox')e.checked=${JSON.stringify(v)};else e.value=${JSON.stringify(String(v))};e.dispatchEvent(new Event(e.type==='checkbox'?'change':'input',{bubbles:true}))})()`);
+const lt = (sel, v) => call((sel, v) => {const e=document.querySelector('#g-light '+sel);if(!e)throw new Error('no light control '+sel);
+    if(e.type==='checkbox')e.checked=v;else e.value=String(v);e.dispatchEvent(new Event(e.type==='checkbox'?'change':'input',{bubbles:true}))}, sel, v);
 // the light off and as a new project has it: the lights are cleared by the next model, the room is not
 const dark = async () => { await js("delete window.__t.state().room;delete window.__t.state().light_video"); await set("lamp", false); await js("document.querySelector('section[data-tab=light] button.reset').click()"); };
 // a scene on the folded lamp: its preset brings its own stock, which is put back at the end (as S.fold does)
 const withLamp = async fn => {
-    const was = await js(`JSON.stringify(Object.fromEntries(${JSON.stringify(LAMP_KEEP)}.map(k=>[k,window.__t.state()[k]])))`);
+    const was = await call(keep => Object.fromEntries(keep.map(k=>[k,window.__t.state()[k]])), LAMP_KEEP);
     await example("fold_lamp"); await fn();
-    await dark(); await set("viewmode", "both"); await sleep(400); await js(`Object.assign(window.__t.state(),${was})`); await example("egg");
+    await dark(); await set("viewmode", "both"); await sleep(400); await call(w => Object.assign(window.__t.state(), w), was); await example("egg");
 };
 const far = k => js("window.__t.camera.position.distanceTo(window.__t.target())").then(d => d * k);
 S.light = () => withLamp(async () => {      // the flat net folds up into the shade, the light tick, one turn round it in its room
@@ -506,7 +508,7 @@ S.light = () => withLamp(async () => {      // the flat net folds up into the sh
         const f = i < 10 ? 0 : i < 65 ? ease((i - 10) / 55) : 1, back = i < 75 ? 0 : ease(Math.min(1, (i - 75) / 30)), turn = i < 65 ? 0 : (i - 65) * 1.7;
         if (i === 75) await set("lamp", true);
         const [x, y, z, d] = v0.map((a, k) => a + (v1[k] - a) * f);
-        await js(`(()=>{${i <= 65 ? `window.__t.fold(${f});` : ""}window.__t.target().set(${x},${y},${z});window.__t.cam(${az0 + (az1 - az0) * f + turn},${el0 + (el1 - el0) * f},${d * (0.82 + 0.7 * back)})})()`);
+        await call((fold, f, x, y, z, az, el, dist) => {if(fold)window.__t.fold(f);window.__t.target().set(x,y,z);window.__t.cam(az,el,dist)}, i <= 65, f, x, y, z, az0 + (az1 - az0) * f + turn, el0 + (el1 - el0) * f, d * (0.82 + 0.7 * back));
         await sleep(i === 75 ? 700 : 60);
     });
     await js("window.__t.fold(1)"); await project("light");

@@ -494,12 +494,18 @@ does not slip through. It carries the most signal for stacked and folded work; d
   you give up — and the key is the only way back. Leave it out of the zip and the puzzle stays a puzzle.
 - **An assembly video**: the steps slider played and recorded off the 3D view as a `.webm`, made in the page itself —
   nothing uploaded, nothing rendered twice.
+- **An assembly guide**: *assembly guide (printable)* on the Export tab opens one card per build step in a new tab, six to an A4 page: a 3D picture of the model as built so far with the new part framed and numbered (striped where built parts hide it), what is engraved on it, its sheet and thickness, what it goes onto, and its cut outline. Print it or save it as one HTML file; it is made in the page.
 - **Cut files**: SVG (opens directly in LightBurn, the Glowforge app and xTool Creative Space) and DXF in mm / cm /
   in, multi-page PDF, EPS per sheet, or one file per piece, each with or without the red label layer (one switch for
   every file). Layers follow Slicer's Cut Layout: OUTER blue, INNER green (slots, holes), SCORE yellow (folds: solid mountain, dashed valley, seen from the face up on the cutter; dotted perforate), GUIDE orange (stacked: the
   next layer's outline engraved on the slice under it, when `next_outline` is on), LABEL red (labels, leaders, seam numbers, sheet border). In the SVG each part is one group holding its own cuts, lines and labels, so it can be moved as a unit in a vector editor; a switch under Export turns that off, for software that wants one group per colour for the whole sheet. The zip is named `<project or model>_v<revision>_<technique>_…`, and so is every file
   in it: they all start with the design, `egg_v1.0 sheet1 plywood.svg`, so the cut files of two designs unzipped
   into one folder never collide or mix.
+- **Holding bridges** (`bridges`, `bridge_width`): a few short stretches of each outline left uncut, so a part stays
+  in the sheet while the rest is cut and is snapped out by hand afterwards. They sit on straight edges, spread evenly,
+  and never on a slot, a tab, a tooth or the end of a fold: the outline's shape shows where those are
+  (`core/bridges.py`). The gap in the cut is the width plus the kerf, so the material left is the width asked for.
+  Off by default.
 - **Identical pieces once**: in per-piece mode a shape that occurs several times is exported one time, with the
   quantity last in the file name and on the label. A per-piece file is named design, part, material, thickness,
   quantity, in that order and separated by spaces, and it always ends in its quantity, `x1` included
@@ -514,6 +520,11 @@ does not slip through. It carries the most signal for stacked and folded work; d
   material's density, and gives the sheet area to buy — m², or ft² in inches, on whole sheets with their offcuts —
   with the area that becomes parts and the share of the stock used. Every material on the list has a typical density
   you can correct, and a material of your own (+ beside the material) keeps the density you give it.
+- **Estimates**: under the weight, the Export tab gives the length to cut, to score and to engrave, the pierces, an
+  approximate machine time and a cost. The lengths are measured on the lines of the cut files. You type a cut speed,
+  an engrave speed and a price per sheet; the page keeps them in the browser, and the tiles change as you type. The
+  time leaves out pierces and the travel between lines, so the real time is longer. The README.txt in the zip gives the
+  lengths and the pierces.
 - **Calibration bar** (`scale_check`): every export carries a calibration bar, 10 cm or 4 in following the units, to cut first and
   measure before committing to the whole set.
 - **Kerf compensation is off by default**: many machines compensate their own kerf, and compensating twice ruins
@@ -538,6 +549,10 @@ does not slip through. It carries the most signal for stacked and folded work; d
   fit test** (Downloads) is at 1:1 for the real machine and predicts the model's fit; the **print fit test**
   (Prototyping) dials in the print's own **print slot offset**, in printed millimetres whatever the scale, which the
   prototype set uses in place of the job's.
+- **Kerf test** (Export tab, step 1, for a laser, plasma or knife; `core/calibrate.py`): seven squares and a plate
+  with seven square holes, each pair drawn for one kerf around the job's (0.05 mm steps for a laser, 0.25 for a
+  plasma). The square grows by half the kerf and its hole shrinks by half, as Lamina compensates a part, so cut with
+  the true kerf that pair comes out exactly to size and fits snug. Its value is the kerf to type in.
 - **Every zip carries the project file** (`….lamina.json`): technique, every parameter and the uploaded model
   itself, so a printed part or a cut file found later leads back to what made it. Take it out of the zip, and
   **import files…** on the library page reads it back.
@@ -583,7 +598,7 @@ sheets are always the same plan.
   clicking a part on the sheet selects it in 3D, and clicking a warning does the same. Alt-click adds or removes a
   dowel (stacked), a curve control point (curve) or a radial axis; shift+alt-click a hoof, hand or tail tip adds a
   curve branch out to it. `explode` and `steps` sliders animate the
-  assembly; `look` previews the material.
+  assembly; `section` (x / y / z, 0 = off) cuts the model open with a plane to see inside, in the view only; `look` previews the material.
 - **Dowels in a stack** (`placement`): **aligned** puts the same points straight through every layer, one rod each;
   alt-click a layer to add one there, alt-click it to remove it, or type exact x, y under `dowels` — that is how you
   move one. **random** picks new points for every pair of layers, spread as far apart as the pair allows; they

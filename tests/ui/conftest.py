@@ -58,12 +58,12 @@ def browser():
         b.close()
 
 
-def new_page(browser, url):
-    """The app at `url` in a tab of its own (with its own storage), settled; an uncaught JavaScript error fails the test."""
+def new_page(browser, url, at="/"):
+    """The app at `url` + `at` (such as "/#stacked") in a tab of its own (with its own storage), settled; an uncaught JavaScript error fails the test."""
     pg = browser.new_page(viewport={"width": 1500, "height": 950})
     pg.errors = []
     pg.on("pageerror", lambda e: pg.errors.append(str(e)))
-    pg.goto(url + "/")
+    pg.goto(url + at)
     settle(pg)
     return pg
 

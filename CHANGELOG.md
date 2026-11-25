@@ -2,6 +2,54 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.4.1
+
+This release helps at the machine: bridges that keep parts in the sheet, a kerf test to cut first, how long the cut
+takes and what it costs, a printed guide to build from, and a section view of the model. It also fixes what new users
+met first in 0.4.0.
+
+### Added
+
+- **Parts stay in the sheet.** Set *holding bridges* on Sheet & fit: each part keeps a few short uncut stretches,
+  never on a slot, tab or fold, and snaps out by hand after the cut.
+
+  ![Holding bridges set to 2, and a plaque part on the sheet with its two uncut stretches ringed](web/static/news/0.4.1-bridges.jpg)
+
+- **Cut the 3D view open.** The *section* control, next to *explode*, takes a plane square to x, y or z through
+  the model and removes what lies beyond it. 0 is off. It changes the view only, never the cut.
+
+  ![The vase cut in half across y, with the section control in the bar](web/static/news/0.4.1-section.jpg)
+
+- **Find your kerf first.** Export step 1 has a *kerf test*: seven squares and their holes, each drawn for one
+  kerf. Cut it from a scrap; the square that fits its hole snug names your kerf.
+
+  ![The kerf test row in Export step 1, and the sheet it cuts: seven squares and a plate with their holes](web/static/news/0.4.1-kerf-test.jpg)
+
+- **Cut length, time and cost.** The Export tab shows the length to cut, score and engrave, the pierces, and a machine
+  time and cost from the speeds and sheet price you type in. They stay in your browser.
+
+  ![The Export tab with the new tiles ringed and a cut speed, an engrave speed and a price typed in](web/static/news/0.4.1-estimates.jpg)
+
+- **A printable assembly guide.** *Assembly guide* on the Export tab opens a card for each build step: a 3D picture
+  with the new part framed, its sheet, what it goes onto and its outline.
+
+  ![The Build it step with the assembly guide row ringed, beside the guide's first two cards](web/static/news/0.4.1-guide.jpg)
+
+### Fixed
+
+- **Shared project files open safely.** A project file from someone else could run its own code in the page through
+  its unit, material, connector or light settings. Lamina now shows these settings only as text or numbers.
+- **Examples open clean on cardboard.** In 0.4.0 the blob and six more examples opened with a warning about thin
+  fingers between slots. Cardboard now takes fingers as thin as the sheet, as plywood does.
+- **The fold-groove message is a note.** In the published version, the folded print examples opened with a warning:
+  that version cannot cut fold grooves into print files. It now shows as a note, so they open clean.
+- **Printed panels stay on the plate.** A folded panel printed on a plate just bigger than itself could show the
+  error "laid past the edge". Every panel that fits now lies on its plate. Its number tags use the free room.
+- **Guides with a picture per step.** The six guides on the site show the app at every step, with the control to
+  use ringed. Their links open Lamina on the guide's own technique.
+
+  ![A step of the stacked slices guide: its words, and under them the app with the Laser button ringed](web/static/news/0.4.1-guides.jpg)
+
 ## 0.4.0
 
 This release makes Lamina easier for a new user: help on every setting, clearer names, a tour of the page, and one

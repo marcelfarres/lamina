@@ -31,7 +31,7 @@
     <a href="../papercraft/">Papercraft</a>
     <a href="../3d-print-flat-parts/">3D print flat parts</a>
   </nav>
-  <a class="btn" href="../app/index.html">Try it in your browser</a>
+  <a class="btn" href="../app/index.html#interlocked">Try it in your browser</a>
 </div></header>
 <main class="wrap">
   <h1>From a 3D model to flat parts: laser, CNC router or 3D printer</h1>
@@ -39,7 +39,7 @@
   flat parts and put the parts back together. A 3D printer can make the same flat parts. Lamina is a free laser and
   CNC slicer that does this for you. It runs in your browser, and your model stays on your computer.</p>
   <div class="cta">
-    <a class="btn" href="../app/index.html">Open Lamina in your browser</a>
+    <a class="btn" href="../app/index.html#interlocked">Open Lamina in your browser</a>
     <a class="btn ghost" href="../#start">Install it on your computer</a>
   </div>
   <figure>
@@ -67,26 +67,47 @@
   <p>Plasma tables and vinyl cutters are on the list too.</p>
 
   <h2>The steps</h2>
+  <p>The pictures show the bracket example that the link opens, in interlocked slices. Each picture shows the app at
+  that step. An orange ring with a label marks the control to use.</p>
   <ol class="steps">
-    <li>Open <a href="../app/index.html">Lamina in your browser</a>. You can also install it on Windows, macOS or Linux.</li>
-    <li>Load your model. Lamina reads STL, OBJ, 3MF, PLY, OFF and GLB files, and STEP or BREP with the CAD extra.</li>
-    <li>Turn the model upright and set its size. If a detail is too small to cut, round it off.</li>
-    <li>Pick a construction technique. The seven techniques are below.</li>
-    <li>Pick your machine, the material and the sheet size. Measure the sheet and type its real thickness.</li>
-    <li>Read the Checks tab. It names each part that floats, breaks or cannot go in. Most messages have a button
-    that fixes the problem.</li>
-    <li>Export the cut files and open them in your laser software.</li>
+    <li>Open <a href="../app/index.html#interlocked">Lamina in your browser</a>. It opens on the <b>Model</b> tab,
+    with an example. You can also install it on Windows, macOS or Linux.
+    <img src="../media/guides/3d-model-to-laser-cut-1.jpg" width="900" height="479" loading="lazy" alt="Lamina as the link opens it: the Model tab, and the bracket example in interlocked slices in the 3D view"></li>
+    <li>In <b>upload</b>, choose your model file. Lamina reads STL, OBJ, 3MF, PLY, OFF and GLB files, and STEP or
+    BREP with the CAD extra.
+    <img src="../media/guides/3d-model-to-laser-cut-2.jpg" width="900" height="370" loading="lazy" alt="The upload row at the top of the Model tab, ringed"></li>
+    <li>If the model lies on its side, click the <b>turn</b> buttons until it stands upright.
+    <img src="../media/guides/3d-model-to-laser-cut-3.jpg" width="900" height="331" loading="lazy" alt="The turn row with its x, y and z buttons, ringed"></li>
+    <li>In <b>model size (mm)</b>, type the height of the finished piece in the <b>z</b> box. The <b>x</b> and
+    <b>y</b> boxes follow.
+    <img src="../media/guides/3d-model-to-laser-cut-4.jpg" width="900" height="331" loading="lazy" alt="The model size row, ringed"></li>
+    <li>On the <b>Technique</b> tab, click a construction technique. The seven techniques are below.
+    <img src="../media/guides/3d-model-to-laser-cut-5.jpg" width="900" height="370" loading="lazy" alt="The seven technique buttons on the Technique tab, ringed"></li>
+    <li>On the <b>Sheet &amp; fit</b> tab, under <b>What you make with</b>, click your kind of machine. The four
+    kinds are above.
+    <img src="../media/guides/3d-model-to-laser-cut-6.jpg" width="900" height="368" loading="lazy" alt="The four buttons under What you make with, ringed: Laser, Router, 3D printer, Laser + 3D printer"></li>
+    <li>In <b>machine</b>, pick your machine. It sets the kerf, the slot fit and the bed size of that machine.
+    <img src="../media/guides/3d-model-to-laser-cut-7.jpg" width="900" height="331" loading="lazy" alt="The machine row, ringed"></li>
+    <li>In <b>material</b>, pick your material.
+    <img src="../media/guides/3d-model-to-laser-cut-8.jpg" width="900" height="331" loading="lazy" alt="The material row, ringed"></li>
+    <li>In <b>thickness (mm)</b>, type the real thickness of your sheet. Measure it with calipers.
+    <img src="../media/guides/3d-model-to-laser-cut-9.jpg" width="900" height="331" loading="lazy" alt="The thickness row, ringed"></li>
+    <li>Read the <b>errors</b> and <b>warnings</b> under the 3D view. They name each part that floats, breaks or
+    cannot go in. Most messages have a button that fixes the problem.
+    <img src="../media/guides/3d-model-to-laser-cut-10.jpg" width="900" height="331" loading="lazy" alt="The counts of errors and warnings under the 3D view, ringed"></li>
+    <li>On the <b>Export</b> tab, click the main file. Open it in your laser software.
+    <img src="../media/guides/3d-model-to-laser-cut-11.jpg" width="900" height="331" loading="lazy" alt="The main file button on the Export tab, ringed"></li>
   </ol>
 
   <h2>Seven ways to build the model</h2>
   <div class="cards">
     <a class="card" href="../stacked-slices/"><img src="../media/stacked_poster.jpg" width="1100" height="824" loading="lazy" alt="A horse statue in stacked slices on dowels"><div><h3>Stacked slices</h3><p>Flat layers along one axis, glued or on dowels. The topographic look.</p></div></a>
     <a class="card" href="../interlocking-slices/"><img src="../media/interlocked_poster.jpg" width="1100" height="824" loading="lazy" alt="A torus in two families of slotted slices"><div><h3>Interlocked slices</h3><p>Two families of slices that slot together like an egg crate.</p></div></a>
-    <a class="card" href="../#techniques"><img src="../media/radial_poster.jpg" width="1100" height="824" loading="lazy" alt="A head in radial slices about one axis"><div><h3>Radial slices</h3><p>Half-slices round an axis, held by rings. For vases, heads and lamps.</p></div></a>
-    <a class="card" href="../#techniques"><img src="../media/curve_poster.jpg" width="1100" height="824" loading="lazy" alt="A horse in ribs along a curve, with a branch down each leg"><div><h3>Curve, ribs</h3><p>Ribs square to a curve you draw, like the frames of a hull.</p></div></a>
+    <a class="card" href="../app/index.html#radial"><img src="../media/radial_poster.jpg" width="1100" height="824" loading="lazy" alt="A head in radial slices about one axis"><div><h3>Radial slices</h3><p>Half-slices round an axis, held by rings. For vases, heads and lamps.</p></div></a>
+    <a class="card" href="../app/index.html#curve"><img src="../media/curve_poster.jpg" width="1100" height="824" loading="lazy" alt="A horse in ribs along a curve, with a branch down each leg"><div><h3>Curve, ribs</h3><p>Ribs square to a curve you draw, like the frames of a hull.</p></div></a>
     <a class="card" href="../papercraft/"><img src="../media/folded_poster.jpg" width="1100" height="824" loading="lazy" alt="A cow unfolded into folded panels"><div><h3>Folded panels</h3><p>The surface unfolded flat, scored, folded and joined. Papercraft and more.</p></div></a>
-    <a class="card" href="../#techniques"><img src="../media/plaque_poster.jpg" width="1100" height="824" loading="lazy" alt="A bonsai in slices standing on a back plate"><div><h3>Plaque</h3><p>Slices standing on a back plate, for the wall.</p></div></a>
-    <a class="card" href="../#techniques"><img src="../media/bands_poster.jpg" width="1100" height="824" loading="lazy" alt="A sphere as a lattice of rings in three directions"><div><h3>Band lattice</h3><p>Rings in three directions, half-lapped where they cross.</p></div></a>
+    <a class="card" href="../app/index.html#plaque"><img src="../media/plaque_poster.jpg" width="1100" height="824" loading="lazy" alt="A bonsai in slices standing on a back plate"><div><h3>Plaque</h3><p>Slices standing on a back plate, for the wall.</p></div></a>
+    <a class="card" href="../app/index.html#bands"><img src="../media/bands_poster.jpg" width="1100" height="824" loading="lazy" alt="A sphere as a lattice of rings in three directions"><div><h3>Band lattice</h3><p>Rings in three directions, half-lapped where they cross.</p></div></a>
   </div>
 
   <h2>The files you get</h2>
@@ -120,7 +141,7 @@
   comparison</a>. It is young, so test-cut before you use expensive material, and
   <a href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml">tell me what broke</a>.</p>
   <div class="cta">
-    <a class="btn" href="../app/index.html">Open Lamina in your browser</a>
+    <a class="btn" href="../app/index.html#interlocked">Open Lamina in your browser</a>
     <a class="btn ghost" href="https://github.com/marcelfarres/lamina">Source on GitHub</a>
   </div>
 </main>

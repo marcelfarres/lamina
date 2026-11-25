@@ -37,7 +37,9 @@ export function bounds(p){if(!isLen(p)||ST.unit==='mm')return {min:p.min,max:p.m
 const NUM='[-−]?\\d+(?:\\.\\d+)?', MMRUN=new RegExp(`(?<![\\w.])${NUM}(?:\\s*[×–]\\s*${NUM})*\\s*mm(?![²³\\w])`,'g');
 export const inUnit=s=>ST.unit==='mm'?String(s??''):String(s??'').replace(MMRUN,run=>run.replace(/\s*mm$/,'')
   .replace(new RegExp(NUM,'g'),n=>{const v=+n.replace('−','-'),t=String(lenTxt(Math.abs(v)));return (v<0?n[0]:'')+t})+' '+ST.unit).replace(/\(mm\)/g,`(${ST.unit})`);
-export function applyUnit(){state.units=ST.unit; $('#unit').value=ST.unit; renderFields(); lenBoxes();   // renderFields redraws the spacing graphs in the unit too
+// the one way the unit is set: one of the three, never the text it came as (a shared project file's `unit` is somebody
+// else's text, and the unit is written into the page as markup in many places)
+export function applyUnit(u=ST.unit){ST.unit=Object.keys(UNIT).find(k=>k===u)||'mm'; state.units=ST.unit; $('#unit').value=ST.unit; renderFields(); lenBoxes();   // renderFields redraws the spacing graphs in the unit too
   if(ST.plan&&ST.job){renderReport(); renderSheets([...$$('#sheets svg')].map(s=>s.outerHTML))}   // a job of its own: the report links to one
   const m=ST.selected&&parts.children.find(c=>c.userData.slice===ST.selected); if(m)highlight(m);   // the selection panel is written in the unit too
 }

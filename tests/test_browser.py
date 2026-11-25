@@ -62,6 +62,17 @@ def test_every_feature_works_without_the_compiled_extras(tmp_path):
     assert r.returncode == 0 and r.stdout.rstrip().endswith("ok"), r.stdout[-1500:] + r.stderr[-2500:]
 
 
+@pytest.mark.timeout(900)   # every example, four at a time: about 2 min alone
+def test_every_example_opens_clean_without_the_compiled_extras():
+    """Bug 079: the browser build is the first page most people see. Every example as a fresh page opens it opens there
+    as it does natively (tests/test_presets.py): no error, no warning but the known ones, and the hinged folded
+    examples say in a note, not a warning, that this build cannot cut their fold grooves."""
+    root = pathlib.Path(__file__).resolve().parent.parent
+    r = subprocess.run([sys.executable, str(root / "tests" / "browser_env.py"), "presets"], capture_output=True, text=True,
+                       cwd=root, env={**os.environ, "PYTHONPATH": str(root)}, timeout=900)
+    assert r.returncode == 0 and r.stdout.rstrip().endswith("ok"), r.stdout[-1500:] + r.stderr[-2500:]
+
+
 def test_the_guards_still_answer(jobs):
     assert browser.handle("GET", "api/job/short/x/export", "", None)[0] == 400          # bad client id
     assert browser.handle("GET", f"jobs/{MINE}/../../etc/passwd", "", None)[0] == 404     # cannot leave jobs/
@@ -81,6 +92,8 @@ def test_every_download_reaches_its_endpoint_with_the_values_the_page_sent(jobs,
     assert not any(n.endswith("assembly-key.txt") for n in names("fmt=svg&key=0"))
     status, _, body = browser.handle("GET", f"api/job/{MINE}/{job}/fitcut", "fmt=svg&labels=1&step=0.1", None)
     assert status == 200 and any(n.endswith(".svg") for n in zipfile.ZipFile(io.BytesIO(body)).namelist())
+    status, _, body = browser.handle("GET", f"api/job/{MINE}/{job}/kerftest", "fmt=dxf&labels=1", None)
+    assert status == 200 and any(n.endswith("kerf-test.dxf") for n in zipfile.ZipFile(io.BytesIO(body)).namelist())
     seen = {}
 
     def spy(name):                                   # the endpoint's own signature, an answer that records what arrived

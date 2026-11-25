@@ -25,6 +25,7 @@ from shapely.ops import unary_union
 from .geometry import as_multi, min_rect_angle
 from .labels import PRINT_MARK, fit_on_part, label_angles, label_box, mark_box, mark_rot, mark_size, place_labels, tag_room
 from .nofit import Sheet, _convex_pieces, _fill_small_holes, _hull, _rot
+from .split import fits_rotated
 
 ROTS = (0, 90, 180, 270)
 # A part's rotations on one sheet are independent, and their no-fit union, the costliest call of a slice, runs in GEOS
@@ -223,6 +224,11 @@ def _nest(pieces, job):
             if fit_on_part(pc.kerfed, pc.parent.cover, w, h, keep, label_angles(pc.kerfed), room=min(2.0, 0.3 * job.font * 0.65)) is None:
                 x0, y0, x1, y1 = pc.kerfed.bounds; cx = (x0 + x1) / 2
                 pc.nest_shape = as_multi(unary_union([pc.kerfed, box(cx - w / 2, y1 + 1.0, cx + w / 2, y1 + 1.0 + h)]))
+        if pc.nest_shape is not pc.kerfed and not fits_rotated(pc.nest_shape, job.sheet, job.margin, job.grain):
+            # the room kept would take a part that fits the sheet off it at every angle: the part is nested alone and
+            # its number finds room afterwards, or is said to find none (bug 080: a cow panel 164 x 155 mm, 171 x 155
+            # with the room for its tags, which fit a 180 mm plate at no angle, was laid 2 mm past its edge)
+            pc.nest_shape = pc.kerfed
         prepared.append((pc, 0.0 if job.grain else fit_angle(pc.nest_shape, job)))
     placed = _rect_nest(prepared, job) if len(prepared) > MANY else _poly_nest(prepared, job)
     count = _count

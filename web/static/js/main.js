@@ -103,7 +103,7 @@ async function init(){
   $('#sdel').onclick=()=>{const idx=+$('#sheetpreset').value,u=ls('slicer_sheets',[]),mine=u.filter(s=>!s[2]||s[2]===fam()),s=mine[idx-(shs().length-mine.length)];   // user sizes come after the built-ins
     if(s){u.splice(u.indexOf(s),1);lsSet('slicer_sheets',u);syncPresetSelects()}else status('built-in sizes cannot be deleted')};
   renderPresets();
-  $('#presets').onchange=e=>{const ps=ls('slicer_presets',{})[e.target.value];if(ps){Object.assign(state,structuredClone(ps));ST.unit=state.units||ST.unit;applyUnit();renderPresets(e.target.value);schedule()}};
+  $('#presets').onchange=e=>{const ps=ls('slicer_presets',{})[e.target.value];if(ps){Object.assign(state,structuredClone(ps));applyUnit(state.units||ST.unit);renderPresets(e.target.value);schedule()}};
   $('#psave').onclick=()=>{const n=prompt('preset name',$('#presets').value||'');if(!n)return;const ps=ls('slicer_presets',{});ps[n]=Object.fromEntries(PKEYS().map(k=>[k,state[k]]));lsSet('slicer_presets',ps);renderPresets(n)};
   $('#pdel').onclick=()=>{const n=$('#presets').value;if(!n)return;const ps=ls('slicer_presets',{});delete ps[n];lsSet('slicer_presets',ps);renderPresets()};
   $('#origsize').onclick=()=>{state.scale=1;state.size=[0,0,0];state.rotate=[0,0,0];state.up_axis='z';renderFields();ST.fitted=false;slice()};
@@ -117,7 +117,7 @@ async function init(){
   $('#pname').oninput=e=>{state.project=e.target.value;schedule();lib.changed()};
   // a bump straight after a refresh lists the library first, so it too lands on a free number
   $('#pminor').onclick=async()=>{await lib.listed();bump(false,lib.revsOf(state.project))}; $('#pmajor').onclick=async()=>{await lib.listed();bump(true,lib.revsOf(state.project))};
-  $('#unit').onchange=e=>{ST.unit={mm:'mm',cm:'cm',in:'in'}[e.target.value]||'mm';applyUnit()};   // one of the three, never the box's own text
+  $('#unit').onchange=e=>applyUnit(e.target.value);
   $('#x_labels').onchange=()=>{if(ST.job)renderDownloads()}; $('#x_grouped').onchange=()=>{if(ST.job)renderDownloads()};
   $$('nav button').forEach(b=>b.onclick=()=>{showTab(b.dataset.t);if(b.dataset.t==='export'&&ST.plan)renderDownloads()});   // shown: it asks what the print files hold
   // A new model keeps none of the last one's geometry. These parameters are in its millimetres or under its part
@@ -170,13 +170,18 @@ async function init(){
   // the session belongs to this tab (mode, every parameter, the model's job, per-technique memory), so a refresh
   // resumes it instead of starting over; another tab is another session and sees nothing of this one
   const sess=await fetch(`api/session?client=${CLIENT}`).then(r=>r.ok?r.json():{}).catch(()=>({}));
-  if(sess.mode){Object.assign(memo,sess.memo||{});setMode(sess.mode,false);Object.assign(state,sess.params||{});ST.unit=state.units||ST.unit;
+  if(sess.mode){Object.assign(memo,sess.memo||{});setMode(sess.mode,false);Object.assign(state,sess.params||{});
     if(sess.example)ST.example=sess.example; ST.job=sess.alive?sess.job:null;
     if(!sess.alive&&sess.job)status('the uploaded model of the last session is gone — upload it again or pick an example','err');
     // the library revision the session came from: unreadable, it stays null and the page shows unsaved changes (the safe side)
     try{ST.saved=JSON.parse(sessionStorage.lamina_saved||'null')}catch(e){ST.saved=null}}
-  else{setMode(location.hash.slice(1)||'interlocked',false);applyMachine(matOf(state.material).machine);applyPreset()}   // a fresh start gets the machine's compensation and the example's preset (the #technique in the URL is the app's own mirror of its state, not a request)
-  ST.fresh=sess.mode?'page reloaded, last session resumed':'page opened on example '+ST.example; applyUnit();
+  // a fresh start gets the machine's compensation and the example's preset. A #technique in the URL (the site's guides
+  // link to app/index.html#stacked) opens that technique on its first example in presets.json; one with no example of
+  // its own (bands) gets the default example, switched to it. A tab with a session resumes it above, whatever the URL says
+  else{const asked=ST.MODES.find(m=>m.name===location.hash.slice(1))?.name, own=asked&&Object.keys(PRESETS).find(k=>PRESETS[k].mode===asked&&ex.includes(k));
+    if(own)ST.example=own;
+    setMode(asked||'interlocked',false);applyMachine(matOf(state.material).machine);applyPreset();if(asked&&ST.mode.name!==asked)setMode(asked)}
+  ST.fresh=sess.mode?'page reloaded, last session resumed':'page opened on example '+ST.example; applyUnit(sess.mode&&state.units||ST.unit);
   if(!sess.mode)lib.baseline();   // a fresh start is an example as it opened; it also replaces a mirror left by a cleared session
   slice().then(async()=>{if(await first)offer()}); lib.listed();
 }
@@ -242,7 +247,7 @@ window.laminaFeedback?.({bug:async withModel=>{
   sheets:ls('slicer_sheets',[]).filter(s=>!s[2]||s[2]===fam()).map(([n,s])=>[n,s]),units:state.units},null,1)})});
 
 // test and capture hook (tests/ui, scripts/media/capture.mjs)
-window.__t={spcXY,seams:seamsNow,faces:facesNow,lamp:()=>renderer.shadowMap.enabled,project:()=>projectObj(false),sizeAxes:()=>sizeAxes(),target:()=>controls.target,banner:()=>banner.visible?banner.userData.text:'',parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>ST.plan,job:()=>ST.job,
+window.__t={spcXY,seams:seamsNow,faces:facesNow,lamp:()=>renderer.shadowMap.enabled,project:()=>projectObj(false),sizeAxes:()=>sizeAxes(),target:()=>controls.target,banner:()=>banner.visible?banner.userData.text:'',parts:()=>parts.children,guides:()=>guides.children,gizmo:()=>gizmo.children,axes:()=>[...axes.children,...rings.children],camera,canvas:()=>renderer.domElement,state:()=>state,plan:()=>ST.plan,estimate:()=>ST.estimate,job:()=>ST.job,
   fold:s=>{$('#fold').value=s;applyFold();renderer.render(scene,camera)},
   idle:()=>!ST.timer&&!ST.busy,   // no change waiting out its debounce, no slice running: what a test or a capture waits for
   ghost:()=>ghost.children,ghostUrl:()=>ghostUrl,pivot:()=>pivot3&&rnd(pivot3),

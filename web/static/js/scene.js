@@ -229,7 +229,7 @@ function mergeGeos(geos){   // uv too: the extrusion's own, in mm, for the ring 
 // it): a model's ghost lands before its plan, while ST.plan is still the last model's, so the ghost alone is seen from
 // the standard side
 const EYE=new THREE.Vector3(.7,-1,.6);   // where the standard view looks from, before it is scaled to the model
-function fitPose(){const P=parts.children.length, b=new THREE.Box3().setFromObject(P?parts:ghost);if(b.isEmpty())return null;const c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3()).length();
+export function fitPose(){const P=parts.children.length, b=new THREE.Box3().setFromObject(P?parts:ghost);if(b.isEmpty())return null;const c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3()).length();
   const dir=EYE.clone(), back=P&&ST.plan?.mode==='plaque'&&ST.plan.params.back;
   if(back){const k='xyz'.indexOf(back[1]);dir.setComponent(k,(back[0]==='-'?1:-1)*Math.abs(dir.getComponent(k)))}
   return {c,s,eye:c.clone().add(dir.normalize().multiplyScalar(s*1.5))}}
@@ -251,12 +251,13 @@ export function snapshot(w=320,h=240){
     size=renderer.getSize(new THREE.Vector2()),pr=renderer.getPixelRatio(),dirty=ST.dirty;
   let url='';
   try{if(lit){state.light=false;ST.light()}
-    fold.value=1;applyFold(); flags.forEach(([o,v])=>o.visible=v); P.forEach(m=>{m.position.set(0,0,0);m.material.emissive.set(0)});
+    sectionHold=true;fold.value=1;applyFold(); flags.forEach(([o,v])=>o.visible=v); P.forEach(m=>{m.position.set(0,0,0);m.material.emissive.set(0)});
     const p=fitPose(); if(!p)return url;
     const cam=new THREE.PerspectiveCamera(camera.fov,w/h,p.s/200,p.s*20); cam.up.set(0,0,1); cam.position.copy(p.eye); cam.lookAt(p.c);
     renderer.setPixelRatio(1); renderer.setSize(w,h,false); renderer.render(scene,cam);
     url=renderer.domElement.toDataURL('image/webp',.8);   // a browser without WebP gives PNG
   }finally{fold.value=fv;applyFold(); flags.forEach(([o],i)=>o.visible=was[i]); P.forEach((m,i)=>{m.position.copy(pos[i]);m.material.emissive.setHex(glow[i])});
+    sectionHold=false;applySection();   // after the parts are back: the plane is measured on them as they stand
     if(lit){state.light=true;ST.light()}   // after the parts are back: the room is fitted to them
     renderer.setPixelRatio(pr); renderer.setSize(size.x,size.y,false); renderer.render(scene,camera); drawCube(); ST.dirty=dirty||lit}   // lit: its shadows drawn again
   return url}
@@ -284,7 +285,27 @@ export function applyFold(){const s=+$('#fold').value,v=new THREE.Vector3();let 
       for(const [o,n,fi] of ranges)for(let j=o;j<o+n;j++){v.fromArray(base,3*j).applyMatrix4(D[fi]);pos.setXYZ(j,v.x,v.y,v.z)}
       pos.needsUpdate=true;geo.computeVertexNormals();geo.computeBoundingSphere();geo.computeBoundingBox()}}
   $('#foldl').hidden=!any; ghost.visible=$('#ghost').checked&&!(any&&s<1);   // the model would stand in the unfolded panel
-  $('#fold_val').textContent=Math.round(s*100)+' %'; showSeamLines(); showFaces(); ST.dirty=true}
+  $('#fold_val').textContent=Math.round(s*100)+' %'; applySection(); showSeamLines(); showFaces(); ST.dirty=true}
+// Section view: the model cut by a plane square to x, y or z, what lies beyond it taken away (cut faces left open, both
+// sides drawn so the walls show). A view only: it is in no state, project or session. 0 is off (no plane on any
+// material); the plane runs from the model's maximum along the axis down to its minimum, so 100 % removes everything.
+// Measured on the parts as they stand (exploded, folded), so it is applied again whenever they move or a plan is drawn.
+// The pictures: snapshot() holds it off (a library card is always the whole model); the assembly video and the
+// light tab's Picture are the canvas as the user sees it, section included, which is what a section is for.
+const SECTION=new THREE.Plane(), SIDE0=new WeakMap(); let sectionHold=false;
+export function applySection(){
+  const pct=sectionHold?0:+$('#section').value, k='xyz'.indexOf($('#section_axis').value), b=new THREE.Box3(), mats=new Set();
+  $('#section_val').textContent=+$('#section').value?$('#section').value+' %':'off';
+  for(const m of parts.children)if(m.userData.group!=='B'){b.expandByObject(m);m.traverse(o=>o.isMesh&&[].concat(o.material).forEach(x=>mats.add(x)))}
+  for(const o of axes.children)if(o.isMesh)mats.add(o.material);   // the dowel rods and standoffs; the ghost and the guides are not the model
+  const on=pct>0&&!b.isEmpty();
+  if(on){SECTION.normal.set(0,0,0).setComponent(k,-1);SECTION.constant=b.max.getComponent(k)-(b.max.getComponent(k)-b.min.getComponent(k))*pct/100}
+  renderer.localClippingEnabled=true;
+  for(const m of mats){if((m.clippingPlanes?.length||0)===+on)continue;   // a program is built again only when the plane comes or goes
+    if(!SIDE0.has(m))SIDE0.set(m,m.side);
+    m.clippingPlanes=on?[SECTION]:[];m.clipShadows=on;m.side=on?THREE.DoubleSide:SIDE0.get(m);m.needsUpdate=true}
+  ST.dirty=true}
+$('#section').oninput=$('#section_axis').onchange=applySection;
 const FOLD_STEPS=20; let nParts=0;   // the steps a folded job takes to fold up, and the parts in the build order before them
 export function applyExplode(){const e=+$('#explode').value,st=$('#steps'),k=+st.value;for(const m of parts.children){if(m.userData.group==='B')continue;m.position.copy(m.userData.origin).multiplyScalar(e-1);m.visible=m.userData.i<k}
   const folding=+st.max>nParts, share=folding?Math.min(1,Math.max(0,(k-nParts)/FOLD_STEPS)):1;
@@ -293,7 +314,7 @@ export function applyExplode(){const e=+$('#explode').value,st=$('#steps'),k=+st
   showBanner(going?`step ${k} / ${+st.max}  ·  ${(ST.plan&&ST.plan.label_tag?ST.plan.label_tag+' ':'')}${going.userData.piece}`:folding&&k<+st.max?`step ${k} / ${+st.max}  ·  folding ${Math.round(share*100)} %`:'');
   $('#steps_val').textContent=`${k} / ${+st.max||0}`;   // the step counter, live while the slider is dragged
   const s=ST.selected&&parts.children.find(c=>c.userData.slice===ST.selected); if(s)drawGizmo(s);   // the handles ride with the part
-  showSeamLines(); showFaces(); ST.light()}
+  applySection(); showSeamLines(); showFaces(); ST.light()}
 $('#explode').oninput=$('#steps').oninput=applyExplode; $('#fold').oninput=applyFold; $('#ghost').onchange=()=>{ghost.visible=$('#ghost').checked;ST.dirty=true}; $('#fit').onclick=()=>{fitView();ST.dirty=true}; $('#look').onchange=$('#opacity').oninput=applyLook;
 // The build order as a video: the steps slider played into a MediaRecorder reading the canvas the view already
 // draws. Nothing is uploaded and nothing is rendered twice — the file is made in the page and saved from it.

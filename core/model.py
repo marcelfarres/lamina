@@ -118,7 +118,7 @@ class Piece:
     marks: list = field(default_factory=list)     # [(x, y, text)] local
     place: tuple | None = None  # (sheet, x, y, rot) set by pack(); rot in degrees
     kerfed: MultiPolygon | None = None
-    nest_shape: MultiPolygon | None = None  # what the nester keeps clear: the kerfed outline, plus the room for a label beside a part too small to carry one
+    nest_shape: MultiPolygon | None = None  # what the nester keeps clear: the kerfed outline, plus the room for a label beside a part too small to carry one, where both still fit the sheet
     placed: MultiPolygon | None = None      # kerf-compensated, on the sheet
     placed_lines: list = field(default_factory=list)
     placed_marks: list = field(default_factory=list)
