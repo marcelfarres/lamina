@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Laser cutter, CNC router or 3D printer: what each needs | Lamina</title>
+<meta name="description" content="One 3D model, four ways to make its flat parts: laser cutter, CNC router, 3D printer, or laser with printed standoffs. What each machine needs in Lamina: kerf, slot fit, dog-bone relief, bed size, and the files you get.">
+<link rel="canonical" href="https://marcelfarres.github.io/lamina/laser-cnc-or-3d-printer/">
+<link rel="icon" href="../favicon.svg">
+<link rel="stylesheet" href="../guide.css">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://marcelfarres.github.io/lamina/laser-cnc-or-3d-printer/">
+<meta property="og:title" content="Laser cutter, CNC router or 3D printer: what each needs">
+<meta property="og:description" content="The four machines side by side: what each one cuts or prints, the settings it adds, how to test the fit, and the files it gets.">
+<meta property="og:image" content="https://marcelfarres.github.io/lamina/media/guides/laser-cnc-or-3d-printer-1.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"Laser cutter, CNC router or 3D printer: what each needs",
+"image":"https://marcelfarres.github.io/lamina/media/guides/laser-cnc-or-3d-printer-1.jpg","dateModified":"2026-11-25",
+"about":{"@type":"SoftwareApplication","name":"Lamina","url":"https://marcelfarres.github.io/lamina/","applicationCategory":"DesignApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}}
+</script>
+</head>
+<body>
+<header><div class="wrap">
+  <a class="home" href="../"><img src="../favicon.svg" alt="" width="24" height="24" style="border:0;background:none">Lamina</a>
+  <nav aria-label="Guides">
+    <a href="../3d-model-to-laser-cut/">Start here</a>
+    <b>Machines</b>
+    <a href="../laser-cnc-or-3d-printer/" aria-current="page">Laser, router or printer</a>
+    <a href="../3d-print-flat-parts/">3D printing</a>
+    <b>Techniques</b>
+    <a href="../stacked-slices/">Stacked</a>
+    <a href="../interlocking-slices/">Interlocking</a>
+    <a href="../papercraft/">Folded</a>
+  </nav>
+  <a class="btn" href="../app/index.html#interlocked/bracket">Try it in your browser</a>
+</div></header>
+<main class="wrap">
+  <h1>Laser cutter, CNC router or 3D printer: what each needs</h1>
+  <p class="lead">Lamina makes the same flat parts for four kinds of machine. You choose the machine once, at the top
+  of the <b>Sheet &amp; fit</b> tab, under <b>What you make with</b>. That choice sets the machine, its bed as the
+  sheet, and a material that the machine can make. This page shows the four choices in the same way, then what each
+  setting on that tab changes.</p>
+
+  <ul class="map">
+    <li><b>1. Start here</b>The steps every job has: your model, its size, the checks, the files.
+    <a href="../3d-model-to-laser-cut/">Open</a></li>
+    <li class="here"><b>2. Your machine: this page</b>The four machines side by side, and the settings of the Sheet &amp; fit tab.</li>
+    <li><b>3. Your technique</b>The settings of one technique, and what each one changes.
+    <a href="../stacked-slices/">Stacked</a>, <a href="../interlocking-slices/">Interlocking</a> or <a href="../papercraft/">Folded</a></li>
+  </ul>
+
+  <h2>The four machines, side by side</h2>
+  <div class="table"><table>
+    <tr><th></th><th>Laser</th><th>Router</th><th>3D printer</th><th>Laser + 3D printer</th></tr>
+    <tr><td>Use it for</td><td>Plywood, MDF, acrylic, cardboard, paper. Also a knife cutter, a plasma table, or cutting by hand.</td><td>Thick plywood and MDF.</td><td>PLA or PETG, when you have no cutter or the part is small.</td><td>Stacked layers with a gap: cut layers on printed standoffs.</td></tr>
+    <tr><td>The sheet is</td><td>Your sheet, or the bed of your laser.</td><td>Your sheet, or the bed of your router.</td><td>The bed of your printer. One sheet is one plate.</td><td>The sheet for the layers, a plate for the standoffs.</td></tr>
+    <tr><td>Settings it adds</td><td><b>kerf</b>, <b>holding bridges</b></td><td><b>inside-corner relief</b>, <b>bit diameter</b>, <b>holding bridges</b></td><td>For folded panels: the printed hinge and the click and snap joints</td><td>The laser's settings, and <b>standoff shoulder</b></td></tr>
+    <tr><td>Test the fit</td><td>Cut the fit test. Type its answer in <b>slot offset</b>.</td><td>Cut the fit test. Type its answer in <b>slot offset</b>.</td><td>Print one seam first. Set <b>snap fit</b> for your printer and filament.</td><td>Cut the fit test.</td></tr>
+    <tr><td>Files</td><td>SVG and DXF for each sheet. PDF and EPS under <b>other formats</b>.</td><td>DXF for your CAM software, and SVG.</td><td>One 3MF for each plate.</td><td>The cut files, and one 3MF named 3D-PRINT.</td></tr>
+  </table></div>
+
+  <h2>Laser</h2>
+  <p>The beam burns a narrow line, the kerf, and cuts sharp inside corners. So slots fit as drawn, and the only
+  number to find is how tight you want them.</p>
+  <ol class="steps">
+    <li>Click <b>Laser</b>, then pick your machine in <b>machine</b>. CO2, diode and fiber lasers are on the list,
+    with named machines such as Glowforge, xTool, OMTech and K40 and their bed sizes.
+    <img src="../media/guides/laser-cnc-or-3d-printer-1.jpg" width="900" height="368" loading="lazy" alt="The Sheet and fit tab with Laser chosen, ringed, and the machine list under it"></li>
+    <li>Leave <b>compensate kerf</b> off if your laser software applies its own kerf offset, as LightBurn does. The
+    files are then drawn at the exact size of the parts. Turn it on to let Lamina make every part wider by the
+    <b>kerf</b> that you type. Then cut the fit test and type its answer in <b>slot offset (fit)</b>.
+    <img src="../media/guides/laser-cnc-or-3d-printer-4.jpg" width="900" height="331" loading="lazy" alt="The compensate kerf row and the slot offset row on the Sheet and fit tab, both ringed"></li>
+  </ol>
+
+  <h2>Router</h2>
+  <p>A round bit cannot cut a sharp inside corner. It leaves a curve as large as the bit, and the part that slots in
+  stops short of the bottom. The router's two settings correct this.</p>
+  <ol class="steps">
+    <li>Click <b>Router</b>, then pick your machine. The material changes to one that a router cuts, and the sheet
+    changes to the bed of the machine: here plywood and a 4 × 8 ft sheet.
+    <img src="../media/guides/laser-cnc-or-3d-printer-2.jpg" width="900" height="368" loading="lazy" alt="The Sheet and fit tab with Router chosen, ringed: machine CNC router, material plywood, sheet 4 by 8 feet"></li>
+    <li>In <b>inside-corner relief</b>, keep <b>dogbone</b>: the bit goes a little past every slot corner, so the
+    slot is deep enough. In <b>bit diameter (mm)</b>, type the diameter of your bit. At 0 there is no relief.
+    <img src="../media/guides/laser-cnc-or-3d-printer-5.jpg" width="900" height="321" loading="lazy" alt="The inside-corner relief row set to dogbone and the bit diameter row at 3.175, both ringed"></li>
+  </ol>
+
+  <h2>3D printer</h2>
+  <p>The printer makes each flat part at its full thickness. A shape larger than the bed prints as many parts, on as
+  many plates as it needs. Lamina does not make G-code: your slicer does.</p>
+  <ol class="steps">
+    <li>Click <b>3D printer</b>, then pick your printer. Bambu Lab and Prusa printers are on the list with their bed
+    size. The material changes to a filament, here PETG, and the sheet is now the bed: the counts show plates. A part
+    longer than the bed is printed in pieces, so the 12 parts of this bracket become 24 parts on 8 plates.
+    <img src="../media/guides/laser-cnc-or-3d-printer-3.jpg" width="900" height="331" loading="lazy" alt="The Sheet and fit tab with 3D printer chosen, ringed: material PETG, and the counts show 24 parts on 8 plates"></li>
+    <li>The rest is in its own guide, on a model with folds: <a href="../3d-print-flat-parts/">3D print a model as
+    flat parts</a>.</li>
+  </ol>
+
+  <h2>Laser + 3D printer</h2>
+  <p>The laser cuts the layers, and the printer makes the posts between them. This choice is for
+  <a href="../stacked-slices/">stacked slices</a> with a gap between the layers, so its button is grey on the bracket
+  of this page. On stacked slices, set <b>connect with</b> to <b>standoff (3D printed)</b>, and the machine changes
+  to <b>Laser + 3D printer</b> by itself. The download then holds the cut files and one print file.</p>
+
+  <h2>What each setting on Sheet &amp; fit changes</h2>
+  <div class="setting">
+    <h3>thickness</h3>
+    <p>The real thickness of your sheet. Every slot is cut as wide as this number, so a sheet that is thinner than
+    you typed gives loose joints.</p>
+    <p class="also">It also changes the technique: stacked slices are one sheet thick each, so twice the thickness
+    gives half the layers.</p>
+    <figure><img src="../media/guides/laser-cnc-or-3d-printer-thickness.jpg" width="900" height="552" loading="lazy" alt="The bracket in interlocked slices twice: thickness 3 and thickness 6, the same 12 parts with wider slices and wider slots"></figure>
+  </div>
+  <div class="table"><table>
+    <tr><th>Setting</th><th>What it does</th><th>It changes</th></tr>
+    <tr><td>machine</td><td>Fills the kerf, the slot fit, the corner relief and the bed with typical values for that machine.</td><td>The values stay yours to change. Cut the fit test to find the real slot offset.</td></tr>
+    <tr><td>material</td><td>Sets the list of thicknesses, the sheet sizes and the look in the 3D view.</td><td>Some checks: a sheet too thick to fold gets a warning in folded panels.</td></tr>
+    <tr><td>sheet size</td><td>The sheet that the parts are packed on.</td><td>The number of sheets.</td></tr>
+    <tr><td>compensate kerf, kerf</td><td>Makes every part wider by the width of the cut.</td><td>Off at the start: right when your laser or CAM software does this itself.</td></tr>
+    <tr><td>slot offset (fit)</td><td>How much wider than the material every slot, hole and socket is cut. + is looser, − is tighter.</td><td>How hard the parts go together. The fit test finds the number.</td></tr>
+    <tr><td>slot depth split</td><td>Where two crossing slices meet. 0.5 cuts each slot half way.</td><td>How deep the slots of each family are.</td></tr>
+    <tr><td>inside-corner relief, bit diameter</td><td>A notch for the round bit at every inside corner.</td><td>Router jobs only. With a laser, keep <b>square</b>.</td></tr>
+    <tr><td>holding bridges</td><td>Short stretches of each outline stay uncut.</td><td>The parts stay in the sheet while the rest is cut. Not for printed parts.</td></tr>
+    <tr><td>engrave labels</td><td>The name of each part, engraved beside it or on it.</td><td>The time on the machine. The parts are easier to find.</td></tr>
+  </table></div>
+
+  <h2>Next: your technique</h2>
+  <p>The machine does not change how the model is built. That is the technique:
+  <a href="../stacked-slices/">stacked slices</a>, <a href="../interlocking-slices/">interlocking slices</a> or
+  <a href="../papercraft/">folded panels</a>. The checks, the fit test and the files are in
+  <a href="../3d-model-to-laser-cut/#steps">Start here</a>, steps 10 to 13.</p>
+  <div class="cta">
+    <a class="btn" href="../app/index.html#interlocked/bracket">Open Lamina in your browser</a>
+    <a class="btn ghost" href="../3d-model-to-laser-cut/">Start here</a>
+  </div>
+</main>
+<footer><div class="wrap">
+  <nav aria-label="All guides">
+    <a href="../">Lamina home</a>
+    <a href="../3d-model-to-laser-cut/">Start here</a>
+    <a href="../laser-cnc-or-3d-printer/">Laser, router or printer</a>
+    <a href="../3d-print-flat-parts/">3D printing</a>
+    <a href="../stacked-slices/">Stacked slices</a>
+    <a href="../interlocking-slices/">Interlocking slices</a>
+    <a href="../papercraft/">Folded panels and papercraft</a>
+    <a href="../slicer-for-fusion-360-alternative/">Compared with Slicer for Fusion 360</a>
+  </nav>
+  Lamina is free software under the AGPL-3.0 ·
+  <a href="https://github.com/marcelfarres/lamina">GitHub</a> ·
+  <a href="https://www.reddit.com/r/Lamina3D">r/Lamina3D</a> ·
+  <a href="https://discord.gg/N66bCQxmt3">Discord</a>
+</div></footer>
+</body>
+</html>

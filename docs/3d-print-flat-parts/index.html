@@ -11,12 +11,12 @@
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://marcelfarres.github.io/lamina/3d-print-flat-parts/">
 <meta property="og:title" content="3D print a model as flat parts that fold, click or stack">
-<meta property="og:description" content="Plates for your FDM printer: panels with printed hinges, joints that click or snap without glue, and printed standoffs for laser-cut layers. Free, in your browser.">
-<meta property="og:image" content="https://marcelfarres.github.io/lamina/media/fold_poster.jpg">
+<meta property="og:description" content="Plates for your FDM printer: panels with printed hinges, and joints that click or snap without glue. Free, in your browser.">
+<meta property="og:image" content="https://marcelfarres.github.io/lamina/media/guides/3d-print-flat-parts-8.jpg">
 <meta name="twitter:card" content="summary_large_image">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"TechArticle","headline":"3D print a model as flat parts that fold, click or stack",
-"image":"https://marcelfarres.github.io/lamina/media/fold_poster.jpg","dateModified":"2026-11-23",
+"image":"https://marcelfarres.github.io/lamina/media/guides/3d-print-flat-parts-8.jpg","dateModified":"2026-11-25",
 "about":{"@type":"SoftwareApplication","name":"Lamina","url":"https://marcelfarres.github.io/lamina/","applicationCategory":"DesignApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}}
 </script>
 </head>
@@ -24,113 +24,114 @@
 <header><div class="wrap">
   <a class="home" href="../"><img src="../favicon.svg" alt="" width="24" height="24" style="border:0;background:none">Lamina</a>
   <nav aria-label="Guides">
-    <a href="../3d-model-to-laser-cut/">3D model to laser cut</a>
-    <a href="../slicer-for-fusion-360-alternative/">vs Slicer for Fusion 360</a>
-    <a href="../stacked-slices/">Stacked slices</a>
-    <a href="../interlocking-slices/">Interlocking slices</a>
-    <a href="../papercraft/">Papercraft</a>
-    <a href="../3d-print-flat-parts/" aria-current="page">3D print flat parts</a>
+    <a href="../3d-model-to-laser-cut/">Start here</a>
+    <b>Machines</b>
+    <a href="../laser-cnc-or-3d-printer/">Laser, router or printer</a>
+    <a href="../3d-print-flat-parts/" aria-current="page">3D printing</a>
+    <b>Techniques</b>
+    <a href="../stacked-slices/">Stacked</a>
+    <a href="../interlocking-slices/">Interlocking</a>
+    <a href="../papercraft/">Folded</a>
   </nav>
-  <a class="btn" href="../app/index.html#folded">Try it in your browser</a>
+  <a class="btn" href="../app/index.html#folded/cow">Try it in your browser</a>
 </div></header>
 <main class="wrap">
   <h1>3D print a model as flat parts</h1>
   <p class="lead">Lamina cuts a model into flat parts, and a 3D printer can make those parts too. Each part lies flat on
   the bed, and a shape larger than the bed prints as many parts. Lamina puts the parts on your printer's plates and
   gives your slicer the files. It does not make G-code. Lamina is free and runs in your browser.</p>
-  <figure>
-    <video src="../media/fold.mp4" poster="../media/fold_poster.jpg" width="1100" height="824" muted loop playsinline controls preload="none"
-           aria-label="A lamp shade printed as one flat panel with a window in every face: the panel folds up into the shade, turns, and unfolds again"></video>
-    <figcaption>A lamp shade printed as one flat panel. The printed hinges fold it up into the shade.</figcaption>
-  </figure>
 
-  <h2>Choose your machine first</h2>
-  <p>At the top of <b>Sheet &amp; fit</b>, pick the machine: laser, router, 3D printer, or laser + 3D printer. With
-  <b>3D printer</b>, the sheet is your printer's bed and the material is PLA or PETG. With <b>laser + 3D printer</b>,
-  the laser cuts the layers and the printer makes the standoffs and pins between them. Settings that your machine
-  does not need wait behind one click.</p>
-  <figure>
-    <img src="../app/static/news/0.4.0-machine.jpg" width="482" height="416" loading="lazy" alt="What you make with, at the top of Sheet and fit: four choices and the machine under them">
-  </figure>
+  <ul class="map">
+    <li><b>1. Start here</b>The steps every job has: your model, its size, the checks, the files.
+    <a href="../3d-model-to-laser-cut/">Open</a></li>
+    <li class="here"><b>2. Your machine: this page</b>The 3D printer in detail, on a model with folds. The other machines are in <a href="../laser-cnc-or-3d-printer/">Laser, router or printer</a>.</li>
+    <li><b>3. Your technique</b>The settings of one technique, and what each one changes.
+    <a href="../stacked-slices/">Stacked</a>, <a href="../interlocking-slices/">Interlocking</a> or <a href="../papercraft/">Folded</a></li>
+  </ul>
 
-  <h2>Steps</h2>
-  <p>The pictures show the cow example that the link opens, in folded panels: they print flat and fold up. Stacked
-  slices and ribs print as flat plates the same way. An orange ring with a label marks the control to use.</p>
+  <h2>Set the printer</h2>
+  <p>Every picture on this page shows one model: the cow that the link opens, in folded panels. Its panels print
+  flat and fold up. An orange ring with a label marks the control to use. To use your own model, upload it on the
+  <b>Model</b> tab: <a href="../3d-model-to-laser-cut/">Start here</a> shows how.</p>
   <ol class="steps">
-    <li>Open <a href="../app/index.html#folded">Lamina on Folded Panels</a>. It opens on the <b>Model</b> tab, with
-    the cow example unfolded into panels.
-    <img src="../media/guides/3d-print-flat-parts-1.jpg" width="900" height="479" loading="lazy" alt="Lamina as the link opens it: the Model tab, and the cow example in folded panels in the 3D view"></li>
-    <li>In <b>upload</b>, choose your model file.
-    <img src="../media/guides/3d-print-flat-parts-2.jpg" width="900" height="370" loading="lazy" alt="The upload row at the top of the Model tab, ringed"></li>
-    <li>On the <b>Sheet &amp; fit</b> tab, under <b>What you make with</b>, click <b>3D printer</b>.
-    <img src="../media/guides/3d-print-flat-parts-3.jpg" width="900" height="331" loading="lazy" alt="The 3D printer button under What you make with, ringed"></li>
+    <li>Open <a href="../app/index.html#folded/cow">Lamina on Folded Panels</a>. On the <b>Sheet &amp; fit</b> tab,
+    under <b>What you make with</b>, click <b>3D printer</b>.
+    <img src="../media/guides/3d-print-flat-parts-1.jpg" width="900" height="331" loading="lazy" alt="The Sheet and fit tab with 3D printer chosen, ringed, and the cow in the 3D view"></li>
     <li>In <b>machine</b>, pick your printer. Bambu Lab and Prusa printers are on the list with their bed size. For
-    another printer, type its bed size.
-    <img src="../media/guides/3d-print-flat-parts-4.jpg" width="900" height="331" loading="lazy" alt="The machine row, ringed"></li>
-    <li>In <b>material</b>, pick <b>PLA</b> or <b>PETG</b>.
-    <img src="../media/guides/3d-print-flat-parts-5.jpg" width="900" height="331" loading="lazy" alt="The material row, ringed"></li>
+    another printer, type its bed size in <b>sheet size</b>.
+    <img src="../media/guides/3d-print-flat-parts-2.jpg" width="900" height="331" loading="lazy" alt="The machine list set to a Bambu Lab printer, ringed"></li>
+    <li>In <b>material</b>, pick PLA or PETG.
+    <img src="../media/guides/3d-print-flat-parts-3.jpg" width="900" height="331" loading="lazy" alt="The material row, ringed"></li>
     <li>On the <b>Technique</b> tab, set <b>joint</b> to <b>click</b> or <b>snap</b>. These joints close the seams
-    without glue. A seam that bends too far for them stays plain, and a warning names it.
-    <img src="../media/guides/3d-print-flat-parts-6.jpg" width="900" height="331" loading="lazy" alt="The joint row set to click, ringed"></li>
-    <li>Read the <b>errors</b> and <b>warnings</b> under the 3D view. Correct every error before you print. The
-    buttons under a message fix it.
-    <img src="../media/guides/3d-print-flat-parts-7.jpg" width="900" height="331" loading="lazy" alt="The counts of errors and warnings under the 3D view, ringed"></li>
+    without glue.
+    <img src="../media/guides/3d-print-flat-parts-4.jpg" width="900" height="331" loading="lazy" alt="The joint row set to click, ringed"></li>
+    <li><b>hinge skin thickness (mm)</b> is the skin that stays at every fold. A panel prints at its full thickness
+    with a V groove along each fold, and this skin is the hinge.
+    <img src="../media/guides/3d-print-flat-parts-5.jpg" width="900" height="331" loading="lazy" alt="The hinge skin thickness row, ringed"></li>
+    <li>Read the <b>errors</b> and <b>warnings</b> under the 3D view. Correct every error before you print. This
+    cow has 0 errors and many warnings: each one names a seam that is too short or bends too far for a click
+    joint, and the buttons under it give the fixes.
+    <img src="../media/guides/3d-print-flat-parts-6.jpg" width="900" height="331" loading="lazy" alt="The counts under the 3D view with the errors and warnings, ringed"></li>
     <li>On the <b>Export</b> tab, click <b>print set (.zip)</b>. It holds one 3MF for each plate, at full size.
-    <img src="../media/guides/3d-print-flat-parts-8.jpg" width="900" height="331" loading="lazy" alt="The print set button on the Export tab, ringed"></li>
-    <li>Open each 3MF in your slicer, for example OrcaSlicer. Then slice and print.</li>
+    <img src="../media/guides/3d-print-flat-parts-7.jpg" width="900" height="331" loading="lazy" alt="The print set button on the Export tab, ringed"></li>
+    <li>Each sheet under the 3D view is one plate, and one 3MF. Open each 3MF in your slicer, for example
+    OrcaSlicer. Then slice and print.
+    <img src="../media/guides/3d-print-flat-parts-8.jpg" width="900" height="321" loading="lazy" alt="The plates of the cow under the 3D view, ringed: its panels laid flat on the printer's bed"></li>
     <li>Snap the number tags off the small parts. Put the parts together with the assembly key.</li>
   </ol>
+
+  <h2>What each setting changes</h2>
+  <div class="setting">
+    <h3>joint</h3>
+    <p>What closes a seam between two printed panels.</p>
+    <p class="also">It changes the parts and the plates. With glue tabs, this cow is 23 parts on 6 plates. With <b>click</b>, a tooth on one panel snaps under a bar on the other: 16 parts on 4 plates, and no loose parts. With <b>snap</b>, a printed clip slides along a wall on each panel: 122 parts on 5 plates, most of them clips. Both joints bend up to 100° out and about 70° in. A seam that bends more stays plain, and a warning names it.</p>
+    <figure><img src="../app/static/news/0.4.0-joints.jpg" width="900" height="376" loading="lazy" alt="A printed box laid flat, inside face up, twice: with click joints, one tooth and bar ringed, and with snap joints, one wall for the clip ringed">
+    <figcaption>The joints close up, on the small example <b>fold_box</b> laid flat with its inside face up: on the
+    cow they are too small to see. Left, a click joint. Right, the wall that a snap clip slides along.</figcaption></figure>
+  </div>
+  <div class="table"><table>
+    <tr><th>Setting</th><th>What it does</th><th>It changes</th></tr>
+    <tr><td>machine</td><td>Sets the bed of your printer as the sheet.</td><td>The number of plates, and where a large panel is cut.</td></tr>
+    <tr><td>thickness (Sheet &amp; fit)</td><td>How thick each panel prints.</td><td>The stiffness of the panels.</td></tr>
+    <tr><td>hinge skin thickness</td><td>The skin left at the bottom of every fold's groove.</td><td>Two layers, 0.4 mm, is a good start. PETG bends. PLA is brittle and folds once.</td></tr>
+    <tr><td>hinge width</td><td>The width of the flat strip of skin that bends.</td><td>Wider folds more easily and stops less sharply.</td></tr>
+    <tr><td>fold stop</td><td>Where each fold stops, in degrees past or short of the model's angle.</td><td>Folds that go too far on your printer: set it below 0. Folds that stop short: above 0.</td></tr>
+    <tr><td>snap fit</td><td>The room between a clip and its walls, or between the tooth and the bar.</td><td>The joint does not go on: more. It is loose: less. Print one seam first and set it for your printer and filament.</td></tr>
+  </table></div>
 
   <h2>What the print files carry</h2>
   <ul>
     <li><b>Settings for each part.</b> The layer height, bridges and supports of each part are in the 3MF, and
     OrcaSlicer applies them.</li>
     <li><b>A number on every part.</b> A small part gets its number on a thin tag that you snap off.</li>
-    <li><b>Clips and pins on the same plates</b> as the parts they join.</li>
-    <li><b>An assembly key</b> and a README in each download.</li>
+    <li><b>Clips and pins</b> on the same plates as the parts they join.</li>
+    <li><b>An assembly key and a README</b> in each download.</li>
   </ul>
-  <figure>
-    <img src="../app/static/news/0.4.0-print-tags.jpg" width="900" height="818" loading="lazy" alt="Small horse ribs on the print plate, each joined to a tag with its number. One tag up close. A printed panel with every seam number cut in">
-    <figcaption>Horse ribs on a print plate, each with a number tag.</figcaption>
-  </figure>
 
-  <h2>Panels that fold, click or snap</h2>
-  <p>A folded panel prints at its full thickness with a V groove along every fold. The thin skin at the bottom of the
-  groove is the hinge, and the fold stops at the model's shape. Two printed joints close the seams without glue:</p>
-  <ul>
-    <li><b>Click:</b> a tooth snaps under a bar.</li>
-    <li><b>Snap:</b> a closed clip slides along a wall on each panel.</li>
-  </ul>
-  <p>Both joints bend up to 100° out and 71° in. Try them on the example <i>fold_box</i>. For a lamp, try
-  <i>fold_lamp</i>.</p>
-  <figure>
-    <img src="../app/static/news/0.4.0-joints.jpg" width="900" height="376" loading="lazy" alt="The fold_box example laid flat twice: a click joint, then the short walls a snap joint's clip slides along">
-  </figure>
-
-  <h2>Laser-cut layers on printed standoffs</h2>
-  <p>On stacked slices, set a <b>gap between layers</b> and <b>connect with</b> = <b>standoff</b>. The laser cuts the
-  layers, and 3D-printed posts hold them apart. The machine changes to laser + 3D printer by itself. Try the example <i>shade</i>.</p>
-  <figure>
-    <img src="../app/static/news/0.4.0-stacked-joins.jpg" width="900" height="1018" loading="lazy" alt="Above, a stacked vase with three open dowel holes, then none with hide dowels on. Below, the shade on printed standoffs">
-  </figure>
+  <h2>Other techniques, printed</h2>
+  <p>Stacked slices and ribs print as flat plates the same way: choose <b>3D printer</b> and the same steps apply.
+  To cut the layers with a laser and print only the posts between them, see <b>Laser + 3D printer</b> in
+  <a href="../laser-cnc-or-3d-printer/">Laser, router or printer</a>.</p>
 
   <h2>Test-print before you cut</h2>
   <p>For a laser or router job, the 3MF prototype prints every part flat and scaled down, with its label in the
   surface. Print it, put it together, and then cut the real sheets.</p>
+
   <div class="cta">
-    <a class="btn" href="../app/index.html#folded">Open Lamina on Folded Panels</a>
+    <a class="btn" href="../app/index.html#folded/cow">Open Lamina on Folded Panels</a>
     <a class="btn ghost" href="../papercraft/">Folded panels and papercraft</a>
   </div>
 </main>
 <footer><div class="wrap">
   <nav aria-label="All guides">
     <a href="../">Lamina home</a>
-    <a href="../3d-model-to-laser-cut/">3D model to laser cut</a>
-    <a href="../slicer-for-fusion-360-alternative/">Slicer for Fusion 360 alternative</a>
+    <a href="../3d-model-to-laser-cut/">Start here</a>
+    <a href="../laser-cnc-or-3d-printer/">Laser, router or printer</a>
+    <a href="../3d-print-flat-parts/">3D printing</a>
     <a href="../stacked-slices/">Stacked slices</a>
     <a href="../interlocking-slices/">Interlocking slices</a>
-    <a href="../papercraft/">Papercraft</a>
-    <a href="../3d-print-flat-parts/">3D print flat parts</a>
+    <a href="../papercraft/">Folded panels and papercraft</a>
+    <a href="../slicer-for-fusion-360-alternative/">Compared with Slicer for Fusion 360</a>
   </nav>
   Lamina is free software under the AGPL-3.0 ·
   <a href="https://github.com/marcelfarres/lamina">GitHub</a> ·

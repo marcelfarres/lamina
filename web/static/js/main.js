@@ -177,8 +177,10 @@ async function init(){
     try{ST.saved=JSON.parse(sessionStorage.lamina_saved||'null')}catch(e){ST.saved=null}}
   // a fresh start gets the machine's compensation and the example's preset. A #technique in the URL (the site's guides
   // link to app/index.html#stacked) opens that technique on its first example in presets.json; one with no example of
-  // its own (bands) gets the default example, switched to it. A tab with a session resumes it above, whatever the URL says
-  else{const asked=ST.MODES.find(m=>m.name===location.hash.slice(1))?.name, own=asked&&Object.keys(PRESETS).find(k=>PRESETS[k].mode===asked&&ex.includes(k));
+  // its own (bands) gets the default example, switched to it. #stacked/horse_statue names the example too, so a guide
+  // opens the model its pictures show. A tab with a session resumes it above, whatever the URL says
+  else{const [tech,named]=location.hash.slice(1).split('/'), asked=ST.MODES.find(m=>m.name===tech)?.name,
+      own=asked&&(ex.includes(named)?named:Object.keys(PRESETS).find(k=>PRESETS[k].mode===asked&&ex.includes(k)));
     if(own)ST.example=own;
     setMode(asked||'interlocked',false);applyMachine(matOf(state.material).machine);applyPreset();if(asked&&ST.mode.name!==asked)setMode(asked)}
   ST.fresh=sess.mode?'page reloaded, last session resumed':'page opened on example '+ST.example; applyUnit(sess.mode&&state.units||ST.unit);
