@@ -15,7 +15,7 @@ if (!page) { console.log("no page tab", list.map(t => t.url)); process.exit(1); 
 const ws = new WebSocket(page.webSocketDebuggerUrl);
 let id = 0; const pending = new Map();
 const send = (method, params = {}) => new Promise(res => { pending.set(++id, res); ws.send(JSON.stringify({ id, method, params })); });
-ws.onmessage = ev => { const m = JSON.parse(ev.data); const r = pending.get(m.id); if (r) { pending.delete(m.id); r(m.result); } };
+ws.onmessage = ev => { const m = JSON.parse(ev.data); const r = pending.get(m.id); if (typeof r === "function") { pending.delete(m.id); r(m.result); } };   // only a reply to one of our own calls resolves
 await new Promise(r => ws.onopen = r);
 // same layout, twice the pixels: the page shows the stills at up to 1100 CSS px on HiDPI screens
 await send("Emulation.setDeviceMetricsOverride", { width: 1574, height: 907, deviceScaleFactor: 2, mobile: false });
