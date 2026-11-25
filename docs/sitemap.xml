@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://marcelfarres.github.io/lamina/</loc><lastmod>2026-11-23</lastmod></url>
-  <url><loc>https://marcelfarres.github.io/lamina/app/</loc><lastmod>2026-11-23</lastmod></url>
-  <url><loc>https://marcelfarres.github.io/lamina/3d-model-to-laser-cut/</loc><lastmod>2026-11-23</lastmod></url>
-  <url><loc>https://marcelfarres.github.io/lamina/slicer-for-fusion-360-alternative/</loc><lastmod>2026-11-23</lastmod></url>
-  <url><loc>https://marcelfarres.github.io/lamina/stacked-slices/</loc><lastmod>2026-11-23</lastmod></url>
-  <url><loc>https://marcelfarres.github.io/lamina/interlocking-slices/</loc><lastmod>2026-11-23</lastmod></url>
-  <url><loc>https://marcelfarres.github.io/lamina/papercraft/</loc><lastmod>2026-11-23</lastmod></url>
-  <url><loc>https://marcelfarres.github.io/lamina/3d-print-flat-parts/</loc><lastmod>2026-11-23</lastmod></url>
+  <url><loc>https://marcelfarres.github.io/lamina/</loc><lastmod>2026-11-25</lastmod></url>
+  <url><loc>https://marcelfarres.github.io/lamina/app/</loc><lastmod>2026-11-25</lastmod></url>
+  <url><loc>https://marcelfarres.github.io/lamina/3d-model-to-laser-cut/</loc><lastmod>2026-11-25</lastmod></url>
+  <url><loc>https://marcelfarres.github.io/lamina/slicer-for-fusion-360-alternative/</loc><lastmod>2026-11-25</lastmod></url>
+  <url><loc>https://marcelfarres.github.io/lamina/stacked-slices/</loc><lastmod>2026-11-25</lastmod></url>
+  <url><loc>https://marcelfarres.github.io/lamina/interlocking-slices/</loc><lastmod>2026-11-25</lastmod></url>
+  <url><loc>https://marcelfarres.github.io/lamina/papercraft/</loc><lastmod>2026-11-25</lastmod></url>
+  <url><loc>https://marcelfarres.github.io/lamina/laser-cnc-or-3d-printer/</loc><lastmod>2026-11-25</lastmod></url>
+  <url><loc>https://marcelfarres.github.io/lamina/3d-print-flat-parts/</loc><lastmod>2026-11-25</lastmod></url>
 </urlset>

@@ -3,20 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>3D model to laser-cut, CNC or 3D-printed parts, free | Lamina</title>
-<meta name="description" content="Turn an STL, OBJ or 3MF model into flat parts for a laser cutter, a CNC router or a 3D printer: stacked layers, interlocking slices, radial slices or folded panels. Lamina is a free laser and CNC slicer that runs in your browser. SVG and DXF to cut, 3MF to print.">
+<title>3D model to laser-cut, CNC or 3D-printed flat parts: step by step | Lamina</title>
+<meta name="description" content="Turn an STL, OBJ or 3MF model into flat parts for a laser cutter, a CNC router or a 3D printer, step by step: upload, size, technique, machine, checks, fit test and files. A free laser and CNC slicer in your browser.">
 <link rel="canonical" href="https://marcelfarres.github.io/lamina/3d-model-to-laser-cut/">
 <link rel="icon" href="../favicon.svg">
 <link rel="stylesheet" href="../guide.css">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://marcelfarres.github.io/lamina/3d-model-to-laser-cut/">
-<meta property="og:title" content="3D model to laser-cut, CNC or 3D-printed parts">
-<meta property="og:description" content="Stacked layers, interlocking slices, radial slices or folded panels from any STL, for a laser, a CNC router or a 3D printer. Free, in your browser.">
-<meta property="og:image" content="https://marcelfarres.github.io/lamina/media/hero.jpg">
+<meta property="og:title" content="From a 3D model to flat parts: laser, CNC router or 3D printer">
+<meta property="og:description" content="The steps every job has, with a picture for each: your model, its size, the technique, the machine, the checks, the fit test and the cut files.">
+<meta property="og:image" content="https://marcelfarres.github.io/lamina/media/guides/3d-model-to-laser-cut-plan.jpg">
 <meta name="twitter:card" content="summary_large_image">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"TechArticle","headline":"3D model to laser-cut, CNC or 3D-printed parts",
-"image":"https://marcelfarres.github.io/lamina/media/hero.jpg","dateModified":"2026-11-23",
+{"@context":"https://schema.org","@type":"TechArticle","headline":"From a 3D model to flat parts: laser, CNC router or 3D printer",
+"image":"https://marcelfarres.github.io/lamina/media/guides/3d-model-to-laser-cut-plan.jpg","dateModified":"2026-11-25",
 "about":{"@type":"SoftwareApplication","name":"Lamina","url":"https://marcelfarres.github.io/lamina/","applicationCategory":"DesignApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}}
 </script>
 </head>
@@ -24,14 +24,16 @@
 <header><div class="wrap">
   <a class="home" href="../"><img src="../favicon.svg" alt="" width="24" height="24" style="border:0;background:none">Lamina</a>
   <nav aria-label="Guides">
-    <a href="../3d-model-to-laser-cut/" aria-current="page">3D model to laser cut</a>
-    <a href="../slicer-for-fusion-360-alternative/">vs Slicer for Fusion 360</a>
-    <a href="../stacked-slices/">Stacked slices</a>
-    <a href="../interlocking-slices/">Interlocking slices</a>
-    <a href="../papercraft/">Papercraft</a>
-    <a href="../3d-print-flat-parts/">3D print flat parts</a>
+    <a href="../3d-model-to-laser-cut/" aria-current="page">Start here</a>
+    <b>Machines</b>
+    <a href="../laser-cnc-or-3d-printer/">Laser, router or printer</a>
+    <a href="../3d-print-flat-parts/">3D printing</a>
+    <b>Techniques</b>
+    <a href="../stacked-slices/">Stacked</a>
+    <a href="../interlocking-slices/">Interlocking</a>
+    <a href="../papercraft/">Folded</a>
   </nav>
-  <a class="btn" href="../app/index.html#interlocked">Try it in your browser</a>
+  <a class="btn" href="../app/index.html#interlocked/bracket">Try it in your browser</a>
 </div></header>
 <main class="wrap">
   <h1>From a 3D model to flat parts: laser, CNC router or 3D printer</h1>
@@ -39,13 +41,22 @@
   flat parts and put the parts back together. A 3D printer can make the same flat parts. Lamina is a free laser and
   CNC slicer that does this for you. It runs in your browser, and your model stays on your computer.</p>
   <div class="cta">
-    <a class="btn" href="../app/index.html#interlocked">Open Lamina in your browser</a>
+    <a class="btn" href="../app/index.html#interlocked/bracket">Open Lamina in your browser</a>
     <a class="btn ghost" href="../#start">Install it on your computer</a>
   </div>
   <figure>
-    <img src="../media/hero.jpg" width="2400" height="1383" alt="The Lamina interface: the settings on the left, a 3D preview of a head in radial slices, and the cut sheets below.">
-    <figcaption>The 3D preview and the cut sheets show the same plan. Change a number and both change.</figcaption>
+    <img src="../media/guides/3d-model-to-laser-cut-plan.jpg" width="900" height="622" alt="Lamina with the bracket example: the settings on the left, the bracket in interlocked slices in the 3D view, the counts and the cut sheets under it">
+    <figcaption>The bracket of this guide. The settings are on the left, in tabs that you read from left to right.
+    The 3D view, the counts and the cut sheets show the same plan. Change a number and all of them change.</figcaption>
   </figure>
+
+  <ul class="map">
+    <li class="here"><b>1. Start here: this page</b>The steps every job has, whatever the machine and the technique.</li>
+    <li><b>2. Your machine</b>Laser, router or 3D printer, the material and its thickness.
+    <a href="../laser-cnc-or-3d-printer/">Open</a></li>
+    <li><b>3. Your technique</b>The settings of one technique, and what each one changes.
+    <a href="../stacked-slices/">Stacked</a>, <a href="../interlocking-slices/">Interlocking</a> or <a href="../papercraft/">Folded</a></li>
+  </ul>
 
   <h2>What a laser slicer does</h2>
   <p>A 3D-printing slicer makes G-code: the layers of plastic for a printer. A laser slicer makes flat parts that you
@@ -53,61 +64,74 @@
   checks that the parts hold together, packs them on your sheets and writes the cut files. To print the parts
   instead, it packs them on your printer's plates and gives your 3D-printing slicer one 3MF per plate.</p>
 
-  <h2>Pick your machine</h2>
-  <p>At the top of <b>Sheet &amp; fit</b>, choose what you make with. Lamina then shows the settings that machine needs.</p>
-  <ul>
-    <li><b>Laser.</b> CO2, diode or fiber, with named machines such as Glowforge, xTool, OMTech and K40, and their
-    bed sizes. Kerf compensation, and a fit offset for every slot.</li>
-    <li><b>Router.</b> A CNC router for plywood and MDF. Dog-bone relief puts the bit in every slot corner, and the
-    parts lie twice the bit apart.</li>
-    <li><b>3D printer.</b> PLA or PETG on your printer's bed, such as a Bambu Lab or a Prusa. One 3MF per plate,
-    with settings for each part. <a href="../3d-print-flat-parts/">The 3D printing guide</a>.</li>
-    <li><b>Laser + 3D printer.</b> The laser cuts the layers, and the printer makes the standoffs and pins between them.</li>
-  </ul>
-  <p>Plasma tables and vinyl cutters are on the list too.</p>
+  <h2 id="steps">The steps every job has</h2>
+  <p>Every picture on this page shows one model: the bracket example that the link opens, in interlocked slices. An
+  orange ring with a label marks the control to use. The tabs go in the order of the work: <b>Model</b>,
+  <b>Technique</b>, <b>Sheet &amp; fit</b>, then <b>Export</b>.</p>
 
-  <h2>The steps</h2>
-  <p>The pictures show the bracket example that the link opens, in interlocked slices. Each picture shows the app at
-  that step. An orange ring with a label marks the control to use.</p>
+  <h3>Your model</h3>
   <ol class="steps">
-    <li>Open <a href="../app/index.html#interlocked">Lamina in your browser</a>. It opens on the <b>Model</b> tab,
-    with an example. You can also install it on Windows, macOS or Linux.
-    <img src="../media/guides/3d-model-to-laser-cut-1.jpg" width="900" height="479" loading="lazy" alt="Lamina as the link opens it: the Model tab, and the bracket example in interlocked slices in the 3D view"></li>
+    <li>Open <a href="../app/index.html#interlocked/bracket">Lamina in your browser</a>. It opens on the <b>Model</b>
+    tab, with the bracket example. You can also install it on Windows, macOS or Linux.
+    <img src="../media/guides/3d-model-to-laser-cut-1.jpg" width="900" height="479" loading="lazy" alt="Lamina open on the bracket example, the Model tab ringed"></li>
     <li>In <b>upload</b>, choose your model file. Lamina reads STL, OBJ, 3MF, PLY, OFF and GLB files, and STEP or
     BREP with the CAD extra.
-    <img src="../media/guides/3d-model-to-laser-cut-2.jpg" width="900" height="370" loading="lazy" alt="The upload row at the top of the Model tab, ringed"></li>
-    <li>If the model lies on its side, click the <b>turn</b> buttons until it stands upright.
-    <img src="../media/guides/3d-model-to-laser-cut-3.jpg" width="900" height="331" loading="lazy" alt="The turn row with its x, y and z buttons, ringed"></li>
+    <img src="../media/guides/3d-model-to-laser-cut-2.jpg" width="900" height="370" loading="lazy" alt="The upload row on the Model tab, ringed"></li>
+    <li>If the model lies on its side, click the turn buttons until it stands upright.
+    <img src="../media/guides/3d-model-to-laser-cut-3.jpg" width="900" height="331" loading="lazy" alt="The turn buttons on the Model tab, ringed"></li>
     <li>In <b>model size (mm)</b>, type the height of the finished piece in the <b>z</b> box. The <b>x</b> and
-    <b>y</b> boxes follow.
-    <img src="../media/guides/3d-model-to-laser-cut-4.jpg" width="900" height="331" loading="lazy" alt="The model size row, ringed"></li>
-    <li>On the <b>Technique</b> tab, click a construction technique. The seven techniques are below.
+    <b>y</b> boxes follow. The size changes the number of parts and of sheets more than any other setting.
+    <img src="../media/guides/3d-model-to-laser-cut-4.jpg" width="900" height="331" loading="lazy" alt="The model size row with its x, y and z boxes, ringed"></li>
+  </ol>
+
+  <h3>Your technique</h3>
+  <ol class="steps" start="5">
+    <li>On the <b>Technique</b> tab, click a construction technique. Each technique has its own settings, and a
+    guide shows what each one changes: <a href="../stacked-slices/">Stacked slices</a>,
+    <a href="../interlocking-slices/">Interlocking slices</a>, <a href="../papercraft/">Folded panels</a>.
     <img src="../media/guides/3d-model-to-laser-cut-5.jpg" width="900" height="370" loading="lazy" alt="The seven technique buttons on the Technique tab, ringed"></li>
-    <li>On the <b>Sheet &amp; fit</b> tab, under <b>What you make with</b>, click your kind of machine. The four
-    kinds are above.
-    <img src="../media/guides/3d-model-to-laser-cut-6.jpg" width="900" height="368" loading="lazy" alt="The four buttons under What you make with, ringed: Laser, Router, 3D printer, Laser + 3D printer"></li>
+  </ol>
+
+  <h3>Your machine and your sheet</h3>
+  <ol class="steps" start="6">
+    <li>On the <b>Sheet &amp; fit</b> tab, under <b>What you make with</b>, click your kind of machine. Lamina then
+    shows the settings that machine needs: <a href="../laser-cnc-or-3d-printer/">Laser, router or 3D printer</a>.
+    <img src="../media/guides/3d-model-to-laser-cut-6.jpg" width="900" height="368" loading="lazy" alt="The four choices under What you make with: Laser, Router, 3D printer, Laser + 3D printer, ringed"></li>
     <li>In <b>machine</b>, pick your machine. It sets the kerf, the slot fit and the bed size of that machine.
-    <img src="../media/guides/3d-model-to-laser-cut-7.jpg" width="900" height="331" loading="lazy" alt="The machine row, ringed"></li>
+    <img src="../media/guides/3d-model-to-laser-cut-7.jpg" width="900" height="331" loading="lazy" alt="The machine list under the four choices, ringed"></li>
     <li>In <b>material</b>, pick your material.
     <img src="../media/guides/3d-model-to-laser-cut-8.jpg" width="900" height="331" loading="lazy" alt="The material row, ringed"></li>
-    <li>In <b>thickness (mm)</b>, type the real thickness of your sheet. Measure it with calipers.
+    <li>In <b>thickness (mm)</b>, type the real thickness of your sheet. Measure it with calipers: every slot and
+    every hole is cut to this number.
     <img src="../media/guides/3d-model-to-laser-cut-9.jpg" width="900" height="331" loading="lazy" alt="The thickness row, ringed"></li>
+  </ol>
+
+  <h3>The checks, the fit test and the files</h3>
+  <ol class="steps" start="10">
     <li>Read the <b>errors</b> and <b>warnings</b> under the 3D view. They name each part that floats, breaks or
-    cannot go in. Most messages have a button that fixes the problem.
-    <img src="../media/guides/3d-model-to-laser-cut-10.jpg" width="900" height="331" loading="lazy" alt="The counts of errors and warnings under the 3D view, ringed"></li>
-    <li>On the <b>Export</b> tab, click the main file. Open it in your laser software.
-    <img src="../media/guides/3d-model-to-laser-cut-11.jpg" width="900" height="331" loading="lazy" alt="The main file button on the Export tab, ringed"></li>
+    cannot go in. Most messages have a button that fixes the problem. Correct every error before you cut.
+    <img src="../media/guides/3d-model-to-laser-cut-10.jpg" width="900" height="331" loading="lazy" alt="The counts under the 3D view with the errors and warnings, ringed"></li>
+    <li>On the <b>Export</b> tab, click <b>fit test</b>. Cut it from the same sheet as the parts.
+    <img src="../media/guides/3d-model-to-laser-cut-11.jpg" width="900" height="331" loading="lazy" alt="The fit test row on the Export tab, ringed"></li>
+    <li>Push each of the five joints of the fit test together. On the <b>Sheet &amp; fit</b> tab, type the number of
+    the loosest joint that still holds into <b>slot offset (fit)</b>.
+    <img src="../media/guides/3d-model-to-laser-cut-12.jpg" width="900" height="331" loading="lazy" alt="The slot offset row on the Sheet and fit tab, ringed"></li>
+    <li>On the <b>Export</b> tab, click the main file and cut the sheets. The .zip holds the sheets as SVG and DXF,
+    the assembly key and a README.
+    <img src="../media/guides/3d-model-to-laser-cut-13.jpg" width="900" height="331" loading="lazy" alt="The main download button on the Export tab, ringed"></li>
+    <li>To see the order the parts go in, drag <b>steps</b> over the 3D view.
+    <img src="../media/guides/3d-model-to-laser-cut-14.jpg" width="900" height="447" loading="lazy" alt="The steps slider over the 3D view, half way, with half of the bracket's slices in place"></li>
   </ol>
 
   <h2>Seven ways to build the model</h2>
   <div class="cards">
-    <a class="card" href="../stacked-slices/"><img src="../media/stacked_poster.jpg" width="1100" height="824" loading="lazy" alt="A horse statue in stacked slices on dowels"><div><h3>Stacked slices</h3><p>Flat layers along one axis, glued or on dowels. The topographic look.</p></div></a>
-    <a class="card" href="../interlocking-slices/"><img src="../media/interlocked_poster.jpg" width="1100" height="824" loading="lazy" alt="A torus in two families of slotted slices"><div><h3>Interlocked slices</h3><p>Two families of slices that slot together like an egg crate.</p></div></a>
-    <a class="card" href="../app/index.html#radial"><img src="../media/radial_poster.jpg" width="1100" height="824" loading="lazy" alt="A head in radial slices about one axis"><div><h3>Radial slices</h3><p>Half-slices round an axis, held by rings. For vases, heads and lamps.</p></div></a>
-    <a class="card" href="../app/index.html#curve"><img src="../media/curve_poster.jpg" width="1100" height="824" loading="lazy" alt="A horse in ribs along a curve, with a branch down each leg"><div><h3>Curve, ribs</h3><p>Ribs square to a curve you draw, like the frames of a hull.</p></div></a>
-    <a class="card" href="../papercraft/"><img src="../media/folded_poster.jpg" width="1100" height="824" loading="lazy" alt="A cow unfolded into folded panels"><div><h3>Folded panels</h3><p>The surface unfolded flat, scored, folded and joined. Papercraft and more.</p></div></a>
-    <a class="card" href="../app/index.html#plaque"><img src="../media/plaque_poster.jpg" width="1100" height="824" loading="lazy" alt="A bonsai in slices standing on a back plate"><div><h3>Plaque</h3><p>Slices standing on a back plate, for the wall.</p></div></a>
-    <a class="card" href="../app/index.html#bands"><img src="../media/bands_poster.jpg" width="1100" height="824" loading="lazy" alt="A sphere as a lattice of rings in three directions"><div><h3>Band lattice</h3><p>Rings in three directions, half-lapped where they cross.</p></div></a>
+    <a class="card" href="../stacked-slices/"><img src="../media/stacked_poster.jpg" width="1100" height="824" loading="lazy" alt="A horse statue in stacked slices"><div><h3>Stacked slices</h3><p>Flat layers along one axis, glued or on dowels. The topographic look. Has a guide.</p></div></a>
+    <a class="card" href="../interlocking-slices/"><img src="../media/interlocked_poster.jpg" width="1100" height="824" loading="lazy" alt="A torus in interlocked slices"><div><h3>Interlocked slices</h3><p>Two families of slices that slot together like an egg crate. Has a guide.</p></div></a>
+    <a class="card" href="../papercraft/"><img src="../media/folded_poster.jpg" width="1100" height="824" loading="lazy" alt="A cow in folded panels"><div><h3>Folded panels</h3><p>The surface unfolded flat, scored, folded and joined. Papercraft and more. Has a guide.</p></div></a>
+    <a class="card" href="../app/index.html#radial"><img src="../media/radial_poster.jpg" width="1100" height="824" loading="lazy" alt="A head in radial slices"><div><h3>Radial slices</h3><p>Half-slices round an axis, held by rings. For vases, heads and lamps.</p></div></a>
+    <a class="card" href="../app/index.html#curve"><img src="../media/curve_poster.jpg" width="1100" height="824" loading="lazy" alt="A horse in ribs along a curve"><div><h3>Curve, ribs</h3><p>Ribs square to a curve you draw, like the frames of a hull.</p></div></a>
+    <a class="card" href="../app/index.html#plaque"><img src="../media/plaque_poster.jpg" width="1100" height="824" loading="lazy" alt="A plaque of slices on a back plate"><div><h3>Plaque</h3><p>Slices standing on a back plate, for the wall.</p></div></a>
+    <a class="card" href="../app/index.html#bands"><img src="../media/bands_poster.jpg" width="1100" height="824" loading="lazy" alt="A band lattice"><div><h3>Band lattice</h3><p>Rings in three directions, half-lapped where they cross.</p></div></a>
   </div>
 
   <h2>The files you get</h2>
@@ -116,44 +140,40 @@
     LightBurn, the Glowforge app and xTool Creative Space.</li>
     <li><b>PDF</b> with one page per sheet, and <b>EPS</b> per sheet.</li>
     <li><b>One file per piece</b> if your cutter wants them that way, with a cut list.</li>
-    <li><b>Labels in a single-stroke font</b>, so the laser engraves each letter in one pass.</li>
-    <li><b>Kerf compensation</b>, a fit offset for every slot, dog-bone relief for router bits, and a scale-check bar.</li>
-    <li><b>Print plates</b>: one 3MF per plate, with the layer height, bridges and supports set for each part, a
-    number on every part, and the pins and clips on the same plates.</li>
+    <li><b>Labels</b> in a single-stroke font, so the laser engraves each letter in one pass.</li>
+    <li><b>Print plates</b>: one 3MF per plate, with the layer height, bridges and supports set for each part.
+    <a href="../3d-print-flat-parts/">The 3D printing guide</a>.</li>
     <li><b>3D files</b>: STL and STEP of the result, and a scaled 3MF prototype to test-print before you cut.</li>
   </ul>
-  <figure>
-    <img src="../media/sheets.jpg" width="2000" height="863" loading="lazy" alt="Two cut sheets with the parts packed by their outlines and a label beside each part">
-    <figcaption>The parts are packed by their outlines. Small parts go in the hollows of big ones.</figcaption>
-  </figure>
 
   <h2>Made with Lamina</h2>
   <div class="cards">
-    <figure class="card"><img src="../media/gallery/2026-11-colin-bull.jpg" loading="lazy" alt="Charging bull on a rock, stacked slices"><div><h3>Charging bull on a rock</h3><p>Stacked slices, by Colin Robinson</p></div></figure>
-    <figure class="card"><img src="../media/gallery/2026-11-jarkien-dragon.jpg" loading="lazy" alt="Giant dragon head, interlocked slices"><div><h3>Giant dragon head</h3><p>Interlocked slices, by jarkien</p></div></figure>
-    <figure class="card"><img src="../media/gallery/2026-10-marcel-steel-sphere.jpg" loading="lazy" alt="Steel sphere, radial slices"><div><h3>Steel sphere</h3><p>Radial slices, by Marcel</p></div></figure>
+    <figure class="card"><img src="../media/gallery/2026-11-colin-bull.jpg" width="1200" height="900" loading="lazy" alt="Charging bull on a rock, stacked slices"><div><h3>Charging bull on a rock</h3><p>Stacked slices, by Colin Robinson</p></div></figure>
+    <figure class="card"><img src="../media/gallery/2026-11-jarkien-dragon.jpg" width="1200" height="1021" loading="lazy" alt="Giant dragon head, interlocked slices"><div><h3>Giant dragon head</h3><p>Interlocked slices, by jarkien</p></div></figure>
+    <figure class="card"><img src="../media/gallery/2026-10-marcel-steel-sphere.jpg" width="901" height="1200" loading="lazy" alt="Steel sphere, radial slices"><div><h3>Steel sphere</h3><p>Radial slices, by Marcel</p></div></figure>
   </div>
   <p class="sub">More in the <a href="../#made">gallery</a>.</p>
 
   <h2>Free, and on your computer</h2>
   <p>Lamina is free software under the AGPL-3.0. It needs no account and uploads nothing. It replaces Autodesk's
-  discontinued Slicer for Fusion 360, and it does more: <a href="../slicer-for-fusion-360-alternative/">see the
+  discontinued <i>Slicer for Fusion 360</i>, and it does more: <a href="../slicer-for-fusion-360-alternative/">see the
   comparison</a>. It is young, so test-cut before you use expensive material, and
   <a href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml">tell me what broke</a>.</p>
   <div class="cta">
-    <a class="btn" href="../app/index.html#interlocked">Open Lamina in your browser</a>
+    <a class="btn" href="../app/index.html#interlocked/bracket">Open Lamina in your browser</a>
     <a class="btn ghost" href="https://github.com/marcelfarres/lamina">Source on GitHub</a>
   </div>
 </main>
 <footer><div class="wrap">
   <nav aria-label="All guides">
     <a href="../">Lamina home</a>
-    <a href="../3d-model-to-laser-cut/">3D model to laser cut</a>
-    <a href="../slicer-for-fusion-360-alternative/">Slicer for Fusion 360 alternative</a>
+    <a href="../3d-model-to-laser-cut/">Start here</a>
+    <a href="../laser-cnc-or-3d-printer/">Laser, router or printer</a>
+    <a href="../3d-print-flat-parts/">3D printing</a>
     <a href="../stacked-slices/">Stacked slices</a>
     <a href="../interlocking-slices/">Interlocking slices</a>
-    <a href="../papercraft/">Papercraft</a>
-    <a href="../3d-print-flat-parts/">3D print flat parts</a>
+    <a href="../papercraft/">Folded panels and papercraft</a>
+    <a href="../slicer-for-fusion-360-alternative/">Compared with Slicer for Fusion 360</a>
   </nav>
   Lamina is free software under the AGPL-3.0 ·
   <a href="https://github.com/marcelfarres/lamina">GitHub</a> ·

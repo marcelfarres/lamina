@@ -3,20 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Interlocking slices: egg-crate sculpture from a 3D model | Lamina</title>
-<meta name="description" content="How to make an interlocking slice sculpture, also called egg-crate or waffle: two families of slotted slices cut from cardboard or plywood. Lamina makes the slots, checks that they go in and exports SVG or DXF. Free.">
+<title>Interlocking slices: egg-crate and waffle sculptures from a 3D model | Lamina</title>
+<meta name="description" content="How to make an interlocking slice sculpture from a 3D model: two families of slotted slices, how many of each, which way they go in, and what each setting changes. A free laser slicer in your browser.">
 <link rel="canonical" href="https://marcelfarres.github.io/lamina/interlocking-slices/">
 <link rel="icon" href="../favicon.svg">
 <link rel="stylesheet" href="../guide.css">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://marcelfarres.github.io/lamina/interlocking-slices/">
 <meta property="og:title" content="How to make an interlocking slice sculpture">
-<meta property="og:description" content="Egg-crate or waffle slices from any 3D model, in cardboard or plywood. A free laser slicer makes the slots and checks they go in.">
+<meta property="og:description" content="Two families of slotted slices that lock together like an egg crate. Lamina calculates every slot, checks that each slice can go in, and writes the cut files.">
 <meta property="og:image" content="https://marcelfarres.github.io/lamina/media/interlocked_poster.jpg">
 <meta name="twitter:card" content="summary_large_image">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"TechArticle","headline":"How to make an interlocking slice sculpture",
-"image":"https://marcelfarres.github.io/lamina/media/interlocked_poster.jpg","dateModified":"2026-11-23",
+"image":"https://marcelfarres.github.io/lamina/media/interlocked_poster.jpg","dateModified":"2026-11-25",
 "about":{"@type":"SoftwareApplication","name":"Lamina","url":"https://marcelfarres.github.io/lamina/","applicationCategory":"DesignApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}}
 </script>
 </head>
@@ -24,14 +24,16 @@
 <header><div class="wrap">
   <a class="home" href="../"><img src="../favicon.svg" alt="" width="24" height="24" style="border:0;background:none">Lamina</a>
   <nav aria-label="Guides">
-    <a href="../3d-model-to-laser-cut/">3D model to laser cut</a>
-    <a href="../slicer-for-fusion-360-alternative/">vs Slicer for Fusion 360</a>
-    <a href="../stacked-slices/">Stacked slices</a>
-    <a href="../interlocking-slices/" aria-current="page">Interlocking slices</a>
-    <a href="../papercraft/">Papercraft</a>
-    <a href="../3d-print-flat-parts/">3D print flat parts</a>
+    <a href="../3d-model-to-laser-cut/">Start here</a>
+    <b>Machines</b>
+    <a href="../laser-cnc-or-3d-printer/">Laser, router or printer</a>
+    <a href="../3d-print-flat-parts/">3D printing</a>
+    <b>Techniques</b>
+    <a href="../stacked-slices/">Stacked</a>
+    <a href="../interlocking-slices/" aria-current="page">Interlocking</a>
+    <a href="../papercraft/">Folded</a>
   </nav>
-  <a class="btn" href="../app/index.html#interlocked">Try it in your browser</a>
+  <a class="btn" href="../app/index.html#interlocked/torus">Try it in your browser</a>
 </div></header>
 <main class="wrap">
   <h1>How to make an interlocking slice sculpture</h1>
@@ -40,10 +42,17 @@
   This guide uses Lamina, a free laser slicer that runs in your browser.</p>
   <figure>
     <video src="../media/interlocked.mp4" poster="../media/interlocked_poster.jpg" width="1100" height="824" muted loop playsinline controls preload="none"
-           aria-label="A torus in two perpendicular families of slotted slices, turning; then 6 by 5, 12 by 9 and 9 by 7 slices"></video>
-    <figcaption>A torus in 3 mm cardboard, 9 by 7 slices, then 6 by 5 and 12 by 9. More slices show more of the
-    surface, and give more slots to cut.</figcaption>
+           aria-label="A torus in two perpendicular families of slotted slices, turning; then with fewer and with more slices"></video>
+    <figcaption>The torus of this guide, in 3 mm cardboard, with fewer and with more slices.</figcaption>
   </figure>
+
+  <ul class="map">
+    <li><b>1. Start here</b>The steps every job has: your model, its size, the checks, the files.
+    <a href="../3d-model-to-laser-cut/">Open</a></li>
+    <li><b>2. Your machine</b>Laser, router or 3D printer, the material and its thickness.
+    <a href="../laser-cnc-or-3d-printer/">Open</a></li>
+    <li class="here"><b>3. Your technique: this page</b>The settings of Interlocked Slices, and what each one changes.</li>
+  </ul>
 
   <h2>Which shapes work</h2>
   <p>One family of slices goes in from above and the other from below. So each slice must have a straight way in.
@@ -51,81 +60,98 @@
   lines does not, and Lamina's insertion check says so. For such a shape, use
   <a href="../stacked-slices/">stacked slices</a> or <a href="../app/index.html#radial">radial slices</a> instead.</p>
 
-  <h2>Steps</h2>
-  <p>The pictures show the torus from the video above. Each picture shows the app at that step. An orange ring with
-  a label marks the control to use.</p>
+  <h2>Set the technique</h2>
+  <p>Every picture on this page shows one model: the torus that the link opens. An orange ring with a label marks
+  the control to use. To use your own model, upload it on the <b>Model</b> tab:
+  <a href="../3d-model-to-laser-cut/">Start here</a> shows how.</p>
   <ol class="steps">
-    <li>Open <a href="../app/index.html#interlocked">Lamina on Interlocked Slices</a>. It opens on the <b>Model</b>
-    tab, with the bracket example cut in two families of slices.
-    <img src="../media/guides/interlocking-slices-1.jpg" width="900" height="479" loading="lazy" alt="Lamina as the link opens it: the Model tab, and the bracket example in interlocked slices in the 3D view"></li>
-    <li>In <b>upload</b>, choose your model file.
-    <img src="../media/guides/interlocking-slices-2.jpg" width="900" height="370" loading="lazy" alt="The upload row at the top of the Model tab, ringed"></li>
-    <li>In <b>model size (mm)</b>, type the width of the finished piece in the <b>x</b> box. The <b>y</b> and
-    <b>z</b> boxes follow.
-    <img src="../media/guides/interlocking-slices-3.jpg" width="900" height="331" loading="lazy" alt="The model size row with 240 in the x box, ringed, and the torus in slices in the 3D view"></li>
-    <li>On the <b>Technique</b> tab, set <b>assembly axis</b>. The 1st family of slices goes in from above along this
-    axis, and the 2nd family from below.
-    <img src="../media/guides/interlocking-slices-4.jpg" width="900" height="331" loading="lazy" alt="The assembly axis row, ringed, on the Technique tab with Interlocked Slices on"></li>
+    <li>Open <a href="../app/index.html#interlocked/torus">Lamina on Interlocked Slices</a>. It opens with the torus
+    cut in two families of slices. Click the <b>Technique</b> tab.
+    <img src="../media/guides/interlocking-slices-1.jpg" width="900" height="430" loading="lazy" alt="Lamina with the torus in interlocked slices, the Technique tab ringed"></li>
+    <li>Set <b>assembly axis</b>. The 1st family of slices goes in from above along this axis, and the 2nd family
+    from below.
+    <img src="../media/guides/interlocking-slices-2.jpg" width="900" height="331" loading="lazy" alt="The assembly axis row set to z, ringed"></li>
     <li>In <b>distribution</b>, keep <b>count</b> to set the number of slices in each family. Pick
     <b>distance</b> to set the space between the slices instead.
-    <img src="../media/guides/interlocking-slices-5.jpg" width="900" height="331" loading="lazy" alt="The distribution row set to count, ringed"></li>
-    <li>Type the number of slices in <b>slices, 1st family</b> and <b>slices, 2nd family</b>. More slices show more
-    of the surface, and give more slots to cut.
-    <img src="../media/guides/interlocking-slices-6.jpg" width="900" height="331" loading="lazy" alt="The two slice count rows, 9 and 7, ringed"></li>
-    <li>On the <b>Sheet &amp; fit</b> tab, under <b>What you make with</b>, click <b>Laser</b>. For a CNC router,
-    click <b>Router</b>: its <b>inside-corner relief</b> lets the round bit cut every slot corner deep enough.
-    <img src="../media/guides/interlocking-slices-7.jpg" width="900" height="331" loading="lazy" alt="The Laser button under What you make with, ringed"></li>
-    <li>In <b>machine</b>, pick your machine. It sets the kerf and the bed size of that machine.
-    <img src="../media/guides/interlocking-slices-8.jpg" width="900" height="331" loading="lazy" alt="The machine row, ringed"></li>
-    <li>In <b>material</b>, pick your material.
-    <img src="../media/guides/interlocking-slices-9.jpg" width="900" height="331" loading="lazy" alt="The material row, ringed"></li>
-    <li>In <b>thickness (mm)</b>, type the thickness you measured with calipers. The slots are cut to this
-    thickness.
-    <img src="../media/guides/interlocking-slices-10.jpg" width="900" height="331" loading="lazy" alt="The thickness row set to 3, ringed"></li>
-    <li>Read the <b>errors</b> and <b>warnings</b> under the 3D view. Correct every error before you cut. Where a
-    region would float, <b>auto-fix</b> adds a crossing slice.
-    <img src="../media/guides/interlocking-slices-11.jpg" width="900" height="331" loading="lazy" alt="The counts of errors and warnings under the 3D view, ringed"></li>
-    <li>On the <b>Export</b> tab, click <b>fit test to cut</b>. Cut it from the same sheet as the parts.
-    <img src="../media/guides/interlocking-slices-12.jpg" width="900" height="331" loading="lazy" alt="The fit test to cut button, ringed, under 1 · Fit test, cut this first"></li>
-    <li>Push each of the five joints of the fit test together. On the <b>Sheet &amp; fit</b> tab, type the number of
-    the loosest joint that still holds into <b>slot offset (fit)</b>.
-    <img src="../media/guides/interlocking-slices-13.jpg" width="900" height="331" loading="lazy" alt="The slot offset (fit) row on the Sheet and fit tab, ringed"></li>
-    <li>On the <b>Export</b> tab, click <b>LASER · sheets SVG + DXF (.zip)</b> and cut the sheets.
-    <img src="../media/guides/interlocking-slices-14.jpg" width="900" height="331" loading="lazy" alt="The Laser sheets SVG and DXF button, ringed, under 2 · The files, by machine"></li>
-    <li>Slide the 1st family in from above, then the 2nd family from below. To see the order, drag <b>steps</b>
-    over the 3D view.
-    <img src="../media/guides/interlocking-slices-15.jpg" width="900" height="398" loading="lazy" alt="The steps slider over the 3D view, ringed, with half of the torus slices in place"></li>
+    <img src="../media/guides/interlocking-slices-3.jpg" width="900" height="331" loading="lazy" alt="The distribution row set to count, ringed"></li>
+    <li>Type the number of slices in <b>slices, 1st family</b> and <b>slices, 2nd family</b>.
+    <img src="../media/guides/interlocking-slices-4.jpg" width="900" height="331" loading="lazy" alt="The two slice count rows, both at 8, ringed"></li>
+    <li>Read the <b>errors</b> and <b>warnings</b> under the 3D view after each change. Where a region would float,
+    auto-fix adds a crossing slice and says so.
+    <img src="../media/guides/interlocking-slices-5.jpg" width="900" height="331" loading="lazy" alt="The counts under the 3D view with the errors and warnings, ringed"></li>
   </ol>
 
-  <h2>Why the slots fit</h2>
+  <h2>What each setting changes</h2>
+  <p>Each picture shows the same torus from the same side, with one setting changed. The label at the bottom gives
+  the counts that Lamina shows under the 3D view.</p>
+
+  <div class="setting">
+    <h3>slices, 1st family and 2nd family</h3>
+    <p>The number of slices in each direction. More slices show more of the surface.</p>
+    <p class="also">They also give more parts and more slots to cut. On this torus, the 2nd family has 8 slices: 5 slices in the 1st family make 20 parts, 8 make 24, and 12 make 30. All of them fit one 600 × 400 mm sheet.</p>
+    <figure><img src="../media/guides/interlocking-slices-count.jpg" width="900" height="326" loading="lazy" alt="The torus three times: 5 slices in the 1st family with 20 parts, 8 with 24 parts, 12 with 30 parts, each on 1 sheet with 0 errors"></figure>
+  </div>
+
+  <div class="setting">
+    <h3>assembly axis</h3>
+    <p>The direction the slices slide in. Both families stand along this axis.</p>
+    <p class="also">It decides if the model can be put together. Along z, every slice of the torus slides in: 0 errors. Along x, a slice meets the tube twice on its way in, and Lamina gives 72 errors such as <i>Z-1 cannot slide into its slot</i>. Choose the axis that every part of your shape is open to.</p>
+    <figure><img src="../media/guides/interlocking-slices-axis.jpg" width="900" height="490" loading="lazy" alt="The torus twice: assembly axis z with 24 parts and 0 errors, assembly axis x with 72 errors and every slice that cannot go in marked in red with dark lines"></figure>
+  </div>
+
+  <div class="setting">
+    <h3>thickness (on the Sheet &amp; fit tab)</h3>
+    <p>The thickness of your sheet. Every slot is cut as wide as this number.</p>
+    <p class="also">The number of parts stays: 24 in 3 mm and in 6 mm. The slices are thicker and the slots are wider.</p>
+    <figure><img src="../media/guides/interlocking-slices-thickness.jpg" width="900" height="490" loading="lazy" alt="The torus twice: thickness 3 and thickness 6, 24 parts each, with thicker slices and wider slots"></figure>
+  </div>
+
+  <h3>More settings</h3>
+  <div class="table"><table>
+    <tr><th>Setting</th><th>What it does</th><th>It changes</th></tr>
+    <tr><td>distribution</td><td><b>count</b>: a number of slices for each family. <b>distance</b>: one slice every so many mm.</td><td>With <b>distance</b>, a larger model gets more slices. With <b>count</b>, it gets wider spaces.</td></tr>
+    <tr><td>vary the spacing</td><td>You draw the distance between slices along the model, for each family.</td><td>More slices where the shape changes fast, fewer where it does not.</td></tr>
+    <tr><td>slot depth split (Sheet &amp; fit)</td><td>Where two crossing slices meet. 0.5 cuts each slot half way.</td><td>At 0.7, the slot of the 1st family goes 70 % of the way and the slot of the 2nd family 30 %.</td></tr>
+    <tr><td>slot offset (Sheet &amp; fit)</td><td>How much wider than the sheet every slot is cut.</td><td>How hard the slices go together. The fit test finds the number.</td></tr>
+    <tr><td>auto-fix (Checks)</td><td>Adds a crossing slice where a region would float.</td><td>The number of slices can be higher than you typed. It never deletes a piece of your model.</td></tr>
+  </table></div>
   <p>Lamina calculates the depth of each slot at each crossing from the mesh itself. So a hollow or an uneven shape
-  notches correctly, where older tools left the slices loose. You can also set the notch ratio and the flare at the
-  mouth of the slot, rotate the grid, and add extra slices at the places you choose.</p>
-  <figure>
-    <img src="../media/checks.jpg" width="2000" height="963" loading="lazy" alt="The Checks tab with a list of errors and a fix button beside each">
-    <figcaption>The Checks tab: errors, warnings, and a fix button for most of them.</figcaption>
-  </figure>
+  notches correctly. You can also move, tilt or delete one slice in the 3D view, and the slots follow.</p>
+
+  <h2>Then: the machine, the checks and the files</h2>
+  <p>These steps are the same for every technique, so they have their own pages.</p>
+  <ol class="steps" start="6">
+    <li>On the <b>Sheet &amp; fit</b> tab, choose your machine, your material and its thickness:
+    <a href="../laser-cnc-or-3d-printer/">Laser, router or 3D printer</a>. For a CNC router, the inside-corner
+    relief lets the round bit cut every slot corner deep enough.</li>
+    <li>Correct every error, cut the fit test, and download the files:
+    <a href="../3d-model-to-laser-cut/#steps">Start here</a>, steps 10 to 13.</li>
+    <li>Slide the 1st family in from above, then the 2nd family from below. To see the order, drag <b>steps</b>
+    over the 3D view.
+    <img src="../media/guides/interlocking-slices-6.jpg" width="900" height="398" loading="lazy" alt="The steps slider over the 3D view, half way, with half of the torus's slices in place"></li>
+  </ol>
 
   <h2>Made with interlocked slices</h2>
   <div class="cards">
-    <figure class="card"><img src="../media/gallery/2026-11-jarkien-dragon.jpg" loading="lazy" alt="Giant dragon head, interlocked slices"><div><h3>Giant dragon head</h3><p>by jarkien</p></div></figure>
+    <figure class="card"><img src="../media/gallery/2026-11-jarkien-dragon.jpg" width="1200" height="1021" loading="lazy" alt="Giant dragon head, interlocked slices"><div><h3>Giant dragon head</h3><p>by jarkien</p></div></figure>
   </div>
   <p class="sub">More in the <a href="../#made">gallery</a>. For rings in three directions on a sphere, an egg or a
   box, see the <a href="../app/index.html#bands">band lattice</a>.</p>
   <div class="cta">
-    <a class="btn" href="../app/index.html#interlocked">Open Lamina on Interlocked Slices</a>
+    <a class="btn" href="../app/index.html#interlocked/torus">Open Lamina on Interlocked Slices</a>
     <a class="btn ghost" href="../#techniques">All seven techniques</a>
   </div>
 </main>
 <footer><div class="wrap">
   <nav aria-label="All guides">
     <a href="../">Lamina home</a>
-    <a href="../3d-model-to-laser-cut/">3D model to laser cut</a>
-    <a href="../slicer-for-fusion-360-alternative/">Slicer for Fusion 360 alternative</a>
+    <a href="../3d-model-to-laser-cut/">Start here</a>
+    <a href="../laser-cnc-or-3d-printer/">Laser, router or printer</a>
+    <a href="../3d-print-flat-parts/">3D printing</a>
     <a href="../stacked-slices/">Stacked slices</a>
     <a href="../interlocking-slices/">Interlocking slices</a>
-    <a href="../papercraft/">Papercraft</a>
-    <a href="../3d-print-flat-parts/">3D print flat parts</a>
+    <a href="../papercraft/">Folded panels and papercraft</a>
+    <a href="../slicer-for-fusion-360-alternative/">Compared with Slicer for Fusion 360</a>
   </nav>
   Lamina is free software under the AGPL-3.0 ·
   <a href="https://github.com/marcelfarres/lamina">GitHub</a> ·

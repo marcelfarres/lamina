@@ -1,13 +1,15 @@
-"""The step pictures of the site's guides (docs/<slug>/index.html), from the running app, into
-docs/media/guides/<slug>-<n>.jpg: one for each numbered step, the control the step names ringed and labelled.
+"""The pictures of the site's guides (docs/<slug>/index.html), from the running app, into
+docs/media/guides/<slug>-<n>.jpg: one for each numbered step, the control the step names ringed and labelled, and
+<slug>-<name>.jpg for what one setting changes.
 
     uv run python scripts/media/guides.py                  every guide
     uv run python scripts/media/guides.py stacked-slices   only these
 
 One function for each guide. It walks the guide's steps in their order, from a new tab at the guide's own link
-(app/index.html#<technique>), and step() saves one picture for each: the whole window, so the reader sees where the
-control is. The look is news.py's: its App, its ring with a dark edge and a word label, its 900 px JPGs. Run it again
-after an interface change, then look at every picture before it goes in a page.
+(app/index.html#<technique>/<example>), and step() saves one picture for each: the window's width, so the reader sees
+where the control is. compare() saves what one setting changes: the 3D view at two or three values, with the counts.
+The look is news.py's: its App, its ring with a dark edge and a word label, its 900 px JPGs. Run it again after an
+interface change, then look at every picture before it goes in a page.
 """
 import functools
 import http.server
@@ -17,7 +19,7 @@ import threading
 
 from PIL import Image, ImageDraw
 
-from news import ROOT, App, fold_to, save, tag
+from news import ROOT, App, caption, fold_to, save, side_by_side, tag
 from serve import serve_app                 # news.py puts tests/ on the path
 
 OUT = ROOT / "docs" / "media" / "guides"
@@ -59,19 +61,12 @@ def stepper(app, slug):
     return step
 
 
-def upload(app, name):                      # a reader's own model: an example's file, through the file box
-    app.p.set_input_files("#file", str(ROOT / "examples" / f"{name}.stl"))
-    app.idle()
-
-
 # ---- the steps the guides share ----------------------------------------------------------------------------------
 
 
-def opened(app, step, model=None):          # the app as the guide's link opens it, then upload: a model, or none
+def opened(app, step):                      # the app as the guide's link opens it, then where a model of yours goes in
     step(("nav button[data-t=model]", "Model tab", "below"))
     step(("label.f:has(#file)", "upload"))
-    if model:
-        upload(app, model)
 
 
 def kind(app, step, k, label):              # Sheet & fit: what you make with
@@ -81,11 +76,9 @@ def kind(app, step, k, label):              # Sheet & fit: what you make with
     step((f"#kind button[data-kind={k}]", label))
 
 
-def sheet(app, step, thickness=None):       # the machine under it, the material and its thickness
+def sheet(app, step):                       # the machine under it, the material and its thickness
     step(("#kind .f:has(#machine)", "machine", "below"))
     step((".f:has(#material)", "material"))
-    if thickness:
-        app.set("thickness", thickness)
     step((row("sheet", "thickness"), "thickness"))
 
 
@@ -112,75 +105,71 @@ def build_order(app, step):                 # the steps slider over the 3D view,
     app.p.locator("#steps").evaluate("s => {s.value = s.max; s.dispatchEvent(new Event('input'))}")
 
 
-# ---- one function for each guide, its steps in order: the tabs left to right, as a new reader meets them ----------
+# ---- what a setting changes: the 3D view once for each value, from one camera -------------------------------------
 
 
-def stacked_slices(app, step):              # the link opens the bunny; the pictures go on with the video's horse
-    opened(app, step, "horse_statue")
-    app.set("size_2", 260)
-    step((row("model", "size"), "model size"))
-    app.tab("technique")
-    app.set("axis", "y")                                                # side profiles
-    step((row("technique", "axis"), "axis"))
-    step((row("technique", "distribution"), "distribution"))
-    step((row("technique", "connect"), "connect with"))
-    app.set("dowel_d", 2)          # the video's 2 mm rods; the bunny's 4 mm left one piece of the horse unjoined
-    step((row("technique", "dowel_d"), "dowel diameter", "below"))
-    kind(app, step, "laser", "Laser")
-    sheet(app, step, 3)
-    checks(app, step)
-    fit_and_cut(app, step)
+def counts(app, *names):                    # "93 parts · 3 sheet(s)", as the counts under the 3D view read
+    rows = dict(app.p.eval_on_selector_all("#stats .stats > div", "ds => ds.map(d => [d.lastChild.textContent.trim(),"
+                                           " d.querySelector('b').textContent.replace(/[^\\d.,%× ]/g, '').trim()])"))   # no ✓ or ⚠
+    return " · ".join(f"{rows[n]} {n}" for n in names)
 
 
-def interlocking_slices(app, step):         # the link opens the bracket; the pictures go on with the video's torus
-    opened(app, step, "torus")
-    app.set("size_0", 240)
-    step((row("model", "size"), "model size"))
-    app.tab("technique")
-    step((row("technique", "up"), "assembly axis"))
-    step((row("technique", "distribution"), "distribution"))
-    app.set("nx", 9)                                                    # the video's 9 by 7
-    app.set("ny", 7)
-    step((row("technique", "nx"), "slices, 1st family"), (row("technique", "ny"), "slices, 2nd family", "below"))
-    kind(app, step, "laser", "Laser")
-    sheet(app, step, 3)
-    checks(app, step)
-    fit_and_cut(app, step)
-    build_order(app, step)
+def view_middle(app, aspect):               # the model in the 3D view, clear of the bar over it and the tools left of it
+    x0, y0, x1, y1 = app.box("#view canvas")
+    w = min((y1 - y0 - 142) * aspect, x1 - x0 - 200)
+    return (x0 + x1 - w) / 2 + 30, y0 + 112, (x0 + x1 + w) / 2 + 30, y1 - 30
 
 
-def papercraft(app, step):                  # the cow the link opens: low-poly, it folds well
-    opened(app, step)
-    step((row("model", "size"), "model size"))
-    app.tab("technique")
-    step((row("technique", "facet"), "face size"))
-    step((row("technique", "joint"), "joint"))
-    kind(app, step, "laser", "Laser")
-    sheet(app, step)
-    checks(app, step)
-    app.tab("export")
-    step(("#dl a.main", "the sheets"), ("#other_fold > summary", "other formats", "below"))
-    fold_to(app, 55)
-    step(("label:has(#fold)", "fold"))
-    fold_to(app, 100)
+def compare(app, slug, name, param, *values, az=-55, el=18, zoom=1.0, aspect=0.8, show=("parts", "sheet(s)", "errors"), word=None):
+    """<slug>-<name>.jpg: the middle of the 3D view once for each value of one setting, side by side, the value in the
+    top corner and the counts of that plan in the bottom one. The value it had is set again at the end: the pictures
+    after it go on from the plan the guide's link opens. aspect: how wide each view is for 1 high (a wide model)."""
+    put = app.tick if isinstance(values[0], bool) else app.set
+    was = app.p.eval_on_selector(f"#p_{param}", "s => s.type === 'checkbox' ? s.checked : s.value")
+    app.view(az, el, zoom)
+    shots = []
+    for v in values:
+        put(param, v)
+        img = caption(app.grab(view_middle(app, aspect)), f"{word or param}: {'on' if v is True else 'off' if v is False else v}")
+        tag(ImageDraw.Draw(img), 10, img.height - 44, counts(app, *show))
+        shots.append(img)
+        for m in app.p.locator("#msgs .msg.err").all_inner_texts()[:2]:    # what the guide's words must say about it
+            print(f"  {param}={v}: {' '.join(m.split())[:200]}")
+    put(param, was)
+    app.p.select_option("#viewmode", "both")
+    app.p.wait_for_timeout(500)
+    save(f"{slug}-{name}", side_by_side(*shots), OUT)
 
 
-def print_flat_parts(app, step):            # the cow the link opens, printed: its panels print flat and fold up
-    opened(app, step)
-    kind(app, step, "printer", "3D printer")
-    app.p.select_option("#machine", "bambu_x1")   # a named printer sets its bed (256 mm); on the generic 180 mm
-    app.idle()                                    # plate two cow panels were laid past its edge (reported as a bug)
-    step(("#kind .f:has(#machine)", "machine", "below"))
-    step((".f:has(#material)", "material"))
-    app.tab("technique")
-    app.set("joint", "click")                                           # a printed joint: no glue
-    step((row("technique", "joint"), "joint"))
-    checks(app, step)
-    app.tab("export")
-    step(("#dl a.main", "print set"))
+def sheet_close(app, slug, name, share=(0.0, 0.04, 0.5, 0.6)):   # the top left: the nester starts there
+    """<slug>-<name>.jpg: a part of the first cut sheet, close enough to read its labels. The preview is a drawing, so
+    it is made 2400 px wide for this one picture and is sharp at that size."""
+    app.p.set_viewport_size({"width": 2400, "height": 1700})
+    app.p.locator("#sheets svg").first.evaluate(     # a copy over the page: the preview's own panel would clip it
+        "e => {const c = e.cloneNode(true); c.id = 'close'; e.parentNode.append(c); c.style.cssText ="
+        " 'position:fixed;left:0;top:0;width:2400px;height:auto;max-width:none;z-index:99999;background:#1e1f24'}")
+    app.p.wait_for_timeout(600)
+    img = Image.open(io.BytesIO(app.p.locator("#close").screenshot())).convert("RGB")
+    app.p.evaluate("() => document.querySelector('#close').remove()")
+    app.p.set_viewport_size(WINDOW)
+    app.p.wait_for_timeout(600)
+    a, b, c, e = share
+    save(f"{slug}-{name}", img.crop((int(a * img.width), int(b * img.height), int(c * img.width), int(e * img.height))), OUT)
 
 
-def model_to_laser_cut(app, step):          # the overview, on the bracket the link opens in Interlocked Slices
+def whole(app, slug, name):                 # the whole window as it is: the settings, the 3D view, the counts, the sheets
+    app.p.mouse.move(WINDOW["width"] - 5, 45)
+    app.p.wait_for_timeout(400)
+    save(f"{slug}-{name}", app.grab((0, 0, WINDOW["width"], WINDOW["height"])), OUT)
+
+
+# ---- one function for each guide. Every picture of a guide shows ONE model: the example its link opens (Marcel,
+# 2026-11-25: the stacked guide showed the horse, then a vase). The steps every job has (upload, size, machine,
+# material, thickness, checks, fit test, files) have their pictures once, in start(); a technique's guide shows that
+# technique's settings, and what each one changes --------------------------------------------------------------------
+
+
+def start(app, step):                       # the steps every job has, on the bracket in Interlocked Slices
     opened(app, step)
     step((".f:has([data-rot])", "turn"))
     step((row("model", "size"), "model size"))
@@ -190,29 +179,94 @@ def model_to_laser_cut(app, step):          # the overview, on the bracket the l
     step(("#kind .kinds", "what you make with"))
     sheet(app, step)
     checks(app, step)
-    app.tab("export")
-    step(("#dl a.main", "the cut files"))
+    fit_and_cut(app, step)
+    build_order(app, step)
+    whole(app, "3d-model-to-laser-cut", "plan")
 
 
-def fusion_alternative(app, step):          # moving a project over, on the bunny the link opens in Stacked Slices
-    opened(app, step)
+def machines(app, step):                    # Sheet & fit once for each kind of machine, on the same bracket
+    for k, label in (("laser", "Laser"), ("router", "Router"), ("printer", "3D printer")):
+        kind(app, step, k, label)
+    app.p.click("#kind button[data-kind=laser]")
+    app.idle()
+    step((row("sheet", "compensate"), "compensate kerf"), (row("sheet", "slot_offset"), "slot offset", "below"))
+    app.p.click("#kind button[data-kind=router]")
+    app.idle()
+    step((row("sheet", "relief"), "inside-corner relief"), (row("sheet", "tool_d"), "bit diameter", "below"))
+    app.p.click("#kind button[data-kind=laser]")
+    app.idle()
+    compare(app, "laser-cnc-or-3d-printer", "thickness", "thickness", 3, 6, az=-50, el=30, zoom=1.5, show=("parts",))
+
+
+def stacked_slices(app, step):              # the horse the link opens: side profiles, 3 mm, on 2 mm dowels
+    step(("nav button[data-t=technique]", "Technique tab", "below"))
     app.tab("technique")
-    step(("#modes button[data-m=stacked]", "the same name", "below"))   # above, it covered two other technique names
-    app.tab("sheet")
+    step((row("technique", "axis"), "axis"))
+    step((row("technique", "distribution"), "distribution"))
+    step((row("technique", "space"), "gap between layers"))
+    step((row("technique", "connect"), "connect with"), (row("technique", "dowel_d"), "dowel diameter", "below"))
+    checks(app, step)
+    sheet_close(app, "stacked-slices", "labels")
+    compare(app, "stacked-slices", "axis", "axis", "y", "z", "x")
+    compare(app, "stacked-slices", "thickness", "thickness", 3, 6)
+    compare(app, "stacked-slices", "gap", "space", 0, 4, word="gap")
+    compare(app, "stacked-slices", "rings", "ring_slices", False, True, show=("parts", "dm² material"), word="ring slices")
+
+
+def interlocking_slices(app, step):         # the torus the link opens, 8 by 8 slices in 3 mm
+    step(("nav button[data-t=technique]", "Technique tab", "below"))
+    app.tab("technique")
+    step((row("technique", "up"), "assembly axis"))
+    step((row("technique", "distribution"), "distribution"))
+    step((row("technique", "nx"), "slices, 1st family"), (row("technique", "ny"), "slices, 2nd family", "below"))
+    checks(app, step)
+    build_order(app, step)
+    compare(app, "interlocking-slices", "count", "nx", 5, 8, 12, az=-50, el=35, zoom=1.15, aspect=1.15, word="slices, 1st family")
+    compare(app, "interlocking-slices", "axis", "up", "z", "x", az=-50, el=35, zoom=1.15, aspect=1.15, word="assembly axis")
+    compare(app, "interlocking-slices", "thickness", "thickness", 3, 6, az=-50, el=35, zoom=1.15, aspect=1.15)
+
+
+def papercraft(app, step):                  # the cow the link opens: low-poly, 1 mm card, glue tabs
+    step(("nav button[data-t=technique]", "Technique tab", "below"))
+    app.tab("technique")
+    step((row("technique", "facet"), "face size"))
+    step((row("technique", "joint"), "joint"))
+    step((row("technique", "edge_labels"), "seam numbers"))
+    checks(app, step)
+    fold_to(app, 55)
+    step(("label:has(#fold)", "fold"))
+    fold_to(app, 100)
+    compare(app, "papercraft", "facet", "facet", 0, 45, zoom=1.15, aspect=1.1, word="face size")
+    compare(app, "papercraft", "window", "window", 0, 0.6, zoom=1.15, aspect=1.1, word="windows in faces")
+
+
+def print_flat_parts(app, step):            # the same cow, printed: its panels print flat and fold up
+    kind(app, step, "printer", "3D printer")
+    app.p.select_option("#machine", "bambu_x1")   # a named printer sets its bed (256 mm)
+    app.idle()
+    step(("#kind .f:has(#machine)", "machine", "below"))
     step((".f:has(#material)", "material"))
-    step((row("sheet", "thickness"), "thickness"))
+    app.tab("technique")
+    app.set("joint", "click")                                           # a printed joint: no glue
+    step((row("technique", "joint"), "joint"))
+    step((row("technique", "hinge"), "hinge skin thickness"))
     checks(app, step)
     app.tab("export")
-    step(("#dl a.main", "SVG and DXF"), ("#other_fold > summary", "PDF and EPS", "below"))
+    step(("#dl a.main", "print set"))
+    app.p.locator("#sheets").evaluate("e => e.scrollIntoView({block: 'start'})")   # under a long list of warnings
+    app.p.wait_for_timeout(400)
+    step((app.box("#sheets svg"), "one plate for each 3MF"))
+    # no picture of the joints here: on a whole cow they look the same (Marcel, 2026-11-25). The pages show each joint
+    # close on a small shape: docs/media/joint_*.png (capture.mjs) and news.py's 0.4.0-joints.jpg
 
 
-GUIDES = {                                  # each guide's link opens the app on its technique (Marcel, 2026-11-24)
-    "stacked-slices": ("stacked", stacked_slices),
-    "interlocking-slices": ("interlocked", interlocking_slices),
-    "papercraft": ("folded", papercraft),
-    "3d-print-flat-parts": ("folded", print_flat_parts),
-    "3d-model-to-laser-cut": ("interlocked", model_to_laser_cut),
-    "slicer-for-fusion-360-alternative": ("stacked", fusion_alternative),
+GUIDES = {                                  # each guide's link opens the app on its technique AND its model
+    "3d-model-to-laser-cut": ("interlocked/bracket", start),
+    "laser-cnc-or-3d-printer": ("interlocked/bracket", machines),
+    "stacked-slices": ("stacked/horse_statue", stacked_slices),
+    "interlocking-slices": ("interlocked/torus", interlocking_slices),
+    "papercraft": ("folded/cow", papercraft),
+    "3d-print-flat-parts": ("folded/cow", print_flat_parts),
 }
 
 
@@ -222,17 +276,18 @@ class Quiet(http.server.SimpleHTTPRequestHandler):
 
 
 def news_picture(browser):
-    """web/static/news/0.4.1-guides.jpg, the CHANGELOG's picture: one step of the stacked guide as the site shows it,
-    its number, words and picture. docs/ is the site without the app, so it is served as it is, with no build."""
+    """web/static/news/0.4.2-guides.jpg, the CHANGELOG's picture: one setting of the stacked guide as the site shows
+    it, its name, what it changes and the horse at three values. docs/ is the site without the app, so it is served as
+    it is, with no build."""
     srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Quiet, directory=str(ROOT / "docs")))
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     page = browser.new_page(viewport={"width": 900, "height": 900})
     page.goto(f"http://127.0.0.1:{srv.server_address[1]}/stacked-slices/")
     page.evaluate("() => document.querySelectorAll('img[loading=lazy]').forEach(i => i.loading = 'eager')")
     page.wait_for_function("() => [...document.images].every(i => i.complete)")
-    li, ol = page.locator("ol.steps > li").nth(7).bounding_box(), page.locator("ol.steps").bounding_box()   # step 8, Laser
-    clip = {"x": ol["x"] - 8, "y": li["y"] - 10, "width": li["x"] + li["width"] - ol["x"] + 16, "height": li["height"] + 20}
-    save("0.4.1-guides", Image.open(io.BytesIO(page.screenshot(clip=clip, full_page=True))).convert("RGB"))
+    b = page.locator(".setting").first.bounding_box()                    # axis
+    clip = {"x": b["x"] - 8, "y": b["y"] - 6, "width": b["width"] + 16, "height": b["height"] + 16}
+    save("0.4.2-guides", Image.open(io.BytesIO(page.screenshot(clip=clip, full_page=True))).convert("RGB"))
     page.close()
     srv.shutdown()
 
@@ -244,15 +299,16 @@ def main(only):
         raise SystemExit(f"no such guide: {sorted(set(only) - set(todo))}; there are {sorted(GUIDES)}")
     with serve_app() as url, sync_playwright() as p:
         browser = p.chromium.launch(args=["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--hide-scrollbars"])
-        for slug, (technique, f) in todo.items():
+        for slug, (link, f) in todo.items():
             page = browser.new_page(viewport=WINDOW)    # a new tab: no session, so the app opens as a reader's does
-            page.goto(f"{url}/#{technique}")
+            page.goto(f"{url}/#{link}")
             app = App(page)                             # idle() alone passes before the first slice has started
             page.wait_for_function("() => /^(ready|error)/.test(document.getElementById('status')?.textContent)", timeout=300_000)
             app.idle()
             f(app, stepper(app, slug))
             page.close()
-        news_picture(browser)
+        if not only:                                    # the CHANGELOG's picture reads a page: after all of them are made
+            news_picture(browser)
         browser.close()
 
 

@@ -220,8 +220,11 @@ def test_every_guide_link_lands_where_it_says():
             if not target.is_file():
                 bad.append(f"{g}: {ref} is not in _site")
             elif target == site / "app" / "index.html":
-                if frag not in techniques:
+                tech, _, example = frag.partition("/")       # #stacked, or #stacked/horse_statue: its example too
+                if tech not in techniques:
                     bad.append(f"{g}: {ref} opens the app on no technique of {sorted(techniques)}")
+                if example and not (ROOT / "examples" / f"{example}.stl").is_file():
+                    bad.append(f"{g}: {ref} names no example in examples/")
             elif frag and f'id="{frag}"' not in target.read_text(encoding="utf-8"):
                 bad.append(f"{g}: {ref} has no id=\"{frag}\" there")
     assert not bad, "\n".join(bad)

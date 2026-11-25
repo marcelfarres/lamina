@@ -11,7 +11,8 @@ header{position:sticky;top:0;z-index:10;background:#0f1012ee;backdrop-filter:blu
 header .wrap{max-width:1120px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;min-height:56px;padding-top:8px;padding-bottom:8px}
 header .home{display:flex;align-items:center;gap:9px;font-weight:700;font-size:18px;color:var(--ink);text-decoration:none}
 header nav{display:flex;gap:14px;flex-wrap:wrap;font-size:14px;margin-left:auto}
-header nav a{color:var(--muted);text-decoration:none}header nav a:hover,header nav a[aria-current]{color:var(--ink)}
+header nav b{color:var(--ink);font-weight:600}header nav b:not(:first-child){margin-left:8px}
+header nav a{color:var(--muted);text-decoration:none}header nav a:hover,header nav a[aria-current]{color:var(--ink)}header nav a[aria-current]{text-decoration:underline;text-underline-offset:5px}
 .btn{display:inline-block;padding:9px 16px;border-radius:6px;background:var(--acc-btn);color:#fff!important;text-decoration:none;font-weight:600;font-size:14px}
 .btn.ghost{background:transparent;color:var(--ink)!important;border:1px solid var(--line)}
 main{padding:40px 16px 56px}
@@ -38,3 +39,11 @@ th{color:var(--muted);font-weight:600}
 td:first-child{color:var(--muted);white-space:nowrap}
 footer{border-top:1px solid var(--line);padding:26px 0;color:var(--muted);font-size:14px}
 footer nav{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px}
+/* where a page sits: the three kinds of guide, the one you are on marked with a frame and the words "this page" */
+.map{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:22px 0;padding:0;list-style:none}
+.map li{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:14px;color:var(--muted)}
+.map li b{display:block;color:var(--ink);font-size:15px}.map li.here{border:2px solid var(--sel)}
+/* what a setting changes: its name, what it does, then the 3D view at two or three values */
+.setting{border-top:1px solid var(--line);margin-top:26px;padding-top:4px}
+.setting figure{margin:12px 0 0}.setting p{margin:6px 0}
+.setting .also{color:var(--muted);font-size:15px}
