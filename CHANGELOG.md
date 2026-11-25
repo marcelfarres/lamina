@@ -2,6 +2,14 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.4.2
+
+### Fixed
+
+- **Parts are groups in the PDF too.** With *group parts* ticked, each part in the sheets PDF is one group with its
+  label and cuts, so an editor such as Inkscape moves it as one piece. Before, only the SVG had groups. Thanks to
+  Colin for the report.
+
 ## 0.4.1
 
 This release helps at the machine: bridges that keep parts in the sheet, a kerf test to cut first, how long the cut

@@ -883,6 +883,37 @@ def test_svg_can_fall_back_to_one_group_per_colour(tmp_path):
     assert groups == sorted(groups, key=ORDER.index) and groups[0] == "FRAME"     # one group per colour, in the order they run
 
 
+def test_each_part_is_one_group_in_the_pdf_too(tmp_path):
+    """The PDF holds every sheet as a page, so it is the file an editor with pages opens (bug 081: in Affinity "nothing
+    was grouped"). Each part is a form XObject, which Inkscape opens as one group, like the SVG's <g class="piece">:
+    one form per part, holding that part's lines and no other's, drawn once. Group parts off: the lines alone, colour
+    by colour. No line is lost either way."""
+    import base64, zlib
+    from core.export import items_for_sheet, strokes, texts
+    plan = build(EXAMPLES / "cube.stl", "stacked", {"distribution": "count", "count": 3, "autofix": "off", "connect": "dowel",
+                                                   "orient_mark": True, "label_place": "beside"})
+    items = [it for si in range(plan["sheets"]) for it in items_for_sheet(plan, si)]
+    lines_of = lambda it: len(list(strokes([it]))) + sum(len(sts) + bool(leader) for _, sts, leader in texts([it], plan["params"].get("font", 4.0)))   # noqa: E731
+
+    def streams(data):
+        """Every stream of the file as written: (its dictionary, its bytes out of reportlab's ASCII85 and Flate)."""
+        for head, s in re.findall(rb"<<((?:(?!>>\s*stream).)*?)>>\s*stream\r?\n(.*?)\r?\n?endstream", data, re.S):
+            if b"ASCII85Decode" in head: s = base64.a85decode(s.strip().removesuffix(b"~>"))
+            yield head, zlib.decompress(s) if b"FlateDecode" in head else s
+
+    painted = lambda s: len(re.findall(rb"(?<![\w/.])S(?![\w.])", s))   # noqa: E731
+    drawn = {}
+    for grouped in (True, False):
+        export(plan, tmp_path / str(grouped), fmts=("pdf",), labels=True, grouped=grouped)
+        every = list(streams((tmp_path / str(grouped) / f"{design_name(plan)} sheets.pdf").read_bytes()))
+        forms = [s for head, s in every if re.search(rb"/Subtype\s*/Form\b", head)]
+        pages = [s for head, s in every if not re.search(rb"/Subtype\s*/Form\b", head)]
+        assert sorted(map(painted, forms)) == (sorted(map(lines_of, items)) if grouped else [])
+        assert sum(len(re.findall(rb"/\S+\s+Do\b", s)) for s in pages) == len(forms)        # each part drawn once, on its page
+        drawn[grouped] = sum(map(painted, forms + pages))
+    assert drawn[True] == drawn[False] > len(items) > 1
+
+
 def test_job_export_can_switch_part_grouping_off():
     """The checkbox the Export tab adds: `grouped=0` on the endpoint produces the colour-first file, so software that
     keeps the colours apart and never moves a part on its own reads it as before."""
