@@ -61,3 +61,12 @@ def test_a_message_discord_would_refuse_is_stopped_before_sending(tmp_path, monk
         announce.read(message(tmp_path, "hello", files=("web/static/news/none.jpg",)))
     with pytest.raises(SystemExit, match="DISCORD_WEBHOOK is not set"):
         announce.main(message(tmp_path, "hello"), send=True)
+    with pytest.raises(SystemExit, match="no message: write"):     # 0.4.1's run: a traceback at "No such file"
+        announce.read(tmp_path / "9.9.9.md")
+
+
+@pytest.mark.parametrize("path", sorted(p.relative_to(ROOT).as_posix() for p in (ROOT / ".github/announce").glob("*.md")))
+def test_every_release_message_would_post(path):
+    """What the announce run checks, on every message in the repo (release_gate.py checks the release's own one)."""
+    body, files = announce.read(ROOT / path)
+    assert body.startswith(f"**Lamina {pathlib.Path(path).stem} is out!**") and files
