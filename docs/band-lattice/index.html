@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Band lattice: a sphere of crossing rings from a 3D model | Lamina</title>
+<meta name="description" content="How to make a band lattice from a 3D model: rings in three directions, half-lapped where they cross. See what the number of bands, the directions and the wall change. Free, in your browser.">
+<link rel="canonical" href="https://marcelfarres.github.io/lamina/band-lattice/">
+<link rel="icon" href="../favicon.svg">
+<link rel="stylesheet" href="../guide.css">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://marcelfarres.github.io/lamina/band-lattice/">
+<meta property="og:title" content="How to make a band lattice from a 3D model">
+<meta property="og:description" content="How to make a band lattice from a 3D model: rings in three directions, half-lapped where they cross. See what the number of bands, the directions and the wall change. Free, in your browser.">
+<meta property="og:image" content="https://marcelfarres.github.io/lamina/media/bands_poster.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"How to make a band lattice from a 3D model",
+"image":"https://marcelfarres.github.io/lamina/media/bands_poster.jpg","dateModified":"2026-11-25",
+"about":{"@type":"SoftwareApplication","name":"Lamina","url":"https://marcelfarres.github.io/lamina/","applicationCategory":"DesignApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}}
+</script>
+</head>
+<body>
+<header><div class="wrap">
+  <a class="home" href="../"><img src="../favicon.svg" alt="" width="24" height="24" style="border:0;background:none">Lamina</a>
+  <nav aria-label="Guides">
+    <a href="../3d-model-to-laser-cut/">Start here</a>
+    <b>Machines</b>
+    <a href="../laser-cnc-or-3d-printer/">Laser, router or printer</a>
+    <a href="../3d-print-flat-parts/">3D printing</a>
+    <b>Techniques</b>
+    <a href="../stacked-slices/">Stacked</a>
+    <a href="../interlocking-slices/">Interlocking</a>
+    <a href="../papercraft/">Folded</a>
+    <a href="../radial-slices/">Radial</a>
+    <a href="../curve-ribs/">Curve</a>
+    <a href="../plaque/">Plaque</a>
+    <a href="../band-lattice/" aria-current="page">Bands</a>
+  </nav>
+  <a class="btn" href="../app/index.html#bands/sphere">Try it in your browser</a>
+</div></header>
+<main class="wrap">
+  <h1>How to make a band lattice from a 3D model</h1>
+  <p class="lead">Rings are cut along x, y and z. Only a wall is left of each section, and two bands are half-lapped where they cross. The result is an open lattice. This guide uses Lamina, a free laser slicer that runs in your browser.</p>
+  <figure>
+    <video src="../media/bands.mp4" poster="../media/bands_poster.jpg" width="1100" height="824" muted loop playsinline controls preload="none"
+           aria-label="A sphere as a lattice of bands in three directions, turning; then with fewer and with more bands"></video>
+    <figcaption>The sphere of this guide: 4 bands in each of the three directions.</figcaption>
+  </figure>
+
+  <ul class="map">
+    <li><b>1. Start here</b>The steps every job has: your model, its size, the checks, the files.
+    <a href="../3d-model-to-laser-cut/">Open</a></li>
+    <li><b>2. Your machine</b>Laser, router or 3D printer, the material and its thickness.
+    <a href="../laser-cnc-or-3d-printer/">Open</a></li>
+    <li class="here"><b>3. Your technique: this page</b>The settings of Band Lattice, and what each one changes.</li>
+  </ul>
+
+  <h2>Which shapes work</h2>
+  <p>Simple round or boxy shapes: a sphere, an egg, a box. A band that cannot slide in whole is cut into pieces, and each cut is joined again by a tongue. For two families of solid slices that slot together, see <a href="../interlocking-slices/">interlocking slices</a>.</p>
+
+  <h2>Set the technique</h2>
+  <p>Every picture on this page shows one model: the sphere that the link opens. An orange ring with a label marks
+  the control to use. To use your own model, upload it on the <b>Model</b> tab:
+  <a href="../3d-model-to-laser-cut/">Start here</a> shows how.</p>
+  <ol class="steps">
+    <li>Open <a href="../app/index.html#bands/sphere">Lamina on Band Lattice</a>. It opens with a sphere as a lattice of bands. Click the <b>Technique</b> tab.
+    <img src="../media/guides/band-lattice-1.jpg" width="900" height="479" loading="lazy" alt="Lamina with the sphere in Band Lattice, the Technique tab ringed"></li>
+    <li>Tick <b>x bands</b>, <b>y bands</b> and <b>z bands</b> for the directions that get bands.
+    <img src="../media/guides/band-lattice-2.jpg" width="900" height="331" loading="lazy" alt="The x bands and z bands rows, ringed"></li>
+    <li>Type the number of bands of each direction in <b>x count</b>, <b>y count</b> and <b>z count</b>.
+    <img src="../media/guides/band-lattice-3.jpg" width="900" height="331" loading="lazy" alt="The x count and z count rows, ringed"></li>
+    <li>In <b>wall (mm)</b>, type how wide the wall of each band is.
+    <img src="../media/guides/band-lattice-4.jpg" width="900" height="331" loading="lazy" alt="The wall row, ringed"></li>
+    <li>Read the <b>errors</b> and <b>warnings</b> under the 3D view after each change. The buttons under a message fix it.
+    <img src="../media/guides/band-lattice-5.jpg" width="900" height="331" loading="lazy" alt="The counts under the 3D view with the errors and warnings, ringed"></li>
+  </ol>
+
+  <h2>What each setting changes</h2>
+  <p>Each picture shows the same sphere from the same side, with one setting changed. The label at the bottom gives
+  the counts that Lamina shows under the 3D view.</p>
+
+  <div class="setting">
+    <h3>x count, y count, z count</h3>
+    <p>The number of bands in one direction.</p>
+    <p class="also">More bands make a closer lattice and more parts. On this sphere, with 4 bands in x and in y: 2 bands in z make 24 parts, 4 make 44, and 6 make 46.</p>
+    <figure><img src="../media/guides/band-lattice-count.jpg" width="900" height="367" loading="lazy" alt="The sphere three times: z count 2 with 24 parts, z count 4 with 44 parts, z count 6 with 46 parts, each on 1 sheet with 0 errors"></figure>
+  </div>
+
+  <div class="setting">
+    <h3>x bands, y bands, z bands</h3>
+    <p>Which of the three directions get bands.</p>
+    <p class="also">Two directions are enough for a lattice, with far fewer parts: 44 parts with all three on this sphere, 12 parts with x and y only.</p>
+    <figure><img src="../media/guides/band-lattice-families.jpg" width="900" height="552" loading="lazy" alt="The sphere twice: z bands on with 44 parts, z bands off with 12 parts and bands in two directions only"></figure>
+  </div>
+
+  <div class="setting">
+    <h3>wall</h3>
+    <p>How wide the wall of each band is, measured from the outline in.</p>
+    <p class="also">A wider wall closes the lattice. The number of parts changes too: 44 parts at 8 mm, 52 parts at 16 mm.</p>
+    <figure><img src="../media/guides/band-lattice-wall.jpg" width="900" height="552" loading="lazy" alt="The sphere twice: wall 8 with 44 parts, wall 16 with 52 parts and wider bands"></figure>
+  </div>
+
+  <h3>More settings</h3>
+  <div class="table"><table>
+    <tr><th>Setting</th><th>What it does</th><th>It changes</th></tr>
+    <tr><td>distribution</td><td><b>count</b>: a number of bands for each direction. <b>distance</b>: one band every so many mm.</td><td>With <b>distance</b>, a larger model gets more bands.</td></tr>
+    <tr><td>max piece length</td><td>The longest piece of a band, measured along the band.</td><td>A longer piece is cut again, and each cut gets a tongue. A piece too large for the sheet is always cut.</td></tr>
+  </table></div>
+
+  <h2>Then: the machine, the checks and the files</h2>
+  <p>These steps are the same for every technique, so they have their own pages.</p>
+  <ol class="steps" start="6">
+    <li>On the <b>Sheet &amp; fit</b> tab, choose your machine, your material and its thickness:
+    <a href="../laser-cnc-or-3d-printer/">Laser, router or 3D printer</a>.</li>
+    <li>Correct every error, cut the fit test, and download the files:
+    <a href="../3d-model-to-laser-cut/#steps">Start here</a>, steps 10 to 13.</li>
+    <li>Put the bands together in the order of the steps: some pieces slide onto a tongue of the piece before. To see the order, drag <b>steps</b> over the 3D view.
+    <img src="../media/guides/band-lattice-6.jpg" width="900" height="447" loading="lazy" alt="The steps slider over the 3D view, half way, with half of the sphere's bands in place"></li>
+  </ol>
+
+  <div class="cta">
+    <a class="btn" href="../app/index.html#bands/sphere">Open Lamina on Band Lattice</a>
+    <a class="btn ghost" href="../#techniques">All seven techniques</a>
+  </div>
+</main>
+<footer><div class="wrap">
+  <nav aria-label="All guides">
+    <a href="../">Lamina home</a>
+    <a href="../3d-model-to-laser-cut/">Start here</a>
+    <a href="../laser-cnc-or-3d-printer/">Laser, router or printer</a>
+    <a href="../3d-print-flat-parts/">3D printing</a>
+    <a href="../stacked-slices/">Stacked slices</a>
+    <a href="../interlocking-slices/">Interlocking slices</a>
+    <a href="../papercraft/">Folded panels and papercraft</a>
+    <a href="../radial-slices/">Radial slices</a>
+    <a href="../curve-ribs/">Curve ribs</a>
+    <a href="../plaque/">Plaque</a>
+    <a href="../band-lattice/">Band lattice</a>
+    <a href="../slicer-for-fusion-360-alternative/">Compared with Slicer for Fusion 360</a>
+  </nav>
+  Lamina is free software under the AGPL-3.0 ·
+  <a href="https://github.com/marcelfarres/lamina">GitHub</a> ·
+  <a href="https://www.reddit.com/r/Lamina3D">r/Lamina3D</a> ·
+  <a href="https://discord.gg/N66bCQxmt3">Discord</a>
+</div></footer>
+</body>
+</html>
