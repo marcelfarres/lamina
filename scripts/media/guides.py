@@ -260,7 +260,68 @@ def print_flat_parts(app, step):            # the same cow, printed: its panels 
     # close on a small shape: docs/media/joint_*.png (capture.mjs) and news.py's 0.4.0-joints.jpg
 
 
+def technique_tab(app, step):               # where a technique's guide starts
+    step(("nav button[data-t=technique]", "Technique tab", "below"))
+    app.tab("technique")
+
+
+def radial_slices(app, step):               # the head the link opens: half-slices round its axis, held by rings
+    technique_tab(app, step)
+    step((row("technique", "axis"), "axis"))
+    step((row("technique", "count"), "planes per axis"))
+    step((row("technique", "ring_count"), "number of rings"))
+    checks(app, step)
+    build_order(app, step)
+    cam = dict(az=-50, el=18)
+    compare(app, "radial-slices", "count", "count", 6, 10, 14, word="planes per axis", **cam)
+    compare(app, "radial-slices", "rings", "ring_count", 2, 4, 6, word="number of rings", **cam)
+    compare(app, "radial-slices", "thickness", "thickness", 3, 6, **cam)
+
+
+def curve_ribs(app, step):                  # the horse the link opens: ribs along its back, a branch down each leg
+    technique_tab(app, step)
+    step((row("technique", "plane"), "curve plane"))
+    step((row("technique", "count"), "count"))
+    step((row("technique", "spines"), "spines"))
+    checks(app, step)
+    build_order(app, step)
+    cam = dict(az=-55, el=18, zoom=1.1, aspect=1.1)
+    compare(app, "curve-ribs", "count", "count", 10, 20, 30, word="ribs", **cam)
+    compare(app, "curve-ribs", "spines", "spines", 0, 1, 2, **cam)
+    compare(app, "curve-ribs", "thickness", "thickness", 3, 6, **cam)
+
+
+def plaque(app, step):                      # the bonsai the link opens, from in front of its plate
+    technique_tab(app, step)
+    step((row("technique", "back"), "back of the model"))
+    step((row("technique", "plate"), "plate shape"))
+    step((row("technique", "layout"), "layout"))
+    step((row("technique", "space"), "gap between layers"))
+    checks(app, step)
+    cam = dict(az=50, el=10)
+    compare(app, "plaque", "plate", "plate", "rounded", "circle", "silhouette", word="plate shape", **cam)
+    compare(app, "plaque", "layout", "layout", "parallel", "radial", "crossed", **cam)
+    compare(app, "plaque", "gap", "space", 3, 10, word="gap", **cam)
+
+
+def band_lattice(app, step):                # a sphere: the link opens it in Band Lattice, 4 bands each way
+    technique_tab(app, step)
+    step((row("technique", "x"), "x bands"), (row("technique", "z"), "z bands", "below"))
+    step((row("technique", "nx"), "x count"), (row("technique", "nz"), "z count", "below"))
+    step((row("technique", "ring_wall"), "wall"))
+    checks(app, step)
+    build_order(app, step)
+    cam = dict(az=-50, el=22)
+    compare(app, "band-lattice", "count", "nz", 2, 4, 6, word="z count", **cam)
+    compare(app, "band-lattice", "families", "z", True, False, word="z bands", **cam)
+    compare(app, "band-lattice", "wall", "ring_wall", 8, 16, word="wall", **cam)
+
+
 GUIDES = {                                  # each guide's link opens the app on its technique AND its model
+    "radial-slices": ("radial/head_igea", radial_slices),
+    "curve-ribs": ("curve/horse", curve_ribs),
+    "plaque": ("plaque/bonsai", plaque),
+    "band-lattice": ("bands/sphere", band_lattice),
     "3d-model-to-laser-cut": ("interlocked/bracket", start),
     "laser-cnc-or-3d-printer": ("interlocked/bracket", machines),
     "stacked-slices": ("stacked/horse_statue", stacked_slices),
