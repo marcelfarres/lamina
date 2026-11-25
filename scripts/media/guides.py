@@ -237,7 +237,6 @@ def papercraft(app, step):                  # the cow the link opens: low-poly, 
     step(("label:has(#fold)", "fold"))
     fold_to(app, 100)
     compare(app, "papercraft", "facet", "facet", 0, 45, zoom=1.15, aspect=1.1, word="face size")
-    compare(app, "papercraft", "joint", "joint", "tab", "laced", "rib", zoom=1.15, aspect=1.1)
     compare(app, "papercraft", "window", "window", 0, 0.6, zoom=1.15, aspect=1.1, word="windows in faces")
 
 
@@ -257,7 +256,8 @@ def print_flat_parts(app, step):            # the same cow, printed: its panels 
     app.p.locator("#sheets").evaluate("e => e.scrollIntoView({block: 'start'})")   # under a long list of warnings
     app.p.wait_for_timeout(400)
     step((app.box("#sheets svg"), "one plate for each 3MF"))
-    compare(app, "3d-print-flat-parts", "joint", "joint", "tab", "click", "snap", zoom=1.15, aspect=1.1, show=("parts", "plate(s)", "errors"))
+    # no picture of the joints here: on a whole cow they look the same (Marcel, 2026-11-25). The pages show each joint
+    # close on a small shape: docs/media/joint_*.png (capture.mjs) and news.py's 0.4.0-joints.jpg
 
 
 GUIDES = {                                  # each guide's link opens the app on its technique AND its model
