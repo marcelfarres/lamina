@@ -229,6 +229,20 @@ def check_plan(slices, p, mesh=None, span=None):
     return errs, warns
 
 
+def _line_meets_both(a, b):
+    """False when the line where a's and b's planes meet passes more than 1 µm from a's or b's outline: no point of it
+    is inside both, so the pair cannot collide and its ray (the costly part of the check) need not be cast."""
+    ln = plane_plane_line(a.M, b.M)
+    if ln is None:
+        return True                                       # crossings() answers None for it; leave that to it
+    for s in (a, b):
+        p, q = to_local(s.M, [ln[0], ln[0] + ln[1]])
+        far = LineString([p - (q - p) * 1e6, p + (q - p) * 1e6])   # the whole line in s's frame (the cast is not bounded by the model)
+        if not shapely.dwithin(far, s.profile, 1e-6):
+            return False
+    return True
+
+
 def check_collisions(slices, mesh, span):
     """Two slices of the same family that cross inside the model (tilt / offset edits) have no slot for each other:
     they would physically collide. Crossing families are joined by slots and are fine."""
@@ -237,7 +251,7 @@ def check_collisions(slices, mesh, span):
         if s.group in ("X", "Y", "Z", "S", "R", "C") and s.profile is not None:
             groups.setdefault(s.group, []).append(s)
     for members in groups.values():
-        pairs = [(a, b) for i, a in enumerate(members) for b in members[i + 1:]]
+        pairs = [(a, b) for i, a in enumerate(members) for b in members[i + 1:] if _line_meets_both(a, b)]
         for (a, b), cr in zip(pairs, crossings(mesh, span, [(a.M, b.M) for a, b in pairs])):   # every pair's line cast at once
             if cr is None:
                 continue

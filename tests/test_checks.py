@@ -222,3 +222,24 @@ def test_a_radial_core_ring_says_when_its_fingers_are_thinner_than_the_sheet():
     assert warned and all(float(re.search(r"\((\d+\.\d) mm <", w)[1]) < 3 for w in warned), warned[:2]
     plain = build(EXAMPLES / "egg.stl", "radial", {**job, "count": 8, "ring_count": 5})
     assert not [w for sl in plain["slices"] for w in sl["warnings"] if "finger" in w]
+
+
+def test_check_collisions_flags_only_slices_that_meet_inside_the_model():
+    """Two slices of one family whose shared line runs through material of both collide; one whose outline the line
+    misses does not (and needs no ray cast to say so)."""
+    import numpy as np
+    import trimesh
+    from shapely.geometry import MultiPolygon, box
+    from core.checks import check_collisions
+    from core.geometry import rot_about
+    from core.model import Slice
+
+    def at(label, tilt, outline):
+        M = np.eye(4); M[:3, :3] = rot_about([1, 0, 0], tilt)
+        return Slice(label, "X", M, 3.0, profile=MultiPolygon([outline]))
+    mesh = trimesh.creation.box([100, 100, 100])
+    flat, tilted = at("X-1", 0, box(-40, -40, 40, 40)), at("X-2", 30, box(-40, -40, 40, 40))
+    aside = at("X-3", 30, box(-40, 20, 40, 40))             # tilted plane meets z=0 on y=0; this outline lies at y 20..40 in its frame
+    check_collisions([flat, tilted, aside], mesh, 300)
+    assert [str(e) for e in flat.errors] == ["crosses X-2 inside the model and nothing joins them (they collide) — reduce the tilt / offset, move one, or delete one"]
+    assert [e.about["other"] for e in tilted.errors] == ["X-1"] and not aside.errors
