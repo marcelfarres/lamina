@@ -24,17 +24,24 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 LIMIT_TEXT, LIMIT_FILE = 2000, 20 * 1024 * 1024    # Discord: characters in a message, bytes in a free upload
 
 
-def read(path):
-    text = pathlib.Path(path).read_text(encoding="utf-8").replace("\r", "")
-    _, front, body = text.split("---\n", 2)
+def read(path, text=None, size=None):
+    """The message and its files, stopped here if Discord would refuse it. The release gate checks the release branch
+    the same way before a tag: it passes the file's `text` and a `size` (bytes of a repo path, None if missing) read
+    from that branch (0.4.1 was tagged with no message, and its announce run stopped at "No such file")."""
+    if text is None:
+        if not pathlib.Path(path).is_file():
+            raise SystemExit(f"no message: write {path} (a files: block, then the text) and merge it into main")
+        text = pathlib.Path(path).read_text(encoding="utf-8")
+    size = size or (lambda f: (ROOT / f).stat().st_size if (ROOT / f).is_file() else None)
+    _, front, body = text.replace("\r", "").split("---\n", 2)
     files = [f.strip() for f in front.split("files:", 1)[1].split(",") if f.strip()] if "files:" in front else []
     body = body.strip()
     if len(body) > LIMIT_TEXT:
         raise SystemExit(f"{len(body)} characters: Discord takes {LIMIT_TEXT}")
     for f in files:
-        if not (ROOT / f).is_file():
+        if size(f) is None:
             raise SystemExit(f"no such file: {f}")
-        if (ROOT / f).stat().st_size > LIMIT_FILE:
+        if size(f) > LIMIT_FILE:
             raise SystemExit(f"{f}: over Discord's 20 MB")
     return body, files
 
