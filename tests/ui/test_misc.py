@@ -517,6 +517,11 @@ def test_a_link_to_a_technique_opens_it_on_its_own_example(page, server):
         assert opened(pg) == ("stacked", "bunny")
     finally:
         pg.close()
+    pg = new_page(page.context.browser, server, "/#stacked/horse_statue")   # a guide names the model its pictures show
+    try:
+        assert opened(pg) == ("stacked", "horse_statue")
+    finally:
+        pg.close()
     pg = new_page(page.context.browser, server, "/#bands")
     try:
         assert opened(pg) == ("bands", "blob")

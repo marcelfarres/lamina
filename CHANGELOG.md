@@ -2,6 +2,18 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.4.2
+
+### Changed
+
+- **Guides in three kinds, each on one model.** The site's guides are now in order: *Start here* has the steps every
+  job has, *Machines* shows what a laser, a router and a 3D printer each need, and each technique has its own guide.
+  A technique's guide shows what every setting changes, on the same model from the same side, with the number of
+  parts and sheets. Every picture of a guide shows one model, and the guide's link opens Lamina on that model. The
+  comparison with Slicer for Fusion 360 is no longer in the list of guides.
+
+  ![The axis setting in the stacked slices guide: the horse at axis y, z and x, each with its number of parts and sheets](web/static/news/0.4.2-guides.jpg)
+
 ## 0.4.1
 
 This release helps at the machine: bridges that keep parts in the sheet, a kerf test to cut first, how long the cut

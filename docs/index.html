@@ -97,7 +97,7 @@ figcaption{color:var(--muted);font-size:13px;margin-top:8px}
 .g3{grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
 a.card{display:block;text-decoration:none;color:inherit}a.card:hover{border-color:var(--acc)}
-#guides img{width:100%;aspect-ratio:4/3;object-fit:cover}
+#guides img{width:100%;aspect-ratio:4/3;object-fit:cover}#guides .wrap>h3{margin:26px 0 10px}#guides .grid{grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr))}
 .card img,.card video{border:0;border-radius:0;border-bottom:1px solid var(--line)}
 /* a technique per row: the clip takes three fifths, the text the rest; stacked on a phone */
 .tech{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:26px;align-items:center;padding:28px 0;border-top:1px solid var(--line)}
@@ -767,15 +767,25 @@ footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-s
 
 <section id="guides"><div class="wrap">
   <h2>Guides</h2>
-  <p class="sub">Step by step, for the questions people ask most.</p>
+  <p class="sub">Three kinds of guide. Start with the steps every job has. Then read about your machine and about
+  your technique: each guide shows what every setting changes.</p>
+  <h3>1. Start here</h3>
   <div class="grid g3">
-    <a class="card" href="3d-model-to-laser-cut/"><img src="media/hero.jpg" width="2400" height="1383" loading="lazy" decoding="async" alt="The Lamina interface with a head in radial slices and its cut sheets"><div class="t"><h3>From a 3D model to flat parts</h3><p>Laser, CNC router or 3D printer: the steps, the seven techniques and the files.</p></div></a>
-    <a class="card" href="slicer-for-fusion-360-alternative/"><img src="media/checks.jpg" width="2000" height="963" loading="lazy" decoding="async" alt="The Checks tab with errors and fix buttons"><div class="t"><h3>Slicer for Fusion 360 alternative</h3><p>The two side by side, and how to move a project over.</p></div></a>
-    <a class="card" href="stacked-slices/"><img src="media/stacked_poster.jpg" width="1100" height="824" loading="lazy" decoding="async" alt="A horse statue in stacked slices on dowels"><div class="t"><h3>Stacked slice sculpture</h3><p>Plywood or cardboard layers on dowels, from an STL.</p></div></a>
-    <a class="card" href="interlocking-slices/"><img src="media/interlocked_poster.jpg" width="1100" height="824" loading="lazy" decoding="async" alt="A torus in two families of slotted slices"><div class="t"><h3>Interlocking slices</h3><p>Egg-crate or waffle sculptures that slot together.</p></div></a>
-    <a class="card" href="papercraft/"><img src="media/folded_poster.jpg" width="1100" height="824" loading="lazy" decoding="async" alt="A cow unfolded into folded panels"><div class="t"><h3>Papercraft from a 3D model</h3><p>Unfold it into flat panels with tabs, laces or ribs.</p></div></a>
-    <a class="card" href="3d-print-flat-parts/"><img src="media/fold_poster.jpg" width="1100" height="824" loading="lazy" decoding="async" alt="A lamp shade printed as one flat panel, folding up"><div class="t"><h3>3D print it as flat parts</h3><p>Plates for your printer: panels that fold, click or snap, and printed standoffs.</p></div></a>
+    <a class="card" href="3d-model-to-laser-cut/"><img src="media/guides/3d-model-to-laser-cut-plan.jpg" width="900" height="622" loading="lazy" decoding="async" alt="Lamina with a bracket in interlocked slices and its cut sheets"><div class="t"><h3>From a 3D model to flat parts</h3><p>The steps every job has: your model, its size, the checks, the fit test and the files.</p></div></a>
   </div>
+  <h3>2. Your machine</h3>
+  <div class="grid g3">
+    <a class="card" href="laser-cnc-or-3d-printer/"><img src="app/static/news/0.4.0-machine.jpg" width="482" height="416" loading="lazy" decoding="async" alt="The four choices of What you make with: Laser, Router, 3D printer, Laser + 3D printer"><div class="t"><h3>Laser, CNC router or 3D printer</h3><p>What each machine needs: kerf, slot fit, corner relief, the bed and the files.</p></div></a>
+    <a class="card" href="3d-print-flat-parts/"><img src="media/guides/3d-print-flat-parts-8.jpg" width="900" height="321" loading="lazy" decoding="async" alt="The print plates of a cow in folded panels"><div class="t"><h3>3D print it as flat parts</h3><p>Plates for your printer: panels that fold, and joints that click or snap.</p></div></a>
+  </div>
+  <h3>3. Your technique</h3>
+  <div class="grid g3">
+    <a class="card" href="stacked-slices/"><img src="media/stacked_poster.jpg" width="1100" height="824" loading="lazy" decoding="async" alt="A horse statue in stacked slices on dowels"><div class="t"><h3>Stacked slice sculpture</h3><p>Plywood or cardboard layers on dowels: the axis, the thickness, the gap.</p></div></a>
+    <a class="card" href="interlocking-slices/"><img src="media/interlocked_poster.jpg" width="1100" height="824" loading="lazy" decoding="async" alt="A torus in two families of slotted slices"><div class="t"><h3>Interlocking slices</h3><p>Egg-crate or waffle sculptures that slot together: how many slices, which way they go in.</p></div></a>
+    <a class="card" href="papercraft/"><img src="media/folded_poster.jpg" width="1100" height="824" loading="lazy" decoding="async" alt="A cow unfolded into folded panels"><div class="t"><h3>Folded panels and papercraft</h3><p>Unfold it into flat panels: the face size, the joints, windows.</p></div></a>
+  </div>
+  <p class="sub">Radial slices, curve ribs, plaque and band lattice have no guide yet: each opens with an example
+  from the <a href="#techniques">techniques</a> above.</p>
 </div></section>
 
 <section id="made"><div class="wrap">

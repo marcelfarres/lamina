@@ -3,20 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Papercraft from a 3D model: unfold it into flat panels | Lamina</title>
-<meta name="description" content="Unfold a 3D model into flat papercraft panels with score lines and glue tabs, or join cardboard, leather, sheet metal or printed panels with fifteen kinds of joint. Put the seams where you want. Free, in your browser, with SVG, DXF and PDF out.">
+<title>Papercraft from a 3D model: unfold an STL into flat panels | Lamina</title>
+<meta name="description" content="Unfold a 3D model into flat panels with score lines: papercraft nets as Pepakura makes, and joints for cardboard, leather and sheet metal. See what the face size, the joint and the windows change. Free, in your browser.">
 <link rel="canonical" href="https://marcelfarres.github.io/lamina/papercraft/">
 <link rel="icon" href="../favicon.svg">
 <link rel="stylesheet" href="../guide.css">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://marcelfarres.github.io/lamina/papercraft/">
 <meta property="og:title" content="Papercraft from a 3D model: unfold it into flat panels">
-<meta property="og:description" content="Score lines, glue tabs, laces, rivets or ribs. Paper, card, leather, sheet metal, or printed panels that fold up. Free, in your browser.">
+<meta property="og:description" content="Folded panels with glue tabs, laces, strips or ribs. Lamina unfolds the surface, places the seams, numbers them and writes the cut files.">
 <meta property="og:image" content="https://marcelfarres.github.io/lamina/media/folded_poster.jpg">
 <meta name="twitter:card" content="summary_large_image">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"TechArticle","headline":"Papercraft from a 3D model: unfold it into flat panels",
-"image":"https://marcelfarres.github.io/lamina/media/folded_poster.jpg","dateModified":"2026-11-23",
+"image":"https://marcelfarres.github.io/lamina/media/folded_poster.jpg","dateModified":"2026-11-25",
 "about":{"@type":"SoftwareApplication","name":"Lamina","url":"https://marcelfarres.github.io/lamina/","applicationCategory":"DesignApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}}
 </script>
 </head>
@@ -24,77 +24,108 @@
 <header><div class="wrap">
   <a class="home" href="../"><img src="../favicon.svg" alt="" width="24" height="24" style="border:0;background:none">Lamina</a>
   <nav aria-label="Guides">
-    <a href="../3d-model-to-laser-cut/">3D model to laser cut</a>
-    <a href="../slicer-for-fusion-360-alternative/">vs Slicer for Fusion 360</a>
-    <a href="../stacked-slices/">Stacked slices</a>
-    <a href="../interlocking-slices/">Interlocking slices</a>
-    <a href="../papercraft/" aria-current="page">Papercraft</a>
-    <a href="../3d-print-flat-parts/">3D print flat parts</a>
+    <a href="../3d-model-to-laser-cut/">Start here</a>
+    <b>Machines</b>
+    <a href="../laser-cnc-or-3d-printer/">Laser, router or printer</a>
+    <a href="../3d-print-flat-parts/">3D printing</a>
+    <b>Techniques</b>
+    <a href="../stacked-slices/">Stacked</a>
+    <a href="../interlocking-slices/">Interlocking</a>
+    <a href="../papercraft/" aria-current="page">Folded</a>
   </nav>
-  <a class="btn" href="../app/index.html#folded">Try it in your browser</a>
+  <a class="btn" href="../app/index.html#folded/cow">Try it in your browser</a>
 </div></header>
 <main class="wrap">
   <h1>Papercraft from a 3D model: unfold it into flat panels</h1>
-  <p class="lead">Lamina simplifies the surface of a model to the facet size you choose and unfolds it into flat
+  <p class="lead">Lamina simplifies the surface of a model to the face size you choose and unfolds it into flat
   panels with score lines. You cut the panels, fold them on the lines and join the seams. It makes papercraft nets,
   as Pepakura does, and also joints for cardboard, leather, cloth and sheet metal. Lamina is free and runs in your
   browser.</p>
   <figure>
     <video src="../media/folded.mp4" poster="../media/folded_poster.jpg" width="1100" height="824" muted loop playsinline controls preload="none"
-           aria-label="A cow unfolded into folded panels, turning; then joined with laces, with ribs and with tabs, and at a coarser and a finer facet"></video>
-    <figcaption>A cow at a 15 mm facet in 1 mm card, 19 panels with tabs. Then laces, a coarser facet, ribs, and tabs
-    again.</figcaption>
+           aria-label="A cow unfolded into folded panels, turning; then joined with laces, with ribs and with tabs, and at a coarser and a finer face size"></video>
+    <figcaption>The cow of this guide, in 1 mm card with glue tabs. Then laces, larger faces, ribs, and tabs again.</figcaption>
   </figure>
 
-  <h2>Steps</h2>
-  <p>The pictures show the cow from the video above, the example the link opens. Each picture shows the app at that
-  step. An orange ring with a label marks the control to use.</p>
-  <ol class="steps">
-    <li>Open <a href="../app/index.html#folded">Lamina on Folded Panels</a>. It opens on the <b>Model</b> tab, with
-    the cow example unfolded into panels.
-    <img src="../media/guides/papercraft-1.jpg" width="900" height="479" loading="lazy" alt="Lamina as the link opens it: the Model tab, and the cow example in folded panels in the 3D view"></li>
-    <li>In <b>upload</b>, choose your model file. A low-poly model with large faces is the easiest to fold.
-    <img src="../media/guides/papercraft-2.jpg" width="900" height="370" loading="lazy" alt="The upload row at the top of the Model tab, ringed"></li>
-    <li>In <b>model size (mm)</b>, type the height of the finished piece in the <b>z</b> box. The <b>x</b> and
-    <b>y</b> boxes follow.
-    <img src="../media/guides/papercraft-3.jpg" width="900" height="331" loading="lazy" alt="The model size row, ringed"></li>
-    <li>On the <b>Technique</b> tab, set <b>face size</b>. Larger faces give fewer, simpler panels that are easier to
-    fold. At 0, every face of the model stays, as on this low-poly cow.
-    <img src="../media/guides/papercraft-4.jpg" width="900" height="331" loading="lazy" alt="The face size row on the Technique tab, ringed"></li>
-    <li>In <b>joint</b>, pick how the seams join. The joints are listed below.
-    <img src="../media/guides/papercraft-5.jpg" width="900" height="331" loading="lazy" alt="The joint row, ringed"></li>
-    <li>On the <b>Sheet &amp; fit</b> tab, under <b>What you make with</b>, click <b>Laser</b>. It also covers
-    knife cutters and cutting by hand.
-    <img src="../media/guides/papercraft-6.jpg" width="900" height="368" loading="lazy" alt="The Laser button under What you make with, ringed"></li>
-    <li>In <b>machine</b>, pick your machine: a laser, a knife cutter such as a Cricut, or <b>by hand</b>.
-    <img src="../media/guides/papercraft-7.jpg" width="900" height="331" loading="lazy" alt="The machine row, ringed"></li>
-    <li>In <b>material</b>, pick paper, card or the sheet you fold. A sheet too thick to fold, such as plywood or
-    acrylic, gets a warning.
-    <img src="../media/guides/papercraft-8.jpg" width="900" height="331" loading="lazy" alt="The material row, ringed"></li>
-    <li>In <b>thickness (mm)</b>, type the thickness of your sheet.
-    <img src="../media/guides/papercraft-9.jpg" width="900" height="331" loading="lazy" alt="The thickness row, ringed"></li>
-    <li>Read the <b>errors</b> and <b>warnings</b> under the 3D view. Correct every error before you cut. The buttons
-    under a message fix it.
-    <img src="../media/guides/papercraft-10.jpg" width="900" height="331" loading="lazy" alt="The counts of errors and warnings under the 3D view, ringed"></li>
-    <li>On the <b>Export</b> tab, click <b>LASER · sheets SVG + DXF (.zip)</b>. To print the sheets and cut them by
-    hand, open <b>other formats</b> and click <b>PDF</b>.
-    <img src="../media/guides/papercraft-11.jpg" width="900" height="331" loading="lazy" alt="The main file button and the other formats line under it, both ringed"></li>
-    <li>Fold the panels on the score lines and join the seams. With <b>seam numbers</b> on, both panels of a seam
-    carry the same number. To see the panels fold up, drag <b>fold</b> over the 3D view.
-    <img src="../media/guides/papercraft-12.jpg" width="900" height="447" loading="lazy" alt="The fold slider over the 3D view, ringed, with the cow's panels half folded"></li>
-  </ol>
-  <p>Panels grow until they would overlap themselves or run off the sheet. Lamina also unfolds open surfaces, such as
-  a mask or a clothing pattern. For a shape with deep hollows, separate mode cuts every face alone.</p>
+  <ul class="map">
+    <li><b>1. Start here</b>The steps every job has: your model, its size, the checks, the files.
+    <a href="../3d-model-to-laser-cut/">Open</a></li>
+    <li><b>2. Your machine</b>Laser, router or 3D printer, the material and its thickness.
+    <a href="../laser-cnc-or-3d-printer/">Open</a></li>
+    <li class="here"><b>3. Your technique: this page</b>The settings of Folded Panels, and what each one changes.</li>
+  </ul>
 
-  <h2>Fifteen joints</h2>
+  <h2>Which shapes work</h2>
+  <p>Every closed shape, and open surfaces such as a mask or a clothing pattern. A low-poly model with large faces
+  is the easiest to fold. Hollows and undercuts give more seams, not errors. The sheet must fold: paper, card,
+  leather, thin metal. A sheet too thick to fold, such as plywood, gets a warning.</p>
+
+  <h2>Set the technique</h2>
+  <p>Every picture in these steps shows one model: the cow that the link opens. An orange ring with a label marks
+  the control to use. To use your own model, upload it on the <b>Model</b> tab:
+  <a href="../3d-model-to-laser-cut/">Start here</a> shows how.</p>
+  <ol class="steps">
+    <li>Open <a href="../app/index.html#folded/cow">Lamina on Folded Panels</a>. It opens with the cow unfolded into
+    panels. Click the <b>Technique</b> tab.
+    <img src="../media/guides/papercraft-1.jpg" width="900" height="479" loading="lazy" alt="Lamina with the cow in folded panels, the Technique tab ringed"></li>
+    <li>Set <b>face size</b>. Larger faces give fewer, simpler panels that are easier to fold. At 0, every face of
+    the model stays, as on this low-poly cow.
+    <img src="../media/guides/papercraft-2.jpg" width="900" height="331" loading="lazy" alt="The face size row at 0, ringed"></li>
+    <li>In <b>joint</b>, pick how the seams join. The joints are listed below.
+    <img src="../media/guides/papercraft-3.jpg" width="900" height="331" loading="lazy" alt="The joint row set to tab, ringed"></li>
+    <li>Keep <b>seam numbers</b> on. The two panels of a seam then carry the same number.
+    <img src="../media/guides/papercraft-4.jpg" width="900" height="331" loading="lazy" alt="The seam numbers row, ticked and ringed"></li>
+    <li>Read the <b>errors</b> and <b>warnings</b> under the 3D view after each change. The buttons under a message
+    fix it.
+    <img src="../media/guides/papercraft-5.jpg" width="900" height="331" loading="lazy" alt="The counts under the 3D view with the errors and warnings, ringed"></li>
+  </ol>
+
+  <h2>What each setting changes</h2>
+  <p>Each picture shows the same cow from the same side, with one setting changed. The label at the bottom gives
+  the counts that Lamina shows under the 3D view.</p>
+
+  <div class="setting">
+    <h3>face size</h3>
+    <p>How large the flat faces are. Lamina simplifies the model to this size before it unfolds it.</p>
+    <p class="also">Larger faces give fewer panels and fewer folds, and less of the shape. At 0, every face of this low-poly cow stays: 18 panels. At 45 mm it has 10 panels, and the legs and the horns are simpler. Joints need faces a few times larger than the joint.</p>
+    <figure><img src="../media/guides/papercraft-facet.jpg" width="900" height="490" loading="lazy" alt="The cow twice: face size 0 with 18 parts, face size 45 with 10 parts and a simpler shape, each on 1 sheet with 0 errors"></figure>
+  </div>
+
+  <div class="setting">
+    <h3>joint</h3>
+    <p>What closes a seam. The joint follows the material: glue tabs for paper, laces for leather, ribs for sheet
+    metal.</p>
+    <p class="also">The joint changes the number of parts. Glue tabs are part of the panels: 18 parts. Laces need only holes: 15 parts on this cow. Ribs are parts of their own: 100 parts, most of them small ribs. Some joints show more settings, such as <b>hole diameter</b>.</p>
+    <figure><img src="../media/guides/papercraft-joint.jpg" width="900" height="326" loading="lazy" alt="The cow three times: joint tab with 18 parts, joint laced with 15 parts, joint rib with 100 parts, each on 1 sheet with 0 errors"></figure>
+  </div>
+
+  <div class="setting">
+    <h3>windows in faces</h3>
+    <p>Opens every face with a window of its own shape, for light. 0 is no window, 1 is as large as the frame
+    allows.</p>
+    <p class="also">The number of panels stays, 18 on this cow. The frame round each window is never narrower than the <b>minimum feature width</b> on the Checks tab. With windows, put a light inside: the <b>Light</b> tab shows it.</p>
+    <figure><img src="../media/guides/papercraft-window.jpg" width="900" height="490" loading="lazy" alt="The cow twice: windows 0 with closed faces, windows 0.6 with a window in every face, 18 parts each"></figure>
+  </div>
+
+  <h3>More settings</h3>
+  <div class="table"><table>
+    <tr><th>Setting</th><th>What it does</th><th>It changes</th></tr>
+    <tr><td>hole diameter</td><td>The holes of rivet, laced, loops and strip joints.</td><td>It shows only with those joints. A small face gets smaller holes.</td></tr>
+    <tr><td>windows are</td><td><b>open</b>: the window is cut out. <b>paper</b>: a pane closes each window.</td><td>With <b>paper</b>, you also get a paper part for each window, and the Light tab shows the glow.</td></tr>
+    <tr><td>dashed fold lines</td><td>Fold lines as a dashed cut, not a score.</td><td>For thick material that does not fold on a score line.</td></tr>
+    <tr><td>thickness (Sheet &amp; fit)</td><td>The thickness of your sheet.</td><td>The check that the sheet can fold.</td></tr>
+    <tr><td>material (Sheet &amp; fit)</td><td>Paper, card, leather, sheet metal, or PLA and PETG.</td><td>With PLA or PETG, the panels print with a hinge at every fold: <a href="../3d-print-flat-parts/">3D print it as flat parts</a>.</td></tr>
+  </table></div>
+
+  <h2 id="joints">Fifteen joints</h2>
   <p>Glue tabs for paper and card. Laces and rivets for leather and cloth. Strips for cardboard. Slotted angle ribs for
   sheet metal. And more: tongues, puzzle tabs, loops and others, each with its own sizes. For printed panels,
   <a href="../3d-print-flat-parts/">click and snap</a> close the seams without glue.</p>
   <div class="cards">
-    <figure class="card"><img src="../media/joint_tab.png" width="1400" height="1050" loading="lazy" alt="The cut sheet of a cube net with glue tabs on the seams"><div><h3>Glue tabs</h3><p>paper and card</p></div></figure>
-    <figure class="card"><img src="../media/joint_laced.png" width="1400" height="1050" loading="lazy" alt="The cut sheet of a cube net with lace holes along the seams"><div><h3>Laces</h3><p>leather and cloth</p></div></figure>
-    <figure class="card"><img src="../media/joint_strip.png" width="1400" height="1050" loading="lazy" alt="The cut sheet of a cube net with connecting strips for the seams"><div><h3>Strips</h3><p>cardboard</p></div></figure>
-    <figure class="card"><img src="../media/joint_rib.png" width="1400" height="1050" loading="lazy" alt="The cut sheet of a cube net with slotted angle ribs for the seams"><div><h3>Angle ribs</h3><p>sheet metal and thick sheet</p></div></figure>
+    <figure class="card"><img src="../media/joint_tab.png" width="1400" height="1050" loading="lazy" alt="Two panels joined by a glue tab"><div><h3>Glue tabs</h3><p>paper and card</p></div></figure>
+    <figure class="card"><img src="../media/joint_laced.png" width="1400" height="1050" loading="lazy" alt="Two panels laced through holes"><div><h3>Laces</h3><p>leather and cloth</p></div></figure>
+    <figure class="card"><img src="../media/joint_strip.png" width="1400" height="1050" loading="lazy" alt="Two panels joined by a strip with holes"><div><h3>Strips</h3><p>cardboard</p></div></figure>
+    <figure class="card"><img src="../media/joint_rib.png" width="1400" height="1050" loading="lazy" alt="Two panels joined by a slotted angle rib"><div><h3>Angle ribs</h3><p>sheet metal and thick sheet</p></div></figure>
   </div>
   <p class="sub">All of them are on the <a href="../#folded">main page</a>.</p>
 
@@ -102,45 +133,56 @@
   <p>Lamina places the seams for you. To choose them yourself, use the <b>put a seam</b> tool of the 3D view: click an
   edge, or drag along edges. The sheet is cut apart there, and the panels are laid out round your seams.</p>
 
-  <h2>Paper lamps</h2>
-  <p>Add windows to the panels, then set <b>windows are</b> to <b>closed with paper</b>: you get a paper part for each
-  window, or a thin printed layer. <b>Merge</b> makes faces one flat face. Try the example <i>paper_lamp</i>, a lantern
-  of twelve dodecahedra. The Light tab shows the glow before you cut.</p>
-  <figure>
-    <img src="../app/static/news/0.4.0-paper-lamps.jpg" width="900" height="413" loading="lazy" alt="The paper_lamp example, a lantern of twelve dodecahedra, twice: its pentagon windows open, then closed with paper">
-  </figure>
+  <h2>Then: the machine, the checks and the files</h2>
+  <p>These steps are the same for every technique, so they have their own pages.</p>
+  <ol class="steps" start="6">
+    <li>On the <b>Sheet &amp; fit</b> tab, click <b>Laser</b>: it also covers knife cutters such as a Cricut, and
+    cutting by hand. Then choose your material and its thickness:
+    <a href="../laser-cnc-or-3d-printer/">Laser, router or 3D printer</a>.</li>
+    <li>Correct every error and download the files: <a href="../3d-model-to-laser-cut/#steps">Start here</a>, steps
+    10 to 13. To print the sheets on paper and cut them by hand, open <b>other formats</b> on the <b>Export</b> tab
+    and click <b>PDF</b>.</li>
+    <li>Fold the panels on the score lines and join the seams by their numbers. To see the panels fold up, drag
+    <b>fold</b> over the 3D view.
+    <img src="../media/guides/papercraft-6.jpg" width="900" height="447" loading="lazy" alt="The fold slider over the 3D view, half way: the panels of the cow partly folded"></li>
+  </ol>
 
-  <h2>Print it flat, fold it up</h2>
-  <p>With PLA or PETG as the material, a panel prints at its full thickness with a V groove along every fold. The thin
-  skin at the bottom of the groove is the hinge, and the fold stops at the model's shape. Add windows for a lamp
-  shade. Try the examples <i>fold_test</i> and <i>fold_lamp</i>.</p>
+  <h2>Three more examples to open</h2>
+  <p>These are other models. Each one is an example in Lamina: on the <b>Model</b> tab, click <b>example</b> and
+  pick its name.</p>
+  <h3>paper_lamp: windows closed with paper</h3>
+  <p>A lantern of twelve dodecahedra. Its windows are set to <b>paper</b>, and the <b>Light</b> tab shows the glow
+  before you cut.</p>
+  <figure><img src="../app/static/news/0.4.0-paper-lamps.jpg" width="900" height="413" loading="lazy" alt="The paper_lamp example twice: its windows open, and closed with paper, with the light on"></figure>
+  <h3>fold_lamp: printed flat, folded up</h3>
+  <p>A lamp shade printed as one flat panel, with a V groove along every fold.</p>
   <figure>
     <video src="../media/fold.mp4" poster="../media/fold_poster.jpg" width="1100" height="824" muted loop playsinline controls preload="none"
-           aria-label="A lamp shade printed as one flat panel with a window in every face: the panel folds up into the shade, turns, and unfolds again"></video>
-    <figcaption>A lamp shade printed as one flat panel, folding up.</figcaption>
+           aria-label="The fold_lamp example: a lamp shade printed as one flat panel with a window in every face folds up into the shade, turns, and unfolds again"></video>
   </figure>
-
-  <h2>Keep only a part: a mask</h2>
-  <p>Put a seam round the back of a head, select the back with one click and remove it. Only the mask is cut: the face
-  with its whole mane. Try the example <i>lion_head</i>.</p>
+  <h3>lion_head: keep only a part, a mask</h3>
+  <p>Put a seam round the back of the head, select the back with one click and remove it. Only the mask is cut: the
+  face with its whole mane.</p>
   <figure>
     <video src="../media/mask.mp4" poster="../media/mask_poster.jpg" width="1200" height="496" muted loop playsinline controls preload="none"
-           aria-label="A carved lion head: a seam round the back of the head, the back selected and removed, and the face with its mane is the mask"></video>
+           aria-label="The lion_head example: a seam round the back of the head, the back selected and removed, and the face with its mane is the mask"></video>
   </figure>
+
   <div class="cta">
-    <a class="btn" href="../app/index.html#folded">Open Lamina on Folded Panels</a>
+    <a class="btn" href="../app/index.html#folded/cow">Open Lamina on Folded Panels</a>
     <a class="btn ghost" href="../#folded">More about folded panels</a>
   </div>
 </main>
 <footer><div class="wrap">
   <nav aria-label="All guides">
     <a href="../">Lamina home</a>
-    <a href="../3d-model-to-laser-cut/">3D model to laser cut</a>
-    <a href="../slicer-for-fusion-360-alternative/">Slicer for Fusion 360 alternative</a>
+    <a href="../3d-model-to-laser-cut/">Start here</a>
+    <a href="../laser-cnc-or-3d-printer/">Laser, router or printer</a>
+    <a href="../3d-print-flat-parts/">3D printing</a>
     <a href="../stacked-slices/">Stacked slices</a>
     <a href="../interlocking-slices/">Interlocking slices</a>
-    <a href="../papercraft/">Papercraft</a>
-    <a href="../3d-print-flat-parts/">3D print flat parts</a>
+    <a href="../papercraft/">Folded panels and papercraft</a>
+    <a href="../slicer-for-fusion-360-alternative/">Compared with Slicer for Fusion 360</a>
   </nav>
   Lamina is free software under the AGPL-3.0 ·
   <a href="https://github.com/marcelfarres/lamina">GitHub</a> ·
