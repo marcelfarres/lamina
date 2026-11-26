@@ -1,6 +1,7 @@
 """Physical-world checks on the finished 2D geometry. Errors = will not work; warnings = look at it.
 Every message says what is wrong AND what to do about it; `suggest_fixes` turns the common ones into one-click options."""
 from __future__ import annotations
+import copy
 import math
 
 import numpy as np
@@ -12,7 +13,7 @@ from shapely.ops import unary_union
 from shapely.strtree import STRtree
 
 from .model import Issue, LOOSE, kind_of
-from .geometry import (crossings, dowel_leverage, hole_reach, into, min_dims, plane_plane_line, rect_along, thin_spots,
+from .geometry import (crossings, dowel_leverage, each, hole_reach, into, min_dims, plane_plane_line, rect_along, thin_spots,
                        to_local, to_world)
 
 HELD_GROUPS = ("X", "Y", "Z", "R", "C", "W")     # regions in these groups must be held by a slot / dowel / the core ("W" = a plaque's back plate)
@@ -219,14 +220,22 @@ def check_insertion(slices, p):
 
 def check_plan(slices, p, mesh=None, span=None):
     """Every check on freshly built slices; what the technique already said on a slice stays."""
-    for sl in slices:
-        check_slice(sl, p)
+    for sl, (errors, warnings) in zip(slices, each(lambda sl: _checked(sl, p), slices)):
+        sl.errors.extend(errors); sl.warnings.extend(warnings)
     check_insertion(slices, p)
     check_assembly(slices, p)
     if mesh is not None:
         check_collisions(slices, mesh, span or 4 * max(mesh.extents))
     errs = sum(len(s.errors) for s in slices); warns = sum(len(s.warnings) for s in slices)
     return errs, warns
+
+
+def _checked(sl, p):
+    """What check_slice finds on `sl`, as (errors, warnings). It reads that slice alone, so the slices are checked side
+    by side, each on a copy with lists of its own: the findings are added to the slices in slice order, as before."""
+    own = copy.copy(sl); own.errors, own.warnings = [], []
+    check_slice(own, p)
+    return own.errors, own.warnings
 
 
 def _line_meets_both(a, b):
