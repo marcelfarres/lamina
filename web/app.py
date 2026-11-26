@@ -9,7 +9,8 @@ GET  /api/modes        mode schemas (drive the form)
 GET  /api/examples     bundled test models
 GET  /api/project      {version}: the project file layout this server writes (and the page saves)
 GET  /api/session?client=<id>                                                  → what that client sliced last
-GET  /api/progress?client=<id>                                                 → the stage the client's slice is in
+GET  /api/progress?client=<id>                                                 → the stage the client's slice is in; model and
+                       parts: where its preview mesh and its parts before nesting (the plan with `partial`: true) are, once written
 GET  /api/job/{client}/{job}/export?fmt=svg,dxf,pdf,eps&labels=1&per_piece=0&grouped=1   → zip of cut files
 GET  /api/job/{client}/{job}/stl?part=<label>                                  → assembled solid (or one part) as STL
 GET  /api/job/{client}/{job}/step?part=<label>                                 → the same as STEP: true solids for CAD
@@ -118,7 +119,18 @@ def model_b64(jd):
     return {"name": model_name(jd), "b64": base64.b64encode(src.read_bytes()).decode()}
 
 
-app = FastAPI(title="Lamina")
+@contextlib.asynccontextmanager
+async def serving(_app):
+    """The parts before nesting go to the page only while the app is served (_parts): a process that just imports this
+    module — the tests, the browser build, which puts in its own — keeps core's no-op, and its builds make no second plan."""
+    before, build_progress.parts = build_progress.parts, _parts
+    try:
+        yield
+    finally:
+        build_progress.parts = before
+
+
+app = FastAPI(title="Lamina", lifespan=serving)
 
 # Where the build is up to, so the page can say "sectioning 12 / 29 · 48 %" instead of "slicing…" for a minute. A
 # slice runs in the threadpool, one build per thread, so the file to write to rides on the thread that is building.
@@ -134,23 +146,46 @@ class Superseded(Exception):
     """A newer slice of the same client started: nobody is waiting for this one's answer."""
 
 
-def _report(text, frac, artifact=None):
+def _superseded():
     if getattr(_building, "client", None) and _latest.get(_building.client) != _building.n:
         raise Superseded
+
+
+def _url(path):
+    """A file the build has written under the jobs tree, as the page fetches it: a new URL each time it is written."""
+    return f"/jobs/{pathlib.Path(path).resolve().relative_to(JOBS.resolve()).as_posix()}?v={int(time.time() * 1000)}"
+
+
+def _report(text, frac, artifact=None):
+    _superseded()
     f = getattr(_building, "file", None)
     if f:
         if artifact:              # a file the build has already written, under the jobs tree: the page can fetch it
-            rel = pathlib.Path(artifact).resolve().relative_to(JOBS.resolve()).as_posix()
-            _building.model = f"/jobs/{rel}?v={int(time.time() * 1000)}"
+            _building.model = _url(artifact)
+        _building.stage = text, frac
         d = {"progress": text, "frac": frac}
-        # it stays in every later stage too: the page reads this file twice a second, and the stage that wrote the
-        # mesh is over in milliseconds — announced once, it would be missed nearly every time
-        if getattr(_building, "model", None):
-            d["model"] = _building.model
+        # the mesh and the parts stay in every later stage too: the page reads this file twice a second, and the stage
+        # that wrote the mesh is over in milliseconds — announced once, it would be missed nearly every time
+        for k in ("model", "parts"):
+            if getattr(_building, k, None):
+                d[k] = getattr(_building, k)
         # two slices of one client at once share this file, and a stage half written is not worth failing a build
         # over: all it ever does is draw a progress bar
         with contextlib.suppress(OSError):
             f.write_text(json.dumps(d))
+
+
+def _parts(plan):
+    """The parts, cut and not yet nested (core.progress.parts), beside the job for the 3D view: it draws them while
+    the sheets are laid out, nearly half of a slice. Announced at once, in the stage under way: the next stage comes
+    only once the nesting is done. A newer slice of the page stops this one here, before its parts are written."""
+    _superseded()
+    jd = getattr(_building, "job", None)
+    if jd:
+        text = json.dumps(plan)                    # now: the build's own lists grow after this call
+        if swap_in(lambda tmp: tmp.write_text(text), jd / "parts.json"):   # beside, then swapped in: the page may still be reading the last one
+            _building.parts = _url(jd / "parts.json")
+            _report(*_building.stage)
 
 
 build_progress.report = _report
@@ -527,6 +562,7 @@ def slice_model(client: str = Form(...), mode: str = Form(...), params: str = Fo
     t0 = time.time()
     _building.file = cd / "progress.json"          # this thread's build reports its stages here, for /api/progress
     _building.model = None                         # …and the preview mesh, once this build has written it
+    _building.job, _building.parts = jd, None      # …and its parts, before they are nested: beside the job
     _building.client, _building.n = client, n      # …and which slice it is, so a newer one can stop it
     try:
         prm = json.loads(params or "{}")
@@ -537,7 +573,7 @@ def slice_model(client: str = Form(...), mode: str = Form(...), params: str = Fo
     except Exception as e:
         raise HTTPException(500, f"{type(e).__name__}: {e}") from e
     finally:
-        _building.file = _building.client = None   # the thread goes back to the pool: the next request on it is not this one
+        _building.file = _building.client = _building.job = None   # the thread goes back to the pool: the next request on it is not this one
         with contextlib.suppress(OSError):        # another slice of this client's may still hold it open
             (cd / "progress.json").unlink(missing_ok=True)
     W, H = plan["sheet"]

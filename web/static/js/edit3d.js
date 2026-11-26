@@ -13,7 +13,8 @@ import {faceClick, setFaceMode} from './faces.js';
 // selection, gizmo, drag editing
 let down=null, drag=null;
 function ndc(ev){const r=renderer.domElement.getBoundingClientRect();return new THREE.Vector2(((ev.clientX-r.left)/r.width)*2-1,-((ev.clientY-r.top)/r.height)*2+1)}
-export function hit(ev){ray.setFromCamera(ndc(ev),camera);const g=ray.intersectObjects(gizmo.children);if(g.length)return g[0];   // the arrow wins even when a part is in front of it
+export function hit(ev){if(ST.partial)return null;   // parts drawn before their plan (scene.js render3D): nothing to take hold of yet
+  ray.setFromCamera(ndc(ev),camera);const g=ray.intersectObjects(gizmo.children);if(g.length)return g[0];   // the arrow wins even when a part is in front of it
   const cp=ray.intersectObjects(guides.children.filter(o=>o.userData.cp!==undefined||o.userData.ax!==undefined||o.userData.axline!==undefined));if(cp.length)return cp[0];   // curve points, axis rods and ends too: they draw on top, so they pick on top
   // rotation rings (Model tab only), and not while a slice runs: they are the last model's size then, and a drag meant
   // to turn the view caught one and stood the new model on its head (reported on the statue, picked from the list)
@@ -341,6 +342,7 @@ renderer.domElement.addEventListener('pointerup',ev=>{const k=keys(ev);
     if(Math.abs(d.delta)>0.05){const k=d.mode,cur=state[k]?.[ST.selected]||0,st=niceStep(0.1*UNIT[ST.unit]);setEdit(k,cur+(k==='offset'?toMM(Math.round(d.delta*UNIT[ST.unit]/st)*st):Math.round(d.delta)))}else applyExplode();return}
   if(!down||Math.hypot(ev.clientX-down.x,ev.clientY-down.y)>10)return;
   if(down.cube){const cv=cubeHit(ev);if(cv)viewFrom(cv);return}
+  if(ST.partial)return;   // and no click: it would select, deselect or edit by a plan that is not the one drawn
   if(seamClick(ev)||faceClick(ev))return;   // the seam and the face tool: a click is for an edge or a face, never for a part
   const h=hit(ev);if(h&&(h.object.userData.gizmo||h.object.userData.ring!==undefined))return;
   if(h&&(h.object.userData.ax!==undefined||h.object.userData.axline!==undefined)){if(k.altKey){const list=axisList(),i=h.object.userData.ax?h.object.userData.ax.i:h.object.userData.axline;   // alt-click an axis or its end: drop that fan (the last one stays — a radial job has to turn about something) or that branch

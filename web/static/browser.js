@@ -25,10 +25,12 @@
         if (running?.stale) { worker.terminate(); running.res(REPLACED); running = null; worker = w } else w.terminate();
         spare = null; pump(); return;
       }
-      // a slice under way; a mesh riding along is one the build has finished with, shown before the rest of it
+      // a slice under way; a mesh or the parts riding along are what the build has finished with, shown before the rest
+      // of it (the page fetches each once and lets it go)
       if (m.frac !== undefined) {
-        if (running.stale) return;                                      // replaced: its stages and its mesh are not the page's
+        if (running.stale) return;                                      // replaced: its stages, mesh and parts are not the page's
         if (m.model instanceof Uint8Array) m.model = URL.createObjectURL(new Blob([m.model]));
+        if (m.parts) m.parts = URL.createObjectURL(new Blob([m.parts], {type: 'application/json'}));
         window.dispatchEvent(new CustomEvent('lamina-progress', {detail: m}));
         return;
       }

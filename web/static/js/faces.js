@@ -58,6 +58,7 @@ export function syncFaces(){const n=sel.size, kept=(state.removed||[]).length, o
   for(const e of $$('.face_gone'))e.textContent=kept?`${off} removed`:'none removed';
   for(const b of $$('[data-faces="back"]'))b.disabled=!kept}
 function under(ev){   // what the pointer is on: {ghost} a removed face, {face} a face of the model, or null
+  if(ST.partial)return null;   // the parts drawn are not the faces' plan yet
   const r=renderer.domElement.getBoundingClientRect(); ray.setFromCamera(new THREE.Vector2((ev.clientX-r.left)/r.width*2-1,-(ev.clientY-r.top)/r.height*2+1),camera);
   const g=ray.intersectObject(ghostPick)[0], h=ray.intersectObjects(parts.children.filter(m=>m.visible))[0];
   if(g&&(!h||g.distance<h.distance))return {ghost:g.faceIndex};

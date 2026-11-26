@@ -125,6 +125,7 @@ export async function openGuide(el){
   if(!ST.plan?.slices?.length)return status('nothing to build yet');
   const tab=window.open('','_blank'); if(!tab)return status('the browser stopped the new tab: allow pop-ups for this page');
   const txt=el.textContent; el.textContent='building the guide…'; await new Promise(r=>setTimeout(r,30));   // the text shows before the pictures block the page
+  while(ST.partial)await new Promise(r=>setTimeout(r,200));   // the 3D view has a slice's parts before its plan: the pictures wait for it
   try{const html=guideHtml(); tab.location.href=URL.createObjectURL(new Blob([html],{type:'text/html'})); ST.countUse?.('export','guide')}
   catch(e){tab.close(); status('could not build the guide: '+e.message)}
   finally{el.textContent=txt}

@@ -65,40 +65,40 @@ export function applyLook(){const k=$('#look').value,op=+$('#opacity').value;for
   if(k!=='group'&&!m.userData.bad&&STRIPED.includes(m.userData.group)){const h={};col.getHSL(h,THREE.SRGBColorSpace);col.setHSL(h.h,h.s,h.l>.5?h.l-.3:h.l+.3,THREE.SRGBColorSpace)}
   const tr=m.userData.group==='F'&&op<1;m.material.transparent=tr;m.material.opacity=tr?op:1;m.material.depthWrite=!tr}ST.dirty=true}
 // rotation rings (OrcaSlicer-style): drag a ring to turn the whole model about that axis
-function renderRings(){
+function renderRings(plan){
   rings.clear();
-  const L=Math.max(...ST.plan.bbox)*0.62;
+  const L=Math.max(...plan.bbox)*0.62;
   for(const [i,col] of [[0,0xff5c5c],[1,0x5cff7a],[2,0x5c9cff]]){const r=new THREE.Mesh(new THREE.TorusGeometry(L,L*0.012,8,96),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.55,depthTest:false}));
     if(i===0)r.rotation.y=Math.PI/2;else if(i===1)r.rotation.x=Math.PI/2; r.userData.ring=i;r.renderOrder=9;rings.add(r)}
 }
 function label3d(text,color,mid){const c=document.createElement('canvas');c.width=64;c.height=32;const g=c.getContext('2d');g.font='bold 26px sans-serif';g.fillStyle=color;g.textAlign=mid?'center':'left';g.fillText(text,mid?32:6,26);const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false}));return s}
-function renderAxes(){ // world axes at the model's corner with X/Y/Z labels + dowel rods (stacked)
-  axes.clear(); const L=Math.max(...ST.plan.bbox)*0.6, o=new THREE.Vector3(-ST.plan.bbox[0]/2,-ST.plan.bbox[1]/2,-ST.plan.bbox[2]/2).multiplyScalar(1.15);
+function renderAxes(plan){ // world axes at the model's corner with X/Y/Z labels + dowel rods (stacked)
+  axes.clear(); const L=Math.max(...plan.bbox)*0.6, o=new THREE.Vector3(-plan.bbox[0]/2,-plan.bbox[1]/2,-plan.bbox[2]/2).multiplyScalar(1.15);
   for(const [i,col,name] of [[0,0xff5c5c,'X'],[1,0x5cff7a,'Y'],[2,0x5c9cff,'Z']]){const dir=new THREE.Vector3(i===0?1:0,i===1?1:0,i===2?1:0);
     axes.add(new THREE.ArrowHelper(dir,o,L,col,L*.12,L*.06));const s=label3d(name,'#'+col.toString(16).padStart(6,'0'));s.position.copy(o).addScaledVector(dir,L*1.12);s.scale.set(L*.16,L*.08,1);axes.add(s)}
   // a rod is its hole's own section (round, square, hexagon, cross, slot) swept from end to end, turned as its slice is
   const rod=(A,z,x,sec,len,color)=>{const m=new THREE.Mesh(new THREE.ExtrudeGeometry(new THREE.Shape(sec.map(([u,v])=>new THREE.Vector2(u,v))),{depth:len,bevelEnabled:false}),new THREE.MeshStandardMaterial({color,roughness:.6}));
     m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x,z.clone().cross(x),z));m.position.copy(A);axes.add(m)};
-  for(const [a,b,,sec,xa] of ST.plan.rods||[]){const A=V3(a),z=V3(b).sub(A),len=z.length();rod(A,z.normalize(),V3(xa),sec,len,0xc8b48a)}
+  for(const [a,b,,sec,xa] of plan.rods||[]){const A=V3(a),z=V3(b).sub(A),len=z.length();rod(A,z.normalize(),V3(xa),sec,len,0xc8b48a)}
   // a printed standoff: a pin into each layer (a flush one where the hole is its own), and the body that keeps the two apart
-  const so=ST.plan.standoffs, pin=f=>f?so.flush:so.pin;
+  const so=plan.standoffs, pin=f=>f?so.flush:so.pin;
   for(const e of so?.items||[]){const A=V3(e.at),z=V3(e.z),x=V3(e.x),at=d=>A.clone().addScaledVector(z,d);
     rod(at(-e.pins[0]),z,x,pin(e.flush[0]),e.pins[0],0xe8e8ee); rod(at(e.gap),z,x,pin(e.flush[1]),e.pins[1],0xe8e8ee); if(e.gap>0)rod(A,z,x,so.body,e.gap,0xe8e8ee)}
   // where a connector that was asked for found no room (the warning says how many): a crossed ring, seen through the parts
-  for(const q of ST.plan.left_out||[]){const s=label3d('⊗','#f5b642',true);s.position.copy(V3(q));s.scale.set(L*.2,L*.1,1);s.renderOrder=10;axes.add(s)}
-  renderRings();
+  for(const q of plan.left_out||[]){const s=label3d('⊗','#f5b642',true);s.position.copy(V3(q));s.scale.set(L*.2,L*.1,1);s.renderOrder=10;axes.add(s)}
+  renderRings(plan);
 }
 export function placeRod(rod,A,B){rod.position.copy(A).lerp(B,.5);rod.scale.set(1,Math.max(A.distanceTo(B),1e-3),1);rod.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),B.clone().sub(A).normalize())}
-function renderGuides(){
-  guides.clear(); renderAxes();
+function renderGuides(plan){
+  guides.clear(); renderAxes(plan);
   // the curve and its control points run through the middle of the model, so they draw on top of it (like the gizmo):
   // otherwise the ribs hide the very thing alt-click edits
   const onTop=o=>{o.material.depthTest=false;o.renderOrder=2;return o};
   // radial's fan axes where they pass through the model, curve's branches — a rod you can drag whole, a handle at each end. The
   // plan sends the axes it actually used, so the single default one can be taken hold of before `axes` has ever
   // been filled in
-  const hr=Math.max(...ST.plan.bbox)*0.014+1;
-  (ST.plan.axes3d||[]).forEach((seg,i)=>{
+  const hr=Math.max(...plan.bbox)*0.014+1;
+  (plan.axes3d||[]).forEach((seg,i)=>{
     const A=V3(seg[0]),B=V3(seg[1]);
     const rod=onTop(new THREE.Mesh(new THREE.CylinderGeometry(hr*.35,hr*.35,1,8),new THREE.MeshBasicMaterial({color:0x4fd1ff,transparent:true,opacity:.8})));
     rod.userData.axline=i; placeRod(rod,A,B); guides.add(rod);
@@ -107,12 +107,12 @@ function renderGuides(){
       s.userData.ax={i,e}; s.position.copy(P); guides.add(s);
     }
   });
-  if(!ST.plan.curve3d)return;
-  guides.add(onTop(new THREE.Line(new THREE.BufferGeometry().setFromPoints(ST.plan.curve3d.map(V3)),new THREE.LineBasicMaterial({color:0xff9a3c}))));
-  const idx=PLANE_IDX[state.plane||'xz'], mid=V3(ST.plan.mid), r=Math.max(...ST.plan.bbox)*0.012+1;
+  if(!plan.curve3d)return;
+  guides.add(onTop(new THREE.Line(new THREE.BufferGeometry().setFromPoints(plan.curve3d.map(V3)),new THREE.LineBasicMaterial({color:0xff9a3c}))));
+  const idx=PLANE_IDX[state.plane||'xz'], mid=V3(plan.mid), r=Math.max(...plan.bbox)*0.012+1;
   const wi=3-idx[0]-idx[1];   // the plane's normal axis: the point sits where the body's centre is across the plane
-  (ST.plan.curve_pts||[]).forEach(([u,v,w=0],i)=>{const s=onTop(new THREE.Mesh(new THREE.SphereGeometry(r*1.5,12,8),new THREE.MeshBasicMaterial({color:0x4f8cff})));s.userData.cp=i;   // a handle: drag it in the curve's plane
-    s.position.copy(mid).addScaledVector(V3(ST.plan.axes[idx[0]]),u).addScaledVector(V3(ST.plan.axes[idx[1]]),v).addScaledVector(V3(ST.plan.axes[wi]),w);guides.add(s)})
+  (plan.curve_pts||[]).forEach(([u,v,w=0],i)=>{const s=onTop(new THREE.Mesh(new THREE.SphereGeometry(r*1.5,12,8),new THREE.MeshBasicMaterial({color:0x4f8cff})));s.userData.cp=i;   // a handle: drag it in the curve's plane
+    s.position.copy(mid).addScaledVector(V3(plan.axes[idx[0]]),u).addScaledVector(V3(plan.axes[idx[1]]),v).addScaledVector(V3(plan.axes[wi]),w);guides.add(s)})
 }
 // Diagonal stripes on the second family of a technique (STRIPED): two families differ by pattern, not only by colour
 // (the owner is colour-blind, and the old red rings between green half-slices were one colour to him). On the faces'
@@ -128,13 +128,19 @@ export const paper=new THREE.MeshLambertMaterial({color:0xfff1d0});
 // The window a paper part goes in, hatched on its pane (null: none). Its pane's triangles are drawn in the second material
 export function markPane(label){for(const m of parts.children){const p=m.userData.pane;if(!p)continue;p.geometry.clearGroups();
   p.userData.ranges.forEach(([o,n],j)=>p.geometry.addGroup(o,n,label&&p.userData.labels[j]===label?1:0))}ST.dirty=true}
-export function render3D(modelUrl){
-  parts.clear(); let i=0; for(const t of [STRIPES,ACROSS])t.repeat.setScalar(20/Math.max(...ST.plan.bbox));
-  for(const s of ST.plan.slices)for(const pc of s.pieces){
+// `plan`: what to draw, ST.plan unless it is a slice's parts before they are nested (`partial`, from slice.js). Then
+// only the scene is the new slice's: ST.plan, which the report, the sheets and every tool read, is still the last
+// whole plan, so picking is off (ST.partial: edit3d.js) and the selection's handles, the seams and the faces wait for
+// it. Without a plan (the first slice failed after its parts were drawn) the scene goes back to the model alone.
+export function render3D(modelUrl,plan=ST.plan){
+  parts.clear(); ST.partial=!!plan?.partial;
+  if(!plan){guides.clear();axes.clear();rings.clear();ST.dirty=true;return}
+  let i=0; for(const t of [STRIPES,ACROSS])t.repeat.setScalar(20/Math.max(...plan.bbox));
+  for(const s of plan.slices)for(const pc of s.pieces){
     const geos=[],own=[],panes=[],pown=[],plab=[];   // own: the facet each solid was extruded from, for the fold slider (pown: each pane's; plab: its paper part)
     pc.facets.forEach((fc,fi)=>{for(const r of fc.rings){
       // a printed panel's face is drawn as it is exported: in layers, each set in from its grooved edges by what the V takes at that height
-      const t=fc.t||s.thickness,n=fc.bevel?6:1,skin=ST.plan.params.hinge||0;   // fc.t: a thin printed tab
+      const t=fc.t||s.thickness,n=fc.bevel?6:1,skin=plan.params.hinge||0;   // fc.t: a thin printed tab
       for(let j=0;j<n;j++){const z=-t/2+(j+.5)*t/n;let ext=r[0];
         for(const [x0,y0,x1,y1,w,side] of fc.bevel||[]){const d=w*Math.min(1,Math.max(0,(side>0?t/2-skin-z:z+t/2-skin)/(t-skin)));if(d>1e-6)ext=clipEdge(ext,x0,y0,x1,y1,d)}
         if(ext.length<3)continue;
@@ -160,7 +166,7 @@ export function render3D(modelUrl){
   // the plane between two lobes, or at a branch's joint, is a part too — translucent, outside the build order (i = -1 keeps it on every
   // step) — so the one select / arrow / shift / ctrl-drag and the sliders move and tilt it, and the plan's per-slice
   // offset / tilt / roll carry the edit under its label
-  for(const b of ST.plan.bounds3d||[]){
+  for(const b of plan.bounds3d||[]){
     // Into the geometry, exactly like the slices above — never onto the mesh. Everything that moves a part (the
     // gizmo, the sliders, the live preview) starts by clearing the mesh's own position and rotation, because for a
     // slice those hold nothing but the explode offset. A lobe plane that kept its frame there lost it at the first
@@ -171,22 +177,23 @@ export function render3D(modelUrl){
     m.userData={slice:b.label,piece:b.label,group:'B',i:-1,origin:new THREE.Vector3(b.M[0][3],b.M[1][3],b.M[2][3]),normal:new THREE.Vector3(b.M[0][2],b.M[1][2],b.M[2][2]),bad:false};
     parts.add(m);
   }
-  applyLook(); renderGuides();
+  applyLook(); renderGuides(plan);
   // a folded job folds up at the end of its build order: FOLD_STEPS more steps after the last part is in
   nParts=i; const max=i+(parts.children.some(m=>m.userData.fold)?FOLD_STEPS:0);
   $('#steps').max=max; $('#steps').value=max; applyExplode(); applyFold();
   if(!ST.ghostLive)showGhost(modelUrl);   // already shown mid-build: the same mesh, and fetching it again is not free
-  clipGhost();
+  clipGhost(plan);
   ghost.visible=$('#ghost').checked; ST.light();
-  if(ST.selected){const m=parts.children.find(c=>c.userData.slice===ST.selected);m?highlight(m):deselect()}
-  renderSeams(); renderFaces();
-  if(!ST.fitted){fitView();ST.fitted=true}
+  if(ST.partial){gizmo.clear();for(const c of parts.children)if(c.userData.slice===ST.selected)c.material.emissive.set(0x664400)}   // still lit as selected
+  else{if(ST.selected){const m=parts.children.find(c=>c.userData.slice===ST.selected);m?highlight(m):deselect()}
+    renderSeams(); renderFaces()}
+  if(!ST.fitted){fitView(plan);ST.fitted=true}
 }
 // The translucent model behind the parts, loaded on its own: the build finishes with the mesh a second or two in and
 // says so, so the 3D view fills with your model while the slices are still being worked out instead of staying empty
 // until the last sheet is nested. Until there are parts, the view frames the model itself.
 // A plaque leaves out what is behind its plate: the ghost is cut at the plate's front face (plan.clip = [point, normal]).
-function clipGhost(){const c=ST.plan?.clip, pl=c?[new THREE.Plane(new THREE.Vector3(...c[1]),-(c[0][0]*c[1][0]+c[0][1]*c[1][1]+c[0][2]*c[1][2]))]:null;
+function clipGhost(plan=ST.plan){const c=plan?.clip, pl=c?[new THREE.Plane(new THREE.Vector3(...c[1]),-(c[0][0]*c[1][0]+c[0][1]*c[1][1]+c[0][2]*c[1][2]))]:null;
   renderer.localClippingEnabled=true; for(const m of ghost.children){m.material.clippingPlanes=pl;m.material.needsUpdate=true} ST.dirty=true}
 export function showGhost(modelUrl){
   if(!modelUrl||modelUrl===ghostUrl)return;
@@ -229,11 +236,11 @@ function mergeGeos(geos){   // uv too: the extrusion's own, in mm, for the ring 
 // it): a model's ghost lands before its plan, while ST.plan is still the last model's, so the ghost alone is seen from
 // the standard side
 const EYE=new THREE.Vector3(.7,-1,.6);   // where the standard view looks from, before it is scaled to the model
-export function fitPose(){const P=parts.children.length, b=new THREE.Box3().setFromObject(P?parts:ghost);if(b.isEmpty())return null;const c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3()).length();
-  const dir=EYE.clone(), back=P&&ST.plan?.mode==='plaque'&&ST.plan.params.back;
+export function fitPose(plan=ST.plan){const P=parts.children.length, b=new THREE.Box3().setFromObject(P?parts:ghost);if(b.isEmpty())return null;const c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3()).length();
+  const dir=EYE.clone(), back=P&&plan?.mode==='plaque'&&plan.params.back;
   if(back){const k='xyz'.indexOf(back[1]);dir.setComponent(k,(back[0]==='-'?1:-1)*Math.abs(dir.getComponent(k)))}
   return {c,s,eye:c.clone().add(dir.normalize().multiplyScalar(s*1.5))}}
-function fitView(){const p=fitPose();if(!p)return;const {c,s,eye}=p;controls.target.copy(c);camera.position.copy(eye);
+function fitView(plan){const p=fitPose(plan);if(!p)return;const {c,s,eye}=p;controls.target.copy(c);camera.position.copy(eye);
   // close enough to read a slot, never onto the point it turns about (from 0 no zoom ever comes back), never so far the
   // model is lost; the clipping planes outside both, so nothing is cut away at either end
   controls.minDistance=s/40;controls.maxDistance=s*8;camera.near=s/200;camera.far=s*20;camera.updateProjectionMatrix()}
@@ -313,7 +320,7 @@ export function applyExplode(){const e=+$('#explode').value,st=$('#steps'),k=+st
   const going=k<+st.max&&parts.children.find(m=>m.userData.i===k-1);
   showBanner(going?`step ${k} / ${+st.max}  ·  ${(ST.plan&&ST.plan.label_tag?ST.plan.label_tag+' ':'')}${going.userData.piece}`:folding&&k<+st.max?`step ${k} / ${+st.max}  ·  folding ${Math.round(share*100)} %`:'');
   $('#steps_val').textContent=`${k} / ${+st.max||0}`;   // the step counter, live while the slider is dragged
-  const s=ST.selected&&parts.children.find(c=>c.userData.slice===ST.selected); if(s)drawGizmo(s);   // the handles ride with the part
+  const s=!ST.partial&&ST.selected&&parts.children.find(c=>c.userData.slice===ST.selected); if(s)drawGizmo(s);   // the handles ride with the part (the whole plan's)
   applySection(); showSeamLines(); showFaces(); ST.light()}
 $('#explode').oninput=$('#steps').oninput=applyExplode; $('#fold').oninput=applyFold; $('#ghost').onchange=()=>{ghost.visible=$('#ghost').checked;ST.dirty=true}; $('#fit').onclick=()=>{fitView();ST.dirty=true}; $('#look').onchange=$('#opacity').oninput=applyLook;
 // The build order as a video: the steps slider played into a MediaRecorder reading the canvas the view already
