@@ -11,11 +11,12 @@ WATCH = """async () => { const {ST} = await import('/static/js/state.js'), S = a
   const drawn = () => [...new Set(S.parts.children.filter(m => m.userData.group !== 'B').map(m => m.userData.slice))].sort().join(' ');
   const planned = () => ST.plan.slices.map(s => s.label).sort().join(' ');
   const c = __t.canvas().getBoundingClientRect(), x = (c.left + c.right) / 2, y = (c.top + c.bottom) / 2;
+  const busy = document.getElementById('busy'), strip = () => busy.classList.contains('early') && busy.getBoundingClientRect().height < 60;
   const before = drawn(); let started = false, early = null;
   window.__watch = new Promise(done => (function look() {
     started ||= ST.busy;
-    if (started && ST.busy && !early && drawn() !== before) early = {drawn: drawn(), plan: planned(), partial: !!ST.partial, hit: __t.hitAt(x, y)};
-    if (started && !ST.busy) return done({before, early, after: drawn(), plan: planned(), partial: !!ST.partial, hit: __t.hitAt(x, y)});
+    if (started && ST.busy && !early && drawn() !== before) early = {drawn: drawn(), plan: planned(), partial: !!ST.partial, hit: __t.hitAt(x, y), strip: strip()};
+    if (started && !ST.busy) return done({before, early, after: drawn(), plan: planned(), partial: !!ST.partial, hit: __t.hitAt(x, y), strip: busy.classList.contains('early')});
     requestAnimationFrame(look) })());
   return before }"""
 
@@ -38,5 +39,6 @@ def test_the_3d_view_shows_the_parts_before_the_sheets(page):
     assert early["drawn"] == seen["after"] == seen["plan"] != before     # the new slice's layers, the same ones the answer drew
     assert early["plan"] == before and early["partial"]                 # while everything else still read the last whole plan
     assert early["hit"] is None and seen["hit"]                         # a click took hold of nothing, and does again once it is done
+    assert early["strip"] and not seen["strip"]                         # the overlay was a low strip under the parts, and is gone
     assert not seen["partial"] and "partial" not in done and done["sheets"] >= 1 and done["timing"]
     assert not errors and not page.errors, (errors, page.errors)
