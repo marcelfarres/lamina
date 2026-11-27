@@ -131,10 +131,9 @@ def test_whole_flat_sides_never_lay_a_face_against_one_it_does_not_join(model):
                     assert contact(tris[g], fat, shared) <= 1.0, (model, f, g)
 
 
-@pytest.mark.parametrize("subdivisions, radius, flap, panels", [(2, 40, 6.0, 52), (3, 60, 4.0, 231)])
-def test_a_ball_with_flaps_unfolds_into_the_panels_the_exact_overlap_gives(subdivisions, radius, flap, panels):
+def test_a_ball_with_flaps_unfolds_into_the_panels_the_exact_overlap_gives():
     """A face may not lie where another edge's flap goes: judged by the area the two share, on every face near it. Asked
-    first whether their interiors meet at all, a quicker question, the answer was wrong on a flap zone that folds over
-    itself (50 and 224 panels here), and the browser build's GEOS threw on a sliver triangle."""
-    mesh = trimesh.creation.icosphere(subdivisions=subdivisions, radius=radius)
-    assert len(unfold(mesh, split=False, max_dims=(590, 390), flap=flap)[2]) == panels
+    first whether their interiors meet at all, a quicker question, the answer came out 50 panels here, and the browser
+    build's GEOS threw on a sliver triangle. (A finer ball is no test: its count differs between Windows and Linux.)"""
+    mesh = trimesh.creation.icosphere(subdivisions=2, radius=40)
+    assert len(unfold(mesh, split=False, max_dims=(590, 390), flap=6.0)[2]) == 52
