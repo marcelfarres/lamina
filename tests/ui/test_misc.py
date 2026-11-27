@@ -50,7 +50,10 @@ def test_what_is_new_shows_itself_once_when_the_version_changes(page, server):
     # fix must not hide the release it fixed
     reload_with(versions[2])
     assert page.locator("#newsdlg[open]").count(), "a new version did not announce itself"
-    assert page.locator("#news_tour:not([hidden])").count(), "no button to the tour of what is new under the title"
+    # the button to the tour is under the title when one of these versions has a tour (tour.js NEW), and only then
+    toured = page.evaluate("async vs => Object.keys((await import(new URL('static/js/tour.js', document.baseURI))).NEW)"
+                           ".some(v => vs.includes(v))", versions[:2])
+    assert bool(page.locator("#news_tour:not([hidden])").count()) == toured, "the tour button is not as tour.js says"
     assert heads() == versions[:2] and len(page.text_content("#news_body")) > 200, heads()
     page.click("#news_go")
 

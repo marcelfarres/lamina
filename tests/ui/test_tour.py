@@ -55,6 +55,11 @@ def walk(page, targets, check=lambda s: None):
     raise AssertionError(f"the tour did not end: {seen}")
 
 
+def newest_first(new):
+    """The rows of every version in the order the tour of what is new walks them: the newest version first."""
+    return [r for v in sorted(new, key=lambda v: [int(x) for x in v.split(".")], reverse=True) for r in new[v]]
+
+
 def test_every_step_of_the_tour_of_what_is_new_is_a_note_of_its_version(page):
     new, by_version = page.evaluate(NEW), notes()
     assert new.get("0.4.0"), "no tour of what is new in 0.4.0"
@@ -66,10 +71,10 @@ def test_every_step_of_the_tour_of_what_is_new_is_a_note_of_its_version(page):
 
 @pytest.mark.timeout(600)
 def test_the_tour_of_what_is_new_runs_live_and_puts_everything_back(page):
-    """Started from What's new, it walks every step of 0.4.0 with its part on the page, shows the light, the other
+    """Started from What's new, it walks every step of every version with its part on the page, shows the light, the other
     level and the library while their steps are on, and leaves the page as it found it."""
     before = page.evaluate(LOOK)
-    rows = page.evaluate(NEW)["0.4.0"]
+    rows = newest_first(page.evaluate(NEW))
     menu(page, "#newsbtn")
     page.wait_for_selector("#newsdlg[open] #news_tour button")
     page.click("#news_tour button")
@@ -129,7 +134,7 @@ def test_the_tour_fits_a_phone(server, browser):
     pg.on("pageerror", lambda e: pg.errors.append(str(e)))
     try:
         pg.goto(server + "/"); settle(pg)
-        rows = pg.evaluate(NEW)["0.4.0"]
+        rows = newest_first(pg.evaluate(NEW))
         pg.evaluate(f"async () => {{ const n = await import(new URL('static/js/news.js', document.baseURI)); {TOUR}.start(n.tourOf(await n.news())) }}")
         assert len(walk(pg, [t for _, t in rows])) == len(rows)
     finally:

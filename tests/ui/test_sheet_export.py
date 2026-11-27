@@ -320,6 +320,11 @@ def test_every_control_does_what_it_says_and_every_download_holds_the_plan(page,
     assert all(lb in key for lb in labels), "the assembly key misses parts"
     pdf = zip_of(get(links["sheets PDF (one page per sheet)"]).body())       # zipped, with the key and the project file
     assert [pdf.read(n)[:4] for n in pdf.namelist() if n.endswith(".pdf")] == [b"%PDF"]
+    groups = lambda z: sum(len(re.findall(rb"/Subtype\s*/Form\b", z.read(n))) for n in z.namelist() if n.endswith(".pdf"))   # noqa: E731
+    assert groups(pdf) >= len(labels), "group parts is ticked: each part is one group in the PDF (bug 081)"
+    page.eval_on_selector("#x_grouped", "e => e.click()")     # unticked: the PDF's link carries it, and the file is the lines alone
+    assert groups(zip_of(get(page.eval_on_selector_all('section[data-tab="export"] .dl a', "as => as.find(a => a.textContent.startsWith('sheets PDF')).getAttribute('href')")).body())) == 0
+    page.eval_on_selector("#x_grouped", "e => e.click()")
     eps = zip_of(get(links["sheets EPS"]).body())
     assert all(eps.read(n)[:4] == b"%!PS" for n in eps.namelist() if n.endswith(".eps"))
     pieces = zip_of(get(links["one file per piece SVG + DXF"]).body())

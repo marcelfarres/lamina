@@ -17,7 +17,7 @@ export async function slice(){
   const my=++ST.seq, fd=new FormData(), loading=ST.pendingFile;
   fd.append('client',CLIENT); fd.append('mode',ST.mode.name); fd.append('params',JSON.stringify({...state,light:undefined,lights:undefined,room:undefined,light_video:undefined,material_kind:kind(state.material)})); fd.append('memo',JSON.stringify(memo));   // the server keeps this as the tab's session; a material of your own is checked as the one it was made from
   if(ST.pendingFile)fd.append('model',ST.pendingFile); else if(ST.job)fd.append('job',ST.job); else fd.append('example',ST.example);
-  status('slicing…','busy'); $('#busy').hidden=false; $('#busy_txt').textContent='slicing…'; $('#busy_note').textContent=''; $('#busy .bar').className='bar';
+  status('slicing…','busy'); $('#busy').classList.remove('early'); $('#busy').hidden=false; $('#busy_txt').textContent='slicing…'; $('#busy_note').textContent=''; $('#busy .bar').className='bar';
   expectStages(); $('#busy_steps').innerHTML=''; ST.ghostLive=false;   // this slice's own stages, counted from the settings it runs with
   ST.busy=true; ST.busySince=Date.now(); const t0=ST.busySince;
   pollProgress(my);
@@ -35,7 +35,9 @@ export async function slice(){
     // where the time went, for anyone tuning it: the build's stages (seconds), the round trip around them, and the page's own drawing
     console.info('lamina timing', ST.mode.name, {...ST.plan.timing, 'round trip beyond the build': +((t1-t0)/1000-j.took).toFixed(2), 'page drawing': (Date.now()-t1)/1000});
   }catch(e){if(my===ST.seq){act('slice failed: '+e.message); status('error: '+inUnit(e.message),'err'); if(loading)modelFailed(loading,e.message)}}
-  if(my===ST.seq){$('#busy').hidden=true;ST.busy=false;changed()}   // and once it is back: an upload now has its job
+  // and once it is back: an upload now has its job. A slice that failed after its parts were drawn takes them back:
+  // the report and the sheets are still the last plan's, and so is the scene again
+  if(my===ST.seq){if(ST.partial)render3D(); $('#busy').hidden=true;$('#busy').classList.remove('early');ST.busy=false;changed()}
 }
 // The model never arrived, so the 3D view still shows the one before it and the file box still names this one —
 // which is exactly how a failed upload reads as "it loaded the wrong model". Clear the box and say so in a dialog:
@@ -88,9 +90,15 @@ function renderStages(now,detail){
   return at<0?'':`step ${at+1} of ${rows.length}`;
 }
 // one overlay for both: the browser build's worker posts these, a server's are polled above
+let partsUrl=null;   // the parts last fetched: a server's poll names the same file every half second
 window.addEventListener('lamina-progress',e=>{
-  const {progress:text,frac,model}=e.detail;
+  const {progress:text,frac,model,parts}=e.detail;
   if(model){showGhost(model);ST.ghostLive=true}        // the mesh, ready before the slices: show it now
+  // the parts, cut and not yet nested: the 3D view draws them now, all else waits for the whole plan. Dropped when the
+  // slice has ended or a newer one began while they were on their way; the browser build's copy is let go once read
+  if(parts&&parts!==partsUrl){partsUrl=parts;const my=ST.seq;
+    fetch(parts).then(r=>r.ok?r.json():null,()=>null).then(p=>{if(p&&my===ST.seq&&ST.busy){render3D(null,p);$('#busy').classList.add('early')}})   // early: the overlay shrinks to a strip (app.css), the parts are what to look at
+      .finally(()=>{if(parts.startsWith('blob:'))URL.revokeObjectURL(parts)})}
   if(!ST.busy)return;
   const pct=Math.round(frac*100);
   if(text){                                         // a stage; an artifact on its own leaves the line where it was

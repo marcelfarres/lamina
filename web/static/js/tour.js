@@ -32,7 +32,10 @@ export const NEW={'0.4.0':[
   // the files step of the Export tab (#x_files: export-tab keeps it for the tour); print files only on a printed job,
   // so that step shows the tab
   {note:'A short Export tab.', target:'#x_files', open:tab('export')},
-  {note:'Print files that print right.', target:'nav button[data-t="export"]', open:tab('export')}]};
+  {note:'Print files that print right.', target:'nav button[data-t="export"]', open:tab('export')}],
+  '0.4.2':[
+  {note:'Sheet settings answer faster.', target:'.f[data-p="sheet"]', open:tab('sheet')},
+  {note:'New parts show in 3D sooner.', target:'#v3d'}]};
 
 let T=null, C=null;   // the tour on show: {steps, i, undo, tab, back (focused before it), skip, busy, sel, r, res}; the card on show
 const ring=Object.assign(document.createElement('div'),{id:'tourring',hidden:true}), dlg=Object.assign(document.createElement('dialog'),{id:'tourdlg'});

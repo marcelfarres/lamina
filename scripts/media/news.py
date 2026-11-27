@@ -660,6 +660,17 @@ def n041_guide(app):                        # Build it on the Export tab with th
     save("0.4.1-guide", side_by_side(row, cards))
 
 
+def n042_parts_first(app):                  # the statue's new layers in the view while its sheets are still laid out
+    app.example("horse_statue")
+    app.view(30, 12, 1.0, only3d=False)
+    app.p.evaluate("() => { const s = document.querySelector('#p_thickness'); s.value = +s.value + 1;"
+                   " for (const e of ['input', 'change']) s.dispatchEvent(new Event(e, {bubbles: true})) }")
+    app.p.wait_for_selector("#busy.early", timeout=180_000)    # the parts are drawn: the overlay is a strip now
+    app.p.wait_for_timeout(300)
+    app.shot("0.4.2-parts-first", VIEW, [("#busy", "the new parts, while the sheets are laid out")])
+    app.idle()
+
+
 def picture_name(f):                        # n040_stacked_joins -> 0.4.0-stacked-joins
     v, slug = f.__name__.split("_", 1)
     return f"{v[1]}.{v[2]}.{v[3]}-{slug.replace('_', '-')}"

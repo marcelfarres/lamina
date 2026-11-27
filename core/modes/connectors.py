@@ -44,21 +44,38 @@ def hole_mark(sl, hole, text, font):
     cx, cy = hole.centroid.coords[0]
     reach = max(math.hypot(x - cx, y - cy) for x, y in hole.exterior.coords)
     room = mark_room(sl)
-    cuts = [c.buffer(0.3) for c in sl.cuts]
-    taken = [mark_box(*m[:3], font, mark_rot(m)) for m in sl.marks]
+    taken = None
+    cut_box = shapely.bounds(np.asarray(sl.cuts, dtype=object)) if sl.cuts else np.empty((0, 4))
     for ang in (90, 270, 0, 180, 45, 135, 225, 315):
         dx, dy = math.cos(math.radians(ang)), math.sin(math.radians(ang))
         far = reach + 0.6 + abs(dx) * w / 2 + abs(dy) * h / 2         # the box's edge nearest the hole 0.6 mm from it
         x, y = cx + dx * far, cy + dy * far
         b = mark_box(x, y, text, font)
-        if room.covers(b) and all(b.disjoint(c) for c in cuts) and all(b.disjoint(m) for m in taken):
+        if not room.covers(b):
+            continue
+        # only the cuts whose box, grown by the 0.3 mm they are buffered by, reaches the mark's can touch it; and
+        # the marks already there are boxed only for a spot that got this far (a slice with forty dowels did both
+        # for every dowel: the time grew with the square of the count)
+        x0, y0, x1, y1 = b.bounds
+        near = np.flatnonzero((cut_box[:, 0] - 0.3 <= x1) & (cut_box[:, 2] + 0.3 >= x0) & (cut_box[:, 1] - 0.3 <= y1) & (cut_box[:, 3] + 0.3 >= y0))
+        if not all(b.disjoint(sl.cuts[i].buffer(0.3)) for i in near):
+            continue
+        if taken is None:
+            taken = [mark_box(*m[:3], font, mark_rot(m)) for m in sl.marks]
+        if all(b.disjoint(m) for m in taken):
             sl.marks.append((x, y, text))
             return
 
 
 def mark_room(sl):
-    """Where a dowel mark may lie on `sl`: its material (only its `cover` when it has one), 0.3 mm in from the edge."""
-    return (sl.raw if sl.cover is None else sl.cover).buffer(-0.3)
+    """Where a dowel mark may lie on `sl`: its material (only its `cover` when it has one), 0.3 mm in from the edge.
+    Kept with the slice for as long as that outline is the same object: every dowel of the slice asks for it."""
+    src = sl.raw if sl.cover is None else sl.cover
+    kept = getattr(sl, "_mark_room", None)
+    if kept is None or kept[0] is not src:
+        kept = sl._mark_room = (src, src.buffer(-0.3))
+        shapely.prepare(kept[1])                         # asked "covers this box?" eight times a dowel
+    return kept[1]
 
 
 def hole_of(sl, text):

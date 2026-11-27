@@ -1,6 +1,7 @@
 """Several people on one server never meet: everything a client slices lives under its own id, and neither another
 id nor a crafted one reaches it."""
 import io
+import json
 import os
 import time
 import zipfile
@@ -42,6 +43,34 @@ def test_a_newer_slice_stops_the_older_one_of_the_same_client(api):
     slow.join()
     assert got["old"].status_code == 409, got["old"].text                 # stopped, not finished
     assert api.get("/api/session", params={"client": MINE}).json()["example"] == "cube"   # the newest is what resumes
+
+
+def test_the_parts_are_announced_before_the_sheets_are_nested(api, monkeypatch):
+    """The 3D view needs the parts, not where they lie on the sheets: while the sheets are still being nested,
+    /api/progress already says where the parts are, and they are the very parts of the answer, which is the answer a
+    slice without them gives."""
+    from core import plan as core_plan
+    monkeypatch.setenv("LAMINA_NO_REUSE", "1")          # both slices make their parts: the second does not take the first's
+    seen, nest = {}, core_plan.nest
+
+    def nesting(*a, **kw):                               # the build is past its parts, laying out the sheets: what does the page read now?
+        seen.update(webapp.progress(MINE))
+        return nest(*a, **kw)
+    monkeypatch.setattr(core_plan, "nest", nesting)
+    with api:                                            # served, as uvicorn serves it (its lifespan): the parts go to the page
+        plan = api.post("/api/slice", data={"client": MINE, **CUBE}).json()["plan"]
+    assert seen["progress"] == "nesting the parts on sheets" and seen["parts"].startswith(f"/jobs/{MINE}/ex_cube/parts.json?v="), seen
+    # the file the URL names (the /jobs mount serves the real jobs folder, not the test's)
+    early = json.loads((webapp.JOBS / seen["parts"].split("?")[0].removeprefix("/jobs/")).read_text())
+    assert early["partial"] is True and "sheets" not in early and "timing" not in early
+    pieces = lambda p: [(s["label"], pc["label"], pc["facets"]) for s in p["slices"] for pc in s["pieces"]]
+    assert pieces(early) == pieces(plan)                 # the parts drawn early are the ones the answer draws
+    assert all(pc["place"] is None for s in early["slices"] for pc in s["pieces"])
+    assert core_plan.bar.parts is core_plan._NO_PARTS   # no longer served: core's no-op again, and no parts before the sheets
+    seen.clear()
+    alone = api.post("/api/slice", data={"client": MINE, **CUBE}).json()["plan"]
+    assert seen and "parts" not in seen
+    assert {k: v for k, v in plan.items() if k != "timing"} == {k: v for k, v in alone.items() if k != "timing"}
 
 
 def test_the_session_belongs_to_the_client(api):

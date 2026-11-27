@@ -10,6 +10,14 @@ def report(text, frac, artifact=None):
     the browser worker point it at the page, where a slice of a big model takes long enough to look stuck."""
 
 
+def parts(plan):
+    """Where build() hands over the parts as soon as they are cut, before they are nested: a dict shaped like the plan
+    with what is known by then and `partial`: True — every piece with its facets and area, no place on a sheet, no
+    label. A no-op here, and while it is, build() makes no such dict: the server and the browser worker can point it at
+    the 3D view, which needs the parts, not where they lie on the sheets. Its lists are the build's own and grow after
+    the call: what is kept of it is copied (json.dumps) during the call."""
+
+
 class _Run(threading.local):
     """The build under way on this thread: a server runs several at once (one per request thread), and with these
     shared, one build's start wiped another's stage marks — the timing log then put 72 s slices down as 10."""

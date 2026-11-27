@@ -2,6 +2,7 @@
 that go through plate slots. A piece of a slice that does not reach the plate hangs from the slice beside it on
 stacked's flat spacers, turned edge-on to whoever looks at the plaque."""
 import math
+from collections import ChainMap
 from dataclasses import dataclass, field, replace
 
 import numpy as np
@@ -508,7 +509,8 @@ class Plaque(Stacked):
 
     def _flat_spacers(self, ctx, slices, holds, after):
         """The parallel layout's spacers: stacked's connector placer, given the areas to hold."""
-        return Connectors(ctx, slices, settings={**ctx.p, **FIXED}, islands=lambda a, b: holds.get(a.label, []), seeds=edge_seeds,
+        # read through, not copied: a copy reads every setting, and then no later slice could take these parts as they are (plan.Params)
+        return Connectors(ctx, slices, settings=ChainMap({}, FIXED, ctx.p), islands=lambda a, b: holds.get(a.label, []), seeds=edge_seeds,
                           side_step=0.0, typed=False).run()             # side_step 0: two joins that share a piece share its area out, so a spacer goes where it is put
 
     def _fan_spacers(self, ctx, slices, holds, after):

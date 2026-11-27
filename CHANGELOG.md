@@ -2,6 +2,41 @@
 
 What changed in each release. The GitHub release for a version is this section, pasted.
 
+## 0.4.2
+
+This release is about waiting less. Measured on eight examples, a slice is 23 % shorter on average, a change to the
+sheets is 59 % shorter, and the 3D view shows the new parts about twice as soon.
+
+### Changed
+
+- **Heavy models slice faster.** A slice is 23 % shorter on average, and 42 % on the bunny (27 s to 16 s). Light
+  models change little. Parts and sheets stay the same. A label can sit elsewhere on its part.
+
+- **Sheet settings answer faster.** Change the gap between parts, the labels or, for most techniques, the sheet size,
+  and Lamina only lays the sheets out again. That wait is 59 % shorter on average (bunny: 26 s to 9 s).
+
+- **New parts show in 3D sooner.** After a change, the 3D view shows the new parts while the sheets are still laid
+  out: after 5 s, not 10 s, on the horse statue. Progress moves to a strip under the view.
+
+  ![The horse statue's new layers in the 3D view, with the progress strip under it saying the sheets are still being laid out](web/static/news/0.4.2-parts-first.jpg)
+
+- **Lamina in the browser starts sooner.** A first visit waits about ten seconds less before the first slice. The DXF
+  and PDF writers load with your first export, which takes a few seconds longer that one time.
+
+- **Guides in three kinds.** *Start here*, *Machines*, and a guide for each technique. A
+  technique's guide shows what every setting changes on one model, with its parts and sheets, and its link opens
+  Lamina on that model.
+
+  ![The axis setting in the stacked slices guide: the horse at axis y, z and x, each with its number of parts and sheets](web/static/news/0.4.2-guides.jpg)
+
+### Fixed
+
+- **Parts are groups in PDFs too.** With *group parts* ticked, each part in the sheets PDF is one group with its
+  label and cuts, so Inkscape moves it as one piece. Before, only the SVG had groups. Thanks to Colin.
+
+- **The site retries a failed slice.** Now and then the browser's geometry engine fails on a model that slices
+  the next time. The retry for that never ran, so the slice ended in an error. Now it runs.
+
 ## 0.4.1
 
 This release helps at the machine: bridges that keep parts in the sheet, a kerf test to cut first, how long the cut
@@ -136,8 +171,8 @@ layers. New too: the band lattice, a library for your projects, masks, paper lan
 
   ![The tool column at the left of the 3D view](web/static/news/0.4.0-tools.jpg)
 
-- **A short Export tab.** One main file per machine, a fit test where a joint needs it. Each zip has
-  README.txt. Cut files list layers in run order. Print sets hold pins, key. *STEP: one body*, standoffs included.
+- **A short Export tab.** One file per machine, a fit test where a joint needs it. Each zip has README.txt. Cut
+  files list layers in run order, the border on a FRAME layer, not cut. *STEP: one body*.
 
   ![The Export tab: each machine named, with one main file each](web/static/news/0.4.0-export.jpg)
 

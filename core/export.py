@@ -11,14 +11,13 @@ Layers / colours follow Slicer's Cut Layout convention:
                             single-stroke font (core.font): open polylines the laser engraves in one pass, in every format
 In the SVG each part is one group (<g class="piece" data-label="…">) holding its own layers, labels and marks, so it can
 be moved as a unit in a vector editor; the colours above are on each part's layer groups, which is what laser software sorts by.
-`grouped=False` writes the older colour-first layout instead, one group per colour for the whole sheet.
+In the PDF each part is one form XObject, which an editor opens as one group.
+`grouped=False` writes the older colour-first layout instead, one group per colour for the whole sheet (PDF: the lines alone).
 """
 from __future__ import annotations
 import argparse, html, json, math, pathlib
-import ezdxf
 import numpy as np
 import shapely
-from ezdxf import units as dxfunits
 from shapely import affinity
 from shapely.geometry import MultiPolygon, Polygon, box
 from .bridges import hold
@@ -364,6 +363,8 @@ def svg_doc(items, width, height, labels, border=False, font=4.0, units="mm", ti
 
 # ------------------------------------------------------------------ DXF
 def dxf_doc(items, labels, border=None, font=4.0, units="mm"):
+    import ezdxf                                      # here, not at the top: the browser build loads it with the first DXF
+    from ezdxf import units as dxfunits
     f = UNIT[units]
     doc = ezdxf.new("R2010"); doc.units = {"mm": dxfunits.MM, "cm": dxfunits.CM, "in": dxfunits.IN}[units]
     for name, aci in ACI.items():
@@ -389,18 +390,22 @@ def dxf_doc(items, labels, border=None, font=4.0, units="mm"):
 
 
 # ------------------------------------------------------------------ PDF (reportlab) — multi-page, one sheet per page
-def pdf_doc(path, pages, labels, border, font):
+def pdf_doc(path, pages, labels, border, font, grouped=True):
+    """Every part is one form XObject: its engraving, then its cuts in ORDER, which a vector editor opens as one group
+    (Inkscape does), like the SVG's <g class="piece">. A PDF has no other way to say "these lines are one thing".
+    `grouped=False` writes the lines alone, colour by colour for the whole sheet."""
     from reportlab.pdfgen import canvas
-    c = None
-    for items, w, h in pages:
-        if c is None:
-            c = canvas.Canvas(str(path), pagesize=(w * PT, h * PT))
-        else:
-            c.setPageSize((w * PT, h * PT))
+    c = None; forms = 0
+
+    def box(it):
+        """The corners of all `it` draws, 1 mm wider: a form shows nothing outside its box."""
+        xs, ys = zip(*[p for _, pts, *_ in strokes([it]) for p in pts],
+                     *[p for _, sts, leader in texts([it], font) for st in [*sts, *([leader] if leader else [])] for p in st])
+        return (min(xs) - 1) * PT, (min(ys) - 1) * PT, (max(xs) + 1) * PT, (max(ys) + 1) * PT
+
+    def draw(items):
         c.setLineWidth(0.3)
         lines = list(strokes(items))
-        if border:
-            c.setStrokeColorRGB(*RGB["FRAME"]); c.rect(0, 0, w * PT, h * PT, stroke=1, fill=0)
         if labels:
             c.setStrokeColorRGB(*RGB["LABEL"]); c.setFillColorRGB(*RGB["LABEL"])
             c.setLineCap(1); c.setLineJoin(1)                 # round: a stroke font's corners, like the laser draws them
@@ -424,6 +429,18 @@ def pdf_doc(path, pages, labels, border, font):
                 if closed: p.close()
                 c.drawPath(p, stroke=1, fill=0)
         c.setDash([])
+
+    for items, w, h in pages:
+        if c is None:
+            c = canvas.Canvas(str(path), pagesize=(w * PT, h * PT))
+        else:
+            c.setPageSize((w * PT, h * PT))
+        if border:
+            c.setLineWidth(0.3); c.setStrokeColorRGB(*RGB["FRAME"]); c.rect(0, 0, w * PT, h * PT, stroke=1, fill=0)
+        if not grouped:
+            draw(items)
+        for it in items if grouped else ():
+            forms += 1; c.beginForm(f"part{forms}", *box(it)); draw([it]); c.endForm(); c.doForm(f"part{forms}")
         c.showPage()
     c.save()
 
@@ -543,7 +560,7 @@ def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, bor
             if fmt == "svg": f.write_text(svg_doc(items, w, h, labels, border_, font, units, title, plan["params"].get("sheet_margin", 5.0), grouped), encoding="utf-8")
             elif fmt == "dxf": dxf_doc(items, labels, (w, h) if border_ else None, font, units).saveas(f)
             elif fmt == "eps": f.write_text(eps_doc(items, w, h, labels, border_, font), encoding="latin-1", errors="replace")   # a label in another script: ? for its letters, not a failed export
-            elif fmt == "pdf": pdf_doc(f, [(items, w, h)], labels, border_, font)
+            elif fmt == "pdf": pdf_doc(f, [(items, w, h)], labels, border_, font, grouped)
             written.append(f)
     if per_piece:                                   # identical pieces once, named "<part> <material> <thickness> x<qty>"
         rows = []
@@ -578,7 +595,7 @@ def export(plan, out_dir, fmts=("svg", "dxf"), labels=True, per_piece=False, bor
             write(f"sheet{si + 1}{mat_tag(plan, sheet_stock(plan, si))}{thick_tag(plan, sheet_thickness(plan, si))}", items, W, H, border,
                   [x for x in fmts if x != "pdf"], sheet_title(plan, si) if labels else "")
         if "pdf" in fmts:                           # one multi-page PDF for all sheets
-            f = out_dir / f"{design} sheets.pdf"; pdf_doc(f, pages, labels, border, font); written.append(f)
+            f = out_dir / f"{design} sheets.pdf"; pdf_doc(f, pages, labels, border, font, grouped); written.append(f)
         estimate = measure_sheets(plan, [its for its, _, _ in pages], labels)["total"]   # measured on what was just drawn
     if key:
         f = out_dir / f"{design} assembly-key.txt"; f.write_text(key_text(plan), encoding="utf-8"); written.append(f)
@@ -599,7 +616,7 @@ def main(argv=None):
     ap.add_argument("--no-border", action="store_true"); ap.add_argument("--font", type=float)
     ap.add_argument("--units", choices=["mm", "cm", "in"])
     ap.add_argument("--no-key", action="store_true", help="leave out assembly-key.txt (what the labels mean, the build order, and in puzzle mode the codes)")
-    ap.add_argument("--no-group", action="store_true", help="SVG: one group per colour for the whole sheet (older layout) instead of one group per part")
+    ap.add_argument("--no-group", action="store_true", help="SVG: one group per colour for the whole sheet (older layout) instead of one group per part; PDF: the lines alone")
     a = ap.parse_args(argv)
     plan = json.loads(pathlib.Path(a.plan).read_text())
     for f in export(plan, a.out, a.fmt, a.labels, a.per_piece, not a.no_border, a.font, a.units, key=not a.no_key, grouped=not a.no_group):

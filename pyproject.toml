@@ -1,6 +1,6 @@
 [project]
 name = "lamina3d"           # "lamina" on PyPI is somebody else's
-version = "0.4.1"
+version = "0.4.2"
 readme = "README.md"
 license = "AGPL-3.0-or-later"
 description = "Lamina: free laser and CNC slicer, a Slicer for Fusion 360 alternative. Turns 3D models into flat parts (stacked, interlocked, radial, ribbed, band lattice, plaque, folded panels) to cut on a laser, CNC router, plasma or vinyl cutter, or to print on a 3D printer"
