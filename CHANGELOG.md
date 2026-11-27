@@ -14,8 +14,8 @@ What changed in each release. The GitHub release for a version is this section, 
 
   ![The axis setting in the stacked slices guide: the horse at axis y, z and x, each with its number of parts and sheets](web/static/news/0.4.2-guides.jpg)
 
-- **The 3D view shows new parts sooner.** After a change, the 3D view shows the new parts as soon as they are cut,
-  about half-way through the wait, while the sheets are still laid out. Progress moves to a strip under the view.
+- **New parts show in 3D sooner.** After a change, the 3D view shows the new parts about half-way through the wait,
+  while the sheets are still laid out. Progress moves to a strip under the view.
 
   ![The horse statue's new layers in the 3D view, with the progress strip under it saying the sheets are still being laid out](web/static/news/0.4.2-parts-first.jpg)
 
@@ -25,9 +25,8 @@ What changed in each release. The GitHub release for a version is this section, 
 - **Lamina in the browser starts sooner.** A first visit waits about ten seconds less before the first slice. The DXF
   and PDF writers load with your first export, which takes a few seconds longer that one time.
 
-- **Heavy models slice faster.** Stacked models with many dowels, plaques, curved ribs and folded panels wait a tenth
-  to a half less for a slice, most on your own computer. The parts and their places on the sheets are the same as
-  before; a label can sit at another spot on its part.
+- **Heavy models slice faster.** Models with many dowels, plaques, curved ribs and folded panels wait a tenth to a
+  half less for a slice. The parts and sheets are the same; a label can sit elsewhere on its part.
 
 ### Fixed
 
