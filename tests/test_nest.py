@@ -322,6 +322,28 @@ def test_labels_sit_on_their_part_or_in_free_space_and_overlap_nothing(model, mo
             assert parts[lab].distance(lead) < 1e-3                             # it points at its own part
 
 
+@pytest.mark.parametrize("example", ["bowl", "fold_lantern"])
+def test_a_label_on_a_part_of_a_real_example_lies_whole_on_its_material(example):
+    """The fit looks for a spot on a thinned copy of the outline, but a spot is only taken when the exact outline holds
+    the whole label: on a real example every label on its part is covered by the placed outline, holes and all, and
+    clear of the marks."""
+    import json
+    import shapely
+    from core.labels import label_box, label_rect, mark_box
+    preset = json.loads((EXAMPLES / "presets.json").read_text(encoding="utf-8"))[example]
+    plan = build(EXAMPLES / f"{example}.stl", preset["mode"], preset["params"])
+    font, tag = plan["params"]["font"], plan["label_tag"]
+    pieces = [pc for sl in plan["slices"] for pc in sl["pieces"]]
+    assert not [n for n in plan["notes"] if "no free spot" in n], plan["notes"]      # none put past its edge for want of room
+    on = [pc for pc in pieces if pc["leader"] is None]
+    assert on, "no label on its part: the check below would assert nothing"
+    for pc in on:
+        part = shapely.union_all([Polygon(r[0], r[1:]) for r in pc["placed"]])
+        rect = label_rect(*pc["label_pos"], *label_box(f"{'' if pc['label_short'] else tag} {pc['label']}".strip(), pc["label_size"]))
+        assert part.buffer(0.01).covers(rect), pc["label"]
+        assert all(rect.disjoint(mark_box(x, y, t, font, rot + pc["place"][3])) for x, y, t, rot in pc["marks"]), pc["label"]
+
+
 def test_seven_rings_fill_the_first_sheet_before_the_second():
     """Seven 180 mm rings on 600 × 400: the polygon nest drops the second row into the valleys of the first and fits
     five, the plain rectangle packing six. Same sheet count either way, so the one that leaves less for the last

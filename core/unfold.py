@@ -139,12 +139,17 @@ def touching(mesh, laid):
     """Whether two faces of a laid-out flat piece lie edge to edge (over 1 mm, away from a shared corner) where they
     share no edge: the test unfold_once makes of every face it lays."""
     fs = list(laid); polys = [Polygon(laid[f][2]) for f in fs]; tree = shapely.STRtree(polys)
+    edges = shapely.boundary(np.array(polys, dtype=object))
     faces = mesh.faces; mates = {(int(a), int(b)) for a, b in mesh.face_adjacency} | {(int(b), int(a)) for a, b in mesh.face_adjacency}
     for i, f in enumerate(fs):
         fat = polys[i].buffer(0.01)
-        for j in tree.query(fat):
-            g = fs[int(j)]
-            if int(j) > i and (f, g) not in mates and contact(polys[j], fat, [laid[g][2][list(faces[g]).index(v)] for v in faces[g] if v in faces[f]]) > 1.0:
+        js = [int(j) for j in tree.query(fat) if int(j) > i and (f, fs[int(j)]) not in mates]
+        if not js:
+            continue
+        # as in unfold_once: the corner cut-outs only take length off, so only a run over 1 mm is measured
+        for j in np.asarray(js)[shapely.length(shapely.intersection(edges[js], fat)) > 1.0]:
+            g = fs[j]
+            if contact(polys[j], fat, [laid[g][2][list(faces[g]).index(v)] for v in faces[g] if v in faces[f]]) > 1.0:
                 return True
     return False
 
@@ -182,6 +187,21 @@ def unfold_once(mesh, split, max_faces, max_dims, weights, local, chosen=frozens
     piece, edges_of = flat_pieces(mesh, local, chosen, max_dims) if whole and not split else ({}, {})
     visited, panels, tree = set(), [], set()
     faces = [list(f) for f in mesh.faces]
+    memo = {}                                               # the panel's triangles, its points and its flap zones as arrays, rebuilt when they change
+
+    def as_array(geoms):
+        out = np.empty(len(geoms), object); out[:] = geoms
+        return out
+
+    def inside(g, arr):
+        """The members of `arr` whose interior meets g's: the others (apart, or touching at an edge or corner) cut out
+        an area of 0, so the exact intersection is worked out only for these."""
+        return arr[shapely.relate_pattern(g, arr, "T********")]
+
+    def tri_array():
+        if memo.get("n") != len(tris):
+            memo["n"], memo["tris"] = len(tris), as_array(tris)
+        return memo["tris"]
 
     def room(cands, members):
         """The flap room of each free edge of the faces `cands` lays: (face, its two vertices) → zone. An edge to the
@@ -211,25 +231,44 @@ def unfold_once(mesh, split, max_faces, max_dims, weights, local, chosen=frozens
             b = poly.bounds
             near = np.nonzero((boxes[:, 0] < b[2] - 1e-9) & (boxes[:, 2] > b[0] + 1e-9)
                               & (boxes[:, 1] < b[3] - 1e-9) & (boxes[:, 3] > b[1] + 1e-9))[0]
-            if any(poly.intersection(tris[i]).area > 1e-4 for i in near):
+            if near.size and (shapely.area(shapely.intersection(poly, inside(poly, tri_array()[near]))) > 1e-4).any():
                 return False                                # would overlap → seam
             # … and it may not lie against a face that is not its neighbour on the model: laid edge to edge, the outline
             # joins the two along that line, a cut is lost, and the face is held on two sides and cannot fold
             touch = np.nonzero((boxes[:, 0] <= b[2] + 1e-6) & (boxes[:, 2] >= b[0] - 1e-6)
                                & (boxes[:, 1] <= b[3] + 1e-6) & (boxes[:, 3] >= b[1] - 1e-6))[0]
             mates = {f2 for _, f2, _ in nb[f]}
-            fat = poly.buffer(0.01)                         # two edges meet only to rounding: within a hair of each other
-            fb = faces[f]
-            if any(pn.faces[i] not in mates and contact(tris[i], fat, [tri[fb.index(v)] for v in fb if v in faces[pn.faces[i]]]) > 1.0 for i in touch):
-                return False                                # → seam
+            touch = [i for i in touch if pn.faces[i] not in mates]
+            if touch:
+                fat = poly.buffer(0.01)                     # two edges meet only to rounding: within a hair of each other
+                fb = faces[f]
+                # the corner cut-outs in contact only take length off, so a face whose outline runs 1 mm or less within
+                # the hair has no contact: only the rest are measured
+                near = shapely.length(shapely.intersection(shapely.boundary(tri_array()[touch]), fat))
+                for i in np.asarray(touch)[near > 1.0]:
+                    if contact(tris[i], fat, [tri[fb.index(v)] for v in fb if v in faces[pn.faces[i]]]) > 1.0:
+                        return False                        # → seam
         if flap:
             joined = {(p, frozenset(aedges[k])) for *_, (p, k) in new}   # these edges become folds: their flap room is no longer needed
-            if any(key not in joined and shapely.intersects(z, q) and q.intersection(z).area > 0.02 * z.area for key, z in zones.items() for q in polys):
-                return False                                # it would lie where another edge's flap goes → seam
-            for key, z in room(new, members).items():
+            if zones:
+                if "zones" not in memo:
+                    memo["zkeys"], memo["zones"] = list(zones), as_array(list(zones.values()))
+                    memo["zbox"] = shapely.bounds(memo["zones"])
+                zb = memo["zbox"]
+                for q in polys:
+                    qb = q.bounds
+                    hit = np.nonzero((zb[:, 0] <= qb[2]) & (zb[:, 2] >= qb[0]) & (zb[:, 1] <= qb[3]) & (zb[:, 3] >= qb[1]))[0]
+                    if hit.size:
+                        hit = hit[shapely.relate_pattern(q, memo["zones"][hit], "T********")]
+                        z = memo["zones"][hit]
+                        big = shapely.area(shapely.intersection(q, z)) > 0.02 * shapely.area(z)
+                        if any(memo["zkeys"][i] not in joined for i in hit[big]):
+                            return False                    # it would lie where another edge's flap goes → seam
+            memo["room"] = new, room(new, members)         # kept: laid next, these are the zones it adds
+            for key, z in memo["room"][1].items():
                 zb = z.bounds
-                if any(z.intersection(tris[i]).area > 0.02 * z.area
-                       for i in np.nonzero((boxes[:, 0] < zb[2]) & (boxes[:, 2] > zb[0]) & (boxes[:, 1] < zb[3]) & (boxes[:, 3] > zb[1]))[0]):
+                at = np.nonzero((boxes[:, 0] < zb[2]) & (boxes[:, 2] > zb[0]) & (boxes[:, 1] < zb[3]) & (boxes[:, 3] > zb[1]))[0]
+                if at.size and (shapely.area(shapely.intersection(z, inside(z, tri_array()[at]))) > 0.02 * z.area).any():
                     return False                            # its own free edges would have no room for a flap → seam
                 if any(c[0] != key[0] and z.intersection(q).area > 0.02 * z.area for c, q in zip(new, polys)):
                     return False
@@ -240,7 +279,9 @@ def unfold_once(mesh, split, max_faces, max_dims, weights, local, chosen=frozens
                   max(boxes[:, 2].max(), *(q.bounds[2] for q in polys)), max(boxes[:, 3].max(), *(q.bounds[3] for q in polys)))
             w, h = bb[2] - bb[0], bb[3] - bb[1]
             if not ((w <= max(max_dims) and h <= min(max_dims)) or (w <= min(max_dims) and h <= max(max_dims))):
-                sm, lg = min_dims(shapely.MultiPoint(np.vstack(pts + [c[3] for c in new])))
+                if memo.get("npts") != len(pts):
+                    memo["npts"], memo["pts"] = len(pts), np.vstack(pts)
+                sm, lg = min_dims(shapely.MultiPoint(np.vstack([memo["pts"]] + [c[3] for c in new])))
                 if sm > min(max_dims) or lg > max(max_dims):
                     return False                            # would not fit the sheet → seam
         return True
@@ -250,6 +291,7 @@ def unfold_once(mesh, split, max_faces, max_dims, weights, local, chosen=frozens
         if seed in visited:
             continue
         pn = Panel()
+        memo.clear()
         if seed in piece and max_faces and len(piece[seed]) > max_faces:   # a flat piece of more faces than a panel may have: face by face
             for f in piece[seed]:
                 piece.pop(f)
@@ -293,7 +335,8 @@ def unfold_once(mesh, split, max_faces, max_dims, weights, local, chosen=frozens
             if flap:
                 for *_, (p, k) in cands:                      # these edges are folds now: their flap room is no longer needed
                     zones.pop((p, frozenset(aedges[k])), None)
-                zones.update(room(cands, {c[0] for c in cands}))
+                zones.update(memo["room"][1] if memo.get("room", (0,))[0] is cands else room(cands, {c[0] for c in cands}))
+                memo.pop("zones", None)
         # Fixed-precision overlay: plain unary_union silently loses area on thin sliver triangles (5-9 % of a torus
         # panel in measured cases), which would shrink the exported outline. A 1 nm grid is far below any cutting
         # tolerance.

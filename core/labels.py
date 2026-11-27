@@ -1,13 +1,14 @@
 """Labels and marks: the room an engraved text takes, where it fits on a part, and where every part's label goes
 on its sheet — on the part, or beside it with a leader line."""
 from __future__ import annotations
+import functools
 import math
 import shapely
 import shapely.affinity
 from shapely.geometry import LineString, Point, box
 from shapely.ops import nearest_points, unary_union
 from shapely.strtree import STRtree
-from .geometry import as_multi, min_rect_angle, robust
+from .geometry import as_multi, each, min_rect_angle, robust
 
 
 
@@ -18,6 +19,7 @@ TAG_FONT = 4.0      # mm, the least a tag's letters are: bold strokes 0.64 mm, w
 TAG_PAD = 1.0       # mm of chip round the letters
 TAG_CLEAR = 1.5     # mm from a tag to every part but its own: its line is that long at least, and PETG does not fuse across it
 PRINT_MARK = 5.0    # mm, a seam number on a printed panel: bold strokes 1.0 mm wide (0.75 at 4 mm), two lines of a 0.4 mm nozzle
+COARSE = 0.05       # mm: the label fit's erosion runs on the outline thinned to this (Douglas-Peucker), a few hundred points for 2400; the exact check stays on the true outline, so a label never crosses an edge, but may sit a little off the roomiest spot. More mm = faster, labels move more
 TURNED = str.maketrans("69", "96")   # 0, 1 and 8 turned upside down are themselves, in the stroke font and in Arial Bold
 
 
@@ -47,7 +49,15 @@ def label_box(text, font):
 def mark_box(x, y, text, font, rot=0.0):
     """The room a small engraved mark (a seam or dowel number, at 0.6 of the font) takes, centred on (x, y) and turned
     `rot` degrees — the mark's own turn in its part's frame; a mark on a nested part is turned by the placement too."""
+    # boxed once and kept, by the numbers' own bits (0.0 and -0.0 are two keys): a slice's marks are boxed again for
+    # every new mark placed on it (core/modes/connectors.py), tens of thousands of boxes on a stacked model
+    return _mark_box(float(x).hex(), float(y).hex(), text, float(font).hex(), float(rot).hex())
+
+
+@functools.lru_cache(maxsize=4096)
+def _mark_box(x, y, text, font, rot):
     from .font import width
+    x, y, font, rot = map(float.fromhex, (x, y, font, rot))
     s = font * 0.6
     b = box(x - (width(text, s) + 0.6) / 2, y - s * 0.7, x + (width(text, s) + 0.6) / 2, y + s * 0.7)
     return shapely.affinity.rotate(b, rot, origin=(x, y)) if rot else b
@@ -73,14 +83,29 @@ def fit_block(region, w, h, angles=(0, 90)):
     region is laid flat along it and eroded by the block — the region overlapped with itself moved by each corner and
     each edge middle of the block, a quick stand-in for the exact erosion — and the roomiest spot of what is left
     (the centre of its largest inscribed circle) is checked exactly."""
-    region = as_multi(region)
+    return _fit_block(as_multi(region), {}, w, h, angles)
+
+
+def _fit_block(region, laid, w, h, angles):
+    """fit_block on a MultiPolygon, its turns kept in `laid` ({angle: (turned region, its bounds, its coarse copy)}) for the next size."""
     if region.is_empty:
         return None
     for ang in angles:
-        R = shapely.affinity.rotate(region, -ang, origin=(0, 0)) if ang else region
-        E = R
+        if ang not in laid:
+            R = shapely.affinity.rotate(region, -ang, origin=(0, 0)) if ang else region
+            # Douglas-Peucker, not the topology-preserving simplifier (it fails in the browser build's GEOS); a shape that
+            # comes out invalid or empty keeps its full outline: slower, never wrong
+            C = R.simplify(COARSE, preserve_topology=False)
+            C = as_multi(C) if C.is_valid and not C.is_empty else R
+            laid[ang] = R, R.bounds, C
+        R, (x0, y0, x1, y1), C = laid[ang]
+        if x1 - x0 < w - 1e-6 or y1 - y0 < h - 1e-6:
+            continue        # narrower or lower than the block this way: by the third overlap below it comes out empty
+        E = C
         for dx, dy in ((w / 2, h / 2), (-w / 2, h / 2), (w / 2, -h / 2), (-w / 2, -h / 2), (w / 2, 0), (-w / 2, 0), (0, h / 2), (0, -h / 2)):
-            E = robust(lambda a, b: a.intersection(b), E, shapely.affinity.translate(R, dx, dy))
+            # as one-element arrays: shapely 2.2 overlays a lone geometry with the GIL held, an array with it let go,
+            # and this overlay is most of a label's fit — the parts of a sheet are fitted side by side (place_labels)
+            E = robust(lambda a, b: shapely.intersection([a], [b])[0], E, shapely.affinity.translate(C, dx, dy))
             if E is None or E.is_empty:
                 break
         if E is None:
@@ -95,18 +120,28 @@ def fit_block(region, w, h, angles=(0, 90)):
 
 
 def fit_on_part(region, cover, w, h, marks=(), angles=(0, 90), room=0.0):
-    return robust(lambda r: _fit_on_part(r, cover, w, h, marks, angles, room), region, default=None)
-
-
-def _fit_on_part(region, cover, w, h, marks=(), angles=(0, 90), room=0.0):
     """Where a w × h label fits whole on a part's material with `room` to spare all round — only inside `cover` when
     the part has one (a stacked layer: under the layer glued on top, which hides it) — clear of its holes and of the
     marks and arrows (boxes) already engraved on it, at the first of `angles` that holds it. None when it fits
     nowhere: a label crammed against the edge of a small part is better off beside it."""
-    region = as_multi(region if cover is None else region.intersection(cover))
-    if marks:
-        region = robust(lambda a, b: as_multi(a.difference(b)), region, unary_union([m.buffer(0.5) for m in marks]), default=region)
-    return fit_block(region, w + 2 * room, h + 2 * room, angles)
+    return _fitter(region, cover, marks, angles)(w, h, room)
+
+
+def _fitter(region, cover, marks=(), angles=(0, 90)):
+    """fit_on_part on one part for label after label, as fit(w, h, room): what may carry a label (the material inside
+    the cover, clear of the marks) and its turns are worked out for the first and kept for the rest — place_labels
+    tries up to six sizes on a part. Kept apart for the region as given and for the precision-snapped copy robust()
+    tries when the geometry engine throws on it, and only once whole, so a size fails or retries as it did alone."""
+    kept = {}
+    def fit(r, w, h):
+        k = r is region
+        if k not in kept:
+            on = as_multi(r if cover is None else r.intersection(cover))
+            if marks:
+                on = robust(lambda a, b: as_multi(a.difference(b)), on, unary_union([m.buffer(0.5) for m in marks]), default=on)
+            kept[k] = on, {}
+        return _fit_block(*kept[k], w, h, angles)
+    return lambda w, h, room=0.0: robust(lambda r: fit(r, w + 2 * room, h + 2 * room), region, default=None)
 
 
 def widest_spot(region):
@@ -177,30 +212,34 @@ def place_labels(sh, font, tag="", place="part"):
     laser software — counted (`crowded`) so the plan can say so. The one thing that never happens is a part coming
     out with no label at all."""
     text = lambda pc, short=False: f"{tag} {pc.label}" if tag and not short else pc.label   # `tag`: the model's short name first
+    sizes = [font * sc for sc in (1.0, 0.8, 0.65)]
+    # what may be engraved, best first: the full label at the font or a little under, then — a small part — the
+    # part's name alone, without the model's short name, which the assembly key allows for
+    forms = [(size, False) for size in sizes[:2]] + ([(size, True) for size in sizes[:2]] if tag else []) + [(sizes[2], False)] + ([(sizes[2], True)] if tag else [])
+
+    def on_part(pc):
+        """(spot, size, short) of pc's label on the part itself, spot None when it goes beside. It reads pc alone —
+        not the sheet's outlines, not the labels placed before it — so a sheet's parts are fitted side by side."""
+        keep = [mark_box(*m[:3], mark_size(m, font), mark_rot(m) + pc.place[3]) for m in pc.placed_marks] \
+            + [ln.buffer(0.8) for s, ln in pc.placed_lines if s == "orient"]
+        fit = _fitter(pc.placed, pc.placed_cover, keep, label_angles(pc.placed))
+        for size, short in forms:                                 # down to two thirds of the font: a peg's name along the peg
+            w, h = label_box(text(pc, short), size)
+            if spot := fit(w, h, room=0.0 if place == "on" else min(2.0, 0.3 * size)):
+                return spot, size, short
+        if place == "on":                                           # the widest spot of what may be engraved
+            on = pc.placed if pc.placed_cover is None else as_multi(pc.placed.intersection(pc.placed_cover))
+            if not on.is_empty:
+                return widest_spot(on), *forms[-1]
+        return None, None, None
+
     for g in sh.placed:
         shapely.prepare(g)
     tree = STRtree(sh.placed)
     taken = []
-    for k, pc in enumerate(sh.pieces):
-        keep = [mark_box(*m[:3], mark_size(m, font), mark_rot(m) + pc.place[3]) for m in pc.placed_marks] \
-            + [ln.buffer(0.8) for s, ln in pc.placed_lines if s == "orient"]
-        angles = label_angles(pc.placed) if place != "beside" else ()
+    fits = each(on_part, sh.pieces) if place != "beside" else [(None, None, None)] * len(sh.pieces)
+    for k, (pc, (spot, size, short)) in enumerate(zip(sh.pieces, fits)):   # in order: beside a part depends on those before
         pc.crowded = False
-        sizes = [font * sc for sc in (1.0, 0.8, 0.65)]
-        # what may be engraved, best first: the full label at the font or a little under, then — a small part — the
-        # part's name alone, without the model's short name, which the assembly key allows for
-        forms = [(size, False) for size in sizes[:2]] + ([(size, True) for size in sizes[:2]] if tag else []) + [(sizes[2], False)] + ([(sizes[2], True)] if tag else [])
-        spot = None
-        if place != "beside":                                       # on the part
-            for size, short in forms:                             # down to two thirds of the font: a peg's name along the peg
-                w, h = label_box(text(pc, short), size)
-                spot = fit_on_part(pc.placed, pc.placed_cover, w, h, keep, angles, room=0.0 if place == "on" else min(2.0, 0.3 * size))
-                if spot:
-                    break
-        if spot is None and place == "on":                           # the widest spot of what may be engraved
-            on = pc.placed if pc.placed_cover is None else as_multi(pc.placed.intersection(pc.placed_cover))
-            if not on.is_empty:
-                size, short = forms[-1]; spot = widest_spot(on)
         if spot:
             pc.label_pos, pc.leader, pc.label_size, pc.label_short = spot, None, size, short
             taken.append(label_rect(*spot, *label_box(text(pc, short), size)))

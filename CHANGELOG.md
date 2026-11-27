@@ -20,6 +20,10 @@ What changed in each release. The GitHub release for a version is this section, 
 - **Lamina in the browser starts sooner.** A first visit waits about ten seconds less before the first slice. The DXF
   and PDF writers load with your first export, which takes a few seconds longer that one time.
 
+- **Heavy models slice faster.** Stacked models with many dowels, plaques, curved ribs and folded panels wait a tenth
+  to a half less for a slice, most on your own computer. The parts and their places on the sheets are the same as
+  before; a label can sit at another spot on its part.
+
 ### Fixed
 
 - **Parts are groups in the PDF too.** With *group parts* ticked, each part in the sheets PDF is one group with its

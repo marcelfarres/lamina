@@ -1,6 +1,7 @@
 """Frames, sections and ray casts. Everything 2D is a shapely (Multi)Polygon in a slice's local frame."""
 from __future__ import annotations
-import functools, math
+import functools, math, sys
+from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 import shapely
 from shapely.errors import GEOSException
@@ -14,6 +15,15 @@ try:
     HAVE_RTREE = True   # the bounds of every triangle before it finds out (0.15 s a cast on a 280k-face head, never cached)
 except ImportError:                                       # the browser build has none
     HAVE_RTREE = False
+
+# Jobs that change nothing another job reads — a part's turns on a sheet (core/nest.py), each part's label on the part
+# itself (core/labels.py), each slice's own checks (core/checks.py) — run side by side: their time is GEOS calls, and
+# shapely lets the GIL go in those (not on a lone geometry's overlay: see _fit_block in core/labels.py). `each` is map:
+# the results in order, a job's exception raised at its own place. One pool for them all, shared by the builds a server
+# runs at once, so a job must never wait on `each` itself: it would wait for a thread it holds. Four threads: a part's
+# four turns; on a busy 6-core machine six fitted labels and checked slices 0–11 % faster than four (bunny,
+# horse_statue, fold_lantern), and a server may slice twice at once on the same four. The browser build has no threads.
+each = map if sys.platform == "emscripten" else ThreadPoolExecutor(4, thread_name_prefix="lamina").map
 
 
 def frame(origin, normal, up_hint=(0, 0, 1)) -> np.ndarray:
