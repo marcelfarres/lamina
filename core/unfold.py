@@ -193,11 +193,6 @@ def unfold_once(mesh, split, max_faces, max_dims, weights, local, chosen=frozens
         out = np.empty(len(geoms), object); out[:] = geoms
         return out
 
-    def inside(g, arr):
-        """The members of `arr` whose interior meets g's: the others (apart, or touching at an edge or corner) cut out
-        an area of 0, so the exact intersection is worked out only for these."""
-        return arr[shapely.relate_pattern(g, arr, "T********")]
-
     def tri_array():
         if memo.get("n") != len(tris):
             memo["n"], memo["tris"] = len(tris), as_array(tris)
@@ -231,7 +226,7 @@ def unfold_once(mesh, split, max_faces, max_dims, weights, local, chosen=frozens
             b = poly.bounds
             near = np.nonzero((boxes[:, 0] < b[2] - 1e-9) & (boxes[:, 2] > b[0] + 1e-9)
                               & (boxes[:, 1] < b[3] - 1e-9) & (boxes[:, 3] > b[1] + 1e-9))[0]
-            if near.size and (shapely.area(shapely.intersection(poly, inside(poly, tri_array()[near]))) > 1e-4).any():
+            if near.size and (shapely.area(shapely.intersection(poly, tri_array()[near])) > 1e-4).any():
                 return False                                # would overlap → seam
             # … and it may not lie against a face that is not its neighbour on the model: laid edge to edge, the outline
             # joins the two along that line, a cut is lost, and the face is held on two sides and cannot fold
@@ -259,7 +254,6 @@ def unfold_once(mesh, split, max_faces, max_dims, weights, local, chosen=frozens
                     qb = q.bounds
                     hit = np.nonzero((zb[:, 0] <= qb[2]) & (zb[:, 2] >= qb[0]) & (zb[:, 1] <= qb[3]) & (zb[:, 3] >= qb[1]))[0]
                     if hit.size:
-                        hit = hit[shapely.relate_pattern(q, memo["zones"][hit], "T********")]
                         z = memo["zones"][hit]
                         big = shapely.area(shapely.intersection(q, z)) > 0.02 * shapely.area(z)
                         if any(memo["zkeys"][i] not in joined for i in hit[big]):
@@ -268,7 +262,7 @@ def unfold_once(mesh, split, max_faces, max_dims, weights, local, chosen=frozens
             for key, z in memo["room"][1].items():
                 zb = z.bounds
                 at = np.nonzero((boxes[:, 0] < zb[2]) & (boxes[:, 2] > zb[0]) & (boxes[:, 1] < zb[3]) & (boxes[:, 3] > zb[1]))[0]
-                if at.size and (shapely.area(shapely.intersection(z, inside(z, tri_array()[at]))) > 0.02 * z.area).any():
+                if at.size and (shapely.area(shapely.intersection(z, tri_array()[at])) > 0.02 * z.area).any():
                     return False                            # its own free edges would have no room for a flap → seam
                 if any(c[0] != key[0] and z.intersection(q).area > 0.02 * z.area for c, q in zip(new, polys)):
                     return False
