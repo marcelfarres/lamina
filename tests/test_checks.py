@@ -174,6 +174,7 @@ def test_a_finding_carries_its_kind_and_what_it_is_about_and_its_fix_does_not_re
             seen.append({f["error"]: [o["title"] for o in f["options"]] for sl in slices for f in sl.fixes})
 
     monkeypatch.setattr(plan_mod, "suggest_fixes", spy)
+    monkeypatch.setenv("LAMINA_NO_REUSE", "1")           # the cone is sliced twice: the second must make its parts again, or the spy sees nothing
     reword = False
     build(EXAMPLES / "cube.stl", "curve", {"count": 6, "spines": 0, "autofix": "off"})
     found = seen[0]
