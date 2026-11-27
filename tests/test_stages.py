@@ -270,3 +270,15 @@ def test_a_result_that_does_not_pickle_keeps_nothing():
     _ = p["a"]
     assert P._keep(before, "radial", object(), p, (lambda: 0,)) is None and p.seen is None
     assert P._noting(Params({"a": lambda: 0})) is None
+
+
+def test_a_technique_s_own_mesh_is_kept_without_what_it_worked_out():
+    """Folded keeps the faceted model with its parts. Its cache holds an rtree index, which comes back from a pickle
+    empty (and raises when it is freed): the kept parts carry the mesh, not its cache, and a slice that takes them
+    comes out as a fresh one does."""
+    import core.mesh
+    job = PRESETS["fold_box"]
+    build(EXAMPLES / "fold_box.stl", job["mode"], job["params"])
+    assert b"rtree.index" not in core.mesh._last[3]["slices"][2]
+    got = build(EXAMPLES / "fold_box.stl", job["mode"], {**job["params"], "gap": 5})
+    assert got["reused"] and plain(got) == plain(fresh(EXAMPLES / "fold_box.stl", job["mode"], {**job["params"], "gap": 5}))

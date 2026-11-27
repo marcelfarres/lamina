@@ -7,6 +7,7 @@ import argparse, io, json, os, pathlib, pickle, shutil, threading, time
 import numpy as np
 import shapely
 from shapely.geometry import MultiPolygon
+from trimesh.caching import Cache as TrimeshCache
 from shapely.ops import unary_union
 from . import progress as bar
 from .progress import DETAIL, progress
@@ -113,6 +114,21 @@ def _noting(p):
     return before
 
 
+class _Snapshot(pickle.Pickler):
+    """The parts as they are kept: `refs` ({id: name}) are pickled by name, and a mesh of the technique's own (folded
+    keeps the faceted model) goes without what it has worked out about itself. Its cache holds an rtree index among
+    other things, which comes back from a pickle empty: asked, it would find nothing, and it raises when it is freed."""
+    def __init__(self, f, refs):
+        super().__init__(f, pickle.HIGHEST_PROTOCOL)
+        self.refs = refs
+
+    def persistent_id(self, obj):
+        return self.refs.get(id(obj))
+
+    def reducer_override(self, obj):
+        return (TrimeshCache, (obj._id_function,)) if type(obj) is TrimeshCache else NotImplemented
+
+
 def _keep(before, mode_name, mesh, p, made):
     """The parts' result `made`, taken right after they are made and before the sheets change them, as it is kept:
     (technique, {parameter read: its value then}, the result pickled). The model and the parameters are pickled by
@@ -125,10 +141,7 @@ def _keep(before, mode_name, mesh, p, made):
     try:
         old = pickle.loads(before)       # noqa: S301 — bytes this build pickled, never anything from outside
         f = io.BytesIO()
-        pk = pickle.Pickler(f, pickle.HIGHEST_PROTOCOL)
-        refs = {id(mesh): "mesh", id(p): "p"}
-        pk.persistent_id = lambda obj: refs.get(id(obj))
-        pk.dump((*made, {k: dict.__getitem__(p, k) for k in p if k in seen}))   # and what the parts wrote into p
+        _Snapshot(f, {id(mesh): "mesh", id(p): "p"}).dump((*made, {k: dict.__getitem__(p, k) for k in p if k in seen}))   # and what the parts wrote into p
         return mode_name, {k: old.get(k, _MISSING) for k in seen}, f.getvalue()
     except Exception:  # noqa: BLE001 — the cache never fails a slice
         return None
