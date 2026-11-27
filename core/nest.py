@@ -14,23 +14,20 @@ Not taken from Deepnest: its genetic algorithm over the part order and rotations
 percent of sheet) and its merging of shared cut lines.
 """
 from __future__ import annotations
-import sys
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 import numpy as np
 import shapely
 from shapely import affinity
 from shapely.geometry import Point, box
 from shapely.ops import unary_union
-from .geometry import as_multi, min_rect_angle
+from .geometry import as_multi, each, min_rect_angle
 from .labels import PRINT_MARK, fit_on_part, label_angles, label_box, mark_box, mark_rot, mark_size, place_labels, tag_room
 from .nofit import Sheet, _convex_pieces, _fill_small_holes, _hull, _rot
 from .split import fits_rotated
 
 ROTS = (0, 90, 180, 270)
 # A part's rotations on one sheet are independent, and their no-fit union, the costliest call of a slice, runs in GEOS
-# with the GIL let go: side by side it was 2.0–2.7× faster (cow_spot, bunny, bowl). The browser build has no threads.
-each = map if sys.platform == "emscripten" else ThreadPoolExecutor(len(ROTS), thread_name_prefix="nest").map
+# with the GIL let go: side by side (`each`) it was 2.0–2.7× faster (cow_spot, bunny, bowl).
 
 
 def _bounds(pts):

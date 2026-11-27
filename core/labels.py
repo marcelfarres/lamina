@@ -8,7 +8,7 @@ import shapely.affinity
 from shapely.geometry import LineString, Point, box
 from shapely.ops import nearest_points, unary_union
 from shapely.strtree import STRtree
-from .geometry import as_multi, min_rect_angle, robust
+from .geometry import as_multi, each, min_rect_angle, robust
 
 
 
@@ -103,7 +103,9 @@ def _fit_block(region, laid, w, h, angles):
             continue        # narrower or lower than the block this way: by the third overlap below it comes out empty
         E = C
         for dx, dy in ((w / 2, h / 2), (-w / 2, h / 2), (w / 2, -h / 2), (-w / 2, -h / 2), (w / 2, 0), (-w / 2, 0), (0, h / 2), (0, -h / 2)):
-            E = robust(lambda a, b: a.intersection(b), E, shapely.affinity.translate(C, dx, dy))
+            # as one-element arrays: shapely 2.2 overlays a lone geometry with the GIL held, an array with it let go,
+            # and this overlay is most of a label's fit — the parts of a sheet are fitted side by side (place_labels)
+            E = robust(lambda a, b: shapely.intersection([a], [b])[0], E, shapely.affinity.translate(C, dx, dy))
             if E is None or E.is_empty:
                 break
         if E is None:
@@ -210,31 +212,34 @@ def place_labels(sh, font, tag="", place="part"):
     laser software — counted (`crowded`) so the plan can say so. The one thing that never happens is a part coming
     out with no label at all."""
     text = lambda pc, short=False: f"{tag} {pc.label}" if tag and not short else pc.label   # `tag`: the model's short name first
+    sizes = [font * sc for sc in (1.0, 0.8, 0.65)]
+    # what may be engraved, best first: the full label at the font or a little under, then — a small part — the
+    # part's name alone, without the model's short name, which the assembly key allows for
+    forms = [(size, False) for size in sizes[:2]] + ([(size, True) for size in sizes[:2]] if tag else []) + [(sizes[2], False)] + ([(sizes[2], True)] if tag else [])
+
+    def on_part(pc):
+        """(spot, size, short) of pc's label on the part itself, spot None when it goes beside. It reads pc alone —
+        not the sheet's outlines, not the labels placed before it — so a sheet's parts are fitted side by side."""
+        keep = [mark_box(*m[:3], mark_size(m, font), mark_rot(m) + pc.place[3]) for m in pc.placed_marks] \
+            + [ln.buffer(0.8) for s, ln in pc.placed_lines if s == "orient"]
+        fit = _fitter(pc.placed, pc.placed_cover, keep, label_angles(pc.placed))
+        for size, short in forms:                                 # down to two thirds of the font: a peg's name along the peg
+            w, h = label_box(text(pc, short), size)
+            if spot := fit(w, h, room=0.0 if place == "on" else min(2.0, 0.3 * size)):
+                return spot, size, short
+        if place == "on":                                           # the widest spot of what may be engraved
+            on = pc.placed if pc.placed_cover is None else as_multi(pc.placed.intersection(pc.placed_cover))
+            if not on.is_empty:
+                return widest_spot(on), *forms[-1]
+        return None, None, None
+
     for g in sh.placed:
         shapely.prepare(g)
     tree = STRtree(sh.placed)
     taken = []
-    for k, pc in enumerate(sh.pieces):
-        keep = [mark_box(*m[:3], mark_size(m, font), mark_rot(m) + pc.place[3]) for m in pc.placed_marks] \
-            + [ln.buffer(0.8) for s, ln in pc.placed_lines if s == "orient"]
-        angles = label_angles(pc.placed) if place != "beside" else ()
+    fits = each(on_part, sh.pieces) if place != "beside" else [(None, None, None)] * len(sh.pieces)
+    for k, (pc, (spot, size, short)) in enumerate(zip(sh.pieces, fits)):   # in order: beside a part depends on those before
         pc.crowded = False
-        sizes = [font * sc for sc in (1.0, 0.8, 0.65)]
-        # what may be engraved, best first: the full label at the font or a little under, then — a small part — the
-        # part's name alone, without the model's short name, which the assembly key allows for
-        forms = [(size, False) for size in sizes[:2]] + ([(size, True) for size in sizes[:2]] if tag else []) + [(sizes[2], False)] + ([(sizes[2], True)] if tag else [])
-        spot = None
-        if place != "beside":                                       # on the part
-            fit = _fitter(pc.placed, pc.placed_cover, keep, angles)
-            for size, short in forms:                             # down to two thirds of the font: a peg's name along the peg
-                w, h = label_box(text(pc, short), size)
-                spot = fit(w, h, room=0.0 if place == "on" else min(2.0, 0.3 * size))
-                if spot:
-                    break
-        if spot is None and place == "on":                           # the widest spot of what may be engraved
-            on = pc.placed if pc.placed_cover is None else as_multi(pc.placed.intersection(pc.placed_cover))
-            if not on.is_empty:
-                size, short = forms[-1]; spot = widest_spot(on)
         if spot:
             pc.label_pos, pc.leader, pc.label_size, pc.label_short = spot, None, size, short
             taken.append(label_rect(*spot, *label_box(text(pc, short), size)))
