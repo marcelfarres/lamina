@@ -34,6 +34,9 @@ What changed in each release. The GitHub release for a version is this section, 
   label and cuts, so an editor such as Inkscape moves it as one piece. Before, only the SVG had groups. Thanks to
   Colin for the report.
 
+- **The site tries a failed slice again.** Now and then the browser's geometry engine fails on a model that slices
+  the next time. The retry for that never ran, so the slice ended in an error. Now it runs.
+
 ## 0.4.1
 
 This release helps at the machine: bridges that keep parts in the sheet, a kerf test to cut first, how long the cut
