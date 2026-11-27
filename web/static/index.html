@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <!-- For search engines and link previews of the public copy (/lamina/app/). A self-hosted copy points to it too,
      which is harmless: it only names where the public version lives. -->
-<meta name="description" content="Lamina in your browser: turn a 3D model into flat parts to cut on a laser cutter, CNC router or vinyl cutter, or to print on a 3D printer. Free, no account, no upload. A Slicer for Fusion 360 alternative.">
+<meta name="description" content="Lamina in your browser: turn a 3D model into flat parts for a laser cutter, CNC router or 3D printer. Free, no account. A Slicer for Fusion 360 alternative.">
 <link rel="canonical" href="https://marcelfarres.github.io/lamina/app/">
 <meta property="og:title" content="Lamina: free laser and CNC slicer in your browser">
 <meta property="og:description" content="Turn a 3D model into flat parts to cut or print. Free, no account, no upload.">
@@ -21,7 +21,7 @@
   <label id="libask_restl" hidden><input type="checkbox" id="libask_rest"> the same for the rest</label>
   <div class="row"><button id="libask_cancel">Cancel</button><button id="libask_replace"></button><button id="libask_keep" class="go"></button></div></dialog>
 <div id="library" hidden>
-  <div class="lbbar"><h1>Library</h1><input id="libfind" placeholder="find a project or example"><span class="sp"></span>
+  <div class="lbbar"><h2>Library</h2><input id="libfind" placeholder="find a project or example"><span class="sp"></span>
     <button class="small" id="libimport">import files…</button><button class="small" id="libexportall">export all (.zip)</button><button class="small" id="libclose">✕ close</button></div>
   <div id="libwhere">💾 kept in this browser only. Clearing the site data deletes them: use <b>export all</b> for a backup.</div>
   <section id="libyours"></section>
@@ -114,7 +114,7 @@
     <li>A big model in this browser version takes minutes where the local version takes seconds — and never a layer of your model goes anywhere: <a href="https://marcelfarres.github.io/lamina/#start" target="_blank" rel="noopener">how to run it on your own computer</a>.</li>
     <li>Something came out wrong? <a data-feedback href="https://github.com/marcelfarres/lamina/issues/new?template=bug_report.yml" target="_blank" rel="noopener">Report it</a> — a sentence, and the report fills in the rest.</li></ul>
   <div class="row"><button id="help_go" class="go">Close</button></div></dialog>
-<header><h1 data-tip="Lamina turns a 3D model into flat parts you can cut from paper, cardboard, plywood or sheet metal — stacked, interlocked, radial, ribbed or folded — checks that the result holds together, nests the parts on your sheets and exports the cut files. Not the 3D-printing kind of slicing — it works out the pieces you cut from a sheet and put back together."><img src="static/logo.svg" alt="">Lamina</h1>
+<header><h1 data-tip="Lamina turns a 3D model into flat parts you can cut from paper, cardboard, plywood or sheet metal — stacked, interlocked, radial, ribbed or folded — checks that the result holds together, nests the parts on your sheets and exports the cut files. Not the 3D-printing kind of slicing — it works out the pieces you cut from a sheet and put back together."><img src="static/logo.svg" alt="" width="20" height="20">Lamina</h1>
 <input id="pname" placeholder="project name" style="width:150px;padding:3px 6px" title="project name (printed on every sheet and used for the file name)">
 <button class="small" id="popen" title="your saved projects and their revisions">library</button><button class="small" id="psave2" title="save this project into the library, over the revision you are on">save</button><span class="hint" id="punsaved" hidden>● unsaved changes</span>
 <details class="menu"><summary class="small" title="revision: bump minor for small changes, major for a new design">version <span id="prev">1.0</span> ▾</summary><div class="pop">

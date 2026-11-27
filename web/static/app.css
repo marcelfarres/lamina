@@ -170,7 +170,7 @@ dialog button.go{background:#2563eb;border-color:transparent;color:#fff;font-wei
 /* the library: a page over the app, which stays as it was underneath. Each state is said in words (✓ open now,
    ⚠ cannot be read, ▾ / ▴), the blue border only repeats them */
 #library{position:fixed;inset:0;z-index:40;background:var(--bg);overflow:auto;padding:18px 28px 40px}#library[hidden],#library [hidden]{display:none}
-#library .lbbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center}#library h1{font-size:18px;margin:0}#library .sp{flex:1}#libfind{width:220px}
+#library .lbbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center}#library .lbbar h2{font-size:18px;margin:0;letter-spacing:0;font-weight:700;text-transform:none;color:inherit}#library .sp{flex:1}#libfind{width:220px}
 #libwhere{margin:10px 0 0;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--muted);display:flex;flex-wrap:wrap;gap:6px;align-items:center}#libwhere b{color:var(--ink)}
 #libwhere .note{flex-basis:100%;color:var(--ink)}
 #library h2{font-size:13px;letter-spacing:.04em;font-weight:600;margin:22px 0 10px}
