@@ -171,8 +171,8 @@ layers. New too: the band lattice, a library for your projects, masks, paper lan
 
   ![The tool column at the left of the 3D view](web/static/news/0.4.0-tools.jpg)
 
-- **A short Export tab.** One main file per machine, a fit test where a joint needs it. Each zip has
-  README.txt. Cut files list layers in run order. Print sets hold pins, key. *STEP: one body*, standoffs included.
+- **A short Export tab.** One file per machine, a fit test where a joint needs it. Each zip has README.txt. Cut
+  files list layers in run order, the border on a FRAME layer, not cut. *STEP: one body*.
 
   ![The Export tab: each machine named, with one main file each](web/static/news/0.4.0-export.jpg)
 
