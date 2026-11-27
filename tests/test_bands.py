@@ -135,6 +135,7 @@ def test_a_wall_a_sheet_brushes_past_the_slot_is_shaved(monkeypatch):
     assert not g.contains(Point(side * 82.1, 0)) and g.contains(Point(side * 82.4, 0))   # 0.25 mm off its side wall
     assert g.contains(Point(-side * 82.1, 0))                          # and nothing off the other side
     orig = Bands.slot_pair                                              # left on: they rub X-4's sheet and lock
+    monkeypatch.setenv("LAMINA_NO_REUSE", "1")                          # the same job again with other code: its parts are made again
     monkeypatch.setattr(Bands, "slot_pair", staticmethod(lambda ctx, j, out: [t[:4] + (None,) for t in orig(ctx, j, out)]))
     rubbed = build(CUBE, "bands", prm)
     assert set(later_pieces(rubbed)) - set(rubbed["steps"])

@@ -21,3 +21,12 @@ def jobs(tmp_path, monkeypatch):
     """Jobs go to the test's own directory, not the repo's."""
     monkeypatch.setattr(webapp, "JOBS", tmp_path)
     return tmp_path
+
+
+@pytest.fixture(autouse=True)
+def no_parts_from_the_test_before():
+    """A build keeps its parts with the loaded model, for the next slice of the same job (core.plan). Tests share
+    models and change the code under a job (monkeypatch): the parts one test kept are not the next one's."""
+    import core.mesh
+    if core.mesh._last:
+        core.mesh._last[3].pop("slices", None)
