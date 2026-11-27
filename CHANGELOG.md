@@ -15,7 +15,8 @@ What changed in each release. The GitHub release for a version is this section, 
   ![The axis setting in the stacked slices guide: the horse at axis y, z and x, each with its number of parts and sheets](web/static/news/0.4.2-guides.jpg)
 
 - **Heavy models slice faster.** Stacked models with many dowels, plaques, curved ribs and folded panels wait a tenth
-  to a third less for a slice, on your computer and in the browser. The parts and the sheets are the same as before.
+  to a half less for a slice, most on your own computer. The parts and their places on the sheets are the same as
+  before; a label can sit at another spot on its part.
 
 ### Fixed
 
