@@ -23,7 +23,7 @@ sheets is 59 % shorter, and the 3D view shows the new parts about twice as soon.
 - **Lamina in the browser starts sooner.** A first visit waits about ten seconds less before the first slice. The DXF
   and PDF writers load with your first export, which takes a few seconds longer that one time.
 
-- **Guides in three kinds, each on one model.** *Start here*, *Machines*, and a guide for each technique. A
+- **Guides in three kinds.** *Start here*, *Machines*, and a guide for each technique. A
   technique's guide shows what every setting changes on one model, with its parts and sheets, and its link opens
   Lamina on that model.
 
@@ -31,10 +31,10 @@ sheets is 59 % shorter, and the 3D view shows the new parts about twice as soon.
 
 ### Fixed
 
-- **Parts are groups in the PDF too.** With *group parts* ticked, each part in the sheets PDF is one group with its
+- **Parts are groups in PDFs too.** With *group parts* ticked, each part in the sheets PDF is one group with its
   label and cuts, so Inkscape moves it as one piece. Before, only the SVG had groups. Thanks to Colin.
 
-- **The site tries a failed slice again.** Now and then the browser's geometry engine fails on a model that slices
+- **The site retries a failed slice.** Now and then the browser's geometry engine fails on a model that slices
   the next time. The retry for that never ran, so the slice ended in an error. Now it runs.
 
 ## 0.4.1
