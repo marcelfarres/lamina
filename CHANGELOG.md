@@ -17,6 +17,9 @@ What changed in each release. The GitHub release for a version is this section, 
 - **Sheet settings answer faster.** Change the gap between parts, the labels or, for most techniques, the sheet size,
   and Lamina only lays the sheets out again. The wait is about half of a full slice.
 
+- **Lamina in the browser starts sooner.** A first visit waits about ten seconds less before the first slice. The DXF
+  and PDF writers load with your first export, which takes a few seconds longer that one time.
+
 ### Fixed
 
 - **Parts are groups in the PDF too.** With *group parts* ticked, each part in the sheets PDF is one group with its

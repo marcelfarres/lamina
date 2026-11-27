@@ -16,10 +16,8 @@ In the PDF each part is one form XObject, which an editor opens as one group.
 """
 from __future__ import annotations
 import argparse, html, json, math, pathlib
-import ezdxf
 import numpy as np
 import shapely
-from ezdxf import units as dxfunits
 from shapely import affinity
 from shapely.geometry import MultiPolygon, Polygon, box
 from .bridges import hold
@@ -365,6 +363,8 @@ def svg_doc(items, width, height, labels, border=False, font=4.0, units="mm", ti
 
 # ------------------------------------------------------------------ DXF
 def dxf_doc(items, labels, border=None, font=4.0, units="mm"):
+    import ezdxf                                      # here, not at the top: the browser build loads it with the first DXF
+    from ezdxf import units as dxfunits
     f = UNIT[units]
     doc = ezdxf.new("R2010"); doc.units = {"mm": dxfunits.MM, "cm": dxfunits.CM, "in": dxfunits.IN}[units]
     for name, aci in ACI.items():
