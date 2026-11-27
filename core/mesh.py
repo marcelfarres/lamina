@@ -187,15 +187,20 @@ def load_mesh(path, params, notes=None, surface=False):
     return mesh
 
 
+def kept(mesh):
+    """What is kept with the prepared model `mesh` is a copy of, by name (the preview, the square-up offer, the parts
+    plan.build made from it): its dict, or a new one kept nowhere once another model has taken its place."""
+    hit = _last                                     # read once: another request thread may replace it meanwhile
+    return hit[3] if hit and hit[0] == mesh.metadata.get("lamina_key") else {}
+
+
 def reuse(mesh, name, make):
     """`make(mesh)`, worked out once per prepared model and kept with it: the preview the 3D view shows (7 s of every
     slice in the browser), the square-up offer (half a second). Anything else is made fresh."""
-    hit = _last
-    if not hit or hit[0] != mesh.metadata.get("lamina_key"):
-        return make(mesh)
-    if name not in hit[3]:
-        hit[3][name] = make(mesh)
-    return hit[3][name]
+    store = kept(mesh)
+    if name not in store:
+        store[name] = make(mesh)
+    return store[name]
 
 
 def _prepare(path, params, notes, surface):

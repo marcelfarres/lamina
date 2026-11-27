@@ -54,7 +54,7 @@ function seamLit(k,ev){   // the edge under the pointer, lit on the model and on
     const L=k!==null&&edgeLines.visible&&seamSegs.get(k); seamRod.visible=!!L; if(L)rodAt(L.start,L.end,seamR*2,seamRod.matrix); ST.dirty=true}
   const t=$('#seamtip'), e=k!==null&&ev&&seamEdge(k); t.hidden=!e; if(e){t.innerHTML=SEAMTIP[e[1]];t.style.left=ev.clientX+16+'px';t.style.top=ev.clientY+14+'px'}}
 function edgeAt(ev){   // the edge nearest the point of the model under the pointer, within 14 px of it
-  if(!edgeLines.visible)return null; const r=renderer.domElement.getBoundingClientRect();
+  if(!edgeLines.visible||ST.partial)return null; const r=renderer.domElement.getBoundingClientRect();   // the parts drawn are not the edges' plan yet
   ray.setFromCamera(new THREE.Vector2((ev.clientX-r.left)/r.width*2-1,-(ev.clientY-r.top)/r.height*2+1),camera);const h=ray.intersectObjects(parts.children.filter(m=>m.visible))[0];if(!h)return null;
   let best=null,bd=14*2*h.distance*Math.tan(camera.fov*Math.PI/360)/r.height;const q=new THREE.Vector3();
   for(const [k,L] of seamSegs){const d=L.closestPointToPoint(h.point,true,q).distanceTo(h.point);if(d<bd){bd=d;best=k}}

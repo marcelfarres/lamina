@@ -26,12 +26,16 @@ const ready = (async () => {
   // build() stages → the page's progress bar. An `artifact` is a file the build has finished with and the page can
   // show at once (the preview mesh): the worker is busy building, so it cannot answer a fetch for it — the bytes
   // travel with the message instead. readFile hands back a view into the WASM heap, so it has to be copied.
+  let at = 0;   // where the bar stands: the parts ride with it
   py.globals.set('report', (text, frac, artifact) => {
-    let model = null;
+    let model = null; at = frac;
     if (artifact) { try { model = py.FS.readFile(artifact).slice() } catch (e) { model = null } }
     postMessage({progress: text, frac, model}, model ? [model.buffer] : []);
   });
-  py.runPython('import core.progress; core.progress.report = report');
+  // the parts before they are nested (core.progress.parts), for the 3D view: the plan as JSON, made during the call
+  // (the build's lists grow after it), posted once
+  py.globals.set('parts', json => postMessage({progress: '', frac: at, parts: json}));
+  py.runPython('import json, core.progress; core.progress.report = report; core.progress.parts = lambda plan: parts(json.dumps(plan))');
   say('');
   return {py, handle};
 })().catch(err => { postMessage({progress: 'Python could not be loaded — ' + err, failed: true}); throw err });
