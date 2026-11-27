@@ -4,35 +4,35 @@ What changed in each release. The GitHub release for a version is this section, 
 
 ## 0.4.2
 
+This release is about waiting less. Measured on eight examples, a slice is 23 % shorter on average, a change to the
+sheets is 59 % shorter, and the 3D view shows the new parts about twice as soon.
+
 ### Changed
 
-- **Guides in three kinds, each on one model.** The site's guides are now in order: *Start here* has the steps every
-  job has, *Machines* shows what a laser, a router and a 3D printer each need, and each technique has its own guide.
-  A technique's guide shows what every setting changes, on the same model from the same side, with the number of
-  parts and sheets. Every picture of a guide shows one model, and the guide's link opens Lamina on that model. The
-  comparison with Slicer for Fusion 360 is no longer in the list of guides.
-
-  ![The axis setting in the stacked slices guide: the horse at axis y, z and x, each with its number of parts and sheets](web/static/news/0.4.2-guides.jpg)
-
-- **New parts show in 3D sooner.** After a change, the 3D view shows the new parts about half-way through the wait,
-  while the sheets are still laid out. Progress moves to a strip under the view.
-
-  ![The horse statue's new layers in the 3D view, with the progress strip under it saying the sheets are still being laid out](web/static/news/0.4.2-parts-first.jpg)
+- **Heavy models slice faster.** A slice is 23 % shorter on average, and 42 % on the bunny (27 s to 16 s). Light
+  models change little. Parts and sheets stay the same. A label can sit elsewhere on its part.
 
 - **Sheet settings answer faster.** Change the gap between parts, the labels or, for most techniques, the sheet size,
-  and Lamina only lays the sheets out again. The wait is about half of a full slice.
+  and Lamina only lays the sheets out again. That wait is 59 % shorter on average (bunny: 26 s to 9 s).
+
+- **New parts show in 3D sooner.** After a change, the 3D view shows the new parts while the sheets are still laid
+  out: after 5 s, not 10 s, on the horse statue. Progress moves to a strip under the view.
+
+  ![The horse statue's new layers in the 3D view, with the progress strip under it saying the sheets are still being laid out](web/static/news/0.4.2-parts-first.jpg)
 
 - **Lamina in the browser starts sooner.** A first visit waits about ten seconds less before the first slice. The DXF
   and PDF writers load with your first export, which takes a few seconds longer that one time.
 
-- **Heavy models slice faster.** Models with many dowels, plaques, curved ribs and folded panels wait a tenth to a
-  half less for a slice. The parts and sheets are the same; a label can sit elsewhere on its part.
+- **Guides in three kinds, each on one model.** *Start here*, *Machines*, and a guide for each technique. A
+  technique's guide shows what every setting changes on one model, with its parts and sheets, and its link opens
+  Lamina on that model.
+
+  ![The axis setting in the stacked slices guide: the horse at axis y, z and x, each with its number of parts and sheets](web/static/news/0.4.2-guides.jpg)
 
 ### Fixed
 
 - **Parts are groups in the PDF too.** With *group parts* ticked, each part in the sheets PDF is one group with its
-  label and cuts, so an editor such as Inkscape moves it as one piece. Before, only the SVG had groups. Thanks to
-  Colin for the report.
+  label and cuts, so Inkscape moves it as one piece. Before, only the SVG had groups. Thanks to Colin.
 
 - **The site tries a failed slice again.** Now and then the browser's geometry engine fails on a model that slices
   the next time. The retry for that never ran, so the slice ended in an error. Now it runs.
